@@ -1,0 +1,6 @@
+효과음 재료 = VSCO-2 Community Edition (Versilian Studios, CC0 1.0 퍼블릭 도메인)
+https://github.com/sgossner/VSCO-2-CE
+- pick-t1.ogg / pick-t2.ogg (드래프트 픽 「빠–밤!」 팡파르, 2.8초·자연스러운 잔향·-16 LUFS 정도): 스네어 롤 → 「빠」 트럼펫 스타카토 화음+스네어+팀파니
+  → 「밤!」 트럼펫 화음(지속)+크래시 심벌+팀파니+큰북 → 글로켄슈필 올라가는 반짝임. 1팀 = C장조 · 2팀 = E♭장조(둘 다 밝게).
+  첫 타격 = 0.2초(화면에서 이름이 꽂히는 순간), 두 번째 = 0.37초.
+  재료 위치: Brass/Trumpet/sus·stac(파일 이름보다 실제 음이 한 옥타브 높음 → 잰 음높이로 조정), Percussion/Timpani·Snare2·cymbal-crash1·BDrumNewhit·Glock

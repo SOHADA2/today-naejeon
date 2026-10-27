@@ -135,10 +135,13 @@ function playPick(s, lp) {
   go(band, [{ transform: `skewY(-7deg) translateX(${from}) scaleY(0.5)` }, { transform: 'skewY(-7deg) translateX(0) scaleY(1)' }], { duration: 260, easing: 'cubic-bezier(.2,.9,.25,1)' });
   go(card, [
     { opacity: 0, transform: 'scale(1.7)', filter: 'blur(6px) brightness(2)' },
-    { opacity: 1, transform: 'scale(0.94)', filter: 'blur(0) brightness(1.4)', offset: 0.6 },
+    { opacity: 1, transform: 'scale(0.94)', filter: 'blur(0) brightness(1.4)', offset: 0.58 },
     { opacity: 1, transform: 'scale(1)', filter: 'blur(0) brightness(1)' },
-  ], { duration: 360, delay: 140, easing: 'cubic-bezier(.2,.8,.3,1)' });
+  ], { duration: 240, delay: 60, easing: 'cubic-bezier(.5,0,.3,1)' });   // 이름이 꽂히는 순간 = 「둥」(0.2초)
   go(shine, [{ transform: 'translateX(0)' }, { transform: 'translateX(380%)' }], { duration: 520, delay: 420, easing: 'ease-in-out' });
+  // 「둥–둥」 순간마다 화면이 짧게 흔들림 — 무게감
+  go(el('pk-card').parentElement, [{ translate: '0 0' }, { translate: '-5px 3px' }, { translate: '4px -2px' }, { translate: '-2px 1px' }, { translate: '0 0' }], { duration: 260, delay: 200, easing: 'ease-out', fill: 'none' });
+  go(el('pk-card').parentElement, [{ translate: '0 0' }, { translate: '3px -2px' }, { translate: '-2px 1px' }, { translate: '0 0' }], { duration: 200, delay: 370, easing: 'ease-out', fill: 'none' });   // 두 번째 「둥」
   // 끝 = 띠와 이름이 그 팀 쪽으로 빠지며 사라짐
   go(card, [{ opacity: 1, transform: 'translateX(0) scale(1)' }, { opacity: 0, transform: `translateX(${A ? '-40%' : '40%'}) scale(0.7)` }], { duration: 280, delay: PICK_MS - 300, easing: 'ease-in', composite: 'replace' });
   go(band, [{ opacity: 1 }, { opacity: 0 }], { duration: 280, delay: PICK_MS - 300 });
@@ -151,19 +154,11 @@ function playPick(s, lp) {
     if (li) { li.style.setProperty('--pk-from', A ? '-30px' : '30px'); li.style.setProperty('--pk-soft2', A ? 'rgba(74,168,255,0.35)' : 'rgba(255,90,110,0.33)'); li.classList.remove('pk-wait'); li.classList.add('pk-land'); }
   }, PICK_MS);
 }
-// 🔊 픽 효과음: 바람 가르는 「슉」 → 「쾅」(낮은 울림+금속) → 팀 신호음(1팀 밝게 올라감·2팀 단단하게)
-function pickScore(ac, t0, A) {
-  const { fx, dry, tone, noise, ring, thud } = sfxKit(ac);
-  noise(dry, t0, 0.38, 0.2, 'bandpass', 500, 1.6, 4200);
-  const hit = t0 + 0.16;
-  thud(dry, hit, 0.9, 95); tone(dry, 62, hit, 0.7, 0.6, 'sine', 36);
-  ring(fx, A ? 1240 : 1060, hit, 0.55, 0.9);
-  noise(dry, hit, 0.4, 0.05, 'highpass', 2500);
-  const notes = A ? [[523.25, 0], [783.99, 0.09], [1046.5, 0.18]] : [[392, 0], [587.33, 0.09], [783.99, 0.18]];
-  notes.forEach(([f, d]) => { tone(fx, f, hit + 0.12 + d, 0.13, 0.7, 'triangle'); tone(fx, f * 2, hit + 0.12 + d, 0.04, 0.5); });
-  noise(fx, t0 + 0.42, 0.12, 0.5, 'highpass', 6000);   // 빛 훑을 때 「샤아」
-}
-function pickSound(A) { try { _ac = _ac || new (window.AudioContext || window.webkitAudioContext)(); if (_ac.state === 'suspended') _ac.resume(); pickScore(_ac, _ac.currentTime + 0.02, A); } catch (_) {} }
+// 🔊 픽 효과음 = 실제 악기 녹음(VSCO-2 CE·CC0)으로 미리 섞은 「빠–밤!」 팡파르(뽑혔다·합류 축하): 스네어 롤 → 트럼펫 「빠」 → 「밤!」+크래시·팀파니 → 글로켄 반짝(1팀 C장조·2팀 E♭장조)
+//   0.2초에 첫 「둥」 = 화면에서 이름이 꽂히는 순간. 만든 재료·방법 = assets/sfx/CREDITS.txt
+const PICK_SFX = { A: new Audio('../assets/sfx/pick-t1.ogg'), B: new Audio('../assets/sfx/pick-t2.ogg') };
+Object.values(PICK_SFX).forEach(a => { a.preload = 'auto'; a.volume = 0.2; });   // 사장님: 0.7에서 10~11dB 더 작게
+function pickSound(A) { try { const a = PICK_SFX[A ? 'A' : 'B']; a.currentTime = 0; const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (_) {} }
 function updateDraftTimer() {
   const s = sessionData; if (!s || s.phase !== 'draft') return;
   const ms = Math.max(0, (s.turnEndsAt || 0) - Date.now());

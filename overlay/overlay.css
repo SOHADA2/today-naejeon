@@ -223,7 +223,7 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .cn-res small { font-size:11.5px; color:var(--ink-soft); }
 /* 🎯 드래프트 픽 연출 — 한 번만(약 1.7초) · 클릭은 그대로 통과 */
 .pk-layer { position:absolute; left:0; right:0; bottom:0; top:var(--bar-h, 80px); z-index:19; pointer-events:none; display:flex; align-items:center; justify-content:center; overflow:hidden; background:rgba(6,11,16,0.6); }
-.pk-band { position:absolute; left:-10%; right:-10%; top:50%; height:168px; margin-top:-92px; transform:skewY(-7deg); overflow:hidden;
+.pk-band { position:absolute; left:-10%; right:-10%; top:50%; height:232px; margin-top:-116px;   /* 글자(약 150px)+기울기 여유(폭 400px에서 양끝 ±25px) — 글자가 사선 밖으로 안 삐져나오게 */ transform:skewY(-7deg); overflow:hidden;
   border-top:1px solid var(--pk-c); border-bottom:1px solid var(--pk-c);
   background:linear-gradient(90deg, transparent, var(--pk-soft) 22%, var(--pk-soft) 78%, transparent), rgba(11,19,26,0.92); }
 .pk-shine { position:absolute; top:0; bottom:0; width:38%; left:-40%; background:linear-gradient(100deg, transparent, rgba(255,255,255,0.22), transparent); }
