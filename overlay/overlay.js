@@ -112,23 +112,73 @@ function updateDraftTimer() {
 setInterval(updateDraftTimer, 250);
 
 // ── 🪙 선픽 동전 던지기 — 드래프트가 막 시작됐으면 모두에게 한 번 재생(main COIN_MS 동안 픽 잠김) ──────────
-// 엄지로 튕김(띵!) → 빙글빙글 올라갔다 떨어짐 → 착지(찰캉) → 「1팀 선픽!」. 결과 면은 서버의 firstPick 그대로.
-const COIN_MS = 4200;
+// 동전이 「띵!」 튀어 오름 → 빙글빙글 돌다 떨어짐 → 착지(짤랑) → 결과 면 확대 → 「1팀 선픽!」. 면 = assets/coin-t1·t2.webp. 결과 면은 서버의 firstPick 그대로.
+const COIN_MS = 4800;
 let _coinShown = null, _ac = null;
-function coinSound(kind) {   // WebAudio 합성(에셋 없음) — ting=튕길 때 맑은 금속음 · land=착지 짤랑
+// 🔊 동전 효과음 전체(WebAudio 합성·에셋 없음) — 연출 시작 시각 t0 기준으로 한 번에 예약(setTimeout보다 정확)
+// 튕김(엄지 딱+묵직한 금속 울림) → 회전 바람 소리(돌수록 느려짐) → 착지 쿵·쨍·통통 → 누운 채 다르륵(점점 빨라지다 멈춤) → 결과 쾅+팀 화음
+// 타이밍 = playCoin과 같은 값(FLY·LAND·ZOOM). 미리보기는 같은 함수를 OfflineAudioContext로 그려 파일로 만듦
+const COIN_SFX_T = { FLY: 0.44, LAND: 1.84, ZOOM: 2.79 };
+function coinScore(ac, t0, A) {
+  const T = COIN_SFX_T, sr = ac.sampleRate;
+  const master = ac.createGain(); master.gain.value = 0.42;
+  const comp = ac.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.2;
+  const lim = ac.createDynamicsCompressor(); lim.threshold.value = -4; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.1;   // 찢어지는 소리 방지
+  master.connect(comp); comp.connect(lim); lim.connect(ac.destination);
+  // 공간감(짧은 홀 잔향) — 감쇠하는 잡음으로 만든 임펄스
+  const rv = ac.createConvolver(), irLen = Math.floor(sr * 1.6), ir = ac.createBuffer(2, irLen, sr);
+  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < irLen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / irLen, 3.2); }
+  rv.buffer = ir; const wet = ac.createGain(); wet.gain.value = 0.32; rv.connect(wet); wet.connect(master);
+  const bus = (send) => { const g = ac.createGain(); g.connect(master); if (send) { const s = ac.createGain(); s.gain.value = send; g.connect(s); s.connect(rv); } return g; };
+  const noiseBuf = (sec) => { const n = Math.floor(sr * sec), b = ac.createBuffer(1, n, sr), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; return b; };
+  const env = (g, at, peak, atk, dur) => { g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(peak, at + atk); g.gain.exponentialRampToValueAtTime(0.0001, at + atk + dur); };
+  const tone = (out, f, at, peak, dur, type, f2) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = type || 'sine'; o.frequency.setValueAtTime(f, at); if (f2) o.frequency.exponentialRampToValueAtTime(f2, at + dur * 0.6);
+    env(g, at, peak, 0.003, dur); o.connect(g); g.connect(out); o.start(at); o.stop(at + dur + 0.1); };
+  const noise = (out, at, peak, dur, ftype, f, q, f2) => { const s = ac.createBufferSource(), fl = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noiseBuf(dur + 0.05);
+    fl.type = ftype; fl.frequency.setValueAtTime(f, at); if (f2) fl.frequency.exponentialRampToValueAtTime(f2, at + dur); fl.Q.value = q || 0.8;
+    env(g, at, peak, 0.002, dur); s.connect(fl); fl.connect(g); g.connect(out); s.start(at); s.stop(at + dur + 0.05); };
+  // 두꺼운 금화 울림 = 비정수 배음 + 살짝 어긋난 쌍(맥놀이로 「우웅~」)
+  const ring = (out, f0, at, k, len) => [[1, 0.5, 1], [2.32, 0.34, 0.75], [4.25, 0.2, 0.5], [6.63, 0.1, 0.32]].forEach(([r, g, d]) => {
+    tone(out, f0 * r, at, g * k, len * d); tone(out, f0 * r + 2.5 + r, at, g * k * 0.6, len * d * 0.9); });
+  const thud = (out, at, k, f) => { tone(out, f || 130, at, 0.9 * k, 0.22, 'sine', (f || 130) * 0.38); noise(out, at, 0.5 * k, 0.08, 'lowpass', 700); };
+  const fx = bus(0.45), dry = bus(0);
+  // ① 튕김: 엄지 「딱」 + 묵직한 「쨍~」
+  const f = t0 + T.FLY;
+  noise(dry, f, 0.7, 0.018, 'bandpass', 3200, 1.4); thud(dry, f, 0.35, 180);
+  ring(fx, 1180, f + 0.004, 1, 2.6);
+  // ② 회전 바람: 동전이 공기를 가르는 「우웅웅」 — 돌수록 느려짐(LFO 14→5Hz)·올라갈 땐 높게 내려올 땐 낮게
+  { const s = ac.createBufferSource(), bp = ac.createBiquadFilter(), g = ac.createGain(), am = ac.createGain(), lfo = ac.createOscillator(), dep = ac.createGain();
+    const a = f + 0.05, e = t0 + T.LAND, mid = a + (e - a) * 0.5;
+    s.buffer = noiseBuf(e - a + 0.1); bp.type = 'bandpass'; bp.Q.value = 2.2;
+    bp.frequency.setValueAtTime(650, a); bp.frequency.exponentialRampToValueAtTime(1500, mid); bp.frequency.exponentialRampToValueAtTime(560, e);
+    lfo.frequency.setValueAtTime(14, a); lfo.frequency.exponentialRampToValueAtTime(5, e); dep.gain.value = 0.5; am.gain.value = 0.5;
+    lfo.connect(dep); dep.connect(am.gain);
+    g.gain.setValueAtTime(0.0001, a); g.gain.exponentialRampToValueAtTime(0.32, a + 0.18); g.gain.setValueAtTime(0.32, e - 0.25); g.gain.exponentialRampToValueAtTime(0.0001, e);
+    s.connect(bp); bp.connect(am); am.connect(g); g.connect(dry); s.start(a); s.stop(e + 0.05); lfo.start(a); lfo.stop(e + 0.05); }
+  // ③ 착지: 「쿵·쨍」 + 낮게 두 번 통통
+  const l = t0 + T.LAND;
+  [[0, 1], [0.12, 0.5], [0.21, 0.26]].forEach(([dt, k]) => { thud(dry, l + dt, k, 120); ring(fx, 1020 * (1 - dt * 0.12), l + dt, 0.75 * k, 0.9); noise(dry, l + dt, 0.35 * k, 0.03, 'highpass', 3000); });
+  // ④ 누운 채 흔들림: 바닥에서 도는 동전 「다르르륵」 — 간격이 점점 짧아지다 멈춤
+  { let t = l + 0.3, gap = 0.11, k = 0.55; while (t < l + 0.92 && gap > 0.012) { noise(dry, t, 0.3 * k, 0.012, 'bandpass', 2600, 2); tone(fx, 2900 + Math.random() * 400, t, 0.05 * k, 0.05); t += gap; gap *= 0.8; k *= 0.93; }
+    tone(fx, 1020, t, 0.12, 0.5); }
+  // ⑤ 결과: 빨려 드는 바람 → 「쾅」 + 팀 화음(1팀 밝게·2팀 단단하게) + 반짝이
+  const z = t0 + T.ZOOM;
+  { const s = ac.createBufferSource(), hp = ac.createBiquadFilter(), g = ac.createGain(), a = z - 0.35;
+    s.buffer = noiseBuf(0.45); hp.type = 'highpass'; hp.frequency.setValueAtTime(400, a); hp.frequency.exponentialRampToValueAtTime(5000, z);
+    g.gain.setValueAtTime(0.0001, a); g.gain.exponentialRampToValueAtTime(0.35, z - 0.01); g.gain.exponentialRampToValueAtTime(0.0001, z + 0.03);
+    s.connect(hp); hp.connect(g); g.connect(dry); s.start(a); s.stop(z + 0.1); }
+  tone(dry, 78, z, 1, 1.1, 'sine', 34); noise(dry, z, 0.6, 0.35, 'lowpass', 260);
+  const chord = A ? [440, 554.37, 659.25, 880, 1318.5] : [392, 493.88, 587.33, 783.99, 1174.66];
+  chord.forEach((fr, i) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = i < 2 ? 'triangle' : 'sine'; o.frequency.value = fr;
+    g.gain.setValueAtTime(0.0001, z); g.gain.exponentialRampToValueAtTime(0.16 - i * 0.02, z + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, z + 1.9);
+    o.connect(g); g.connect(fx); o.start(z); o.stop(z + 2); });
+  for (let i = 0; i < 7; i++) tone(fx, 3200 + Math.random() * 3200, z + 0.06 + i * 0.045, 0.06, 0.25);
+}
+function coinSound(A) {   // 앱에서 재생 = 지금 시각 기준으로 전체 예약
   try {
     _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
     if (_ac.state === 'suspended') _ac.resume();
-    const t0 = _ac.currentTime, out = _ac.createGain(); out.gain.value = 0.22; out.connect(_ac.destination);
-    const ping = (f, g, dur, at) => { const o = _ac.createOscillator(), v = _ac.createGain(); o.type = 'sine'; o.frequency.value = f;
-      v.gain.setValueAtTime(0.0001, t0 + at); v.gain.exponentialRampToValueAtTime(g, t0 + at + 0.004); v.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur);
-      o.connect(v); v.connect(out); o.start(t0 + at); o.stop(t0 + at + dur + 0.05); };
-    const snap = (at, g) => { const n = _ac.sampleRate * 0.03, b = _ac.createBuffer(1, n, _ac.sampleRate), d = b.getChannelData(0);
-      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3);
-      const src = _ac.createBufferSource(), hp = _ac.createBiquadFilter(), v = _ac.createGain(); hp.type = 'highpass'; hp.frequency.value = 2500; v.gain.value = g;
-      src.buffer = b; src.connect(hp); hp.connect(v); v.connect(out); src.start(t0 + at); };
-    if (kind === 'ting') { snap(0, 0.5); [[2637, 0.5, 1.6], [3951, 0.28, 1.1], [5274, 0.16, 0.7], [7040, 0.08, 0.4]].forEach(([f, g, d]) => ping(f, g, d, 0.005)); }
-    else { [[0, 1], [0.16, 0.45], [0.27, 0.2]].forEach(([at, k]) => { snap(at, 0.35 * k); [[1760, 0.3], [2794, 0.18], [4186, 0.1]].forEach(([f, g]) => ping(f * (1 - at * 0.15), g * k, 0.35, at)); }); }
+    coinScore(_ac, _ac.currentTime + 0.02, A);
   } catch (_) {}
 }
 function maybeCoin(s) {
@@ -144,39 +194,64 @@ function playCoin(s) {
   layer.style.setProperty('--bar-h', (el('bar') ? el('bar').offsetHeight : 80) + 'px');
   el('cn-vs').innerHTML = `<span class="cv t1"><em>1팀 팀장</em><b>${esc(caps.teamA || '')}</b></span><span class="cn-x">VS</span><span class="cv t2"><em>2팀 팀장</em><b>${esc(caps.teamB || '')}</b></span>`;
   const res = el('cn-res'); res.className = 'cn-res ' + (A ? 't1' : 't2');
-  res.innerHTML = `<b>${A ? '1팀' : '2팀'} 선픽!</b><span>${esc((A ? caps.teamA : caps.teamB) || '')} 팀장이 먼저 골라요</span>`;
+  res.innerHTML = `<b>${A ? '1팀' : '2팀'} 선픽!</b><span>${esc((A ? caps.teamA : caps.teamB) || '')}</span><small>팀장이 먼저 골라요</small>`;
   res.style.opacity = 0;
   layer.style.display = 'flex';
-  const T = 0.5, UP = 760, DOWN = 700, H = 135, SPINS = 7;
+  const UP = 720, DOWN = 680, H = 140, SPINS = 7;
   const endRot = SPINS * 360 + (A ? 0 : 180);
-  const pos = el('cn-pos'), spin = el('cn-spin'), shadow = el('cn-shadow'), hand = el('cn-hand'), thumb = el('cn-thumb');
+  const dx = (Math.random() < 0.5 ? -1 : 1) * (14 + Math.random() * 12);   // 매번 조금씩 다른 방향으로 흘러감
+  const tiltY = (Math.random() < 0.5 ? -1 : 1) * (12 + Math.random() * 10);
+  const LIE = 58;   // 착지 때 뒤로 누운 각도(면이 비스듬히 보이게)
+  const pos = el('cn-pos'), spin = el('cn-spin'), shadow = el('cn-shadow'), glow = el('cn-glow'), wob = el('cn-wob');
   const anims = [];
   const go = (node, kf, opt) => { const a = node.animate(kf, Object.assign({ fill: 'forwards' }, opt)); anims.push(a); return a; };
   go(layer, [{ opacity: 0 }, { opacity: 1 }], { duration: 220 });
-  go(hand, [{ transform: 'translateY(30px)', opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }], { duration: 300, easing: 'ease-out' });
-  const t0 = T * 1000;
-  // 엄지 = 살짝 눌렀다(장전) 확 튕김
-  go(thumb, [{ transform: 'rotate(0deg)' }, { transform: 'rotate(14deg)', offset: 0.55 }, { transform: 'rotate(-38deg)', offset: 0.75 }, { transform: 'rotate(-30deg)' }], { duration: 520, delay: t0 - 300, easing: 'ease-in' });
-  setTimeout(() => coinSound('ting'), t0 + 90);
-  const fly = t0 + 90;
+  // 바닥에 누운 동전이 살짝 들썩 → 「띵!」 하고 튀어 오름
+  go(wob, [{ transform: `rotateX(${LIE}deg)` }, { transform: `rotateX(${LIE}deg)` }], { duration: 1 });
+  go(pos, [{ transform: 'translate(0,0)' }, { transform: 'translate(0,3px)' }], { duration: 160, delay: 260, easing: 'ease-in' });
+  const fly = 440, mid = UP / (UP + DOWN);
+  coinSound(A);   // 효과음 전체(COIN_SFX_T = fly·land·zoom과 같은 시각)
   go(pos, [
     { transform: 'translate(0,0)', easing: 'cubic-bezier(.15,.7,.35,1)' },
-    { transform: `translate(14px,-${H}px)`, offset: UP / (UP + DOWN), easing: 'cubic-bezier(.6,0,.85,.4)' },
-    { transform: 'translate(38px,0)' },
+    { transform: `translate(${dx * 0.55}px,-${H}px)`, offset: mid, easing: 'cubic-bezier(.6,0,.85,.4)' },
+    { transform: `translate(${dx}px,0)` },
   ], { duration: UP + DOWN, delay: fly });
-  go(spin, [{ transform: 'rotateX(0deg)' }, { transform: `rotateX(${endRot}deg)` }], { duration: UP + DOWN, delay: fly, easing: 'cubic-bezier(.3,.1,.5,1)' });
+  go(spin, [{ transform: 'rotateX(0deg)' }, { transform: `rotateX(${endRot}deg)` }], { duration: UP + DOWN, delay: fly, easing: 'cubic-bezier(.2,.55,.35,1)' });   // 처음엔 빠르게 · 떨어질수록 느려짐
+  // 회전축이 비스듬히 흔들리며 날아감 → 떨어지면서 뒤로 눕기 시작
+  go(wob, [
+    { transform: `rotateX(${LIE}deg) rotateY(0deg) rotateZ(0deg)` },
+    { transform: `rotateX(8deg) rotateY(${tiltY * 0.4}deg) rotateZ(${-tiltY * 0.3}deg)`, offset: 0.18 },
+    { transform: `rotateX(-6deg) rotateY(${tiltY}deg) rotateZ(${-tiltY * 0.5}deg)`, offset: mid },
+    { transform: `rotateX(${LIE * 0.6}deg) rotateY(${-tiltY * 0.5}deg) rotateZ(${tiltY * 0.3}deg)`, offset: 0.85 },
+    { transform: `rotateX(${LIE}deg) rotateY(${-tiltY * 0.3}deg) rotateZ(${tiltY * 0.2}deg)` },
+  ], { duration: UP + DOWN, delay: fly, easing: 'ease-in-out' });
   go(shadow, [
-    { transform: 'translateX(0) scale(1)', opacity: 1 },
-    { transform: 'translateX(14px) scale(0.45)', opacity: 0.35, offset: UP / (UP + DOWN) },
-    { transform: 'translateX(38px) scale(1)', opacity: 1 },
+    { transform: 'translateX(0) scale(1.15,1.2)', opacity: 1 },
+    { transform: `translateX(${dx * 0.55}px) scale(0.4)`, opacity: 0.3, offset: mid },
+    { transform: `translateX(${dx}px) scale(1.15,1.2)`, opacity: 1 },
   ], { duration: UP + DOWN, delay: fly });
-  go(hand, [{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(40px)', opacity: 0 }], { duration: 400, delay: fly + 300, easing: 'ease-in' });
   const land = fly + UP + DOWN;
-  setTimeout(() => coinSound('land'), land);
-  // 착지 = 통 튀었다 멈춤 + 면이 반짝
-  go(pos, [{ transform: 'translate(38px,0)' }, { transform: 'translate(40px,-14px)', offset: 0.35 }, { transform: 'translate(42px,0)', offset: 0.65 }, { transform: 'translate(42px,-4px)', offset: 0.82 }, { transform: 'translate(42px,0)' }], { duration: 420, delay: land, easing: 'ease-out' });
-  go(el('cn-glow'), [{ filter: 'brightness(1)', scale: '1' }, { filter: 'brightness(1.6)', scale: '1.12', offset: 0.4 }, { filter: 'brightness(1)', scale: '1.06' }], { duration: 600, delay: land + 300 });   // 회전과 따로(같은 transform에 섞으면 면이 뒤집혀 보임)
-  go(res, [{ opacity: 0, transform: 'scale(0.7)' }, { opacity: 1, transform: 'scale(1.08)', offset: 0.6 }, { opacity: 1, transform: 'scale(1)' }], { duration: 380, delay: land + 300, easing: 'ease-out' });
+  // 착지 = 낮게 통통 → 누운 채로 빙글 흔들리다(바닥에서 도는 동전처럼) 멈춤
+  go(pos, [{ transform: `translate(${dx}px,0)` }, { transform: `translate(${dx}px,-9px)`, offset: 0.3 }, { transform: `translate(${dx}px,0)`, offset: 0.6 }, { transform: `translate(${dx}px,-2px)`, offset: 0.8 }, { transform: `translate(${dx}px,0)` }], { duration: 380, delay: land, easing: 'ease-out' });
+  const wy = -tiltY * 0.3, wz = tiltY * 0.2;
+  go(wob, [
+    { transform: `rotateX(${LIE}deg) rotateY(${wy}deg) rotateZ(${wz}deg)` },
+    { transform: `rotateX(${LIE - 13}deg) rotateY(${-wy * 1.6}deg) rotateZ(${-wz}deg)`, offset: 0.2 },
+    { transform: `rotateX(${LIE + 5}deg) rotateY(${wy * 1.1}deg) rotateZ(${wz * 0.6}deg)`, offset: 0.42 },
+    { transform: `rotateX(${LIE - 5}deg) rotateY(${-wy * 0.6}deg) rotateZ(0deg)`, offset: 0.64 },
+    { transform: `rotateX(${LIE + 2}deg) rotateY(${wy * 0.25}deg) rotateZ(0deg)`, offset: 0.84 },
+    { transform: `rotateX(${LIE}deg) rotateY(0deg) rotateZ(0deg)` },
+  ], { duration: 900, delay: land, easing: 'ease-out' });
+  // 결과 = 누운 동전이 일어나며 커지고 팀 색으로 빛남
+  const zoom = land + 950;
+  go(wob, [{ transform: `rotateX(${LIE}deg) rotateY(0deg) rotateZ(0deg)` }, { transform: 'rotateX(10deg) rotateY(0deg) rotateZ(0deg)' }], { duration: 650, delay: zoom, easing: 'cubic-bezier(.2,.8,.3,1)' });
+  go(glow, [
+    { filter: 'brightness(1) drop-shadow(0 0 0 rgba(0,0,0,0))', scale: '1', translate: '0 0' },
+    { filter: `brightness(1.6) drop-shadow(0 0 22px ${A ? 'rgba(74,168,255,0.9)' : 'rgba(255,90,110,0.9)'})`, scale: '1.75', translate: `${-dx}px -34px`, offset: 0.5 },
+    { filter: `brightness(1.05) drop-shadow(0 0 14px ${A ? 'rgba(74,168,255,0.6)' : 'rgba(255,90,110,0.6)'})`, scale: '1.6', translate: `${-dx}px -30px` },
+  ], { duration: 750, delay: zoom, easing: 'cubic-bezier(.2,.8,.3,1)' });   // 회전과 따로(같은 transform에 섞으면 면이 뒤집혀 보임)
+  go(shadow, [{ opacity: 1 }, { opacity: 0 }], { duration: 300, delay: zoom });
+  go(res, [{ opacity: 0, transform: 'scale(0.7)' }, { opacity: 1, transform: 'scale(1.08)', offset: 0.6 }, { opacity: 1, transform: 'scale(1)' }], { duration: 380, delay: zoom + 300, easing: 'ease-out' });
   go(layer, [{ opacity: 1 }, { opacity: 0 }], { duration: 350, delay: COIN_MS - 350 });
   setTimeout(() => { layer.style.display = 'none'; anims.forEach(a => { try { a.cancel(); } catch (_) {} }); }, COIN_MS + 30);
 }

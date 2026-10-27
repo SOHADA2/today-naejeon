@@ -241,7 +241,9 @@ function handleDockLine(line) {
   if (_goneTimer) { clearTimeout(_goneTimer); _goneTimer = null; }   // 클라 다시 나타남 → 종료 확인 취소
   if (quitConfirmWin) closeQuitConfirm();   // 종료 확인창 떠 있으면 닫음(클라 복귀)
   _clientPresent = true;
-  if (_floating) { _floating = false; _lastRaise = null; }   // 플로팅 → 도킹 전환
+  // 플로팅 → 도킹 전환: 가운데로 옮겨진 창을 '같은 클라 위치'라도 반드시 다시 붙임
+  //   (마지막 좌표 기억 때문에 왼쪽 창만 클라를 움직여야 붙던 문제 — 오른쪽은 게임 중 숨기며 기억이 지워져 괜찮았음)
+  if (_floating) { _floating = false; _lastRaise = null; dockedBounds = null; leftDockedBounds = null; }
   _lastRect = p;
   const fg = p[4] === 1;                            // 롤 클라가 지금 활성창인가
   if (fg !== clientFg) { clientFg = fg; }
@@ -434,6 +436,7 @@ function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표�
   if (inGame) { hideLeftPanel(); return; }   // 게임 중엔 내 정보 패널 숨김(오버레이는 pollGame이 관리)
   const reposition = !_floating;
   _floating = true; _lastRaise = null;
+  if (reposition) { dockedBounds = null; leftDockedBounds = null; }   // 가운데로 옮겼으니 다음 도킹 때 무조건 다시 붙이기
   for (const [win, allowed, side] of [[overlayWin, !userHid && !sampleActive, 'left'], [leftWin, config.sidePanel !== false && !leftUserHid, 'right']]) {
     if (!win || win.isDestroyed() || !allowed) continue;
     if (reposition) win.setBounds(standaloneBounds(side));
@@ -1018,7 +1021,7 @@ async function fbCas(pathStr, mutate, tries = 5) {
   }
   return { ok: false, err: '다른 기기와 동시에 바뀌어서 실패했어요 — 다시 눌러주세요' };
 }
-const COIN_MS = 4200;   // 🪙 선픽 동전 연출 길이(overlay.js COIN_MS와 같게)
+const COIN_MS = 4800;   // 🪙 선픽 동전 연출 길이(overlay.js COIN_MS와 같게)
 function draftOrder(first, picks) {   // 스네이크: first, other, other, first, first, other…
   const other = first === 'teamA' ? 'teamB' : 'teamA', out = [];
   for (let i = 0; i < picks; i++) out.push(((i + 1) >> 1) % 2 === 0 ? first : other);
