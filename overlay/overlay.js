@@ -111,6 +111,76 @@ function updateDraftTimer() {
 }
 setInterval(updateDraftTimer, 250);
 
+// ── 🪙 선픽 동전 던지기 — 드래프트가 막 시작됐으면 모두에게 한 번 재생(main COIN_MS 동안 픽 잠김) ──────────
+// 엄지로 튕김(띵!) → 빙글빙글 올라갔다 떨어짐 → 착지(찰캉) → 「1팀 선픽!」. 결과 면은 서버의 firstPick 그대로.
+const COIN_MS = 4200;
+let _coinShown = null, _ac = null;
+function coinSound(kind) {   // WebAudio 합성(에셋 없음) — ting=튕길 때 맑은 금속음 · land=착지 짤랑
+  try {
+    _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (_ac.state === 'suspended') _ac.resume();
+    const t0 = _ac.currentTime, out = _ac.createGain(); out.gain.value = 0.22; out.connect(_ac.destination);
+    const ping = (f, g, dur, at) => { const o = _ac.createOscillator(), v = _ac.createGain(); o.type = 'sine'; o.frequency.value = f;
+      v.gain.setValueAtTime(0.0001, t0 + at); v.gain.exponentialRampToValueAtTime(g, t0 + at + 0.004); v.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur);
+      o.connect(v); v.connect(out); o.start(t0 + at); o.stop(t0 + at + dur + 0.05); };
+    const snap = (at, g) => { const n = _ac.sampleRate * 0.03, b = _ac.createBuffer(1, n, _ac.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3);
+      const src = _ac.createBufferSource(), hp = _ac.createBiquadFilter(), v = _ac.createGain(); hp.type = 'highpass'; hp.frequency.value = 2500; v.gain.value = g;
+      src.buffer = b; src.connect(hp); hp.connect(v); v.connect(out); src.start(t0 + at); };
+    if (kind === 'ting') { snap(0, 0.5); [[2637, 0.5, 1.6], [3951, 0.28, 1.1], [5274, 0.16, 0.7], [7040, 0.08, 0.4]].forEach(([f, g, d]) => ping(f, g, d, 0.005)); }
+    else { [[0, 1], [0.16, 0.45], [0.27, 0.2]].forEach(([at, k]) => { snap(at, 0.35 * k); [[1760, 0.3], [2794, 0.18], [4186, 0.1]].forEach(([f, g]) => ping(f * (1 - at * 0.15), g * k, 0.35, at)); }); }
+  } catch (_) {}
+}
+function maybeCoin(s) {
+  if (!s || s.phase !== 'draft' || !s.draftStartedAt || !s.firstPick || s.pickIdx) return;
+  const key = s.draftStartedAt; if (_coinShown === key) return;
+  const age = Date.now() - key;
+  _coinShown = key;
+  if (age > 1800 || age < -3000) return;   // 늦게 켰으면(이미 지난 연출) 건너뜀
+  playCoin(s);
+}
+function playCoin(s) {
+  const layer = el('coin'), A = s.firstPick === 'teamA', caps = s.captains || {};
+  layer.style.setProperty('--bar-h', (el('bar') ? el('bar').offsetHeight : 80) + 'px');
+  el('cn-vs').innerHTML = `<span class="cv t1"><em>1팀 팀장</em><b>${esc(caps.teamA || '')}</b></span><span class="cn-x">VS</span><span class="cv t2"><em>2팀 팀장</em><b>${esc(caps.teamB || '')}</b></span>`;
+  const res = el('cn-res'); res.className = 'cn-res ' + (A ? 't1' : 't2');
+  res.innerHTML = `<b>${A ? '1팀' : '2팀'} 선픽!</b><span>${esc((A ? caps.teamA : caps.teamB) || '')} 팀장이 먼저 골라요</span>`;
+  res.style.opacity = 0;
+  layer.style.display = 'flex';
+  const T = 0.5, UP = 760, DOWN = 700, H = 135, SPINS = 7;
+  const endRot = SPINS * 360 + (A ? 0 : 180);
+  const pos = el('cn-pos'), spin = el('cn-spin'), shadow = el('cn-shadow'), hand = el('cn-hand'), thumb = el('cn-thumb');
+  const anims = [];
+  const go = (node, kf, opt) => { const a = node.animate(kf, Object.assign({ fill: 'forwards' }, opt)); anims.push(a); return a; };
+  go(layer, [{ opacity: 0 }, { opacity: 1 }], { duration: 220 });
+  go(hand, [{ transform: 'translateY(30px)', opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }], { duration: 300, easing: 'ease-out' });
+  const t0 = T * 1000;
+  // 엄지 = 살짝 눌렀다(장전) 확 튕김
+  go(thumb, [{ transform: 'rotate(0deg)' }, { transform: 'rotate(14deg)', offset: 0.55 }, { transform: 'rotate(-38deg)', offset: 0.75 }, { transform: 'rotate(-30deg)' }], { duration: 520, delay: t0 - 300, easing: 'ease-in' });
+  setTimeout(() => coinSound('ting'), t0 + 90);
+  const fly = t0 + 90;
+  go(pos, [
+    { transform: 'translate(0,0)', easing: 'cubic-bezier(.15,.7,.35,1)' },
+    { transform: `translate(14px,-${H}px)`, offset: UP / (UP + DOWN), easing: 'cubic-bezier(.6,0,.85,.4)' },
+    { transform: 'translate(38px,0)' },
+  ], { duration: UP + DOWN, delay: fly });
+  go(spin, [{ transform: 'rotateX(0deg)' }, { transform: `rotateX(${endRot}deg)` }], { duration: UP + DOWN, delay: fly, easing: 'cubic-bezier(.3,.1,.5,1)' });
+  go(shadow, [
+    { transform: 'translateX(0) scale(1)', opacity: 1 },
+    { transform: 'translateX(14px) scale(0.45)', opacity: 0.35, offset: UP / (UP + DOWN) },
+    { transform: 'translateX(38px) scale(1)', opacity: 1 },
+  ], { duration: UP + DOWN, delay: fly });
+  go(hand, [{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(40px)', opacity: 0 }], { duration: 400, delay: fly + 300, easing: 'ease-in' });
+  const land = fly + UP + DOWN;
+  setTimeout(() => coinSound('land'), land);
+  // 착지 = 통 튀었다 멈춤 + 면이 반짝
+  go(pos, [{ transform: 'translate(38px,0)' }, { transform: 'translate(40px,-14px)', offset: 0.35 }, { transform: 'translate(42px,0)', offset: 0.65 }, { transform: 'translate(42px,-4px)', offset: 0.82 }, { transform: 'translate(42px,0)' }], { duration: 420, delay: land, easing: 'ease-out' });
+  go(el('cn-glow'), [{ filter: 'brightness(1)', scale: '1' }, { filter: 'brightness(1.6)', scale: '1.12', offset: 0.4 }, { filter: 'brightness(1)', scale: '1.06' }], { duration: 600, delay: land + 300 });   // 회전과 따로(같은 transform에 섞으면 면이 뒤집혀 보임)
+  go(res, [{ opacity: 0, transform: 'scale(0.7)' }, { opacity: 1, transform: 'scale(1.08)', offset: 0.6 }, { opacity: 1, transform: 'scale(1)' }], { duration: 380, delay: land + 300, easing: 'ease-out' });
+  go(layer, [{ opacity: 1 }, { opacity: 0 }], { duration: 350, delay: COIN_MS - 350 });
+  setTimeout(() => { layer.style.display = 'none'; anims.forEach(a => { try { a.cancel(); } catch (_) {} }); }, COIN_MS + 30);
+}
+
 // ── 📼 기록 저장 중 — 게임 끝나고 결과가 오늘 기록에 들어갈 때까지 단계별로 ─────────────
 // ⚠️ 도는 로딩 아이콘 금지(투명 창 무한 애니메이션 = CPU 폭증). 단계 체크 + 1초마다 경과 시간만 바꿈.
 let recData = null;
@@ -394,7 +464,7 @@ function renderRoster() {
 
 function render() {
   const s = sessionData, ph = s && s.phase;
-  if (ph === 'draft' && !inGame) { loadToday(); renderDraft(); updateDraftTimer(); showView('draft'); el('phase').textContent = '드래프트'; return; }
+  if (ph === 'draft' && !inGame) { loadToday(); renderDraft(); updateDraftTimer(); showView('draft'); el('phase').textContent = '드래프트'; maybeCoin(s); return; }
   if (ph === 'vote' && hasTeams() && s.game) {
     const sig = s.game.id;
     if (sig !== _voteSig) { _voteSig = sig; _pendMvp = _pendManner = null; }

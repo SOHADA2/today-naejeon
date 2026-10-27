@@ -46,6 +46,26 @@
       <div class="dr-err" id="dr-err" style="display:none;"></div>
     </section>
 
+    <!-- 🪙 선픽 동전 던지기(드래프트 시작 때 한 번) -->
+    <div id="coin" class="coin-layer" style="display:none;">
+      <div class="cn-head"><span class="cn-en">COIN TOSS</span><span class="cn-ttl">선픽 동전 던지기</span></div>
+      <div class="cn-vs" id="cn-vs"></div>
+      <div class="cn-stage">
+        <div class="cn-shadow" id="cn-shadow"></div>
+        <div class="cn-pos" id="cn-pos"><div class="cn-glow" id="cn-glow"><div class="cn-spin" id="cn-spin">
+          <div class="cn-face f1"><span class="cn-num">1</span><span class="cn-lb">TEAM</span></div>
+          <div class="cn-face f2"><span class="cn-num">2</span><span class="cn-lb">TEAM</span></div>
+        </div></div></div>
+        <svg class="cn-hand" id="cn-hand" viewBox="0 0 120 90" aria-hidden="true">
+          <path d="M0 90 V70 Q0 62 8 62 H22 V90 Z" class="h-sleeve"/>
+          <rect x="18" y="50" width="58" height="42" rx="15" class="h-fist"/>
+          <path d="M58 60 h12 a5.5 5.5 0 0 1 0 11 h-12 M58 71 h11 a5.5 5.5 0 0 1 0 11 h-11 M56 82 h9" class="h-line"/>
+          <g class="h-thumb" id="cn-thumb"><line x1="56" y1="56" x2="102" y2="40" class="h-thumb-o"/><line x1="56" y1="56" x2="102" y2="40" class="h-thumb-i"/></g>
+        </svg>
+      </div>
+      <div class="cn-res" id="cn-res"></div>
+    </div>
+
     <!-- 📼 게임 끝난 뒤 기록 저장 중 -->
     <section id="view-rec" class="view ui-scroll" style="display:none;">
       <div id="rc-head" class="rc-head"></div>

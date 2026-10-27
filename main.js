@@ -1018,6 +1018,7 @@ async function fbCas(pathStr, mutate, tries = 5) {
   }
   return { ok: false, err: '다른 기기와 동시에 바뀌어서 실패했어요 — 다시 눌러주세요' };
 }
+const COIN_MS = 4200;   // 🪙 선픽 동전 연출 길이(overlay.js COIN_MS와 같게)
 function draftOrder(first, picks) {   // 스네이크: first, other, other, first, first, other…
   const other = first === 'teamA' ? 'teamB' : 'teamA', out = [];
   for (let i = 0; i < picks; i++) out.push(((i + 1) >> 1) % 2 === 0 ? first : other);
@@ -1036,7 +1037,7 @@ async function startDraft(names, captains) {
     phase: 'draft', ids, active: true, mode: 'draft', by: config.myName || null, day: dayKey(now),
     players: names, captains: { teamA: caps[0], teamB: caps[1] }, teamA: [caps[0]], teamB: [caps[1]],
     pool: names.filter(n => !caps.includes(n)), order: draftOrder(first, (teamSize - 1) * 2), pickIdx: 0,
-    teamSize, firstPick: first, draftStartedAt: now, turnEndsAt: now + DRAFT_TURN_MS,
+    teamSize, firstPick: first, draftStartedAt: now, turnEndsAt: now + COIN_MS + DRAFT_TURN_MS,   // 첫 차례 = 동전 연출이 끝난 뒤부터 30초
   });
   if (w.ok) fbSet(`${T}/lobby/captains`, null).catch(() => {});
   return w;
@@ -1049,6 +1050,7 @@ async function draftPick(name, auto) {
     const team = (s.order || [])[s.pickIdx || 0];
     if (!team) return { err: '이미 끝났어요' };
     if (auto) { if (!(s.turnEndsAt && Date.now() > s.turnEndsAt)) return { err: '아직 시간이 남았어요' }; }
+    else if (!s.pickIdx && Date.now() < (s.draftStartedAt || 0) + COIN_MS) return { err: '동전 던지는 중이에요 — 잠깐만요' };
     else if (!config.isHost && normName((s.captains || {})[team] || '') !== me) return { err: '지금은 내 차례가 아니에요' };
     const pool = s.pool || [];
     const idx = auto ? Math.floor(Math.random() * pool.length) : pool.findIndex(x => normName(x) === normName(name || ''));
