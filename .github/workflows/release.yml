@@ -1,22 +1,41 @@
-# 태그(vX.Y.Z) 푸시 또는 수동 실행 → Windows 러너에서 빌드 → GitHub Releases 업로드(자동 업데이트 소스)
-# 수동 실행(workflow_dispatch): package.json version으로 발행(electron-builder가 v{version} 릴리즈 생성). 태그 푸시가 막힌 환경 대비.
+# 배포 자동화 — 아래 셋 중 아무거나로 Windows 러너에서 빌드 → GitHub Releases 업로드(자동 업데이트 소스)
+#  ① main에 package.json version을 올려 푸시(기본·태그 푸시가 막힌 원격 세션도 이걸로 자동 배포)
+#  ② 태그(vX.Y.Z) 푸시  ③ 수동 실행(workflow_dispatch)
+# electron-builder(releaseType release)가 v{version} 릴리스·태그를 직접 만듦 → 이미 있는 버전이면 건너뜀(중복 배포 방지)
 name: release
 on:
   push:
+    branches: [main]
+    paths: ['package.json', '.github/workflows/release.yml']
     tags: ['v*']
   workflow_dispatch: {}
 permissions:
   contents: write
+concurrency:
+  group: release
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: 이미 배포된 버전인지 확인
+        id: ver
+        shell: bash
+        run: |
+          V=$(node -p "require('./package.json').version")
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ] && git ls-remote --tags origin "refs/tags/v$V" | grep -q .; then
+            echo "v$V 은 이미 배포됨 → 건너뜀"; echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v4
+        if: steps.ver.outputs.skip != 'true'
         with:
           node-version: 20
       - run: npm ci
+        if: steps.ver.outputs.skip != 'true'
       - name: Build & publish (electron-builder → GitHub Releases)
+        if: steps.ver.outputs.skip != 'true'
         run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

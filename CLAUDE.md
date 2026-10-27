@@ -76,7 +76,7 @@
 npm install
 npm start      # ⚠️ 이 PC 셸은 ELECTRON_RUN_AS_NODE=1 → env -u ELECTRON_RUN_AS_NODE ./node_modules/electron/dist/electron.exe .
 ```
-- 배포 = package.json version↑ → commit → `git tag vX.Y.Z && git push --tags` → Actions(windows)가 빌드해 Releases 업로드(자동 업데이트 소스). 로컬 electron-builder 빌드는 개발자모드 없으면 실패 → CI에서만.
+- 배포 = package.json version↑ → commit → **main에 푸시하면 끝**(v0.1.15~: release.yml이 main의 package.json 변경을 보고 자동 빌드·Releases 업로드, 이미 있는 버전은 건너뜀). 태그 푸시·수동 실행도 여전히 됨. 원격 세션은 태그 푸시가 403으로 막혀서 바꿈. 로컬 electron-builder 빌드는 개발자모드 없으면 실패 → CI에서만.
 - **⚠️ 테스트할 때 창을 화면에 띄우지 말 것(사장님 요청: "화면을 자꾸 가려")** → `TN_HIDDEN=1`(개발 실행만)이면 모든 창의 show/showInactive/focus를 막고 백그라운드 스로틀링 끔. 조작=렌더러 CDP(9333), 캡처=`--inspect=9334`로 메인 프로세스에 붙어 `BrowserWindow.getAllWindows()` → 화면 밖(x=-3000)으로 옮긴 뒤 `webContents.capturePage()` base64로 받아 Temp에 저장. 메인 인스펙터 eval은 `includeCommandLineAPI:true`여야 `require` 됨. 종료 테스트는 `app._quitting=true` 후 `app.quit()`.
 - **롤 없이 게임 종료 시험** = `node tools/mock-lcu.cjs fastexit|skip|closed` + 앱 `TN_HIDDEN=1 TN_FAKE_LCU=27999:testpw`(가짜 LCU가 페이즈·정산·전적을 시나리오대로 흉내, 저장되면 출처와 함께 출력).
 - 검증법(2026-10-27 v0.1.0에서 사용): `--remote-debugging-port=9333`으로 띄우고 CDP로 렌더러 조작 + Firebase REST로 `today/bridge/eogStats`·타인 투표 시뮬레이션 → 끝나면 `today/` 테스트 데이터 삭제. 화면 확인 = 렌더러 HTML에 `window.api` 스텁 넣어 Edge 헤드리스(file:///·Temp 출력). CDP `Page.captureScreenshot`은 이 앱 창에선 멈춤(쓰지 말 것).
