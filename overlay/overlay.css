@@ -295,3 +295,40 @@ footer { padding:6px 11px; font-size:9px; color:#5f6478; border-top:1px solid rg
 
 /* ── 투데이 내전: 팀 배정 아래 상태 줄 ── */
 .tv-pending { margin:8px 6px 4px; padding:7px 10px; font-size:11.5px; color:var(--ink-soft); text-align:center; background:rgba(255,255,255,0.03); border:1px solid var(--hair); }
+
+/* ── 🎯 드래프트 픽 ── */
+.dr-band { margin:8px 6px 6px; padding:10px 12px; text-align:center; font-size:13px; color:var(--ink); border:1px solid var(--hair); background:rgba(255,255,255,0.03); }
+.dr-band.t1 { border-color:var(--teal-line); background:var(--teal-soft); }
+.dr-band.t2 { border-color:var(--gold-line); background:var(--gold-soft); }
+.dr-band b { font-weight:900; }
+.dr-band .dr-sec { font-family:var(--f-mono); color:var(--ink-soft); margin-left:6px; }
+.dr-bar-track { height:3px; margin:0 6px 8px; background:rgba(255,255,255,0.06); overflow:hidden; }
+.dr-bar { height:100%; width:100%; background:var(--gold); transition:width 0.25s linear; }
+.dr-bar.low { background:var(--lose); }
+.dr-teams { display:flex; gap:6px; margin:0 6px; }
+.dr-team { flex:1; min-width:0; border:1px solid var(--hair); background:rgba(255,255,255,0.02); }
+.dr-team.turn.blue { border-color:var(--teal-line); }
+.dr-team.turn.red { border-color:var(--gold-line); }
+.dr-th { display:flex; justify-content:space-between; padding:6px 8px; font-size:12px; font-weight:900; border-bottom:1px solid var(--hair); }
+.dr-team.blue .dr-th { color:var(--teal); }
+.dr-team.red .dr-th { color:var(--gold); }
+.dr-th span { font-family:var(--f-mono); font-weight:600; color:var(--dim); font-size:11px; }
+.dr-team ul { list-style:none; margin:0; padding:4px 0; }
+.dr-team li { display:flex; align-items:center; gap:5px; padding:4px 8px; font-size:12px; color:var(--ink); min-height:22px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.dr-team li .nm { overflow:hidden; text-overflow:ellipsis; }
+.dr-team li.me .nm { color:#ffe8b8; font-weight:700; }
+.dr-team li.just { animation:drJust 1.2s ease-out; }
+.dr-team li.empty { color:rgba(255,255,255,0.15); }
+.dr-cap { flex-shrink:0; font-size:9.5px; font-weight:800; padding:0 4px; border:1px solid currentColor; opacity:0.8; }
+.dr-team.blue .dr-cap { color:var(--teal); }
+.dr-team.red .dr-cap { color:var(--gold); }
+@keyframes drJust { from { background:rgba(200,170,110,0.35); } to { background:transparent; } }
+.dr-pool-h { margin:12px 8px 6px; font-size:11px; font-weight:800; color:var(--gold); letter-spacing:0.3px; }
+.dr-pool { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin:0 6px 8px; }
+.dr-p { display:flex; flex-direction:column; align-items:flex-start; gap:1px; padding:7px 9px; text-align:left; font:700 12.5px var(--f-body); color:var(--ink); background:rgba(255,255,255,0.04); border:1px solid var(--hair); cursor:pointer; overflow:hidden; }
+.dr-p small { font-size:10px; font-weight:500; color:var(--dim); }
+.dr-p:hover:not(:disabled) { border-color:var(--gold-line); background:var(--gold-soft); }
+.dr-p:disabled { cursor:default; opacity:0.75; }
+.dr-p.me { border-color:rgba(255,232,184,0.35); }
+.dr-p.busy { opacity:0.4; }
+.dr-err { margin:0 8px 8px; font-size:11.5px; color:#ffb4a0; }

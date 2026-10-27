@@ -29,7 +29,7 @@ window.api.onLobby(d => { lobbyData = d || null; render(); });
 window.api.onDocked(v => { document.body.classList.toggle('docked', !!v); });
 
 function showView(v) {
-  for (const k of ['team', 'vote', 'result', 'roster']) el('view-' + k).style.display = v === k ? (k === 'team' ? 'flex' : 'block') : 'none';
+  for (const k of ['team', 'draft', 'vote', 'result', 'roster']) el('view-' + k).style.display = v === k ? (k === 'team' ? 'flex' : 'block') : 'none';
 }
 function myTeam() {
   const s = sessionData; if (!s) return 0;
@@ -65,6 +65,51 @@ function renderTeam() {
   else if (_gamePlayed) { pend.style.display = ''; pend.textContent = '경기 결과 기록 대기 중…'; }
   else pend.style.display = 'none';
 }
+
+// ── 🎯 드래프트 픽 ─────────────────────────────────────────────────────────
+// 팀장이 번갈아 팀원을 고름(스네이크). 내 차례 팀장 = 남은 사람 칩을 눌러 뽑기 · 방장 = 대신 뽑기 가능 · 30초 지나면 무작위
+let _drBusy = false;
+function draftTurn() { const s = sessionData; return s && s.order ? s.order[s.pickIdx || 0] : null; }
+function renderDraft() {
+  const s = sessionData, team = draftTurn(), caps = s.captains || {};
+  const cap = team ? caps[team] : null;
+  const myTurn = !!(cap && nn(cap) === nn(myName));
+  const canPick = myTurn || myIsHost;
+  const band = el('dr-band');
+  band.className = 'dr-band ' + (team === 'teamA' ? 't1' : 't2');
+  const left = Math.max(0, Math.ceil(((s.turnEndsAt || 0) - Date.now()) / 1000));
+  band.innerHTML = myTurn
+    ? `<b>내 차례!</b> 팀원을 골라주세요 <span class="dr-sec">${left}초</span>`
+    : `<b>${team === 'teamA' ? '1팀' : '2팀'} 팀장 ${esc(cap || '')}</b> 고르는 중 <span class="dr-sec">${left}초</span>`;
+  const col = (tm, label) => {
+    const arr = s[tm] || [], size = s.teamSize || arr.length;
+    const rows = arr.map((n, i) => `<li class="${nn(n) === nn(myName) ? 'me' : ''}${s.lastPick && nn(s.lastPick.name) === nn(n) ? ' just' : ''}">${i === 0 ? '<span class="dr-cap">팀장</span>' : ''}<span class="nm">${esc(n)}</span></li>`).join('');
+    const empty = Array.from({ length: Math.max(0, size - arr.length) }, () => '<li class="empty">—</li>').join('');
+    return `<div class="dr-th${team === tm ? ' on' : ''}">${label}<span>${arr.length}/${size}</span></div><ul>${rows}${empty}</ul>`;
+  };
+  el('dr-a').innerHTML = col('teamA', '1팀');
+  el('dr-b').innerHTML = col('teamB', '2팀');
+  el('dr-a').classList.toggle('turn', team === 'teamA');
+  el('dr-b').classList.toggle('turn', team === 'teamB');
+  const pool = s.pool || [];
+  el('dr-pool-h').textContent = canPick ? (myTurn ? `남은 ${pool.length}명 — 눌러서 뽑기` : `남은 ${pool.length}명 — 방장: 눌러서 대신 뽑기`) : `남은 ${pool.length}명`;
+  el('dr-pool').innerHTML = pool.map(n => `<button class="dr-p${nn(n) === nn(myName) ? ' me' : ''}" data-name="${esc(n)}" ${canPick ? '' : 'disabled'}>${esc(n)}${_standing(n) ? `<small>${_standing(n).wins}승 ${_standing(n).losses}패</small>` : ''}</button>`).join('');
+  el('dr-pool').querySelectorAll('.dr-p').forEach(b => b.onclick = async () => {
+    if (_drBusy || b.disabled) return;
+    _drBusy = true; b.classList.add('busy');
+    const r = await window.api.draftPick(b.dataset.name);
+    _drBusy = false;
+    const err = el('dr-err');
+    if (!r || !r.ok) { err.textContent = '⚠️ ' + ((r && r.err) || '실패'); err.style.display = ''; setTimeout(() => { err.style.display = 'none'; }, 2500); b.classList.remove('busy'); }
+  });
+}
+function updateDraftTimer() {
+  const s = sessionData; if (!s || s.phase !== 'draft') return;
+  const ms = Math.max(0, (s.turnEndsAt || 0) - Date.now());
+  const bar = el('dr-bar'); if (bar) { bar.style.width = (ms / 300) + '%'; bar.classList.toggle('low', ms < 8000); }
+  const sec = document.querySelector('#dr-band .dr-sec'); if (sec) sec.textContent = Math.ceil(ms / 1000) + '초';
+}
+setInterval(updateDraftTimer, 250);
 
 // ── 🗳️ 투표 ──────────────────────────────────────────────────────────────
 let _pendMvp = null, _pendManner = null, _voteBusy = false, _voteSig = '';
@@ -197,6 +242,7 @@ function renderRoster() {
 
 function render() {
   const s = sessionData, ph = s && s.phase;
+  if (ph === 'draft' && !inGame) { loadToday(); renderDraft(); updateDraftTimer(); showView('draft'); el('phase').textContent = '드래프트'; return; }
   if (ph === 'vote' && hasTeams() && s.game) {
     const sig = s.game.id;
     if (sig !== _voteSig) { _voteSig = sig; _pendMvp = _pendManner = null; }

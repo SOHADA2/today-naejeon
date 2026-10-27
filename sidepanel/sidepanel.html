@@ -55,11 +55,19 @@
                 <span class="tb-modes">
                   <label><input type="radio" name="tb-mode" value="balance" checked> 밸런스</label>
                   <label><input type="radio" name="tb-mode" value="random"> 랜덤</label>
+                  <label><input type="radio" name="tb-mode" value="draft"> 드래프트</label>
                 </span>
               </div>
               <div id="tb-list" class="tb-list"></div>
               <button id="tb-go" class="btn-gold" disabled>팀 구성</button>
               <div class="foot-hint">팀원 오버레이에 바로 팀이 떠요 · 11명 이상·홀수면 관전자 자동 선정</div>
+            </div>
+            <!-- 🎯 드래프트: 팀장 2명 고르기 -->
+            <div id="tb-cap" style="display:none;">
+              <div class="td-state">팀장 <b>2명</b>을 고르세요 · 팀장이 번갈아 팀원을 뽑아요(차례당 30초)</div>
+              <div id="tb-cap-list" class="tb-list"></div>
+              <div class="td-acts"><button id="tb-cap-rand" class="btn-ghost">랜덤 팀장</button><button id="tb-cap-go" class="btn-gold" disabled>드래프트 시작</button></div>
+              <button id="tb-cap-back" class="btn-ghost td-new">참가자 다시 고르기</button>
             </div>
             <div id="tb-err" class="tb-err" style="display:none;"></div>
           </div>

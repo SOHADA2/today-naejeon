@@ -564,6 +564,7 @@ async function pollSession() {
     if (!first || (s.phase === 'teams' && Date.now() - formed < 30 * 60 * 1000)) { userHid = false; showOverlay(); }
   }
   if (s && s.phase === 'vote' && !inGame && !userHid && teamOf(s, config.myName)) showOverlay();   // 🗳️ 투표 = 참가자에게 자동 표시
+  if (s && s.phase === 'draft' && !inGame && !userHid && (s.players || []).some(n => normName(n) === normName(config.myName))) showOverlay();   // 🎯 드래프트 = 참가자에게 자동 표시
   if (lob && lob.state === 'preparing' && config.myName && Array.isArray(lob.participants)
       && lob.participants.some(n => normName(n) === normName(config.myName)) && !userHid) showOverlay();
   broadcast('lobby', lob || null);
@@ -586,6 +587,10 @@ async function hostTick() {
     const winner = matchWinner(s, eog);
     if (winner) await recordGame(winner, eog);
     else await fbUpdate(`${T}/session`, { pendingEog: { gameId: eog.gameId, winSide: eog.winSide || null, at: Date.now() } });   // 이름 매칭 실패 → 방장이 승리팀 직접 선택
+    return;
+  }
+  if (s.phase === 'draft') {
+    if (s.turnEndsAt && Date.now() > s.turnEndsAt + 1000) await draftPick(null, true);   // ⏱️ 시간 초과 → 남은 사람 중 무작위
     return;
   }
   if (s.phase === 'vote' && s.game) {
@@ -692,6 +697,86 @@ async function startTeamBuild(names, mode) {
     return { ok: false, err };
   } finally { _tbBusy = false; }
 }
+// ── 🎯 드래프트 픽 — 팀장 2명이 번갈아 팀원을 고름(스네이크 A,B,B,A,A…·차례당 30초·시간 초과=무작위) ──
+const DRAFT_TURN_MS = 30000;
+// ETag 조건부 갱신(읽고→바꾸고→그 사이 아무도 안 바꿨을 때만 저장) — 팀장 픽과 방장 자동 픽이 동시에 들어와도 한 번만 반영
+async function fbCas(pathStr, mutate, tries = 5) {
+  for (let i = 0; i < tries; i++) {
+    const tok = await fbToken();
+    if (!tok) return { ok: false, err: '인증 실패(네트워크 확인)' };
+    const url = new URL(`${FIREBASE_DB}/${pathStr}.json?auth=${tok}`);
+    const cur = await new Promise(resolve => {
+      const req = https.get({ hostname: url.hostname, path: url.pathname + url.search, headers: { 'X-Firebase-ETag': 'true' } }, res => {
+        let d = ''; res.on('data', c => d += c);
+        res.on('end', () => { let j = null; try { j = JSON.parse(d); } catch (_) {} resolve({ status: res.statusCode, etag: res.headers.etag, data: j }); });
+      });
+      req.on('error', () => resolve({ status: 0 }));
+      req.setTimeout(15000, () => { req.destroy(); resolve({ status: 0 }); });
+    });
+    if (cur.status !== 200 || !cur.etag) return { ok: false, err: `읽기 실패(HTTP ${cur.status})` };
+    const m = mutate(cur.data);
+    if (!m || m.err) return { ok: false, err: (m && m.err) || '변경 없음' };
+    const body = JSON.stringify(m.value);
+    const status = await new Promise(resolve => {
+      const req = https.request({ hostname: url.hostname, path: url.pathname + url.search, method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'if-match': cur.etag } }, res => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
+      req.on('error', () => resolve(0));
+      req.setTimeout(15000, () => { req.destroy(); resolve(0); });
+      req.write(body); req.end();
+    });
+    if (status === 200) return { ok: true, value: m.value, info: m.info };
+    if (status !== 412) { if (status === 401 || status === 403) _fbTok = null; return { ok: false, err: `쓰기 실패(HTTP ${status})` }; }
+    // 412 = 그 사이 다른 기기가 바꿈 → 최신으로 다시 시도
+  }
+  return { ok: false, err: '다른 기기와 동시에 바뀌어서 실패했어요 — 다시 눌러주세요' };
+}
+function draftOrder(first, picks) {   // 스네이크: first, other, other, first, first, other…
+  const other = first === 'teamA' ? 'teamB' : 'teamA', out = [];
+  for (let i = 0; i < picks; i++) out.push(((i + 1) >> 1) % 2 === 0 ? first : other);
+  return out;
+}
+async function startDraft(names, captains) {
+  if (!config.isHost) return { ok: false, err: '방장만 드래프트를 시작할 수 있어요' };
+  names = [...new Set((names || []).map(n => normName(String(n))).filter(Boolean))];
+  if (names.length < 4) return { ok: false, err: `최소 4명이 필요해요 (현재 ${names.length}명)` };
+  let caps = [...new Set((captains || []).map(n => normName(String(n))).filter(n => names.includes(n)))];
+  if (caps.length !== 2) caps = names.slice().sort(() => Math.random() - 0.5).slice(0, 2);   // 팀장 미지정 → 무작위 2명
+  const first = Math.random() < 0.5 ? 'teamA' : 'teamB';   // 🪙 선픽 = 동전 던지기
+  const teamSize = Math.min(5, Math.floor(names.length / 2));
+  const now = Date.now();
+  const w = await fbSet(`${T}/session`, {
+    phase: 'draft', active: true, mode: 'draft', by: config.myName || null, day: dayKey(now),
+    players: names, captains: { teamA: caps[0], teamB: caps[1] }, teamA: [caps[0]], teamB: [caps[1]],
+    pool: names.filter(n => !caps.includes(n)), order: draftOrder(first, (teamSize - 1) * 2), pickIdx: 0,
+    teamSize, firstPick: first, draftStartedAt: now, turnEndsAt: now + DRAFT_TURN_MS,
+  });
+  if (w.ok) fbSet(`${T}/lobby`, null).catch(() => {});
+  return w;
+}
+// 한 명 뽑기 — name=null+auto=true면 무작위(시간 초과). 내 차례 팀장 또는 방장만.
+async function draftPick(name, auto) {
+  const me = normName(config.myName || '');
+  const r = await fbCas(`${T}/session`, s => {
+    if (!s || s.phase !== 'draft') return { err: '드래프트 중이 아니에요' };
+    const team = (s.order || [])[s.pickIdx || 0];
+    if (!team) return { err: '이미 끝났어요' };
+    if (auto) { if (!(s.turnEndsAt && Date.now() > s.turnEndsAt)) return { err: '아직 시간이 남았어요' }; }
+    else if (!config.isHost && normName((s.captains || {})[team] || '') !== me) return { err: '지금은 내 차례가 아니에요' };
+    const pool = s.pool || [];
+    const idx = auto ? Math.floor(Math.random() * pool.length) : pool.findIndex(x => normName(x) === normName(name || ''));
+    if (idx < 0 || !pool.length) return { err: '이미 뽑혔거나 없는 사람이에요' };
+    const picked = pool[idx], now = Date.now();
+    const next = Object.assign({}, s, { pool: pool.filter((_, i) => i !== idx), [team]: [...(s[team] || []), picked], pickIdx: (s.pickIdx || 0) + 1,
+      lastPick: { name: picked, team, at: now, auto: !!auto, byHost: !auto && config.isHost && normName((s.captains || {})[team] || '') !== me } });
+    if (next.pickIdx >= next.order.length || !next.pool.length) {   // 🏁 다 뽑음 → 팀 확정(남은 사람=관전)
+      Object.assign(next, { phase: 'teams', teamsFormedAt: now, spectators: next.pool.length ? next.pool : null, teamSize: Math.max(next.teamA.length, next.teamB.length),
+        pool: null, order: null, pickIdx: null, turnEndsAt: null });
+    } else next.turnEndsAt = now + DRAFT_TURN_MS;
+    return { value: next };
+  });
+  return r.ok ? { ok: true } : r;
+}
+
 async function writeTeams(teamA, teamB, spectators, mode) {
   const now = Date.now();
   const w = await fbSet(`${T}/session`, {
@@ -815,6 +900,8 @@ ipcMain.handle('get-players', async () => {
   return { names, myName: config.myName || '', isHost: !!config.isHost, appVer: app.getVersion(), session: sessionData };
 });
 ipcMain.handle('tb-start', (_e, { names, mode }) => startTeamBuild(names, mode));
+ipcMain.handle('draft-start', (_e, { names, captains }) => startDraft(names, captains));   // 🎯 드래프트 시작(방장)
+ipcMain.handle('draft-pick', (_e, { name }) => draftPick(name, false));                  // 🎯 팀장(또는 방장) 픽
 ipcMain.handle('tb-again', async () => {   // 🔁 같은 팀으로 한 판 더
   if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
   const s = sessionData;

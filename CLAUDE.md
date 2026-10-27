@@ -15,7 +15,7 @@
 ## 데이터 구조 (`today/`)
 | 경로 | 내용 |
 |---|---|
-| `today/session` | 현재 판: `{phase:'teams'|'vote'|'result', teamA, teamB, spectators, mode, teamsFormedAt, day, by, game:{id,day,winner,at}, votes:{fbKey:{mvp,manner,team,at}}, result:{mvp,svp,manner,voteCount,closedAt}, lastGameId, pendingEog}` |
+| `today/session` | 현재 판: `{phase:'draft'|'teams'|'vote'|'result', teamA, teamB, spectators, mode, teamsFormedAt, day, by, game:{id,day,winner,at}, votes:{fbKey:{mvp,manner,team,at}}, result:{mvp,svp,manner,voteCount,closedAt}, lastGameId, pendingEog}` |
 | `today/lobby` | 방장이 참가자 고르는 중 배너 `{state:'preparing', by, at, participants}` |
 | `today/bridge/*` | 내장 브릿지: `eogStats`(gameId·winSide·players[KDA…]·savedAt, ETag CAS) · `gamePhase` · `inGame` · `champSelect` · `operators/{id}` · `connected` |
 | `today/days/{YYYY-MM-DD}/matches/{gameId}` | 오늘 경기 기록(조건부 PUT으로 1회만 생성): 팀·winner·stats·mvp/svp/manner·votes·source(auto/manual) |
@@ -32,6 +32,11 @@
 4. 투표: MVP는 상대 팀에서, 매너왕은 우리 팀(본인 제외)에서. **전원 투표 시 방장 앱이 자동 마감**, 아니면 방장 「투표 마감」
    - MVP = 이긴 팀 중 진 팀 표 1위 · SVP = 진 팀 중 이긴 팀 표 1위 · 매너왕 = 전체 매너표 1위 · 동표는 KDA 높은 쪽
 5. phase `result` → 오버레이 결과 화면(확인 누르면 대기 화면=오늘 순위) → 방장 「같은 팀으로 한 판 더」 또는 「새로 팀 짜기」
+- **🎯 드래프트 픽(v0.1.1)**: 팀짜기 모드 라디오에 「드래프트」 → 참가자 선택 → 팀장 2명 선택(또는 랜덤 팀장) → phase `draft`(`captains{teamA,teamB}`·`pool`·`order`·`pickIdx`·`turnEndsAt`·`firstPick`·`lastPick`).
+  - 선픽 = 동전 던지기 · 순서 = **스네이크**(`draftOrder`: 선픽,후,후,선,선…) · 팀 크기 = min(5, ⌊인원/2⌋) · 다 뽑고 남은 사람 = 관전.
+  - 픽 = 왼쪽 오버레이 남은 사람 칩 클릭. **내 차례 팀장 또는 방장(대신 뽑기)**만 가능. 차례당 **30초**(`DRAFT_TURN_MS`), 지나면 방장 앱 `hostTick`이 무작위 픽.
+  - 동시성: `fbCas`(ETag 조건부 PUT·412면 최신으로 재시도) — 팀장 픽과 방장 자동 픽이 겹쳐도 한 번만 반영.
+  - 다 뽑으면 phase `teams`(mode `draft`·teamsFormedAt)로 바뀌어 기존 기록·투표 흐름 그대로.
 - 오른쪽 패널 「오늘」 탭 = 날짜별 순위표(전적·승률·MVP·매너·KDA) + 경기 목록(‹ › 날짜 이동)
 
 ## 파일
@@ -53,4 +58,5 @@ npm start      # ⚠️ 이 PC 셸은 ELECTRON_RUN_AS_NODE=1 → env -u ELECTRON
 ## 상태
 - **v0.1.0 (2026-10-27)**: 첫 버전. 입장·방장·팀짜기·EOG 자동 기록·수동 기록·투표·결과·오늘 순위·한 판 더. E2E(팀짜기→가짜 EOG→자동 기록→6명 투표→자동 마감→결과/순위·수동 2팀 승→마감) 통과.
 - ⚠️ **실기 미검증**: 실제 롤 클라이언트로 EOG 캡처·이름 매칭·도킹/마커 위치는 아직 못 돌려봄(개발 PC에 롤 없음).
+- **v0.1.1 (2026-10-27)**: 🎯 드래프트 픽. E2E(7명 → 팀장 지정 → 방장 대신 픽 → 30초 초과 자동 픽 → 3:3+관전1 확정 → 팀 화면) 통과.
 - ⏭️ 다음: 하루 안에 끝나는 인스턴트 콘텐츠(사장님 기획) · 필요하면 방장 위임/중복 방장 처리 · 인게임 화면

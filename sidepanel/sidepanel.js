@@ -101,14 +101,41 @@ function tbSync() {
   const n = _tbChecked.size;
   $('tb-num').textContent = n;
   $('tb-go').disabled = n < 4;
-  $('tb-go').textContent = n < 4 ? `팀 구성 (최소 4명 · 현재 ${n}명)` : `팀 구성 — ${n}명`;
+  const draft = tbMode() === 'draft';
+  $('tb-go').textContent = n < 4 ? `${draft ? '드래프트' : '팀 구성'} (최소 4명 · 현재 ${n}명)` : draft ? `팀장 고르기 — ${n}명` : `팀 구성 — ${n}명`;
   clearTimeout(_lobbyT);   // 고르는 중 → 팀원에게 "준비 중" 안내(디바운스)
   _lobbyT = setTimeout(() => { if (_curCat === 'team' && $('tb-pick').style.display !== 'none') window.api.lobbyPrep([..._tbChecked]); }, 300);
 }
+const tbMode = () => document.querySelector('input[name=tb-mode]:checked')?.value || 'balance';
+document.querySelectorAll('input[name=tb-mode]').forEach(r => r.addEventListener('change', tbSync));
+// 🎯 드래프트 팀장 고르기(선택한 참가자 중 2명)
+let _caps = [];
+function capRender() {
+  const list = [..._tbChecked].sort((a, b) => a.localeCompare(b, 'ko'));
+  _caps = _caps.filter(n => _tbChecked.has(n));
+  $('tb-cap-list').innerHTML = list.map(n => `<div class="tb-item${_caps.includes(n) ? ' on' : ''}" data-name="${escH(n)}" title="${escH(n)}"><div class="tb-check"></div><span class="tb-nm">${escH(n)}</span>${_caps.includes(n) ? `<span class="tb-badge">${_caps.indexOf(n) === 0 ? '1팀 팀장' : '2팀 팀장'}</span>` : ''}</div>`).join('');
+  $('tb-cap-list').querySelectorAll('.tb-item').forEach(c => c.onclick = () => {
+    const n = list.find(x => escH(x) === c.dataset.name) || c.title;
+    if (_caps.includes(n)) _caps = _caps.filter(x => x !== n);
+    else { if (_caps.length >= 2) _caps.shift(); _caps.push(n); }
+    capRender();
+  });
+  $('tb-cap-go').disabled = _caps.length !== 2;
+}
+function showCapStep(on) { $('tb-cap').style.display = on ? '' : 'none'; $('tb-pick').style.display = on ? 'none' : ''; if (on) capRender(); }
+$('tb-cap-back').onclick = () => showCapStep(false);
+$('tb-cap-rand').onclick = () => { _caps = [..._tbChecked].sort(() => Math.random() - 0.5).slice(0, 2); capRender(); };
+$('tb-cap-go').onclick = async () => {
+  $('tb-cap-go').disabled = true; showErr(null);
+  const r = await window.api.draftStart([..._tbChecked], _caps);
+  if (!r || !r.ok) { showErr((r && r.err) || '드래프트 시작 실패'); $('tb-cap-go').disabled = false; return; }
+  _pickOpen = false; showCapStep(false); renderLive();
+};
 function showErr(msg) { const e = $('tb-err'); if (!msg) { e.style.display = 'none'; return; } e.textContent = '⚠️ ' + msg; e.style.display = ''; }
 $('tb-go').addEventListener('click', async () => {
   $('tb-go').disabled = true; showErr(null);
-  const mode = document.querySelector('input[name=tb-mode]:checked')?.value || 'balance';
+  const mode = tbMode();
+  if (mode === 'draft') { tbSync(); showCapStep(true); return; }   // 🎯 드래프트 = 팀장 고르기 단계로
   const r = await window.api.tbStart([..._tbChecked], mode);
   if (!r || !r.ok) { showErr((r && r.err) || '팀 구성 실패'); tbSync(); }
 });
@@ -123,14 +150,18 @@ window.api.onTeamBuild(d => {
 let _pickOpen = false, _liveBusy = false;
 function renderLive() {
   const s = _session, box = $('tb-live');
-  const active = s && s.teamA && s.teamB && ['teams', 'vote', 'result'].includes(s.phase);
+  const active = s && s.teamA && s.teamB && ['draft', 'teams', 'vote', 'result'].includes(s.phase);
   const showPick = !active || _pickOpen;
-  $('tb-pick').style.display = showPick ? '' : 'none';
+  if ($('tb-cap').style.display === 'none') $('tb-pick').style.display = showPick ? '' : 'none';
   if (!active) { box.style.display = 'none'; return; }
   box.style.display = '';
   const row = (label, arr, cls) => `<div class="tbr ${cls}"><b>${label}</b><span>${(arr || []).map(escH).join(' · ')}</span></div>`;
   let st = '', acts = '';
-  if (s.phase === 'teams') {
+  if (s.phase === 'draft') {
+    const team = (s.order || [])[s.pickIdx || 0], caps = s.captains || {};
+    st = `<div class="td-state">드래프트 진행 중 · ${(s.pickIdx || 0)}/${(s.order || []).length} 뽑음 · 지금 <b>${team === 'teamA' ? '1팀' : '2팀'} 팀장 ${escH(caps[team] || '')}</b> 차례</div>`;
+    acts = `<div class="foot-hint">팀장이 왼쪽 창에서 뽑아요 · 팀장이 앱이 없으면 방장이 왼쪽 창에서 대신 뽑을 수 있어요 · 30초 지나면 무작위</div>`;
+  } else if (s.phase === 'teams') {
     if (s.pendingEog) {
       st = `<div class="td-alert">경기가 끝났는데 인게임 이름과 등록 이름이 달라 자동 판정을 못 했어요.<br>이긴 팀을 골라주세요${s.pendingEog.winSide ? ` (게임상 승리 진영: ${s.pendingEog.winSide === 'blue' ? '블루' : '레드'})` : ''}</div>`;
     } else st = `<div class="td-state">게임 중이거나 시작 전이에요 · 끝나면 자동으로 기록돼요</div>`;

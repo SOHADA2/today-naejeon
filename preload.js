@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('api', {
   // ⚔️ 팀 짜기(방장)
   tbStart: (names, mode) => ipcRenderer.invoke('tb-start', { names, mode }),
   tbAgain: () => ipcRenderer.invoke('tb-again'),
+  draftStart: (names, captains) => ipcRenderer.invoke('draft-start', { names, captains }),   // 🎯 드래프트(방장)
+  draftPick: (name) => ipcRenderer.invoke('draft-pick', { name }),                                // 🎯 팀장 픽
   lobbyPrep: (names) => ipcRenderer.send('lobby-prep', { names }),
   lobbyClear: () => ipcRenderer.send('lobby-clear'),
   hostResult: (winner) => ipcRenderer.invoke('host-result', { winner }),   // 🏁 승리팀 직접 기록
