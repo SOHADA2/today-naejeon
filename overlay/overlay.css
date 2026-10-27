@@ -64,21 +64,22 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .seat-av i, .chip-av i { font-style:normal; font-weight:800; font-size:14px; color:var(--ink-soft); }
 .seat-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; line-height:1.25; }
 .seat-main b { font-size:13.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.seat-main small { font-size:11px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.seat-main small { display:flex; align-items:center; gap:4px; font-size:11px; color:var(--dim); white-space:nowrap; overflow:hidden; min-width:0; }
+.seat-main small > span { flex-shrink:0; }
+.seat-main small > span:last-child:not(.seat-tag) { flex-shrink:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 .seat.empty { background:transparent; border:1px dashed rgba(200,170,110,0.18); clip-path:none; }
 .seat.empty .seat-av { background:transparent; border:1.5px dashed rgba(200,170,110,0.18); }
 .seat.empty .seat-main b { font-size:12px; font-weight:500; color:var(--mute); }
 .seat.me { border-color:var(--gold); background:linear-gradient(90deg, rgba(200,170,110,0.13), var(--bg-2) 70%); }
 .seat.me .seat-av { border-color:var(--gold); }
-.seat.me .seat-main b::after { content:' 나'; font-size:10px; font-weight:800; color:var(--gold); }
 .seat.cap1 .seat-av { border-color:var(--t1); } .seat.cap2 .seat-av { border-color:var(--t2); }
-.seat-tags { position:absolute; top:4px; right:6px; display:flex; gap:3px; }
-.seat-tag { font-size:9.5px; font-weight:800; padding:0 5px; line-height:15px; }
+/* 표시(나·방장·팀장)는 이름 아래 줄에 — 이름 위에 겹쳐 띄우지 않음 */
+.seat-tag { flex-shrink:0; font-size:9.5px; font-weight:800; padding:0 4px; line-height:14px; }
+.seat-tag.me { color:#1a1206; background:var(--gold-hi); }
 .seat-tag.host { color:#1a1206; background:var(--gold); }
 .seat-tag.c1 { color:#fff; background:var(--t1); } .seat-tag.c2 { color:#fff; background:var(--t2); }
 .seat-ctl { display:none; gap:3px; flex-shrink:0; align-self:flex-end; margin-bottom:6px; }
 .seat:hover .seat-ctl { display:flex; }   /* 방장 조작 버튼은 마우스 올렸을 때만(이름 공간 확보) */
-.seat:hover .seat-tags { display:none; }
 .seat-btn { -webkit-app-region:no-drag; min-width:22px; height:20px; padding:0 5px; font-size:10.5px; font-weight:700; cursor:pointer; color:var(--ink-soft); background:var(--bg-3); border:1px solid var(--hair); }
 .seat-btn:hover { color:var(--gold-hi); border-color:var(--gold-line); }
 .seat-btn.cap.on { color:#1a1206; background:var(--gold); border-color:var(--gold); }

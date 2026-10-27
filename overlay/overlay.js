@@ -305,13 +305,13 @@ function renderLobby() {
     const no = String(i + 1).padStart(2, '0');
     if (!m) return `<div class="seat empty"><span class="seat-no">${no}</span><span class="seat-av"></span><span class="seat-main"><b>빈 자리</b></span></div>`;
     const st = _standing(m.name), cap = capOf(m.name);
-    const tags = (m.host ? '<span class="seat-tag host">방장</span>' : '') + (cap ? `<span class="seat-tag c${cap}">${cap}팀 팀장</span>` : '');
+    const tags = (m.me ? '<span class="seat-tag me">나</span>' : '') + (m.host ? '<span class="seat-tag host">방장</span>' : '') + (cap ? `<span class="seat-tag c${cap}">${cap}팀 팀장</span>` : '');
     const ctl = myIsHost ? ((draft ? `<button class="seat-btn cap${cap ? ' on' : ''}" data-cap="${esc(m.name)}" title="팀장 지정/해제">팀장</button>` : '')
       + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="${m.guest ? '목록에서 빼기' : '관전으로 보내기'}">${m.guest ? '✕' : '↓'}</button>` : '')) : '';
     return `<div class="seat filled${m.me ? ' me' : ''}${cap ? ' cap' + cap : ''}">`
       + `<span class="seat-no">${no}</span>${avatar(m, 'seat-av')}`
-      + `<span class="seat-main"><b class="lb-nm" data-pk="${esc(m.key)}" title="프로필 보기">${esc(m.name)}</b><small>${m.guest ? '앱 없음' : m.online ? '' : '오프라인'}${st ? `${m.guest || !m.online ? ' · ' : ''}<span class="num">${st.wins}승 ${st.losses}패</span>` : ''}</small></span>`
-      + (tags ? `<span class="seat-tags">${tags}</span>` : '') + (ctl ? `<span class="seat-ctl">${ctl}</span>` : '') + '</div>';
+      + `<span class="seat-main"><b class="lb-nm" data-pk="${esc(m.key)}" title="프로필 보기">${esc(m.name)}</b><small>${tags}${m.guest ? '<span>앱 없음</span>' : m.online ? '' : '<span>오프라인</span>'}${st ? `<span><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : ''}</small></span>`
+      + (ctl ? `<span class="seat-ctl">${ctl}</span>` : '') + '</div>';
   };
   el('lb-seats').innerHTML = Array.from({ length: SEATS }, (_, i) => seat(ins[i], i)).join('');
   el('lb-me').style.display = myName ? '' : 'none';

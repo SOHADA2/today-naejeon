@@ -25,6 +25,7 @@
 - **글꼴 = 앱에 내장**(assets/fonts, OFL): Pretendard Variable(모든 한글) + Barlow Condensed 600/700(숫자·짧은 영문 라벨 `.num`·`.lb-sec-en`). 구글 글꼴 링크 없음. ⚠️ v0.1.8까지 왼쪽 창은 Pretendard가 없어 **맑은 고딕으로 떨어지고 있었음**.
 - 대기실 = **자리 10칸(5:5)** `SEATS`: 참가한 사람 순서대로 소환사 아이콘(LCU profileIconId → presence.icon → CommunityDragon profile-icons/{id}.jpg)과 앉고 빈 자리는 점선. 방장 조작(팀장·관전으로)은 자리에 마우스 올릴 때만. 고르는 중/관전은 아래 칩 줄.
 - 투표 후보 = 그 판 챔피언 아이콘·이름·K/D/A·피해량(`gameStat`: 오늘 기록의 경기 stats, ids→puuid 우선). 결과 화면도 챔피언 아이콘.
+- **글자 겹침 금지(사장님 지적 2026-10-27)**: 이름 위에 표시를 겹쳐 띄우지 말 것(absolute 배치 금지) — 대기실 자리의 나·방장·팀장 표시는 이름 아래 줄. 디자인 바꾸면 `tools/ui-audit.js`로 전 화면 검사(정상 이름 + 16자 이름 둘 다 겹침·잘림 0).
 - 캡처 함정: 숨긴 창 `capturePage`가 다시 그리기 전 화면을 줄 때가 있음(같은 크기 연속 캡처) → 크기를 1px 바꾸거나 다시 찍기.
 
 ## 데이터 구조 (`today/`)
@@ -89,4 +90,5 @@ npm start      # ⚠️ 이 PC 셸은 ELECTRON_RUN_AS_NODE=1 → env -u ELECTRON
 - **v0.1.7 (2026-10-27)**: 🛟 정산 화면 바로 나가도 결과 수집 — 옛 버그 원인 = 3초 폴링 사이에 정산 화면(EndOfGame)을 나가면 `eog-stats-block`이 사라져 놓침. ① 게임 중 1초마다 정산 결과 확인(`startEogWatch`, 이번 gameId 블록만) → 받는 즉시 메모리 확보 후 저장 ② 끝내 못 잡으면 LCU 전적 `/lol-match-history/v1/games/{gameId}`에서 복구(`scheduleHistoryBackfill`, 5초 간격 최대 3분, 챔프 이름은 champion-summary.json, eogStats.source='history') ③ 결과 저장 전에 클라를 끄면 `_missedGame` 기억 → 다음 연결 때 전적에서 복구. 덤: bridge fbSet이 문자열을 JSON 인코딩 안 해 `gamePhase` 쓰기가 늘 HTTP 400이던 것 수정. E2E = **`tools/mock-lcu.cjs` 가짜 LCU**(TN_FAKE_LCU) 3시나리오(1.2초 만에 나감→2.4초에 저장 / 정산 못 잡음→전적에서 복구 / 클라 종료 20초 후 재실행→전적에서 복구) 통과. ⚠️ 실제 롤에서 전적 API가 커스텀 게임을 얼마나 빨리 보여주는지·응답 형식은 실기 확인 필요. ⚠️ 기존 aram-overlay는 같은 버그 그대로.
 - **v0.1.8 (2026-10-27)**: 📼 게임 끝난 뒤 왼쪽 창(롤 클라 옆)에 「기록 저장 중」 화면 — 단계 4개(게임 종료 확인 → 게임 결과 가져오기[정산 화면/전적 n/36] → 서버에 저장 → 오늘 기록에 반영[방장 판정]) 체크 + 경과 초. 도는 로딩 아이콘 없음(성능 규칙, 실측 0.4%). 시작 = 2999 인게임 사라짐(`recGameEnded`) 또는 브릿지 페이즈 변화(`onEog` ended) 중 먼저 온 쪽, 진행 = 브릿지 `emitEog`(captured/saved/history/retry/missed/closed/skip) + 서버(eogStats·session.pendingEog·phase vote). 문제 시 빨간 「확인이 필요해요」+방장에겐 1팀/2팀 승리 버튼(문제거나 60초 넘으면). session이 vote가 되면 사라지고 투표 화면. **덤: 롤 클라를 끄면 방장이 바로 풀리던 것 → 같은 계정 2분 안에 돌아오면 방장·참가 유지(`_away`, `AWAY_GRACE_MS`)** — 이게 없으면 「끄고 다시 켜서 전적 복구」해도 기록할 방장이 없었음. E2E(mock-lcu skip·closed → 단계 순서대로 → 투표) 통과.
 - **v0.1.9 (2026-10-27)**: 🎨 리디자인 — 글꼴 내장(Pretendard·Barlow Condensed)·1팀 파랑/2팀 빨강·비스듬한 모서리 패널·브랜드 머리, 대기실 자리 10칸(5:5)+소환사 아이콘+빈 자리, 투표 후보에 챔피언·KDA·피해량, 결과에 챔피언 아이콘, overlay.css 전면 재작성(옛 앱 아이템·LP 스타일 제거). CPU 실측 1.6%(움직이는 효과 없음). 화면 레퍼런스 = Artifact MYtQN3ZCnonPkUt3akubEj.
+- **v0.1.10 (2026-10-27)**: 대기실 자리 표시(나·방장·팀장)가 이름에 겹치던 것 → 이름 아래 줄로. 글자 겹침·잘림 자동 검사 `tools/ui-audit.js` 추가 — 15개 화면 × (보통 이름·16자 이름) 모두 겹침·잘림 0, 일부러 겹치게 만든 화면은 잡아냄.
 - ⏭️ 다음: **밸런스 팀짜기 새 로직(사장님 설계)** · 하루 안에 끝나는 인스턴트 콘텐츠(사장님 기획) · 인게임 화면
