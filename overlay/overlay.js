@@ -222,6 +222,7 @@ function renderRoster() {
   el('status').style.display = has ? 'none' : 'block';
   const lob = has ? null : lobbyBanner();
   el('status').classList.toggle('lobby', !!lob);
+  if (!has && !myName) { el('status').innerHTML = '롤 클라이언트에 로그인하면<br>자동으로 입장돼요'; el('waiting-info').style.display = 'none'; return; }
   if (!has) el('status').innerHTML = lob || (_gamePlayed
     ? '경기 종료<br><span class="status-sub">결과 기록을 기다리는 중이에요.</span>'
     : '오늘의 내전 대기 중<br><span class="status-sub">방장이 팀을 짜면 여기에 자동으로 떠요.</span>');

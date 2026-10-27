@@ -18,6 +18,7 @@ const BRIDGE_ROOT       = 'today/bridge';   // ⚠️ 사이트 bridge/ 와 분�
 let _log        = () => {};
 let _getOpName  = () => null;   // 진행자 이름 = 오버레이 config.myName
 let _appVer     = '';           // 오버레이 앱 버전(정보용)
+let _onAccount  = () => {};     // 👤 롤에 로그인된 라이엇 계정 변경 알림({puuid,gameName,tagLine} | null)
 
 function log(msg) { try { _log('[bridge] ' + msg); } catch (_) {} }
 
@@ -216,6 +217,7 @@ async function handleEndOfGame(abnormal = false) {
         const s = p.stats || {};
         players.push({
           summonerName: p.riotIdGameName || p.summonerName || champPickNames[p.championId] || '',
+          puuid:        p.puuid || null,   // 👤 계정 고유 ID — 투데이 내전은 이걸로 1팀/2팀 판정
           championId:   p.championId,
           championName: p.championName || p.skinName || '',
           kills:   s.CHAMPIONS_KILLED || 0,
@@ -333,12 +335,28 @@ async function poll() {
   }
 }
 
+// ── 👤 현재 로그인 계정 감시 — 친구가 같은 PC에서 자기 계정으로 바꿔 로그인해도 바로 반영 ──
+let _acctTimer = null, _acctKey = undefined;
+async function pollAccount() {
+  let acc = null;
+  if (basePort) {
+    try {
+      const me = await lcu('/lol-summoner/v1/current-summoner');
+      if (me && me.puuid) acc = { puuid: me.puuid, gameName: String(me.gameName || me.displayName || '').trim(), tagLine: String(me.tagLine || '').trim() };
+    } catch (_) {}
+  }
+  const key = acc ? acc.puuid + '|' + acc.gameName + '|' + acc.tagLine : null;
+  if (key !== _acctKey) { _acctKey = key; try { _onAccount(acc); } catch (_) {} }
+}
+
 // ── LCU 연결 이벤트 ──────────────────────────────────────────────────────────
 connector.on('connect', async data => {
   basePort = data.port;
   baseAuth = 'Basic ' + Buffer.from(`${data.username}:${data.password}`).toString('base64');
   log('롤 클라이언트 연결됨 ✅');
   try { const me = await lcu('/lol-summoner/v1/current-summoner'); log(`접속 계정: ${me.displayName || me.gameName || ''}`); } catch (_) {}
+  pollAccount();
+  if (!_acctTimer) _acctTimer = setInterval(pollAccount, 5000);   // 로그인 직후엔 계정이 늦게 잡힐 수 있어 5초마다 재확인
   await fbSet(`${BRIDGE_ROOT}/connected`, true);
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(poll, 3000); poll();
@@ -347,6 +365,7 @@ connector.on('disconnect', async () => {
   log('롤 클라이언트 종료 — 재연결 대기');
   if (gameInProgress && !eogSaved) log('⚠️ 게임 중 클라 종료 — 자동 저장 불가. 방장이 승리팀을 직접 고르세요.');
   basePort = null; baseAuth = null; lastPhase = null; eogSaved = false;
+  pollAccount();   // 클라 종료 → 계정 없음
   gameInProgress = false; activeGameId = null; activeIsCustom = null;
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   await fbSet(`${BRIDGE_ROOT}/connected`, false);
@@ -360,6 +379,7 @@ async function start(opts) {
   _log       = (opts && opts.log)            || (() => {});
   _getOpName = (opts && opts.getOperatorName) || (() => null);
   _appVer    = (opts && opts.appVer)          || '';
+  _onAccount = (opts && opts.onAccount)       || (() => {});
   log('내장 브릿지 시작 — LCU 감지 대기');
   startHeartbeat();
   connector.start();
@@ -371,6 +391,7 @@ function stop() {
   connector.stop();
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+  if (_acctTimer) { clearInterval(_acctTimer); _acctTimer = null; }
   fbSet(`${BRIDGE_ROOT}/connected`, false);
   fbSet(`${BRIDGE_ROOT}/inGame`, null);
   fbSet(`${BRIDGE_ROOT}/operators/${OPERATOR_ID}`, null);

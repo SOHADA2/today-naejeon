@@ -22,29 +22,38 @@ const escH = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&a
 $('s-close').addEventListener('click', () => window.api.sideClose());
 $('s-min').addEventListener('click', () => window.api.sideMinimize());
 
-let _names = [], _myName = '', _isHost = false, _session = null, _curCat = 'today';
+let _account = null, _myName = '', _isHost = false, _session = null, _curCat = 'today';
 
-// ── 입장 ────────────────────────────────────────────────────────────────
-function showLogin() {
-  $('s-login').style.display = 'flex'; $('s-app').style.display = 'none'; $('s-me').style.display = 'none';
-  $('s-host').checked = _isHost;
+// ── 👤 입장 = 롤에 로그인된 라이엇 계정(자동) ─────────────────────────────────
+function showWaiting() {
+  $('s-login').style.display = 'flex'; $('s-app').style.display = 'none';
+  $('s-me').style.display = 'none'; $('s-hostbtn').style.display = 'none';
 }
 function showLogged() {
   $('s-login').style.display = 'none'; $('s-app').style.display = 'flex';
-  const me = $('s-me'); me.style.display = ''; me.textContent = _myName + (_isHost ? ' · 방장' : '');
+  const me = $('s-me'); me.style.display = '';
+  me.innerHTML = escH(_account.gameName) + (_account.tagLine ? `<small>#${escH(_account.tagLine)}</small>` : '');
+  const hb = $('s-hostbtn'); hb.style.display = '';
+  hb.classList.toggle('on', _isHost); hb.textContent = _isHost ? '👑 방장' : '👑 방장 하기';
   $('s-rail-team').style.display = _isHost ? '' : 'none';
-  switchCat(_isHost ? 'team' : 'today');
+  if (!_isHost && _curCat === 'team') switchCat('today');
 }
-const esel = $('s-entry-name');
-esel.addEventListener('change', () => { $('s-entry-go').disabled = !esel.value; });
-$('s-entry-go').addEventListener('click', () => {
-  if (!esel.value) return;
-  _myName = esel.value; _isHost = $('s-host').checked;
-  window.api.setMyName(_myName);
-  window.api.setHost(_isHost);
+function applyAccount(acc, isHost) {
+  const changed = (_account && _account.puuid) !== (acc && acc.puuid);
+  _account = acc || null; _myName = acc ? acc.gameName : '';
+  if (isHost !== undefined) _isHost = !!isHost;
+  if (!_account) { _isHost = false; showWaiting(); return; }
   showLogged();
+  if (changed) switchCat(_isHost ? 'team' : 'today');
+}
+window.api.onAccount(d => applyAccount(d && d.account, d && d.isHost));
+$('s-hostbtn').addEventListener('click', () => {
+  _isHost = !_isHost;
+  window.api.setHost(_isHost);
+  if (!_isHost) window.api.lobbyClear();
+  showLogged();
+  switchCat(_isHost ? 'team' : 'today');
 });
-$('s-change').addEventListener('click', () => { if (_isHost) window.api.lobbyClear(); showLogin(); });
 
 // ── 레일 ────────────────────────────────────────────────────────────────
 function switchCat(cat) {
@@ -52,23 +61,51 @@ function switchCat(cat) {
   _curCat = cat;
   document.querySelectorAll('.rail-btn').forEach(b => b.classList.toggle('on', b.dataset.cat === cat));
   document.querySelectorAll('.cat-view').forEach(v => { v.style.display = (v.id === 'cat-' + cat) ? 'flex' : 'none'; });
-  if (cat === 'team') { tbRenderList(); renderLive(); }
+  if (cat === 'team') { tbRenderList(); renderLive(); loadRoster(); }
   else renderToday();
 }
 document.querySelectorAll('.rail-btn').forEach(b => b.addEventListener('click', () => switchCat(b.dataset.cat)));
 
 // ── ⚔️ 팀짜기(방장) ─────────────────────────────────────────────────────
 const _tbChecked = new Set((() => { try { return JSON.parse(localStorage.getItem('tbChecked') || '[]'); } catch (_) { return []; } })());
-let _standing = {};   // 이름 → 오늘 전적(칩 정렬·표시용)
+let _standing = {};   // 이름 → 오늘 전적(칩 표시용)
+// 👥 참가자 후보 = 지금 접속 중(초록 점) + 오늘 뛴 사람 + 직접 추가(앱 없는 사람)
+let _roster = { online: [], recent: [] };
+const _manual = new Set((() => { try { return JSON.parse(localStorage.getItem('tbManual') || '[]'); } catch (_) { return []; } })());
+const saveManual = () => localStorage.setItem('tbManual', JSON.stringify([..._manual]));
+async function loadRoster() {
+  const r = await window.api.getRoster().catch(() => null);
+  if (r && r.ok) { _roster = r; if (_curCat === 'team') tbRenderList(); }
+}
+setInterval(() => { if (_curCat === 'team' && _isHost) loadRoster(); }, 10000);
 function tbRenderList() {
-  const sorted = [..._names].sort((a, b) => ((_standing[nn(b)] || {}).games || 0) - ((_standing[nn(a)] || {}).games || 0) || a.localeCompare(b, 'ko'));   // 오늘 뛴 사람 먼저
-  $('tb-list').innerHTML = sorted.map(n => {
-    const st = _standing[nn(n)];
+  const onSet = new Set(_roster.online.map(o => nn(o.name)));
+  const names = [..._roster.online.map(o => nn(o.name))];
+  for (const n of [..._roster.recent, ..._manual]) if (!names.some(x => x === nn(n))) names.push(nn(n));
+  for (const n of _tbChecked) if (!names.includes(n)) names.push(n);   // 체크했던 사람은 접속이 끊겨도 목록에 유지
+  const sorted = names.sort((a, b) => (onSet.has(b) - onSet.has(a)) || a.localeCompare(b, 'ko'));
+  $('tb-list').innerHTML = sorted.length ? sorted.map(n => {
+    const st = _standing[n];
     const badge = st ? `<span class="tb-badge">${st.wins}승 ${st.losses}패</span>` : '';
-    return `<div class="tb-item${_tbChecked.has(n) ? ' on' : ''}" data-name="${escH(n)}" title="${escH(n)}"><div class="tb-check"></div><span class="tb-nm">${escH(n)}</span>${badge}</div>`;
-  }).join('');
+    const rm = !onSet.has(n) && _manual.has(n) ? `<button class="tn-rm" data-rm="${escH(n)}" title="목록에서 빼기">✕</button>` : '';
+    return `<div class="tb-item${_tbChecked.has(n) ? ' on' : ''}" data-name="${escH(n)}" title="${escH(n)}"><div class="tb-check"></div><span class="tb-nm">${escH(n)}</span>${badge}${rm}<i class="tn-dot${onSet.has(n) ? ' on' : ''}"></i></div>`;
+  }).join('') : '<div class="td-empty">아직 접속한 사람이 없어요<br><small>팀원이 앱을 켜고 롤에 로그인하면 여기에 떠요</small></div>';
+  $('tb-list').querySelectorAll('.tn-rm').forEach(b => b.onmousedown = e => {
+    e.stopPropagation(); e.preventDefault();
+    const n = b.closest('.tb-item').title; _manual.delete(n); _tbChecked.delete(n); saveManual();
+    localStorage.setItem('tbChecked', JSON.stringify([..._tbChecked])); tbRenderList();
+  });
   tbSync();
 }
+function addManual() {
+  const n = nn($('tb-add-name').value);
+  if (!n) return;
+  _manual.add(n); _tbChecked.add(n); saveManual();
+  localStorage.setItem('tbChecked', JSON.stringify([..._tbChecked]));
+  $('tb-add-name').value = ''; tbRenderList();
+}
+$('tb-add-go').onclick = addManual;
+$('tb-add-name').addEventListener('keydown', e => { if (e.key === 'Enter') addManual(); });
 $('tb-clear').onclick = () => { _tbChecked.clear(); localStorage.setItem('tbChecked', '[]'); tbRenderList(); };
 (function tbDragSelect() {   // 드래그로 여러 명 선택(누른 칩의 반대 상태를 지나는 칩 전부에)
   const list = $('tb-list');
@@ -106,7 +143,7 @@ function tbSync() {
   clearTimeout(_lobbyT);   // 고르는 중 → 팀원에게 "준비 중" 안내(디바운스)
   _lobbyT = setTimeout(() => { if (_curCat === 'team' && $('tb-pick').style.display !== 'none') window.api.lobbyPrep([..._tbChecked]); }, 300);
 }
-const tbMode = () => document.querySelector('input[name=tb-mode]:checked')?.value || 'balance';
+const tbMode = () => document.querySelector('input[name=tb-mode]:checked')?.value || 'random';   // 밸런스는 새 로직 준비 중
 document.querySelectorAll('input[name=tb-mode]').forEach(r => r.addEventListener('change', tbSync));
 // 🎯 드래프트 팀장 고르기(선택한 참가자 중 2명)
 let _caps = [];
@@ -240,12 +277,10 @@ window.api.onSession(({ session }) => {
 
 // ── 시작 ────────────────────────────────────────────────────────────────
 (async () => {
+  showWaiting();
   const d = await window.api.getPlayers().catch(() => null);
-  if (d) {
-    _names = d.names || []; _myName = d.myName || ''; _session = d.session || null;
-    esel.innerHTML = '<option value="">— 아이디 선택 —</option>' + _names.map(n => `<option value="${escH(n)}"${n === _myName ? ' selected' : ''}>${escH(n)}</option>`).join('');
-    $('s-entry-go').disabled = !esel.value;
-    $('s-ver').textContent = d.appVer ? '투데이 내전 v' + d.appVer : '';
-  }
-  showLogin();   // 매번 입장 화면(지난 아이디는 미리 선택)
+  if (!d) return;
+  _session = d.session || null;
+  $('s-ver').textContent = d.appVer ? '투데이 내전 v' + d.appVer : '';
+  if (d.account) applyAccount(d.account, d.isHost);
 })();

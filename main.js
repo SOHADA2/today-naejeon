@@ -530,9 +530,51 @@ const fetchSession   = () => getJson(`${FIREBASE_DB}/${T}/session.json`);
 const fetchLobby     = () => getJson(`${FIREBASE_DB}/${T}/lobby.json`);
 const fetchEog       = () => getJson(`${FIREBASE_DB}/${T}/bridge/eogStats.json`);
 const fetchDay       = (day) => getJson(`${FIREBASE_DB}/${T}/days/${day}/matches.json`);
-const fetchPlayers   = () => getJson(`${FIREBASE_DB}/players.json`);                 // (읽기 전용) 사이트 등록 플레이어 이름
-const fetchSiteMatches = () => getJson(`${FIREBASE_DB}/matches.json`);             // (읽기 전용) 팀 밸런스용 승률
-const fetchSeason    = () => getJson(`${FIREBASE_DB}/config/currentSeason.json`);   // (읽기 전용)
+const fetchPresence  = () => getJson(`${FIREBASE_DB}/${T}/presence.json`);        // 👤 지금 앱 켜고 롤 로그인한 사람들
+
+// ── 👤 라이엇 계정 = 나 (롤 클라에 로그인된 계정으로 자동 입장 · 사이트 닉네임 안 씀) ──
+// 표시 이름 = 라이엇 게임 이름. 저장 키 = puuid(계정 고유 ID·닉변해도 유지).
+// 친구가 같은 PC에서 자기 계정으로 바꿔 로그인하면 브릿지가 감지 → 자동 전환(방장은 해제).
+let account = null;   // { puuid, gameName, tagLine }
+const PRESENCE_MS = 20000, ONLINE_MS = 60000;
+let _presenceTimer = null;
+async function beatPresence() {
+  if (!account) return;
+  await fbSet(`${T}/presence/${account.puuid}`, { name: account.gameName, tag: account.tagLine || null, at: Date.now(), host: !!config.isHost, app: app.getVersion() }).catch(() => {});
+}
+function setAccount(acc) {
+  const prev = account;
+  if (acc && !acc.gameName) acc = null;
+  if ((prev && prev.puuid) === (acc && acc.puuid) && (prev && prev.gameName) === (acc && acc.gameName)) return;
+  if (prev && (!acc || prev.puuid !== acc.puuid)) {   // 계정 바뀜/로그아웃 → 이전 접속 표시 지우고 방장 해제
+    fbSet(`${T}/presence/${prev.puuid}`, null).catch(() => {});
+    if (config.isHost) { config.isHost = false; fbSet(`${T}/lobby`, null).catch(() => {}); }
+  }
+  account = acc;
+  config.myName = acc ? acc.gameName : '';
+  if (acc) {
+    beatPresence();
+    fbUpdate(`${T}/accounts/${acc.puuid}`, { name: acc.gameName, tag: acc.tagLine || null, lastSeen: Date.now() }).catch(() => {});
+    if (!_presenceTimer) _presenceTimer = setInterval(beatPresence, PRESENCE_MS);
+  }
+  broadcast('account', { account, isHost: !!config.isHost, switched: !!(prev && acc && prev.puuid !== acc.puuid) });
+  broadcast('myname', config.myName);
+  broadcast('session', { session: sessionData, myName: config.myName });
+}
+async function getRoster() {   // 방장 참가자 목록 = 지금 접속 중 + 오늘 뛴 사람
+  const [pres, t] = await Promise.all([fetchPresence(), getToday()]);
+  const now = Date.now(), online = [];
+  for (const [puuid, p] of Object.entries(pres || {})) if (p && p.name && now - (p.at || 0) < ONLINE_MS) online.push({ puuid, name: normName(p.name), tag: p.tag || '', host: !!p.host });
+  online.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  const onSet = new Set(online.map(o => o.name));
+  const recent = (t.standings || []).map(p => p.name).filter(n => !onSet.has(n));
+  return { ok: true, online, recent, me: account ? account.gameName : '' };
+}
+async function teamIds(names) {   // 이름 → puuid(경기 결과를 계정 ID로 정확히 판정하기 위해 팀에 같이 저장)
+  const pres = await fetchPresence(), ids = {};
+  for (const [puuid, p] of Object.entries(pres || {})) if (p && p.name && names.includes(normName(p.name))) ids[fbKeyOf(p.name)] = puuid;
+  return Object.keys(ids).length ? ids : null;
+}
 
 // 없을 때만 생성(조건부 PUT) — 같은 경기를 두 기기가 동시에 기록해도 한 번만 저장(412=이미 있음)
 async function fbPutIfAbsent(pathStr, value) {
@@ -605,7 +647,15 @@ const runHost = coalesce(async () => { if (_hostBusy) return; _hostBusy = true; 
 function matchWinner(s, eog) {
   const winNames = new Set(eog.players.filter(p => p.isWin).map(p => norm(p.summonerName)));
   const loseNames = new Set(eog.players.filter(p => !p.isWin).map(p => norm(p.summonerName)));
-  const score = team => (s[team] || []).reduce((acc, n) => acc + (winNames.has(norm(n)) ? 1 : 0) - (loseNames.has(norm(n)) ? 1 : 0), 0);
+  const winIds = new Set(eog.players.filter(p => p.isWin && p.puuid).map(p => p.puuid));
+  const loseIds = new Set(eog.players.filter(p => !p.isWin && p.puuid).map(p => p.puuid));
+  const ids = s.ids || {};
+  const side = n => {   // 👤 계정 ID로 먼저, 없으면 이름으로
+    const id = ids[fbKeyOf(n)];
+    if (id && (winIds.has(id) || loseIds.has(id))) return winIds.has(id) ? 1 : -1;
+    return winNames.has(norm(n)) ? 1 : loseNames.has(norm(n)) ? -1 : 0;
+  };
+  const score = team => (s[team] || []).reduce((acc, n) => acc + side(n), 0);
   const a = score('teamA'), b = score('teamB');
   if (a > 0 && a > b) return 'teamA';
   if (b > 0 && b > a) return 'teamB';
@@ -665,13 +715,6 @@ async function closeVote() {
 // ── ⚔️ 팀 짜기(방장) — 바로 확정(아이템 시간 없음) ───────────────────────────
 let _tbBusy = false;
 function sendTb(payload) { if (leftWin && !leftWin.isDestroyed()) leftWin.webContents.send('teambuild', payload); }
-let _siteMatches = null, _siteMatchesAt = 0;
-async function getSiteMatches() {   // 승률 데이터(수 MB) — 10분 캐시
-  if (_siteMatches && Date.now() - _siteMatchesAt < 10 * 60 * 1000) return _siteMatches;
-  const m = await fetchSiteMatches();
-  if (m) { _siteMatches = m; _siteMatchesAt = Date.now(); }
-  return _siteMatches || {};
-}
 async function startTeamBuild(names, mode) {
   if (!config.isHost) return { ok: false, err: '방장만 팀을 짤 수 있어요' };
   if (_tbBusy) return { ok: false, err: '팀을 짜는 중이에요' };
@@ -680,14 +723,14 @@ async function startTeamBuild(names, mode) {
   _tbBusy = true;
   sendTb({ state: 'building' });
   try {
-    const [prev, matches, seasonV] = await Promise.all([fetchSession(), getSiteMatches(), fetchSeason()]);
+    // ⚠️ 밸런스 모드는 새 로직 설계 전까지 비활성 — 지금은 랜덤만(사이트 승률 데이터도 더 이상 안 읽음)
+    const prev = await fetchSession();
     const r = buildTeams({
-      names, mode: mode === 'random' ? 'random' : 'balance', matches: matches || {},
-      season: typeof seasonV === 'number' ? seasonV : 2,
+      names, mode: 'random', matches: {}, season: 0,
       prevTeamA: (prev && prev.teamA) || [], prevTeamB: (prev && prev.teamB) || [],
       spectatorExclude: [],
     });
-    const res = await writeTeams(r.teamA, r.teamB, r.spectators, mode === 'random' ? 'random' : 'balance');
+    const res = await writeTeams(r.teamA, r.teamB, r.spectators, 'random');
     if (!res.ok) { sendTb({ state: 'error', err: '팀 저장 실패 — ' + res.err }); return res; }
     sendTb({ state: 'done', teamA: r.teamA, teamB: r.teamB, spectators: r.spectators });
     return { ok: true };
@@ -743,9 +786,9 @@ async function startDraft(names, captains) {
   if (caps.length !== 2) caps = names.slice().sort(() => Math.random() - 0.5).slice(0, 2);   // 팀장 미지정 → 무작위 2명
   const first = Math.random() < 0.5 ? 'teamA' : 'teamB';   // 🪙 선픽 = 동전 던지기
   const teamSize = Math.min(5, Math.floor(names.length / 2));
-  const now = Date.now();
+  const now = Date.now(), ids = await teamIds(names);
   const w = await fbSet(`${T}/session`, {
-    phase: 'draft', active: true, mode: 'draft', by: config.myName || null, day: dayKey(now),
+    phase: 'draft', ids, active: true, mode: 'draft', by: config.myName || null, day: dayKey(now),
     players: names, captains: { teamA: caps[0], teamB: caps[1] }, teamA: [caps[0]], teamB: [caps[1]],
     pool: names.filter(n => !caps.includes(n)), order: draftOrder(first, (teamSize - 1) * 2), pickIdx: 0,
     teamSize, firstPick: first, draftStartedAt: now, turnEndsAt: now + DRAFT_TURN_MS,
@@ -779,8 +822,9 @@ async function draftPick(name, auto) {
 
 async function writeTeams(teamA, teamB, spectators, mode) {
   const now = Date.now();
+  const ids = await teamIds([...teamA, ...teamB]);
   const w = await fbSet(`${T}/session`, {
-    phase: 'teams', active: true, teamA, teamB,
+    phase: 'teams', active: true, teamA, teamB, ids,
     spectators: (spectators && spectators.length) ? spectators : null,
     teamSize: Math.max(teamA.length, teamB.length), mode: mode || 'balance',
     teamsFormedAt: now, day: dayKey(now), by: config.myName || null,
@@ -877,13 +921,9 @@ ipcMain.on('quit-confirm', (_e, yes) => {
 ipcMain.on('update-now', () => { app._quitting = true; try { autoUpdater.quitAndInstall(); } catch (_) { app.quit(); } });
 ipcMain.on('update-later', () => { if (updateToastWin && !updateToastWin.isDestroyed()) updateToastWin.hide(); });
 ipcMain.on('open-web', () => shell.openExternal(WEB_URL));
-ipcMain.on('set-myname', (_e, name) => {
-  config.myName = name || ''; saveConfig();
-  broadcast('myname', config.myName);
-  broadcast('session', { session: sessionData, myName: config.myName });
-});
 ipcMain.on('set-host', (_e, v) => {
-  config.isHost = !!v; saveConfig();
+  if (v && !account) return;   // 롤 로그인 전엔 방장 불가
+  config.isHost = !!v; saveConfig(); beatPresence();
   broadcast('session', { session: sessionData, myName: config.myName || '' });
   if (config.isHost) runHost(); else fbSet(`${T}/lobby`, null).catch(() => {});
 });
@@ -894,11 +934,8 @@ ipcMain.on('lobby-prep', (_e, { names } = {}) => {
   fbSet(`${T}/lobby`, list.length ? { state: 'preparing', by: config.myName || '방장', at: Date.now(), participants: list } : null).catch(() => {});
 });
 ipcMain.on('lobby-clear', () => { if (config.isHost) fbSet(`${T}/lobby`, null).catch(() => {}); });
-ipcMain.handle('get-players', async () => {
-  const d = await fetchPlayers();
-  const names = d ? [...new Set(Object.values(d).map(p => p && p.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko')) : [];
-  return { names, myName: config.myName || '', isHost: !!config.isHost, appVer: app.getVersion(), session: sessionData };
-});
+ipcMain.handle('get-players', async () => ({ account, myName: config.myName || '', isHost: !!config.isHost, appVer: app.getVersion(), session: sessionData }));
+ipcMain.handle('roster-data', () => getRoster());
 ipcMain.handle('tb-start', (_e, { names, mode }) => startTeamBuild(names, mode));
 ipcMain.handle('draft-start', (_e, { names, captains }) => startDraft(names, captains));   // 🎯 드래프트 시작(방장)
 ipcMain.handle('draft-pick', (_e, { name }) => draftPick(name, false));                  // 🎯 팀장(또는 방장) 픽
@@ -946,7 +983,8 @@ else {
   app.whenReady().then(() => {
     CONFIG_PATH = path.join(app.getPath('userData'), 'today-naejeon-config.json');
     config = loadConfig();
-    config.isHost = false;   // 🔒 방장은 실행마다 초기화(입장 화면에서 매번 체크)
+    config.isHost = false;   // 🔒 방장은 실행마다 초기화
+    config.myName = '';      // 👤 이름은 롤 로그인 계정에서만(옛 버전 저장값 무시)
     if (!config.deviceId) { config.deviceId = 'td_' + Math.random().toString(36).slice(2, 11) + Date.now().toString(36); saveConfig(); }
     createOverlay();
     createLeftPanel();
@@ -964,7 +1002,9 @@ else {
     fbStream(`${T}/lobby`, runSession);                  // ⚡ 방장 준비 중 배너
     fbStream(`${T}/bridge/eogStats`, () => { if (config.isHost) runHost(); });   // ⚡ 경기 종료 → 방장 앱이 바로 기록
     setupAutoUpdate();
-    bridge.start({ getOperatorName: () => config.myName || null, appVer: app.getVersion(), log: (m) => { try { console.log(m); } catch (_) {} } });
+    bridge.start({ getOperatorName: () => config.myName || null, appVer: app.getVersion(), onAccount: setAccount, log: (m) => { try { console.log(m); } catch (_) {} } });
+    // 🧪 개발용: 롤 없이 테스트 — TN_FAKE_ACCOUNT="이름#태그" (배포본에선 안 씀)
+    if (!app.isPackaged && process.env.TN_FAKE_ACCOUNT) { const [g, t] = process.env.TN_FAKE_ACCOUNT.split('#'); setTimeout(() => setAccount({ puuid: 'fake-' + g, gameName: g, tagLine: t || 'KR1' }), 1500); }
   });
 }
 
@@ -978,6 +1018,6 @@ function setupAutoUpdate() {
   autoUpdater.checkForUpdates().catch(() => {});
   setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 30 * 60 * 1000);
 }
-app.on('before-quit', () => { app._quitting = true; try { bridge.stop(); } catch (_) {} try { if (config.isHost) fbSet(`${T}/lobby`, null); } catch (_) {} try { stopDockStream(); } catch (_) {} });
+app.on('before-quit', () => { app._quitting = true; try { if (account) fbSet(`${T}/presence/${account.puuid}`, null); } catch (_) {} try { bridge.stop(); } catch (_) {} try { if (config.isHost) fbSet(`${T}/lobby`, null); } catch (_) {} try { stopDockStream(); } catch (_) {} });
 app.on('window-all-closed', () => { /* 트레이 상주 */ });
 app.on('will-quit', () => globalShortcut.unregisterAll());

@@ -18,19 +18,17 @@
       <span class="s-ttl">투데이 내전</span>
       <span class="s-me" id="s-me" style="display:none;"></span>
       <span class="s-sp"></span>
+      <button id="s-hostbtn" class="s-hostbtn" style="display:none;" title="방장 = 팀짜기·경기 기록·투표 마감 담당">👑 방장 하기</button>
       <button id="s-min" class="s-winbtn" title="최소화">–</button>
       <button id="s-close" class="s-winbtn" title="닫기">✕</button>
     </header>
 
     <!-- 입장 -->
     <section id="s-login" class="s-login" style="display:none;">
-      <div class="slh"><div class="slh-crest">⚔️</div><div class="slh-title">투데이 내전</div><div class="slh-sub">오늘 하루의 내전 · 내 아이디로 입장</div></div>
+      <div class="slh"><div class="slh-crest">⚔️</div><div class="slh-title">투데이 내전</div><div class="slh-sub">오늘 하루의 내전</div></div>
       <div class="s-login-box">
-        <div class="slb-label">계정 선택</div>
-        <select id="s-entry-name"><option value="">— 아이디 선택 —</option></select>
-        <button id="s-entry-go" class="ui-btn-gold slb-go" disabled>입장</button>
-        <label class="s-host-login"><input type="checkbox" id="s-host"><span class="shl-tx"><b>👑 방장으로 입장</b><small>팀짜기·경기 기록·투표 마감을 담당</small></span></label>
-        <div class="slb-hint">홈페이지에 등록된 <b>본인 닉네임</b>을 고르세요<br>투데이 내전 기록은 시즌 LP·골드와 따로 쌓여요</div>
+        <div class="tn-wait"><span class="lobby-pulse"></span><b>롤 클라이언트를 켜고 로그인하면</b><br>그 계정으로 자동 입장돼요</div>
+        <div class="slb-hint">같은 PC에서 다른 사람이 자기 계정으로 로그인하면<br>그 사람으로 자동으로 바뀌어요<br>투데이 내전 기록은 시즌 LP·골드와 따로 쌓여요</div>
       </div>
       <div class="app-ver" id="s-ver"></div>
     </section>
@@ -53,12 +51,13 @@
               <div class="tb-row">
                 <span class="tb-count"><b id="tb-num">0</b>명 선택 <button id="tb-clear" title="전체 선택 해제">해제</button></span>
                 <span class="tb-modes">
-                  <label><input type="radio" name="tb-mode" value="balance" checked> 밸런스</label>
-                  <label><input type="radio" name="tb-mode" value="random"> 랜덤</label>
+                  <label><input type="radio" name="tb-mode" value="random" checked> 랜덤</label>
                   <label><input type="radio" name="tb-mode" value="draft"> 드래프트</label>
                 </span>
               </div>
+              <div class="tn-legend"><i class="tn-dot on"></i>지금 접속 중 <i class="tn-dot"></i>오늘 뛴 사람·직접 추가</div>
               <div id="tb-list" class="tb-list"></div>
+              <div class="tn-add"><input id="tb-add-name" maxlength="24" placeholder="앱 없는 사람 이름 추가"><button id="tb-add-go" class="btn-ghost">추가</button></div>
               <button id="tb-go" class="btn-gold" disabled>팀 구성</button>
               <div class="foot-hint">팀원 오버레이에 바로 팀이 떠요 · 11명 이상·홀수면 관전자 자동 선정</div>
             </div>
@@ -74,7 +73,7 @@
         </section>
         <!-- 📅 오늘 -->
         <section class="cat-view" id="cat-today" style="display:flex;">
-          <div class="cat-hd"><button class="td-nav" id="td-prev" title="이전 날">‹</button><span id="td-day">오늘</span><button class="td-nav" id="td-next" title="다음 날">›</button><span class="cat-hd-actions"><button class="s-change-btn" id="s-change" title="계정 변경">계정 변경</button></span></div>
+          <div class="cat-hd"><button class="td-nav" id="td-prev" title="이전 날">‹</button><span id="td-day">오늘</span><button class="td-nav" id="td-next" title="다음 날">›</button></div>
           <div id="td-body" class="cat-scroll ui-scroll"></div>
         </section>
       </div>

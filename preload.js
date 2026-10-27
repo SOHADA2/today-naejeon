@@ -22,9 +22,10 @@ contextBridge.exposeInMainWorld('api', {
   updateNow: () => ipcRenderer.send('update-now'),
   updateLater: () => ipcRenderer.send('update-later'),
   quitConfirm: (yes) => ipcRenderer.send('quit-confirm', yes),
-  // 👤 입장
+  // 👤 입장(라이엇 계정 자동)
   getPlayers: () => ipcRenderer.invoke('get-players'),
-  setMyName: (n) => ipcRenderer.send('set-myname', n),
+  onAccount: (cb) => ipcRenderer.on('account', (_e, d) => cb(d)),   // 👤 롤 로그인 계정(자동 입장·계정 바뀌면 자동 전환)
+  getRoster: () => ipcRenderer.invoke('roster-data'),                // 👥 지금 접속 중 + 오늘 뛴 사람
   setHost: (v) => ipcRenderer.send('set-host', v),
   // ⚔️ 팀 짜기(방장)
   tbStart: (names, mode) => ipcRenderer.invoke('tb-start', { names, mode }),

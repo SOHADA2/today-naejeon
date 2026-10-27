@@ -41,3 +41,23 @@
 .td-gt .w { color:var(--win); font-weight:700; }
 .td-gt .l { color:var(--ink-soft); opacity:0.75; }
 .td-ga { margin-top:3px; color:var(--gold); font-size:11px; }
+
+/* 👤 라이엇 계정 자동 입장 */
+.tn-wait { text-align:center; font-size:13px; line-height:1.8; color:var(--ink); padding:14px 6px 6px; }
+.tn-wait .lobby-pulse { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--gold); margin-right:8px; vertical-align:middle; animation:tnPulse 1.3s ease-in-out infinite; }
+@keyframes tnPulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+#sbar .s-me small { font-weight:500; color:var(--dim); margin-left:2px; }
+.s-hostbtn { margin-right:6px; padding:3px 9px; font:700 11px var(--f-body); color:var(--ink-soft); background:transparent; border:1px solid var(--hair); cursor:pointer; }
+.s-hostbtn:hover { border-color:var(--gold-line); color:var(--gold); }
+.s-hostbtn.on { color:#1a1206; background:var(--gold); border-color:var(--gold); }
+/* 👥 참가자 목록: 접속 표시 · 직접 추가 */
+.tn-legend { display:flex; align-items:center; gap:5px; font-size:10.5px; color:var(--dim); margin:2px 2px 6px; }
+.tn-legend .tn-dot:not(:first-child) { margin-left:8px; }
+.tn-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,0.18); flex-shrink:0; }
+.tn-dot.on { background:#3ddc84; box-shadow:0 0 5px rgba(61,220,132,0.7); }
+#tb-list .tb-item .tn-dot { margin-left:auto; }
+.tn-add { display:flex; gap:6px; margin:8px 0 10px; }
+.tn-add input { flex:1; min-width:0; padding:6px 8px; font:500 12px var(--f-body); color:var(--ink); background:rgba(255,255,255,0.04); border:1px solid var(--hair); outline:none; }
+.tn-add input:focus { border-color:var(--gold-line); }
+.tn-add button { margin:0; padding:0 12px; width:auto; }
+.tn-rm { margin-left:4px; padding:0 4px; font-size:10px; color:var(--dim); background:none; border:none; cursor:pointer; } .tn-rm:hover { color:var(--lose); }
