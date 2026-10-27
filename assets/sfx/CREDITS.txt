@@ -1,6 +1,5 @@
 효과음 재료 = VSCO-2 Community Edition (Versilian Studios, CC0 1.0 퍼블릭 도메인)
 https://github.com/sgossner/VSCO-2-CE
-- pick-t1.ogg / pick-t2.ogg (드래프트 픽 「빠–밤!」 팡파르, 2.8초·자연스러운 잔향·-16 LUFS 정도): 스네어 롤 → 「빠」 트럼펫 스타카토 화음+스네어+팀파니
-  → 「밤!」 트럼펫 화음(지속)+크래시 심벌+팀파니+큰북 → 글로켄슈필 올라가는 반짝임. 1팀 = C장조 · 2팀 = E♭장조(둘 다 밝게).
-  첫 타격 = 0.2초(화면에서 이름이 꽂히는 순간), 두 번째 = 0.37초.
-  재료 위치: Brass/Trumpet/sus·stac(파일 이름보다 실제 음이 한 옥타브 높음 → 잰 음높이로 조정), Percussion/Timpani·Snare2·cymbal-crash1·BDrumNewhit·Glock
+- pick-t1.ogg / pick-t2.ogg (드래프트 픽 「둥–툭–둥」 베이스, 1.75초, -16 LUFS): 콘트라베이스 피치카토 + 첼로 섹션 피치카토(한 옥타브 위로 겹침)
+  0.20초 「둥」 으뜸음(이름 꽂힘) → 0.37초 「툭」 같은 음 짧게 막음 → 0.54초 「둥」 5도 위. 1팀 = 레→라 · 2팀 = 도→솔.
+  재료 위치: Strings/Solo Contrabass/Pizz(파일 이름 + 1옥타브가 실제 음), Strings/Cello Section/pizzT(파일 이름 + 2옥타브)

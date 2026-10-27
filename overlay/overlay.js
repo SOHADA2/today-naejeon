@@ -139,9 +139,10 @@ function playPick(s, lp) {
     { opacity: 1, transform: 'scale(1)', filter: 'blur(0) brightness(1)' },
   ], { duration: 240, delay: 60, easing: 'cubic-bezier(.5,0,.3,1)' });   // 이름이 꽂히는 순간 = 「둥」(0.2초)
   go(shine, [{ transform: 'translateX(0)' }, { transform: 'translateX(380%)' }], { duration: 520, delay: 420, easing: 'ease-in-out' });
-  // 「둥–둥」 순간마다 화면이 짧게 흔들림 — 무게감
+  // 「둥–툭–둥」 박자마다 화면이 짧게 흔들림(툭은 살짝)
   go(el('pk-card').parentElement, [{ translate: '0 0' }, { translate: '-5px 3px' }, { translate: '4px -2px' }, { translate: '-2px 1px' }, { translate: '0 0' }], { duration: 260, delay: 200, easing: 'ease-out', fill: 'none' });
-  go(el('pk-card').parentElement, [{ translate: '0 0' }, { translate: '3px -2px' }, { translate: '-2px 1px' }, { translate: '0 0' }], { duration: 200, delay: 370, easing: 'ease-out', fill: 'none' });   // 두 번째 「둥」
+  go(el('pk-card').parentElement, [{ translate: '0 0' }, { translate: '2px -1px' }, { translate: '-1px 0' }, { translate: '0 0' }], { duration: 160, delay: 370, easing: 'ease-out', fill: 'none' });   // 「툭」
+  go(el('pk-card').parentElement, [{ translate: '0 0' }, { translate: '-4px 2px' }, { translate: '3px -1px' }, { translate: '0 0' }], { duration: 220, delay: 540, easing: 'ease-out', fill: 'none' });   // 마지막 「둥」
   // 끝 = 띠와 이름이 그 팀 쪽으로 빠지며 사라짐
   go(card, [{ opacity: 1, transform: 'translateX(0) scale(1)' }, { opacity: 0, transform: `translateX(${A ? '-40%' : '40%'}) scale(0.7)` }], { duration: 280, delay: PICK_MS - 300, easing: 'ease-in', composite: 'replace' });
   go(band, [{ opacity: 1 }, { opacity: 0 }], { duration: 280, delay: PICK_MS - 300 });
@@ -154,8 +155,8 @@ function playPick(s, lp) {
     if (li) { li.style.setProperty('--pk-from', A ? '-30px' : '30px'); li.style.setProperty('--pk-soft2', A ? 'rgba(74,168,255,0.35)' : 'rgba(255,90,110,0.33)'); li.classList.remove('pk-wait'); li.classList.add('pk-land'); }
   }, PICK_MS);
 }
-// 🔊 픽 효과음 = 실제 악기 녹음(VSCO-2 CE·CC0)으로 미리 섞은 「빠–밤!」 팡파르(뽑혔다·합류 축하): 스네어 롤 → 트럼펫 「빠」 → 「밤!」+크래시·팀파니 → 글로켄 반짝(1팀 C장조·2팀 E♭장조)
-//   0.2초에 첫 「둥」 = 화면에서 이름이 꽂히는 순간. 만든 재료·방법 = assets/sfx/CREDITS.txt
+// 🔊 픽 효과음 = 실제 악기 녹음(VSCO-2 CE·CC0)으로 미리 섞은 「둥–툭–둥」 베이스: 콘트라베이스+첼로 피치카토(1팀 레→라 · 2팀 도→솔)
+//   0.2초 「둥」 = 화면에서 이름이 꽂히는 순간 · 0.37 「툭」 · 0.54 「둥」(화면 흔들림 세 번과 같은 박자). 재료·방법 = assets/sfx/CREDITS.txt
 const PICK_SFX = { A: new Audio('../assets/sfx/pick-t1.ogg'), B: new Audio('../assets/sfx/pick-t2.ogg') };
 Object.values(PICK_SFX).forEach(a => { a.preload = 'auto'; a.volume = 0.2; });   // 사장님: 0.7에서 10~11dB 더 작게
 function pickSound(A) { try { const a = PICK_SFX[A ? 'A' : 'B']; a.currentTime = 0; const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (_) {} }
