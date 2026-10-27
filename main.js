@@ -478,8 +478,14 @@ function toggleOverlay() {
   else { showOverlay(); userHid = false; }
 }
 
+const _lastSent = {};
 function broadcast(channel, payload) {
   if (channel === 'session' && payload && typeof payload === 'object') payload.isHost = !!config.isHost;   // 👑 방장 여부 동봉(투표 마감 버튼용)
+  if (channel === 'session' || channel === 'lobby') {   // ⚡ 바뀐 게 없으면 안 보냄 → 화면을 괜히 다시 그리지 않음
+    const sig = JSON.stringify(payload);
+    if (_lastSent[channel] === sig) return;
+    _lastSent[channel] = sig;
+  }
   for (const w of [overlayWin, leftWin]) if (w && !w.isDestroyed()) w.webContents.send(channel, payload);
 }
 
@@ -658,46 +664,52 @@ function lobbyView() {
   return { members, mode: L.mode === 'draft' ? 'draft' : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
     hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost };
 }
+function lobbyLocal(mut) {   // ⚡ 내 화면 먼저(서버 왕복 ~0.1~0.3초 안 기다림)
+  lobbyRaw = JSON.parse(JSON.stringify(lobbyRaw || {}));
+  mut(lobbyRaw);
+  broadcast('lobby', lobbyView());
+}
+async function lobbyWrite(p) {   // 쓰기 실패하면 서버 값으로 되돌림
+  const r = await p;
+  if (!r || !r.ok) refreshLobby();
+  return r;
+}
 function lobbyJoin(key, st, extra) {
   const k = String(key || '').replace(/[.#$\[\]\/]/g, '_');
   if (!k) return Promise.resolve({ ok: false, err: '잘못된 사람' });
-  if (!st) return fbSet(`${T}/lobby/join/${k}`, null);
-  return fbSet(`${T}/lobby/join/${k}`, { ...(extra || {}), st, at: Date.now(), day: dayKey() });
+  const val = st ? { ...(extra || {}), st, at: Date.now(), day: dayKey() } : null;
+  lobbyLocal(L => { L.join = L.join || {}; if (val) L.join[k] = val; else delete L.join[k]; });
+  return lobbyWrite(fbSet(`${T}/lobby/join/${k}`, val));
 }
+// ⚡ 대기실 스트림 → 바뀐 노드만 다시 읽음(세션·방장까지 4개 다 읽던 것 대신)
+const refreshLobby = coalesce(async () => { const L = await fetchLobby(); if (L !== undefined) { lobbyRaw = L || null; broadcast('lobby', lobbyView()); } });
+const refreshPresence = coalesce(async () => { const P = await fetchPresence(); if (P !== undefined) { presenceRaw = P || null; broadcast('lobby', lobbyView()); } });
 async function lobbySetMine(st) {
   if (!account) return { ok: false, err: '롤에 로그인하면 참가할 수 있어요' };
-  const r = await lobbyJoin(account.puuid, st, { name: account.gameName });
-  pollSession();
-  return r;
+  return lobbyJoin(account.puuid, st, { name: account.gameName });
 }
 async function lobbySetFor(key, st) {   // 👑 방장: 다른 사람 상태 바꾸기
   if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
   const m = lobbyView().members.find(x => x.key === key);
   if (!m) return { ok: false, err: '목록에 없는 사람이에요' };
-  const r = await lobbyJoin(key, st, m.guest ? { name: m.name, guest: true } : { name: m.name });
-  pollSession();
-  return r;
+  return lobbyJoin(key, st, m.guest ? { name: m.name, guest: true } : { name: m.name });
 }
 async function lobbyAddGuest(name) {   // 👑 방장: 앱 없는 사람 추가(바로 참가)
   if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
   const n = normName(String(name || '')).slice(0, 24);
   if (!n) return { ok: false, err: '이름을 적어주세요' };
   if (lobbyView().members.some(m => m.name === n)) return { ok: false, err: '이미 목록에 있어요' };
-  const r = await lobbyJoin('g_' + fbKeyOf(n), 'in', { name: n, guest: true });
-  pollSession();
-  return r;
+  return lobbyJoin('g_' + fbKeyOf(n), 'in', { name: n, guest: true });
 }
 async function lobbyRemoveGuest(key) {
   if (!config.isHost || !String(key).startsWith('g_')) return { ok: false };
-  const r = await lobbyJoin(key, null);
-  pollSession();
-  return r;
+  return lobbyJoin(key, null);
 }
 async function lobbySetMode(mode) {
   if (!config.isHost) return { ok: false, err: '방장만 방식을 정할 수 있어요' };
-  const r = await fbUpdate(`${T}/lobby`, { mode: mode === 'draft' ? 'draft' : 'random' });
-  pollSession();
-  return r;
+  const m = mode === 'draft' ? 'draft' : 'random';
+  lobbyLocal(L => { L.mode = m; });
+  return lobbyWrite(fbUpdate(`${T}/lobby`, { mode: m }));
 }
 async function lobbyCaptain(name, rand) {   // 🎯 팀장 지정/해제(누르면 빈 자리에, 다시 누르면 해제) · rand=무작위 2명
   if (!config.isHost) return { ok: false, err: '방장만 팀장을 정할 수 있어요' };
@@ -710,9 +722,9 @@ async function lobbyCaptain(name, rand) {   // 🎯 팀장 지정/해제(누르�
     if (teamA === n) teamA = null; else if (teamB === n) teamB = null;
     else if (!teamA) teamA = n; else if (!teamB) teamB = n; else teamB = n;
   }
-  const r = await fbSet(`${T}/lobby/captains`, (teamA || teamB) ? { teamA, teamB } : null);
-  pollSession();
-  return r;
+  const caps = (teamA || teamB) ? { teamA, teamB } : null;
+  lobbyLocal(L => { L.captains = caps; });
+  return lobbyWrite(fbSet(`${T}/lobby/captains`, caps));
 }
 async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(대기실에서 정한 방식)
   if (!config.isHost) return { ok: false, err: '방장만 시작할 수 있어요' };
@@ -1163,7 +1175,8 @@ else {
     const runSession = coalesce(pollSession);
     setInterval(runSession, 3000);                       // 안전망(스트림 끊겼을 때)
     fbStream(`${T}/session`, runSession);                // ⚡ 팀 배정·투표·결과 = 바뀌는 즉시
-    fbStream(`${T}/lobby`, runSession);
+    fbStream(`${T}/lobby`, refreshLobby);                 // ⚡ 대기실(참가·방식·팀장) = 이 노드만 다시 읽음
+    fbStream(`${T}/presence`, refreshPresence);           // ⚡ 누가 들어오고 나감
     fbStream(`${T}/host`, runSession);                   // ⚡ 방장 바뀜(넘겨받음·이어받음)                  // ⚡ 방장 준비 중 배너
     fbStream(`${T}/bridge/eogStats`, () => { if (config.isHost) runHost(); });   // ⚡ 경기 종료 → 방장 앱이 바로 기록
     setupAutoUpdate();

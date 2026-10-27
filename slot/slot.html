@@ -16,17 +16,12 @@
       color:#F5E7C6;
       background:linear-gradient(158deg, rgba(12,24,40,0.90), rgba(3,11,20,0.95));
       border:1px solid rgba(200,170,110,0.7);
-      box-shadow:0 4px 16px rgba(0,0,0,0.5), 0 0 16px rgba(200,170,110,0.32), inset 0 0 16px rgba(200,170,110,0.09);
+      box-shadow:0 4px 16px rgba(0,0,0,0.5), 0 0 18px rgba(200,170,110,0.42), inset 0 0 16px rgba(200,170,110,0.11);
       clip-path:polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
-      animation:mkGlow 2.6s ease-in-out infinite;
+      /* ⚠️ 숨쉬는 빛(무한 애니메이션) 금지 — 투명 창이 매 프레임 다시 그려져 CPU를 계속 먹음(v0.1.5). 고정 빛으로 */
     }
     .mk-ic { font-size:12.5px; line-height:1; filter:drop-shadow(0 0 4px rgba(200,170,110,0.55)); }
     .mk-tx { text-shadow:0 1px 3px rgba(0,0,0,0.7); }
-    /* 골드 글로우 — 버튼 전체가 은은하게 숨쉬듯 발광 */
-    @keyframes mkGlow {
-      0%,100% { border-color:rgba(200,170,110,0.5);  box-shadow:0 4px 16px rgba(0,0,0,0.5), 0 0 12px rgba(200,170,110,0.22), inset 0 0 14px rgba(200,170,110,0.06); }
-      50%     { border-color:rgba(200,170,110,0.95); box-shadow:0 4px 18px rgba(0,0,0,0.5), 0 0 26px rgba(200,170,110,0.58), inset 0 0 18px rgba(200,170,110,0.15); }
-    }
   </style>
 </head>
 <body>

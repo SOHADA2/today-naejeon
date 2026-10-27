@@ -44,8 +44,7 @@
 
 /* 👤 라이엇 계정 자동 입장 */
 .tn-wait { text-align:center; font-size:13px; line-height:1.8; color:var(--ink); padding:14px 6px 6px; }
-.tn-wait .lobby-pulse { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--gold); margin-right:8px; vertical-align:middle; animation:tnPulse 1.3s ease-in-out infinite; }
-@keyframes tnPulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+.tn-wait .lobby-pulse { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--gold); margin-right:8px; vertical-align:middle; }   /* 무한 애니메이션 금지(성능) */
 #sbar .s-me small { font-weight:500; color:var(--dim); margin-left:2px; }
 .s-hostbtn { margin-right:6px; padding:3px 9px; font:700 11px var(--f-body); color:var(--ink-soft); background:transparent; border:1px solid var(--hair); cursor:pointer; }
 .s-hostbtn:hover { border-color:var(--gold-line); color:var(--gold); }
