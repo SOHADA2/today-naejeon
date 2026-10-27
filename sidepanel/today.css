@@ -61,3 +61,12 @@
 .tn-add input:focus { border-color:var(--gold-line); }
 .tn-add button { margin:0; padding:0 12px; width:auto; }
 .tn-rm { margin-left:4px; padding:0 4px; font-size:10px; color:var(--dim); background:none; border:none; cursor:pointer; } .tn-rm:hover { color:var(--lose); }
+/* 👑 방장 한 명 · 넘겨주기 */
+.s-hostbtn.busy { color:var(--dim); border-style:dashed; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tn-hostmenu { position:absolute; top:74px; right:60px; z-index:50; min-width:170px; max-height:300px; overflow-y:auto; padding:6px; background:rgba(14,13,10,0.98); border:1px solid var(--gold-line); box-shadow:0 6px 18px rgba(0,0,0,0.5); }
+.thm-hd { font-size:10.5px; font-weight:800; color:var(--gold); padding:4px 6px 6px; }
+.thm-empty { font-size:11px; color:var(--dim); padding:4px 6px 8px; line-height:1.5; }
+.thm-item { display:block; width:100%; text-align:left; padding:7px 8px; margin:0; font:700 12px var(--f-body); color:var(--ink); background:none; border:none; cursor:pointer; }
+.thm-item small { font-weight:500; color:var(--dim); margin-left:3px; }
+.thm-item:hover { background:var(--gold-soft); color:var(--gold); }
+.thm-stop { margin-top:4px; border-top:1px solid var(--hair); color:var(--ink-soft); font-weight:500; }

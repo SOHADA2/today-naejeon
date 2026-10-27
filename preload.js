@@ -26,7 +26,10 @@ contextBridge.exposeInMainWorld('api', {
   getPlayers: () => ipcRenderer.invoke('get-players'),
   onAccount: (cb) => ipcRenderer.on('account', (_e, d) => cb(d)),   // 👤 롤 로그인 계정(자동 입장·계정 바뀌면 자동 전환)
   getRoster: () => ipcRenderer.invoke('roster-data'),                // 👥 지금 접속 중 + 오늘 뛴 사람
-  setHost: (v) => ipcRenderer.send('set-host', v),
+  setHost: (v) => ipcRenderer.invoke('set-host', v),                   // 👑 방장 하기/그만하기 → {ok, err}
+  handHost: (puuid) => ipcRenderer.invoke('hand-host', { puuid }),       // 👑 방장 넘겨주기
+  getHost: () => ipcRenderer.invoke('host-info'),
+  onHost: (cb) => ipcRenderer.on('host', (_e, d) => cb(d)),             // 👑 지금 방장 {host:{name,alive,mine}, isHost, note}
   // ⚔️ 팀 짜기(방장)
   tbStart: (names, mode) => ipcRenderer.invoke('tb-start', { names, mode }),
   tbAgain: () => ipcRenderer.invoke('tb-again'),

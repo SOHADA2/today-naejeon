@@ -18,6 +18,7 @@
 | `today/session` | 현재 판: `{phase:'draft'|'teams'|'vote'|'result', teamA, teamB, spectators, mode, teamsFormedAt, day, by, game:{id,day,winner,at}, votes:{fbKey:{mvp,manner,team,at}}, result:{mvp,svp,manner,voteCount,closedAt}, lastGameId, pendingEog}` |
 | `today/presence/{puuid}` | 지금 접속 중: `{name, tag, at, host, app}` · 20초마다 갱신 · 60초 지나면 오프라인 취급 · 계정 바뀜/종료 시 삭제 |
 | `today/accounts/{puuid}` | 한 번이라도 접속한 라이엇 계정 `{name, tag, lastSeen}` |
+| `today/host` | 👑 지금 방장 `{puuid, name, at, from?}` · 방장 앱이 20초마다 `at` 갱신 · 60초 넘게 끊기면 다른 사람이 이어받기 가능 · `from`=넘겨준 사람(받는 쪽 알림용, 첫 하트비트에서 지움) |
 | `today/lobby` | 방장이 참가자 고르는 중 배너 `{state:'preparing', by, at, participants}` |
 | `today/bridge/*` | 내장 브릿지: `eogStats`(gameId·winSide·players[KDA…]·savedAt, ETag CAS) · `gamePhase` · `inGame` · `champSelect` · `operators/{id}` · `connected` |
 | `today/days/{YYYY-MM-DD}/matches/{gameId}` | 오늘 경기 기록(조건부 PUT으로 1회만 생성): 팀·winner·stats·mvp/svp/manner·votes·source(auto/manual) |
@@ -28,6 +29,7 @@
 ## 흐름
 1. **입장 = 롤에 로그인된 라이엇 계정으로 자동**(v0.1.2). 브릿지 `pollAccount`가 LCU `/lol-summoner/v1/current-summoner`를 연결 시+5초마다 읽어 `onAccount` → main `setAccount`. 같은 PC에서 다른 계정으로 로그인하면 자동 전환(방장 해제). 롤 안 켜면 「롤을 켜면 자동 입장」 대기 화면. 표시 이름 = 라이엇 게임 이름, 키 = puuid. 헤더 「👑 방장 하기」 토글.
    - 개발/테스트: `TN_FAKE_ACCOUNT="이름#태그"`(배포본 무시)
+   - **👑 방장 = 한 번에 한 명(v0.1.3)**: `today/host`를 `fbCas`로 잡음(`claimHost`). 다른 사람이 살아있는 방장이면 버튼이 「👑 ○○」(점선·누르면 안내)로 잠김, 60초 넘게 응답 없으면 「👑 방장 이어받기」. 방장은 「👑 방장 ▾」 메뉴에서 **지금 접속 중인 사람에게 넘겨주기**(`handHost`) 또는 「방장 그만하기」. 모든 앱은 `today/host`를 스트림으로 보다가(`onHostRec`) 내 puuid가 적히면 자동으로 방장이 되고(넘겨받음·재시작 1분 안 복귀), 남이 적히면 자동으로 내려옴. 진행 중인 판(`today/session`)은 그대로라 방장이 바뀌어도 기록·투표가 이어짐. 정상 종료(`before-quit`)는 최대 3초 기다려 방장 자리·접속 표시를 지우고 끝냄(강제 종료면 60초 뒤 이어받기).
 2. 방장: 참가자 선택(드래그) — 후보 = 지금 접속 중(초록 점·`today/presence`) + 오늘 뛴 사람 + 직접 추가(앱 없는 사람·localStorage `tbManual`) → **팀 구성 즉시 확정**(랜덤 · 밸런스는 새 로직 준비 중) → `today/session` phase `teams` → 팀원 오버레이에 자동 표시 + 클라 위 「내 팀」 마커
 3. 게임 종료 → 참가자 누구든 앱의 브릿지가 `today/bridge/eogStats` 기록(v0.1.2부터 선수별 `puuid` 포함) → **방장 앱**(`hostTick`)이 1팀/2팀 판정 = 팀 결성 때 저장한 `session.ids`(이름→puuid)로 **계정 ID 우선**, 없으면 이름 → `today/days/.../matches/{gameId}` 저장 → phase `vote`
    - 이름 매칭 실패(인게임 이름≠등록 이름) → `pendingEog` → 방장 패널에 「이긴 팀을 골라주세요」
@@ -63,4 +65,5 @@ npm start      # ⚠️ 이 PC 셸은 ELECTRON_RUN_AS_NODE=1 → env -u ELECTRON
 - ⚠️ **실기 미검증**: 실제 롤 클라이언트로 EOG 캡처·이름 매칭·도킹/마커 위치는 아직 못 돌려봄(개발 PC에 롤 없음).
 - **v0.1.1 (2026-10-27)**: 🎯 드래프트 픽. E2E(7명 → 팀장 지정 → 방장 대신 픽 → 30초 초과 자동 픽 → 3:3+관전1 확정 → 팀 화면) 통과.
 - **v0.1.2 (2026-10-27)**: 👤 라이엇 계정 자동 입장 · 접속 중 표시 · 직접 추가 · puuid 승리 판정 · 밸런스 모드 제거(새 로직 대기) · 사이트 데이터 읽기 중단. E2E(가짜 계정 자동 입장 → 방장 → 접속 4명 목록 → 직접 추가 → 랜덤 팀 → 인게임 이름이 전부 달라도 puuid로 1팀 승 판정) 통과. ⚠️ 실제 롤 계정 감지·계정 전환·EOG puuid 존재는 실기 확인 필요.
-- ⏭️ 다음: **밸런스 팀짜기 새 로직(사장님 설계)** · 하루 안에 끝나는 인스턴트 콘텐츠(사장님 기획) · 필요하면 방장 위임/중복 방장 처리 · 인게임 화면
+- **v0.1.3 (2026-10-27)**: 👑 방장 한 명만 · 넘겨주기 · 응답 없으면 이어받기 · 정상 종료 시 방장 자리 정리. E2E(방장 하기 → 접속 중인 B에게 넘김 → B 방장일 때 잠김 → B 응답 없음 → 이어받기 → 외부에서 B가 가져가면 자동으로 내려옴 → B가 넘겨주면 자동으로 방장+알림 → 하트비트가 from 지움 → 그만하기 → 정상 종료 시 host·presence 삭제) 통과.
+- ⏭️ 다음: **밸런스 팀짜기 새 로직(사장님 설계)** · 하루 안에 끝나는 인스턴트 콘텐츠(사장님 기획) · 인게임 화면

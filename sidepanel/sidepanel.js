@@ -33,8 +33,7 @@ function showLogged() {
   $('s-login').style.display = 'none'; $('s-app').style.display = 'flex';
   const me = $('s-me'); me.style.display = '';
   me.innerHTML = escH(_account.gameName) + (_account.tagLine ? `<small>#${escH(_account.tagLine)}</small>` : '');
-  const hb = $('s-hostbtn'); hb.style.display = '';
-  hb.classList.toggle('on', _isHost); hb.textContent = _isHost ? '👑 방장' : '👑 방장 하기';
+  renderHostBtn();
   $('s-rail-team').style.display = _isHost ? '' : 'none';
   if (!_isHost && _curCat === 'team') switchCat('today');
 }
@@ -47,13 +46,62 @@ function applyAccount(acc, isHost) {
   if (changed) switchCat(_isHost ? 'team' : 'today');
 }
 window.api.onAccount(d => applyAccount(d && d.account, d && d.isHost));
-$('s-hostbtn').addEventListener('click', () => {
-  _isHost = !_isHost;
-  window.api.setHost(_isHost);
-  if (!_isHost) window.api.lobbyClear();
-  showLogged();
-  switchCat(_isHost ? 'team' : 'today');
+// ── 👑 방장 = 한 명 · 넘겨주기 · 응답 없으면 이어받기 ────────────────────────
+let _hostInfo = { host: null, isHost: false };
+function toast(msg) {
+  const t = $('sp-toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 3200);
+}
+function renderHostBtn() {
+  const hb = $('s-hostbtn'), h = _hostInfo.host;
+  hb.style.display = _account ? '' : 'none';
+  hb.classList.toggle('on', _isHost);
+  hb.classList.toggle('busy', !_isHost && !!(h && h.alive && !h.mine));
+  if (_isHost) { hb.textContent = '👑 방장 ▾'; hb.title = '방장 넘겨주기 · 그만하기'; }
+  else if (h && h.alive && !h.mine) { hb.textContent = `👑 ${h.name}`; hb.title = `${h.name}님이 방장이에요 — 방장이 넘겨주거나, 1분 넘게 응답이 없으면 이어받을 수 있어요`; }
+  else if (h && !h.alive && !h.mine) { hb.textContent = '👑 방장 이어받기'; hb.title = `${h.name}님(방장)이 응답이 없어요 — 이어받으면 진행 중인 판 그대로 이어서 해요`; }
+  else { hb.textContent = '👑 방장 하기'; hb.title = '방장 = 팀짜기·경기 기록·투표 마감 담당(한 명만)'; }
+}
+function applyHost(d) {
+  if (!d) return;
+  _hostInfo = d;
+  const was = _isHost;
+  _isHost = !!d.isHost;
+  if (d.note) toast('👑 ' + d.note);
+  if (!_isHost) closeHostMenu();
+  if (_account) { showLogged(); if (was !== _isHost) switchCat(_isHost ? 'team' : 'today'); }
+}
+window.api.onHost(applyHost);
+function closeHostMenu() { $('s-hostmenu').style.display = 'none'; }
+async function openHostMenu() {
+  const m = $('s-hostmenu');
+  m.innerHTML = '<div class="thm-hd">불러오는 중…</div>'; m.style.display = '';
+  const r = await window.api.getRoster().catch(() => null);
+  const others = ((r && r.online) || []).filter(o => !_account || o.puuid !== _account.puuid);
+  m.innerHTML = '<div class="thm-hd">방장 넘겨주기</div>'
+    + (others.length ? others.map(o => `<button class="thm-item" data-p="${escH(o.puuid)}">${escH(o.name)}<small>${o.tag ? '#' + escH(o.tag) : ''}</small></button>`).join('')
+                     : '<div class="thm-empty">앱을 켜고 롤에 로그인한 사람이 없어요</div>')
+    + '<button class="thm-item thm-stop" id="thm-stop">방장 그만하기</button>';
+  m.querySelectorAll('.thm-item[data-p]').forEach(b => b.onclick = async () => {
+    const name = b.firstChild.textContent;
+    if (!confirm(`${name}님에게 방장을 넘길까요?
+진행 중인 판은 그대로 이어져요.`)) return;
+    closeHostMenu();
+    const res = await window.api.handHost(b.dataset.p).catch(() => null);
+    if (!res || !res.ok) toast((res && res.err) || '넘겨주지 못했어요');
+  });
+  $('thm-stop').onclick = async () => { closeHostMenu(); window.api.lobbyClear(); await window.api.setHost(false); };
+}
+$('s-hostbtn').addEventListener('click', async () => {
+  if (_isHost) { $('s-hostmenu').style.display === 'none' ? openHostMenu() : closeHostMenu(); return; }
+  const h = _hostInfo.host;
+  if (h && h.alive && !h.mine) { toast(`👑 ${h.name}님이 방장이에요`); return; }
+  if (h && !h.alive && !h.mine && !confirm(`${h.name}님(방장)이 1분 넘게 응답이 없어요.
+방장을 이어받을까요?`)) return;
+  const res = await window.api.setHost(true).catch(() => null);
+  if (!res || !res.ok) toast((res && res.err) || '방장을 맡지 못했어요');
 });
+document.addEventListener('mousedown', e => { if (!e.target.closest('#s-hostmenu, #s-hostbtn')) closeHostMenu(); });
 
 // ── 레일 ────────────────────────────────────────────────────────────────
 function switchCat(cat) {
@@ -283,4 +331,5 @@ window.api.onSession(({ session }) => {
   _session = d.session || null;
   $('s-ver').textContent = d.appVer ? '투데이 내전 v' + d.appVer : '';
   if (d.account) applyAccount(d.account, d.isHost);
+  applyHost(await window.api.getHost().catch(() => null));
 })();

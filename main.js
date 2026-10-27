@@ -541,6 +541,7 @@ let _presenceTimer = null;
 async function beatPresence() {
   if (!account) return;
   await fbSet(`${T}/presence/${account.puuid}`, { name: account.gameName, tag: account.tagLine || null, at: Date.now(), host: !!config.isHost, app: app.getVersion() }).catch(() => {});
+  if (config.isHost) fbCas(`${T}/host`, cur => cur && cur.puuid === account.puuid ? { value: { puuid: cur.puuid, name: cur.name, at: Date.now() } } : { err: 'not mine' }).catch(() => {});   // 👑 방장 살아있음 표시
 }
 function setAccount(acc) {
   const prev = account;
@@ -548,7 +549,7 @@ function setAccount(acc) {
   if ((prev && prev.puuid) === (acc && acc.puuid) && (prev && prev.gameName) === (acc && acc.gameName)) return;
   if (prev && (!acc || prev.puuid !== acc.puuid)) {   // 계정 바뀜/로그아웃 → 이전 접속 표시 지우고 방장 해제
     fbSet(`${T}/presence/${prev.puuid}`, null).catch(() => {});
-    if (config.isHost) { config.isHost = false; fbSet(`${T}/lobby`, null).catch(() => {}); }
+    if (config.isHost) { config.isHost = false; fbSet(`${T}/lobby`, null).catch(() => {}); fbSet(`${T}/host`, null).catch(() => {}); }
   }
   account = acc;
   config.myName = acc ? acc.gameName : '';
@@ -560,6 +561,7 @@ function setAccount(acc) {
   broadcast('account', { account, isHost: !!config.isHost, switched: !!(prev && acc && prev.puuid !== acc.puuid) });
   broadcast('myname', config.myName);
   broadcast('session', { session: sessionData, myName: config.myName });
+  onHostRec(hostRec);
 }
 async function getRoster() {   // 방장 참가자 목록 = 지금 접속 중 + 오늘 뛴 사람
   const [pres, t] = await Promise.all([fetchPresence(), getToday()]);
@@ -574,6 +576,64 @@ async function teamIds(names) {   // 이름 → puuid(경기 결과를 계정 ID
   const pres = await fetchPresence(), ids = {};
   for (const [puuid, p] of Object.entries(pres || {})) if (p && p.name && names.includes(normName(p.name))) ids[fbKeyOf(p.name)] = puuid;
   return Object.keys(ids).length ? ids : null;
+}
+
+// ── 👑 방장 = 한 번에 한 명(today/host) · 넘겨주기 · 응답 없으면 이어받기 ──────────
+// 방장 앱이 20초마다 at 갱신. 60초 넘게 끊기면 다른 사람이 「방장 이어받기」 가능.
+// 내 계정이 방장으로 적혀 있으면(넘겨받음·재시작) 자동으로 방장이 되고, 남의 이름이면 자동으로 내려옴.
+let hostRec = null;   // { puuid, name, at, from }
+const fetchHost = () => getJson(`${FIREBASE_DB}/${T}/host.json`);
+const hostAlive = h => !!(h && h.puuid && Date.now() - (h.at || 0) < ONLINE_MS);
+function hostView(note) {
+  const h = hostRec && hostRec.puuid ? { name: hostRec.name || '', alive: hostAlive(hostRec), mine: !!(account && hostRec.puuid === account.puuid) } : null;
+  return { host: h, isHost: !!config.isHost, note: note || null };
+}
+function setHostLocal(v, note) {
+  v = !!v;
+  if (!!config.isHost !== v) {
+    config.isHost = v;
+    if (!v) fbSet(`${T}/lobby`, null).catch(() => {});
+    beatPresence();
+    broadcast('account', { account, isHost: v });
+    broadcast('session', { session: sessionData, myName: config.myName || '' });
+    if (v) { runHost(); try { showMainPanel(); } catch (_) {} }
+  }
+  broadcast('host', hostView(note));
+}
+function onHostRec(h) {
+  const prev = hostRec;
+  hostRec = h && h.puuid ? h : null;
+  const mine = !!(account && hostRec && hostRec.puuid === account.puuid);
+  if (mine && !config.isHost && hostAlive(hostRec)) return setHostLocal(true, hostRec.from ? `${hostRec.from}님이 방장을 넘겨줬어요` : null);
+  if (!mine && config.isHost) return setHostLocal(false, hostRec ? `${hostRec.name}님이 방장이 됐어요` : null);
+  if (JSON.stringify(prev) !== JSON.stringify(hostRec) || !hostAlive(hostRec)) broadcast('host', hostView());
+}
+async function claimHost() {
+  if (!account) return { ok: false, err: '롤에 로그인해야 방장을 할 수 있어요' };
+  const me = account;
+  const r = await fbCas(`${T}/host`, cur => {
+    if (cur && cur.puuid && cur.puuid !== me.puuid && hostAlive(cur)) return { err: `${cur.name}님이 이미 방장이에요` };
+    return { value: { puuid: me.puuid, name: me.gameName, at: Date.now() } };
+  });
+  if (!r.ok) return r;
+  hostRec = r.value; setHostLocal(true);
+  return { ok: true };
+}
+async function releaseHost() {
+  if (account) await fbCas(`${T}/host`, cur => cur && cur.puuid === account.puuid ? { value: null } : { err: 'not mine' }).catch(() => {});
+  hostRec = null; setHostLocal(false);
+  return { ok: true };
+}
+async function handHost(puuid) {
+  if (!config.isHost || !account) return { ok: false, err: '방장만 넘겨줄 수 있어요' };
+  const p = ((await fetchPresence()) || {})[puuid];
+  if (!p || !p.name || Date.now() - (p.at || 0) >= ONLINE_MS) return { ok: false, err: '지금 접속 중인 사람에게만 넘길 수 있어요' };
+  const me = account;
+  const r = await fbCas(`${T}/host`, cur => cur && cur.puuid === me.puuid
+    ? { value: { puuid, name: normName(p.name), at: Date.now(), from: me.gameName } } : { err: '방장이 아니에요' });
+  if (!r.ok) return r;
+  hostRec = r.value; setHostLocal(false, `${normName(p.name)}님에게 방장을 넘겼어요`);
+  return { ok: true };
 }
 
 // 없을 때만 생성(조건부 PUT) — 같은 경기를 두 기기가 동시에 기록해도 한 번만 저장(412=이미 있음)
@@ -597,8 +657,9 @@ async function fbPutIfAbsent(pathStr, value) {
 
 // ── 🧩 세션 폴링 — 팀 배정·투표·결과를 오버레이/패널로 ──────────────────────
 async function pollSession() {
-  const [s, lob] = await Promise.all([fetchSession(), fetchLobby()]);
+  const [s, lob, h] = await Promise.all([fetchSession(), fetchLobby(), fetchHost()]);
   sessionData = s || null;
+  onHostRec(h);
   const formed = (s && s.teamsFormedAt) || 0;
   if (formed && formed !== lastFormed) {          // 새 팀 배정 → 오버레이 자동 표시
     const first = lastFormed === 0;
@@ -921,12 +982,9 @@ ipcMain.on('quit-confirm', (_e, yes) => {
 ipcMain.on('update-now', () => { app._quitting = true; try { autoUpdater.quitAndInstall(); } catch (_) { app.quit(); } });
 ipcMain.on('update-later', () => { if (updateToastWin && !updateToastWin.isDestroyed()) updateToastWin.hide(); });
 ipcMain.on('open-web', () => shell.openExternal(WEB_URL));
-ipcMain.on('set-host', (_e, v) => {
-  if (v && !account) return;   // 롤 로그인 전엔 방장 불가
-  config.isHost = !!v; saveConfig(); beatPresence();
-  broadcast('session', { session: sessionData, myName: config.myName || '' });
-  if (config.isHost) runHost(); else fbSet(`${T}/lobby`, null).catch(() => {});
-});
+ipcMain.handle('set-host', (_e, v) => v ? claimHost() : releaseHost());   // 👑 방장 하기/그만하기(한 명만)
+ipcMain.handle('hand-host', (_e, { puuid }) => handHost(puuid));            // 👑 방장 넘겨주기
+ipcMain.handle('host-info', () => hostView());
 // 🛠️ 방장이 참가자 고르는 중 → 팀원 오버레이에 "준비 중" 안내(today/lobby)
 ipcMain.on('lobby-prep', (_e, { names } = {}) => {
   if (!config.isHost) return;
@@ -999,7 +1057,8 @@ else {
     const runSession = coalesce(pollSession);
     setInterval(runSession, 3000);                       // 안전망(스트림 끊겼을 때)
     fbStream(`${T}/session`, runSession);                // ⚡ 팀 배정·투표·결과 = 바뀌는 즉시
-    fbStream(`${T}/lobby`, runSession);                  // ⚡ 방장 준비 중 배너
+    fbStream(`${T}/lobby`, runSession);
+    fbStream(`${T}/host`, runSession);                   // ⚡ 방장 바뀜(넘겨받음·이어받음)                  // ⚡ 방장 준비 중 배너
     fbStream(`${T}/bridge/eogStats`, () => { if (config.isHost) runHost(); });   // ⚡ 경기 종료 → 방장 앱이 바로 기록
     setupAutoUpdate();
     bridge.start({ getOperatorName: () => config.myName || null, appVer: app.getVersion(), onAccount: setAccount, log: (m) => { try { console.log(m); } catch (_) {} } });
@@ -1018,6 +1077,20 @@ function setupAutoUpdate() {
   autoUpdater.checkForUpdates().catch(() => {});
   setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 30 * 60 * 1000);
 }
-app.on('before-quit', () => { app._quitting = true; try { if (account) fbSet(`${T}/presence/${account.puuid}`, null); } catch (_) {} try { bridge.stop(); } catch (_) {} try { if (config.isHost) fbSet(`${T}/lobby`, null); } catch (_) {} try { stopDockStream(); } catch (_) {} });
+let _cleanedUp = false;
+app.on('before-quit', (e) => {
+  app._quitting = true;
+  try { bridge.stop(); } catch (_) {}
+  try { stopDockStream(); } catch (_) {}
+  if (_cleanedUp) return;
+  // 접속 표시·방장 자리를 지우고 끝냄(안 지우면 다른 사람이 1분 기다려야 방장을 이어받음) — 최대 3초
+  _cleanedUp = true;
+  const jobs = [];
+  if (account) jobs.push(fbSet(`${T}/presence/${account.puuid}`, null));
+  if (config.isHost) jobs.push(fbSet(`${T}/lobby`, null), fbCas(`${T}/host`, cur => cur && account && cur.puuid === account.puuid ? { value: null } : { err: 'not mine' }));
+  if (!jobs.length) return;
+  e.preventDefault();
+  Promise.race([Promise.allSettled(jobs), new Promise(r => setTimeout(r, 3000))]).then(() => app.quit());
+});
 app.on('window-all-closed', () => { /* 트레이 상주 */ });
 app.on('will-quit', () => globalShortcut.unregisterAll());
