@@ -296,7 +296,7 @@ function renderLobby() {
   const me = M.find(m => m.me);
   el('lb-head').innerHTML = !myName ? '<span class="lb-wait"><span class="lobby-pulse"></span>롤 클라이언트에 로그인하면 자동으로 입장돼요</span>'
     : `<span class="lb-title"><span class="lb-en">LOBBY</span><b>대기실</b></span>`
-      + `<span class="lb-host">${L.hostName ? `<em>방장</em>${esc(L.hostName)}` : '<em class="no">방장 없음</em>'}</span>`;
+      + `<span class="lb-host">${L.hostName ? `<em>방장</em><span class="lb-hn">${esc(L.hostName)}</span>` : '<em class="no">방장 없음</em>'}</span>`;
   document.querySelectorAll('.lb-seg').forEach(b => {
     b.classList.toggle('on', b.dataset.mode === L.mode);
     b.disabled = !myIsHost;
@@ -314,7 +314,7 @@ function renderLobby() {
     const no = String(i + 1).padStart(2, '0');
     if (!m) return `<div class="seat empty"><span class="seat-no">${no}</span><span class="seat-av"></span><span class="seat-main"><b>빈 자리</b></span></div>`;
     const st = _standing(m.name), cap = capOf(m.name);
-    const tags = (m.me ? '<span class="seat-tag me">나</span>' : '') + (m.host ? '<span class="seat-tag host">방장</span>' : '') + (cap ? `<span class="seat-tag c${cap}">${cap}팀 팀장</span>` : '');
+    const tags = (m.me ? '<span class="seat-tag me">나</span>' : '') + (m.host ? '<span class="seat-tag host">방장</span>' : '') + (cap ? `<span class="seat-tag c${cap}" title="${cap}팀 팀장">팀장</span>` : '');
     const ctl = myIsHost ? ((draft ? `<button class="seat-btn cap${cap ? ' on' : ''}" data-cap="${esc(m.name)}" title="팀장 지정/해제">팀장</button>` : '')
       + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="${m.guest ? '목록에서 빼기' : '관전으로 보내기'}">${m.guest ? '✕' : '↓'}</button>` : '')) : '';
     return `<div class="seat filled${m.me ? ' me' : ''}${cap ? ' cap' + cap : ''}">`

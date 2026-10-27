@@ -7,7 +7,7 @@
 // 실제로 그려진 글자(텍스트 노드)의 사각형을 재서: ① 서로 다른 글자끼리 겹침 ② 가로로 칸 밖으로 넘쳐 잘림(…처리 안 된 것)
 window.__audit = function () {
   const view = [...document.querySelectorAll('.view, .cat-view, #s-login, header, #sbar, #s-hostmenu')].filter(v => v.offsetParent !== null || getComputedStyle(v).position === 'fixed');
-  const out = { overlap: [], clipped: [], ellipsis: 0 };
+  const out = { overlap: [], clipped: [], wrapped: [], ellipsis: 0 };
   const texts = [];
   const visible = el => { for (let e = el; e && e !== document.body; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) return false; } return true; };
   const label = el => (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/)[0] : el.tagName.toLowerCase());
@@ -22,6 +22,10 @@ window.__audit = function () {
       for (const r0 of rg.getClientRects()) { const r = { left: Math.max(r0.left, clip.left), top: Math.max(r0.top, clip.top), right: Math.min(r0.right, clip.right), bottom: Math.min(r0.bottom, clip.bottom), raw: r0 }; if (r.right - r.left > 1 && r.bottom - r.top > 1) texts.push({ r, el, t: n.textContent.trim().slice(0, 24) }); }
     }
   }
+  // ⓪ 어색한 줄바꿈: 짧은 글(14자 이하)이 두 줄 이상으로 꺾임(좁은 칸에 욱여넣은 숫자·라벨 — 프로필 수상 칸에서 발견)
+  const lines = new Map();
+  for (const x of texts) { const k = x.el; const L = lines.get(k) || { tops: new Set(), t: x.el.textContent.trim() }; L.tops.add(Math.round(x.r.raw.top)); lines.set(k, L); }
+  for (const [el, L] of lines) if (L.tops.size > 1 && L.t.length <= 14) out.wrapped.push(`「${L.t}」(${label(el)}) — ${L.tops.size}줄로 꺾임`);
   // ① 겹침: 다른 요소에 속한 글자끼리 2px 넘게 겹치면
   for (let i = 0; i < texts.length; i++) for (let j = i + 1; j < texts.length; j++) {
     const a = texts[i], b = texts[j];

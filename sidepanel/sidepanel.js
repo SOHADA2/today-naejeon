@@ -229,8 +229,9 @@ async function renderProfile() {
   const streak = P.streak > 0 ? `<b class="w">${P.streak}연승</b>` : `<b class="l">${-P.streak}연패</b>`;
   const big = `<div class="pf-big">`
     + `<div><span>전적</span><b>${P.wins}승 ${P.losses}패</b><em>승률 ${pct(P.wins, P.games)}%</em></div>`
-    + `<div><span>지금</span>${streak}<em>최고 ${P.bestStreak}연승</em></div>`
-    + `<div><span>수상</span><b class="aw">🏆${P.mvp} ⭐${P.svp} 💎${P.manner}</b><em>MVP · SVP · 매너</em></div></div>`;
+    + `<div><span>지금</span>${streak}<em>최고 ${P.bestStreak}연승</em></div></div>`
+    // 수상은 좁은 칸에 욱여넣지 않고 3칸 줄로(좁은 칸에선 두 줄로 꺾였음)
+    + `<div class="pf-aw">${[['MVP', P.mvp], ['SVP', P.svp], ['매너왕', P.manner]].map(([k, v]) => `<div class="${v ? '' : 'zero'}"><span>${k}</span><b class="num">${v}</b></div>`).join('')}</div>`;
   let play = '';
   if (P.statGames) {
     const n = P.statGames, min = P.time / 60;

@@ -80,13 +80,12 @@
 .pf-me { margin-left:6px; padding:0 5px; font-size:9.5px; font-weight:800; color:#1a1206; background:var(--gold); vertical-align:middle; }
 .pf-sub { margin-top:3px; font-size:10.5px; color:var(--dim); }
 .pf-big, .pf-grid { display:grid; gap:6px; margin-bottom:12px; }
-.pf-big { grid-template-columns:repeat(3, 1fr); }
+.pf-big { grid-template-columns:repeat(2, 1fr); margin-bottom:6px; }
 .pf-grid { grid-template-columns:repeat(2, 1fr); }
 .pf-big > div, .pf-grid > div { display:flex; flex-direction:column; gap:2px; padding:8px 9px; background:rgba(255,255,255,0.03); border:1px solid var(--hair); min-width:0; }
 .pf-big span, .pf-grid span { font-size:10px; color:var(--dim); font-weight:700; }
 .pf-big b, .pf-grid b { font:800 13px var(--f-body); color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .pf-grid b.sm { font-size:11px; }
-.pf-big b.aw { font-size:11.5px; letter-spacing:-0.3px; white-space:normal; overflow:visible; }
 .pf-big b.w { color:var(--win); } .pf-big b.l { color:var(--lose); }
 .pf-big em, .pf-grid em { font-style:normal; font-size:10px; color:var(--ink-soft); font-family:var(--f-mono); }
 .td-sec small { font-weight:500; color:var(--dim); letter-spacing:0; margin-left:4px; }
@@ -121,3 +120,31 @@
 .pf-aug.silver { border-color:#B9C3CC; } .pf-aug.gold { border-color:#E8C46A; } .pf-aug.prismatic { border-color:#C58BFF; }
 .pf-aug b { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; font-style:normal; color:var(--dim); }
 .pf-aug img { z-index:1; }
+/* 수상 3칸 줄 */
+.pf-aw { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-bottom:12px; }
+.pf-aw > div { display:flex; align-items:baseline; justify-content:space-between; gap:6px; padding:7px 10px; background:var(--gold-soft); border:1px solid var(--gold-line); clip-path:var(--cut-sm); min-width:0; }
+.pf-aw span { font-size:11px; font-weight:700; color:var(--gold-hi); white-space:nowrap; }
+.pf-aw b { font-size:18px; color:var(--ink); }
+.pf-aw > div.zero { background:rgba(255,255,255,0.03); border-color:var(--hair); } .pf-aw > div.zero span, .pf-aw > div.zero b { color:var(--dim); }
+/* 좁은 폭(도킹 시 300px까지) — 로고·이름이 겹치지 않게: 이름이 남는 공간을 쓰고 …으로 줄임, 좁으면 영문 라벨 숨김 */
+#sbar .s-brand { flex-shrink:0; }
+#sbar .s-me { flex:1 1 auto; min-width:0; max-width:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#sbar .s-sp { display:none; }
+#sbar .s-hostbtn, #sbar .s-winbtn { flex-shrink:0; }
+@media (max-width: 340px) { .s-brand-en { display:none; } #sbar { gap:6px; padding:0 8px; } }
+/* 오늘 순위표 — 좁은 폭에서 숫자가 꺾이지 않게: 칸 폭 고정 + 이름만 …으로 줄임 */
+.td-table { table-layout:fixed; }
+.td-table th, .td-table td { white-space:nowrap; }
+.td-table th:nth-child(1) { width:20px; } .td-table th:nth-child(3) { width:36px; } .td-table th:nth-child(4) { width:40px; }
+.td-table th:nth-child(5), .td-table th:nth-child(6) { width:22px; } .td-table th:nth-child(7) { width:32px; }
+.td-table td.n { max-width:none; overflow:hidden; text-overflow:ellipsis; }
+.td-table td.n .pf-link { display:block; overflow:hidden; text-overflow:ellipsis; }
+/* 진행 탭 팀 명단 — 긴 이름도 줄바꿈 */
+#cat-team .tbr span { display:block; overflow-wrap:anywhere; }
+@media (max-width: 340px) {   /* 좁은 폭: 이름 자리 확보 */
+  .s-brand-tx { display:none; }
+  .td-table th:nth-child(1) { width:16px; } .td-table th:nth-child(3) { width:30px; } .td-table th:nth-child(4) { width:34px; }
+  .td-table th:nth-child(5), .td-table th:nth-child(6) { width:18px; } .td-table th:nth-child(7) { width:26px; }
+  .td-table td, .td-table th { padding-left:1px; padding-right:1px; }
+  .pf-grid b { font-size:12.5px; letter-spacing:-0.02em; }
+}

@@ -289,3 +289,14 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .aug b, .pf-aug b { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; font-style:normal; color:var(--dim); }   /* 아이콘 없을 때(새 증강·데이터 없음) 「?」 — 이미지가 있으면 덮임 */
 .aug img, .pf-aug img { z-index:1; }
 .st-awn { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }   /* flex 칸 안에선 …이 안 붙어서 안쪽 칸에 */
+/* 좁은 폭(도킹 시 300px까지) — 머리 글자가 꺾이지 않게 */
+.brand-tx { min-width:0; }
+.brand-en, header .ttl { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header .phase, header .win-btn { flex-shrink:0; }
+@media (max-width: 340px) { .brand-en { display:none; } header { gap:8px; padding:0 10px; } }
+.lb-hn { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }   /* flex 칸 안에선 …이 안 붙어서 안쪽 칸에 */
+@media (max-width: 340px) {   /* 좁은 폭: 이름 자리 확보 — 자리 번호 숨김·아이콘 축소 */
+  .seat { gap:6px; padding:0 6px; }
+  .seat-no { display:none; }
+  .seat-av { width:30px; height:30px; }
+}
