@@ -39,37 +39,20 @@
     <!-- 입장 후 -->
     <div class="app-shell" id="s-app" style="display:none;">
       <nav class="rail">
-        <button class="rail-btn" data-cat="team" id="s-rail-team" style="display:none;"><span class="ri">⚔️</span><span class="rl">팀짜기</span></button>
+        <button class="rail-btn" data-cat="team" id="s-rail-team" style="display:none;"><span class="ri">⚔️</span><span class="rl">진행</span></button>
         <button class="rail-btn on" data-cat="today"><span class="ri">📅</span><span class="rl">오늘</span></button>
       </nav>
       <div class="cat">
         <!-- ⚔️ 팀짜기(방장) -->
         <section class="cat-view" id="cat-team">
-          <div class="cat-hd">팀 짜기 <span class="cat-hd-sub">방장</span></div>
+          <div class="cat-hd">진행 <span class="cat-hd-sub">방장</span></div>
           <div class="cat-scroll ui-scroll">
             <!-- 진행 중인 판(팀 확정 이후) -->
             <div id="tb-live" style="display:none;"></div>
-            <!-- 참가자 고르기 -->
-            <div id="tb-pick">
-              <div class="tb-row">
-                <span class="tb-count"><b id="tb-num">0</b>명 선택 <button id="tb-clear" title="전체 선택 해제">해제</button></span>
-                <span class="tb-modes">
-                  <label><input type="radio" name="tb-mode" value="random" checked> 랜덤</label>
-                  <label><input type="radio" name="tb-mode" value="draft"> 드래프트</label>
-                </span>
-              </div>
-              <div class="tn-legend"><i class="tn-dot on"></i>지금 접속 중 <i class="tn-dot"></i>오늘 뛴 사람·직접 추가</div>
-              <div id="tb-list" class="tb-list"></div>
-              <div class="tn-add"><input id="tb-add-name" maxlength="24" placeholder="앱 없는 사람 이름 추가"><button id="tb-add-go" class="btn-ghost">추가</button></div>
-              <button id="tb-go" class="btn-gold" disabled>팀 구성</button>
-              <div class="foot-hint">팀원 오버레이에 바로 팀이 떠요 · 11명 이상·홀수면 관전자 자동 선정</div>
-            </div>
-            <!-- 🎯 드래프트: 팀장 2명 고르기 -->
-            <div id="tb-cap" style="display:none;">
-              <div class="td-state">팀장 <b>2명</b>을 고르세요 · 팀장이 번갈아 팀원을 뽑아요(차례당 30초)</div>
-              <div id="tb-cap-list" class="tb-list"></div>
-              <div class="td-acts"><button id="tb-cap-rand" class="btn-ghost">랜덤 팀장</button><button id="tb-cap-go" class="btn-gold" disabled>드래프트 시작</button></div>
-              <button id="tb-cap-back" class="btn-ghost td-new">참가자 다시 고르기</button>
+            <!-- 진행 중인 판이 없을 때 -->
+            <div id="tb-idle">
+              <div class="td-state">참가자·방식(랜덤/드래프트)·팀장은 <b>왼쪽 대기실</b>에서 정하고 시작해요.<br>모두가 같은 화면을 보고 있어요.</div>
+              <button id="tb-open-lobby" class="btn-ghost">대기실 보기</button>
             </div>
             <div id="tb-err" class="tb-err" style="display:none;"></div>
           </div>

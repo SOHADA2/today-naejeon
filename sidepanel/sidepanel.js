@@ -90,7 +90,7 @@ async function openHostMenu() {
     const res = await window.api.handHost(b.dataset.p).catch(() => null);
     if (!res || !res.ok) toast((res && res.err) || '넘겨주지 못했어요');
   });
-  $('thm-stop').onclick = async () => { closeHostMenu(); window.api.lobbyClear(); await window.api.setHost(false); };
+  $('thm-stop').onclick = async () => { closeHostMenu(); await window.api.setHost(false); };
 }
 $('s-hostbtn').addEventListener('click', async () => {
   if (_isHost) { $('s-hostmenu').style.display === 'none' ? openHostMenu() : closeHostMenu(); return; }
@@ -105,139 +105,27 @@ document.addEventListener('mousedown', e => { if (!e.target.closest('#s-hostmenu
 
 // ── 레일 ────────────────────────────────────────────────────────────────
 function switchCat(cat) {
-  if (_curCat === 'team' && cat !== 'team') window.api.lobbyClear();   // 팀짜기 탭 벗어남 → 준비 중 배너 제거
   _curCat = cat;
   document.querySelectorAll('.rail-btn').forEach(b => b.classList.toggle('on', b.dataset.cat === cat));
   document.querySelectorAll('.cat-view').forEach(v => { v.style.display = (v.id === 'cat-' + cat) ? 'flex' : 'none'; });
-  if (cat === 'team') { tbRenderList(); renderLive(); loadRoster(); }
+  if (cat === 'team') renderLive();
   else renderToday();
 }
 document.querySelectorAll('.rail-btn').forEach(b => b.addEventListener('click', () => switchCat(b.dataset.cat)));
 
-// ── ⚔️ 팀짜기(방장) ─────────────────────────────────────────────────────
-const _tbChecked = new Set((() => { try { return JSON.parse(localStorage.getItem('tbChecked') || '[]'); } catch (_) { return []; } })());
-let _standing = {};   // 이름 → 오늘 전적(칩 표시용)
-// 👥 참가자 후보 = 지금 접속 중(초록 점) + 오늘 뛴 사람 + 직접 추가(앱 없는 사람)
-let _roster = { online: [], recent: [] };
-const _manual = new Set((() => { try { return JSON.parse(localStorage.getItem('tbManual') || '[]'); } catch (_) { return []; } })());
-const saveManual = () => localStorage.setItem('tbManual', JSON.stringify([..._manual]));
-async function loadRoster() {
-  const r = await window.api.getRoster().catch(() => null);
-  if (r && r.ok) { _roster = r; if (_curCat === 'team') tbRenderList(); }
-}
-setInterval(() => { if (_curCat === 'team' && _isHost) loadRoster(); }, 10000);
-function tbRenderList() {
-  const onSet = new Set(_roster.online.map(o => nn(o.name)));
-  const names = [..._roster.online.map(o => nn(o.name))];
-  for (const n of [..._roster.recent, ..._manual]) if (!names.some(x => x === nn(n))) names.push(nn(n));
-  for (const n of _tbChecked) if (!names.includes(n)) names.push(n);   // 체크했던 사람은 접속이 끊겨도 목록에 유지
-  const sorted = names.sort((a, b) => (onSet.has(b) - onSet.has(a)) || a.localeCompare(b, 'ko'));
-  $('tb-list').innerHTML = sorted.length ? sorted.map(n => {
-    const st = _standing[n];
-    const badge = st ? `<span class="tb-badge">${st.wins}승 ${st.losses}패</span>` : '';
-    const rm = !onSet.has(n) && _manual.has(n) ? `<button class="tn-rm" data-rm="${escH(n)}" title="목록에서 빼기">✕</button>` : '';
-    return `<div class="tb-item${_tbChecked.has(n) ? ' on' : ''}" data-name="${escH(n)}" title="${escH(n)}"><div class="tb-check"></div><span class="tb-nm">${escH(n)}</span>${badge}${rm}<i class="tn-dot${onSet.has(n) ? ' on' : ''}"></i></div>`;
-  }).join('') : '<div class="td-empty">아직 접속한 사람이 없어요<br><small>팀원이 앱을 켜고 롤에 로그인하면 여기에 떠요</small></div>';
-  $('tb-list').querySelectorAll('.tn-rm').forEach(b => b.onmousedown = e => {
-    e.stopPropagation(); e.preventDefault();
-    const n = b.closest('.tb-item').title; _manual.delete(n); _tbChecked.delete(n); saveManual();
-    localStorage.setItem('tbChecked', JSON.stringify([..._tbChecked])); tbRenderList();
-  });
-  tbSync();
-}
-function addManual() {
-  const n = nn($('tb-add-name').value);
-  if (!n) return;
-  _manual.add(n); _tbChecked.add(n); saveManual();
-  localStorage.setItem('tbChecked', JSON.stringify([..._tbChecked]));
-  $('tb-add-name').value = ''; tbRenderList();
-}
-$('tb-add-go').onclick = addManual;
-$('tb-add-name').addEventListener('keydown', e => { if (e.key === 'Enter') addManual(); });
-$('tb-clear').onclick = () => { _tbChecked.clear(); localStorage.setItem('tbChecked', '[]'); tbRenderList(); };
-(function tbDragSelect() {   // 드래그로 여러 명 선택(누른 칩의 반대 상태를 지나는 칩 전부에)
-  const list = $('tb-list');
-  let drag = null;
-  const decode = s => s.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-  const apply = chip => {
-    if (!chip || !drag || drag.done.has(chip)) return;
-    drag.done.add(chip);
-    const name = chip.dataset.name && decode(chip.dataset.name);
-    if (!name) return;
-    if (drag.target) _tbChecked.add(name); else _tbChecked.delete(name);
-    chip.classList.toggle('on', drag.target);
-  };
-  list.addEventListener('mousedown', e => {
-    const chip = e.target.closest('.tb-item'); if (!chip) return;
-    e.preventDefault();
-    drag = { target: !chip.classList.contains('on'), done: new Set() };
-    apply(chip);
-  });
-  document.addEventListener('mousemove', e => { if (drag) apply(document.elementFromPoint(e.clientX, e.clientY)?.closest('.tb-item')); });
-  document.addEventListener('mouseup', () => {
-    if (!drag) return;
-    drag = null;
-    localStorage.setItem('tbChecked', JSON.stringify([..._tbChecked]));
-    tbSync();
-  });
-})();
-let _lobbyT = null;
-function tbSync() {
-  const n = _tbChecked.size;
-  $('tb-num').textContent = n;
-  $('tb-go').disabled = n < 4;
-  const draft = tbMode() === 'draft';
-  $('tb-go').textContent = n < 4 ? `${draft ? '드래프트' : '팀 구성'} (최소 4명 · 현재 ${n}명)` : draft ? `팀장 고르기 — ${n}명` : `팀 구성 — ${n}명`;
-  clearTimeout(_lobbyT);   // 고르는 중 → 팀원에게 "준비 중" 안내(디바운스)
-  _lobbyT = setTimeout(() => { if (_curCat === 'team' && $('tb-pick').style.display !== 'none') window.api.lobbyPrep([..._tbChecked]); }, 300);
-}
-const tbMode = () => document.querySelector('input[name=tb-mode]:checked')?.value || 'random';   // 밸런스는 새 로직 준비 중
-document.querySelectorAll('input[name=tb-mode]').forEach(r => r.addEventListener('change', tbSync));
-// 🎯 드래프트 팀장 고르기(선택한 참가자 중 2명)
-let _caps = [];
-function capRender() {
-  const list = [..._tbChecked].sort((a, b) => a.localeCompare(b, 'ko'));
-  _caps = _caps.filter(n => _tbChecked.has(n));
-  $('tb-cap-list').innerHTML = list.map(n => `<div class="tb-item${_caps.includes(n) ? ' on' : ''}" data-name="${escH(n)}" title="${escH(n)}"><div class="tb-check"></div><span class="tb-nm">${escH(n)}</span>${_caps.includes(n) ? `<span class="tb-badge">${_caps.indexOf(n) === 0 ? '1팀 팀장' : '2팀 팀장'}</span>` : ''}</div>`).join('');
-  $('tb-cap-list').querySelectorAll('.tb-item').forEach(c => c.onclick = () => {
-    const n = list.find(x => escH(x) === c.dataset.name) || c.title;
-    if (_caps.includes(n)) _caps = _caps.filter(x => x !== n);
-    else { if (_caps.length >= 2) _caps.shift(); _caps.push(n); }
-    capRender();
-  });
-  $('tb-cap-go').disabled = _caps.length !== 2;
-}
-function showCapStep(on) { $('tb-cap').style.display = on ? '' : 'none'; $('tb-pick').style.display = on ? 'none' : ''; if (on) capRender(); }
-$('tb-cap-back').onclick = () => showCapStep(false);
-$('tb-cap-rand').onclick = () => { _caps = [..._tbChecked].sort(() => Math.random() - 0.5).slice(0, 2); capRender(); };
-$('tb-cap-go').onclick = async () => {
-  $('tb-cap-go').disabled = true; showErr(null);
-  const r = await window.api.draftStart([..._tbChecked], _caps);
-  if (!r || !r.ok) { showErr((r && r.err) || '드래프트 시작 실패'); $('tb-cap-go').disabled = false; return; }
-  _pickOpen = false; showCapStep(false); renderLive();
-};
+// ── ⚔️ 진행(방장) ─────────────────────────────────────────────────────────
+// 참가자·방식(랜덤/드래프트)·팀장·시작은 모두 왼쪽 🚪 대기실에서(모두가 같은 화면을 봄). 여기는 진행 중인 판 조작만.
+let _standing = {};   // 이름 → 오늘 전적
 function showErr(msg) { const e = $('tb-err'); if (!msg) { e.style.display = 'none'; return; } e.textContent = '⚠️ ' + msg; e.style.display = ''; }
-$('tb-go').addEventListener('click', async () => {
-  $('tb-go').disabled = true; showErr(null);
-  const mode = tbMode();
-  if (mode === 'draft') { tbSync(); showCapStep(true); return; }   // 🎯 드래프트 = 팀장 고르기 단계로
-  const r = await window.api.tbStart([..._tbChecked], mode);
-  if (!r || !r.ok) { showErr((r && r.err) || '팀 구성 실패'); tbSync(); }
-});
-window.api.onTeamBuild(d => {
-  if (!d) return;
-  if (d.state === 'building') { $('tb-go').disabled = true; $('tb-go').textContent = '팀 계산 중…'; }
-  else if (d.state === 'error') { showErr(d.err); tbSync(); }
-  else if (d.state === 'done') { _pickOpen = false; renderLive(); }
-});
+$('tb-open-lobby').onclick = () => window.api.showOverlay();
+window.api.onTeamBuild(d => { if (d && d.state === 'error') showErr(d.err); else if (d && d.state === 'done') renderLive(); });
 
 // 진행 중인 판 — 방장 조작(승리팀 기록·투표 마감·한 판 더)
-let _pickOpen = false, _liveBusy = false;
+let _liveBusy = false;
 function renderLive() {
   const s = _session, box = $('tb-live');
   const active = s && s.teamA && s.teamB && ['draft', 'teams', 'vote', 'result'].includes(s.phase);
-  const showPick = !active || _pickOpen;
-  if ($('tb-cap').style.display === 'none') $('tb-pick').style.display = showPick ? '' : 'none';
+  $('tb-idle').style.display = active ? 'none' : '';
   if (!active) { box.style.display = 'none'; return; }
   box.style.display = '';
   const row = (label, arr, cls) => `<div class="tbr ${cls}"><b>${label}</b><span>${(arr || []).map(escH).join(' · ')}</span></div>`;
@@ -264,11 +152,11 @@ function renderLive() {
   }
   box.innerHTML = `<div class="tb-result">${row('1팀', s.teamA, 'a')}${row('2팀', s.teamB, 'b')}${s.spectators && s.spectators.length ? row('관전', s.spectators, 's') : ''}</div>`
     + st + acts
-    + `<button class="btn-ghost td-new" id="td-new">${_pickOpen ? '참가자 선택 닫기' : '새로 팀 짜기'}</button>`;
+    + `<button class="btn-ghost td-new" id="td-new">대기실로 돌아가기</button><div class="foot-hint">지금 판을 접고 모두 대기실로 · 참가자·방식을 다시 정해요</div>`;
   box.querySelectorAll('.td-win').forEach(b => b.onclick = () => liveAct(() => window.api.hostResult(b.dataset.w)));
   const c = $('td-close'); if (c) c.onclick = () => liveAct(() => window.api.voteClose());
   const a = $('td-again'); if (a) a.onclick = () => liveAct(() => window.api.tbAgain());
-  $('td-new').onclick = () => { _pickOpen = !_pickOpen; renderLive(); if (_pickOpen) tbRenderList(); };
+  $('td-new').onclick = () => liveAct(() => window.api.lobbyReopen());
 }
 async function liveAct(fn) {
   if (_liveBusy) return;
@@ -311,7 +199,6 @@ async function renderToday() {
   body.innerHTML = `<div class="td-sec">순위 · ${t.matches.length}판</div>`
     + `<table class="td-table"><thead><tr><th>#</th><th class="n">이름</th><th>전적</th><th>승률</th><th>🏆</th><th>💎</th><th>KDA</th></tr></thead><tbody>${rows}</tbody></table>`
     + `<div class="td-sec">경기</div>${games}`;
-  if (_curCat === 'team') tbRenderList();
 }
 
 // ── 세션 실시간 ─────────────────────────────────────────────────────────

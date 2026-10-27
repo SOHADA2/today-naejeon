@@ -1,6 +1,6 @@
 // ── 투데이 내전 · 왼쪽 오버레이 ───────────────────────────────────────────
-// 뷰: 팀 배정(phase teams) · 투표(phase vote) · 결과(phase result) · 대기(오늘 순위·인게임 명단)
-// 데이터 = 메인이 IPC로: session(today/session) · lobby · players(인게임 명단) · state(게임 여부)
+// 뷰: 🚪 대기실(모두 같이 봄) · 드래프트 · 팀 배정(phase teams) · 투표(phase vote) · 결과(phase result) · 게임 중 명단
+// 데이터 = 메인이 IPC로: session(today/session) · lobby(대기실 {members, mode, captains, hostName, isHost}) · players(인게임 명단) · state(게임 여부)
 const nn = s => String(s || '').trim().replace(/\s+/g, ' ');           // normName(공백 1칸)
 const fbKeyOf = name => nn(name).replace(/\s+/g, '_').replace(/[.#$\[\]\/]/g, '_');
 const el = id => document.getElementById(id);
@@ -25,11 +25,11 @@ window.api.onSession(({ session, myName: mn, isHost }) => {
   render();
 });
 window.api.onMyName(name => { myName = name || ''; render(); });
-window.api.onLobby(d => { lobbyData = d || null; render(); });
+window.api.onLobby(d => { lobbyData = d || null; if (d) myIsHost = !!d.isHost; render(); });
 window.api.onDocked(v => { document.body.classList.toggle('docked', !!v); });
 
 function showView(v) {
-  for (const k of ['team', 'draft', 'vote', 'result', 'roster']) el('view-' + k).style.display = v === k ? (k === 'team' ? 'flex' : 'block') : 'none';
+  for (const k of ['lobby', 'team', 'draft', 'vote', 'result', 'roster']) el('view-' + k).style.display = v === k ? (k === 'team' ? 'flex' : 'block') : 'none';
 }
 function myTeam() {
   const s = sessionData; if (!s) return 0;
@@ -208,20 +208,89 @@ async function loadToday() {
   _todayLoading = false;
   if (t && t.ok) { _today = t; _todayAt = Date.now(); render(); }
 }
-function lobbyBanner() {
-  const L = lobbyData;
-  if (!L || !L.at || myIsHost || L.state !== 'preparing' || Date.now() - L.at > 30 * 60 * 1000) return null;
-  const parts = Array.isArray(L.participants) ? L.participants : [];
-  const meIn = myName && parts.some(n => nn(n) === nn(myName));
-  return `<span class="lobby-pulse"></span>${esc(L.by || '방장')}님이 팀을 짜는 중이에요<br><span class="status-sub">${meIn ? '<b style="color:#0AC8B9">나를 선택했어요</b> · 잠시만 기다려주세요' : `${parts.length}명 선택됨`}</span>`;
+// ── 🚪 대기실 ─────────────────────────────────────────────────────────────
+// 접속한 사람 전원이 같은 목록을 봄 · 각자 참가/관전 · 방장이 방식(랜덤/드래프트)·팀장 정하고 시작
+let _lbBusy = false;
+function lbErr(msg) { const e = el('lb-err'); e.textContent = '⚠️ ' + msg; e.style.display = ''; clearTimeout(lbErr._t); lbErr._t = setTimeout(() => { e.style.display = 'none'; }, 2600); }
+async function lbAct(fn) {
+  if (_lbBusy) return;
+  _lbBusy = true;
+  try { const r = await fn(); if (r && r.ok === false && r.err) lbErr(r.err); } catch (_) { lbErr('실패했어요'); }
+  _lbBusy = false;
 }
+function renderLobby() {
+  const L = lobbyData || { members: [], mode: 'random', captains: {} };
+  const M = L.members || [], caps = L.captains || {}, draft = L.mode === 'draft';
+  const ins = M.filter(m => m.st === 'in'), specs = M.filter(m => m.st === 'spec'), none = M.filter(m => !m.st);
+  const me = M.find(m => m.me);
+  el('lb-head').innerHTML = !myName ? '<span class="lobby-pulse"></span>롤 클라이언트에 로그인하면 자동으로 입장돼요'
+    : `<b>대기실</b><span class="lb-cnt">참가 ${ins.length} · 관전 ${specs.length}${none.length ? ` · 고르는 중 ${none.length}` : ''}</span>`
+      + `<span class="lb-host">${L.hostName ? `👑 ${esc(L.hostName)}` : '방장 없음'}</span>`;
+  document.querySelectorAll('.lb-seg').forEach(b => {
+    b.classList.toggle('on', b.dataset.mode === L.mode);
+    b.disabled = !myIsHost;
+    b.onclick = () => { if (myIsHost && b.dataset.mode !== L.mode) lbAct(() => window.api.lobbyMode(b.dataset.mode)); };
+  });
+  const cb = el('lb-caps');
+  cb.style.display = draft ? '' : 'none';
+  if (draft) cb.innerHTML = `<span class="lb-cap t1">1팀 팀장 <b>${caps.teamA ? esc(caps.teamA) : '—'}</b></span><span class="lb-cap t2">2팀 팀장 <b>${caps.teamB ? esc(caps.teamB) : '—'}</b></span>`
+    + (myIsHost ? '<button id="lb-caprand" class="lb-mini">랜덤 팀장</button>' : '');
+  const cr = el('lb-caprand'); if (cr) cr.onclick = () => lbAct(() => window.api.lobbyCaptain(null, true));
+  el('lb-me').style.display = myName ? '' : 'none';
+  document.querySelectorAll('.lb-mebtn').forEach(b => {
+    const on = !!(me && me.st === b.dataset.st);
+    b.classList.toggle('on', on);
+    b.textContent = b.dataset.st === 'in' ? (on ? '✓ 참가' : '참가할게요') : (on ? '✓ 관전' : '관전할게요');
+    b.onclick = () => lbAct(() => window.api.lobbyMe(on ? null : b.dataset.st));
+  });
+  const capOf = n => nn(n) === nn(caps.teamA) ? 1 : nn(n) === nn(caps.teamB) ? 2 : 0;
+  const row = m => {
+    const st = _standing(m.name), cap = capOf(m.name);
+    const stLabel = m.st === 'in' ? '참가' : m.st === 'spec' ? '관전' : '고르는 중';
+    const pill = myIsHost && !m.me ? `<button class="lb-pill ${m.st || 'none'}" data-k="${esc(m.key)}" title="눌러서 바꾸기(참가 → 관전 → 빼기)">${stLabel}</button>` : `<span class="lb-pill ${m.st || 'none'}">${stLabel}</span>`;
+    const capBtn = draft && myIsHost && m.st === 'in' ? `<button class="lb-mini lb-capbtn${cap ? ' on' : ''}" data-n="${esc(m.name)}">${cap ? cap + '팀 팀장' : '팀장'}</button>` : (cap ? `<span class="lb-capb t${cap}">${cap}팀 팀장</span>` : '');
+    return `<div class="lb-row ${m.st || 'none'}${m.me ? ' me' : ''}"><i class="lb-dot${m.online ? ' on' : ''}" title="${m.online ? '앱 접속 중' : '앱 없음(방장이 추가)'}"></i>`
+      + `<span class="lb-nm">${esc(m.name)}${m.tag ? `<small>#${esc(m.tag)}</small>` : ''}${m.host ? ' <span class="lb-crown">👑</span>' : ''}</span>`
+      + (st ? `<span class="lb-rec">${st.wins}승 ${st.losses}패</span>` : '') + capBtn + pill
+      + (myIsHost && m.guest ? `<button class="lb-x" data-g="${esc(m.key)}" title="목록에서 빼기">✕</button>` : '') + '</div>';
+  };
+  el('lb-list').innerHTML = M.length ? M.map(row).join('')
+    : '<div class="lb-empty">아직 아무도 없어요<br><small>팀원이 앱을 켜고 롤에 로그인하면 여기에 떠요</small></div>';
+  const next = { in: 'spec', spec: null, none: 'in' };
+  el('lb-list').querySelectorAll('button.lb-pill').forEach(b => b.onclick = () => {
+    const m = M.find(x => x.key === b.dataset.k); if (!m) return;
+    lbAct(() => window.api.lobbySet(m.key, next[m.st || 'none']));
+  });
+  el('lb-list').querySelectorAll('.lb-capbtn').forEach(b => b.onclick = () => lbAct(() => window.api.lobbyCaptain(b.dataset.n, false)));
+  el('lb-list').querySelectorAll('.lb-x').forEach(b => b.onclick = () => lbAct(() => window.api.lobbyGuestRm(b.dataset.g)));
+  // 👑 방장: 추가·시작 / 나머지: 안내
+  el('lb-hostbox').style.display = myIsHost ? '' : 'none';
+  const n = ins.length, capsOk = !draft || (caps.teamA && caps.teamB);
+  const go = el('lb-start');
+  go.disabled = n < 4 || !capsOk;
+  go.textContent = n < 4 ? `참가 ${n}명 · 4명부터 시작할 수 있어요` : !capsOk ? '팀장 2명을 정해주세요' : draft ? `드래프트 시작 · ${n}명` : `랜덤 팀 구성 · ${n}명`;
+  el('lb-foot').innerHTML = myIsHost ? (n > 10 || n % 2 ? '<span>11명 이상·홀수면 남는 사람은 관전으로 빠져요</span>' : '')
+    : !myName ? '' : L.hostName ? `<span class="lobby-pulse"></span>${esc(L.hostName)}님이 시작하면 바로 팀이 떠요` : '방장이 없어요 · 오른쪽 창 위 「👑 방장 하기」로 맡을 수 있어요';
+  // 오늘 순위(짧게)
+  loadToday();
+  const t = el('lb-today');
+  if (!_today || !_today.standings.length) { t.innerHTML = ''; return; }
+  t.innerHTML = `<div class="wi-sec-h">오늘 순위 · ${_today.matches.length}판</div><div class="wi-rk">` + _today.standings.slice(0, 5).map(p => {
+    const medal = p.rank <= 3 ? ['🥇', '🥈', '🥉'][p.rank - 1] : `<b>${p.rank}</b>`;
+    return `<div class="wi-rk-row${nn(p.name) === nn(myName) ? ' me' : ''}"><span class="wi-rk-r">${medal}</span><span class="wi-rk-nm">${esc(p.name)}</span><span class="wi-rk-lp">${p.wins}승 ${p.losses}패</span></div>`;
+  }).join('') + '</div>';
+}
+el('lb-start').onclick = () => lbAct(() => window.api.lobbyStart());
+function lbAddGuest() { const i = el('lb-add'), v = i.value.trim(); if (!v) return; i.value = ''; lbAct(() => window.api.lobbyGuest(v)); }
+el('lb-add-go').onclick = lbAddGuest;
+el('lb-add').addEventListener('keydown', e => { if (e.key === 'Enter') lbAddGuest(); });
 function renderRoster() {
   const has = roster.length > 0;
   el('roster-h').style.display = has ? 'block' : 'none';
   el('pcount').textContent = has ? `${roster.length}명` : '';
   el('status').style.display = has ? 'none' : 'block';
-  const lob = has ? null : lobbyBanner();
-  el('status').classList.toggle('lobby', !!lob);
+  const lob = null;
+  el('status').classList.toggle('lobby', false);
   if (!has && !myName) { el('status').innerHTML = '롤 클라이언트에 로그인하면<br>자동으로 입장돼요'; el('waiting-info').style.display = 'none'; return; }
   if (!has) el('status').innerHTML = lob || (_gamePlayed
     ? '경기 종료<br><span class="status-sub">결과 기록을 기다리는 중이에요.</span>'
@@ -251,6 +320,8 @@ function render() {
   }
   if (ph === 'result' && hasTeams() && s.game && !resultSeen()) { loadToday(); renderResult(); showView('result'); el('phase').textContent = '결과'; return; }
   if (!inGame && ph === 'teams' && hasTeams()) { loadToday(); renderTeam(); showView('team'); el('phase').textContent = _gamePlayed ? '결과 대기' : '팀 배정'; return; }
-  renderRoster(); showView('roster'); el('phase').textContent = inGame ? '게임 중' : '대기';
+  if (inGame || roster.length) { renderRoster(); showView('roster'); el('phase').textContent = '게임 중'; return; }
+  renderLobby(); showView('lobby'); el('phase').textContent = '대기실';
 }
+window.api.getLobby().then(d => { if (d) { lobbyData = d; myIsHost = !!d.isHost; render(); } }).catch(() => {});
 render();

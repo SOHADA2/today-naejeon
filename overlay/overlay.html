@@ -64,7 +64,23 @@
       <button id="st-close" class="ui-btn-ghost">확인</button>
     </section>
 
-    <!-- 대기 · 인게임 명단 · 오늘 순위 -->
+    <!-- 🚪 대기실 — 접속한 사람 모두가 같은 화면 -->
+    <section id="view-lobby" class="view ui-scroll" style="display:none;">
+      <div id="lb-head" class="lb-head"></div>
+      <div class="lb-mode"><span class="lb-mode-l">이번 판</span><button class="lb-seg" data-mode="random">랜덤</button><button class="lb-seg" data-mode="draft">드래프트</button></div>
+      <div id="lb-caps" class="lb-caps" style="display:none;"></div>
+      <div id="lb-me" class="lb-me"><button class="lb-mebtn in" data-st="in">참가할게요</button><button class="lb-mebtn spec" data-st="spec">관전할게요</button></div>
+      <div id="lb-list" class="lb-list"></div>
+      <div id="lb-hostbox" class="lb-hostbox" style="display:none;">
+        <div class="lb-add"><input id="lb-add" maxlength="24" placeholder="앱 없는 사람 이름 추가"><button id="lb-add-go">추가</button></div>
+        <button id="lb-start" class="ui-btn-gold lb-start" disabled>시작</button>
+      </div>
+      <div id="lb-foot" class="lb-foot"></div>
+      <div id="lb-err" class="dr-err" style="display:none;"></div>
+      <div id="lb-today" class="lb-today"></div>
+    </section>
+
+    <!-- 게임 중 명단 -->
     <section id="view-roster" class="view ui-scroll">
       <div id="status" class="status"></div>
       <div id="waiting-info" class="waiting-info"></div>

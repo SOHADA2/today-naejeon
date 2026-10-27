@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('api', {
   onPlayers: (cb) => ipcRenderer.on('players', (_e, d) => cb(d)),       // 인게임 명단(2999)
   onState: (cb) => ipcRenderer.on('state', (_e, d) => cb(d)),           // 게임 중 여부
   onSession: (cb) => ipcRenderer.on('session', (_e, d) => cb(d)),       // today/session(팀·투표·결과)
-  onLobby: (cb) => ipcRenderer.on('lobby', (_e, d) => cb(d)),           // 방장 준비 중 배너
+  onLobby: (cb) => ipcRenderer.on('lobby', (_e, d) => cb(d)),           // 🚪 대기실
   onMyName: (cb) => ipcRenderer.on('myname', (_e, n) => cb(n)),
   onDocked: (cb) => ipcRenderer.on('docked', (_e, v) => cb(v)),         // 🖥️ 클라 도킹 중이면 각진 모서리
   onSlotTeam: (cb) => ipcRenderer.on('slot-team', (_e, t) => cb(t)),    // 📍 클라 위 내 팀 마커(1/2)
@@ -35,8 +35,17 @@ contextBridge.exposeInMainWorld('api', {
   tbAgain: () => ipcRenderer.invoke('tb-again'),
   draftStart: (names, captains) => ipcRenderer.invoke('draft-start', { names, captains }),   // 🎯 드래프트(방장)
   draftPick: (name) => ipcRenderer.invoke('draft-pick', { name }),                                // 🎯 팀장 픽
-  lobbyPrep: (names) => ipcRenderer.send('lobby-prep', { names }),
-  lobbyClear: () => ipcRenderer.send('lobby-clear'),
+  // 🚪 대기실(모두 같이 보는 화면) — onLobby로 {members, mode, captains, hostName, isHost}
+  getLobby: () => ipcRenderer.invoke('lobby-data'),
+  lobbyMe: (st) => ipcRenderer.invoke('lobby-me', { st }),                  // 'in' 참가 · 'spec' 관전 · null 취소
+  lobbySet: (key, st) => ipcRenderer.invoke('lobby-set', { key, st }),      // 👑 남의 상태
+  lobbyGuest: (name) => ipcRenderer.invoke('lobby-guest', { name }),        // 👑 앱 없는 사람 추가
+  lobbyGuestRm: (key) => ipcRenderer.invoke('lobby-guest-rm', { key }),
+  lobbyMode: (mode) => ipcRenderer.invoke('lobby-mode', { mode }),         // 👑 랜덤/드래프트
+  lobbyCaptain: (name, rand) => ipcRenderer.invoke('lobby-captain', { name, rand }),   // 👑 팀장 지정
+  lobbyStart: () => ipcRenderer.invoke('lobby-start'),                      // 👑 시작
+  lobbyReopen: () => ipcRenderer.invoke('lobby-reopen'),                    // 👑 지금 판 접고 대기실로
+  showOverlay: () => ipcRenderer.send('overlay-show'),
   hostResult: (winner) => ipcRenderer.invoke('host-result', { winner }),   // 🏁 승리팀 직접 기록
   // 🗳️ 투표
   voteCast: (mvpPick, mannerPick) => ipcRenderer.invoke('vote-cast', { mvpPick, mannerPick }),
