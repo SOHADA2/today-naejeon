@@ -507,7 +507,7 @@ async function pollGame() {
     // 게임 중(전체화면)만 위로, 로비/클라에선 같은 층위(클라 활성 시에만 evalRaise가 올림)
     try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setAlwaysOnTop(inGame, inGame ? 'screen-saver' : 'normal'); } catch (_) {}
     if (inGame) { hideOverlay(); hideLeftPanel(); _slotDoneFormed = lastFormed; hideSlotMarker(); }   // 게임 시작 → 양쪽 패널 완전히 숨김(전투 중 정보 미노출, 새 폼 재설계 예정) · 좌측 내 정보 패널도 숨김(클라 창 사라지며 floatPanels가 잠깐 띄우는 레이스 차단) · applyRaise/floatPanels가 inGame return이라 재등장 없음
-    else { hideOverlay(); userHid = false; latestPlayers = []; _lastRaise = null; evalRaise(); }   // 게임 종료 → 로비 층위 재적용
+    else { hideOverlay(); userHid = false; latestPlayers = []; _lastRaise = null; evalRaise(); recGameEnded(); }   // 게임 종료 → 로비 층위 재적용 · 📼 「기록 저장 중」 시작
     broadcast('state', { inGame, label: inGame ? '게임 중' : '대기' });
   }
   broadcast('players', { players: latestPlayers });
@@ -545,18 +545,34 @@ let account = null;   // { puuid, gameName, tagLine }
 const PRESENCE_MS = 20000, ONLINE_MS = 60000;
 let _presenceTimer = null;
 async function beatPresence() {
-  if (!account) return;
+  if (!account) {   // 클라 잠깐 꺼짐 — 방장 자리만 살아있게(2분)
+    if (_away && config.isHost) fbCas(`${T}/host`, cur => cur && cur.puuid === _away.puuid ? { value: { puuid: cur.puuid, name: cur.name, at: Date.now() } } : { err: 'not mine' }).catch(() => {});
+    return;
+  }
   await fbSet(`${T}/presence/${account.puuid}`, { name: account.gameName, tag: account.tagLine || null, at: Date.now(), host: !!config.isHost, app: app.getVersion() }).catch(() => {});
   if (config.isHost) fbCas(`${T}/host`, cur => cur && cur.puuid === account.puuid ? { value: { puuid: cur.puuid, name: cur.name, at: Date.now() } } : { err: 'not mine' }).catch(() => {});   // 👑 방장 살아있음 표시
+}
+// 🔌 롤 클라를 잠깐 끈 것(게임 끝나고 껐다 켜기 등)은 로그아웃으로 치지 않음 — 같은 계정이 2분 안에 돌아오면 방장·참가 그대로
+//    (전엔 클라를 끄는 순간 방장이 풀려서, 롤을 다시 켜 전적에서 결과를 복구해도 기록해 줄 방장이 없었음)
+const AWAY_GRACE_MS = 2 * 60 * 1000;
+let _away = null, _awayTimer = null;   // 클라 꺼짐으로 잠깐 없는 내 계정
+function releaseAccount(prev) {   // 이전 계정의 접속 표시·방장·대기실 참가 정리
+  fbSet(`${T}/presence/${prev.puuid}`, null).catch(() => {});
+  if (config.isHost) { config.isHost = false; fbSet(`${T}/host`, null).catch(() => {}); broadcast('account', { account, isHost: false }); broadcast('host', hostView()); }
+  fbSet(`${T}/lobby/join/${prev.puuid}`, null).catch(() => {});
 }
 function setAccount(acc) {
   const prev = account;
   if (acc && !acc.gameName) acc = null;
   if ((prev && prev.puuid) === (acc && acc.puuid) && (prev && prev.gameName) === (acc && acc.gameName)) return;
-  if (prev && (!acc || prev.puuid !== acc.puuid)) {   // 계정 바뀜/로그아웃 → 이전 접속 표시 지우고 방장 해제
-    fbSet(`${T}/presence/${prev.puuid}`, null).catch(() => {});
-    if (config.isHost) { config.isHost = false; fbSet(`${T}/host`, null).catch(() => {}); }
-    fbSet(`${T}/lobby/join/${prev.puuid}`, null).catch(() => {});   // 🚪 대기실 참가 표시도 지움
+  if (prev && !acc) {   // 클라 꺼짐 → 2분 기다림
+    _away = prev; clearTimeout(_awayTimer);
+    _awayTimer = setTimeout(() => { const a = _away; _away = null; if (a && !account) releaseAccount(a); }, AWAY_GRACE_MS);
+  } else if (prev && acc && prev.puuid !== acc.puuid) releaseAccount(prev);   // 다른 계정으로 바뀜 → 바로 정리
+  if (acc && _away) {   // 돌아옴: 같은 계정이면 그대로 이어감, 다른 계정이면 이전 계정 정리
+    clearTimeout(_awayTimer);
+    if (_away.puuid !== acc.puuid) releaseAccount(_away);
+    _away = null;
   }
   account = acc;
   config.myName = acc ? acc.gameName : '';
@@ -585,6 +601,54 @@ async function teamIds(names) {   // 이름 → puuid(경기 결과를 계정 ID
   return Object.keys(ids).length ? ids : null;
 }
 
+// ── 📼 게임 끝난 뒤 「기록 저장 중」 진행 상태 — 왼쪽 창(롤 클라 옆)에 단계별로 보여줌 ─────────
+// 단계: end(게임 종료 확인) → get(결과 가져오기: 정산 화면/전적) → save(서버 저장) → rec(방장이 오늘 기록에 반영) → done
+// 출처: 내 브릿지(onEog) + 서버(eogStats·session) — 다른 사람 PC가 결과를 잡아도 같이 진행됨
+let recState = null;   // { stage, since, gameId, src, tries, max, problem }
+const REC_GIVEUP_MS = 4 * 60 * 1000;
+function recSet(patch) {
+  if (patch === null) { if (recState) { recState = null; broadcast('rec', null); } return; }
+  recState = Object.assign({}, recState || { since: Date.now() }, patch);
+  broadcast('rec', recState);
+}
+const REC_ORDER = { end: 0, get: 1, save: 2, rec: 3, done: 4 };
+function recAdvance(stage, patch) {   // 뒤로 가지 않게(늦게 온 알림 무시)
+  if (!recState) return;
+  if (REC_ORDER[stage] < REC_ORDER[recState.stage]) return;
+  recSet(Object.assign({ stage }, patch || {}));
+}
+function recGameEnded() {
+  const s = sessionData;
+  if (!s || s.phase !== 'teams' || !s.teamsFormedAt) return;   // 진행 중인 내전 판이 없으면(일반 게임 등) 안 띄움
+  if (recState && Date.now() - recState.since < 5 * 60 * 1000) return;   // 이미 진행 중(브릿지가 먼저 알림) → 처음으로 되돌리지 않음
+  recState = null;
+  recSet({ stage: 'get', since: Date.now(), problem: null });
+  setTimeout(() => { if (recState && !inGame) { userHid = false; showOverlay(); } }, 1500);   // 클라 화면이 돌아올 즈음 왼쪽 창 띄움
+}
+function onBridgeEog(e) {
+  if (!e) return;
+  if (e.stage === 'skip') return recSet(null);   // 일반 게임
+  if (e.stage === 'ended') return recGameEnded();
+  if (!recState) { if (!sessionData || sessionData.phase !== 'teams') return; recSet({ stage: 'get', since: Date.now() }); if (!inGame) { userHid = false; showOverlay(); } }   // 롤이 꺼졌거나 다음 실행 때 전적 복구 등
+  if (e.stage === 'history') recSet({ stage: 'get', src: '전적', tries: e.tries || 0, max: e.max || 36, problem: null, gameId: e.gameId });
+  else if (e.stage === 'captured') recAdvance('save', { src: e.src, gameId: e.gameId, problem: null });
+  else if (e.stage === 'saved') recAdvance('rec', { src: e.src, gameId: e.gameId, problem: null });
+  else if (e.stage === 'retry') recSet({ problem: '저장이 늦어지고 있어요 · 다시 시도 중' });
+  else if (e.stage === 'missed') recSet({ problem: 'missed' });
+  else if (e.stage === 'closed') recSet({ problem: 'closed' });
+}
+async function recTick(s) {   // pollSession마다: 서버 상태로 단계 맞추기
+  if (!recState) return;
+  if (!s || s.phase === 'lobby' || !s.teamsFormedAt) return recSet(null);
+  if (s.phase === 'vote' || s.phase === 'result') return recSet(null);   // 기록 완료 → 투표 화면(「1팀 승리」 띠)이 완료 표시
+  if (s.pendingEog) return recSet({ stage: 'rec', problem: 'pick' });   // 이름이 안 맞아 방장이 직접 골라야 함
+  if (REC_ORDER[recState.stage] < REC_ORDER.rec) {
+    const e = await fetchEog();
+    if (e && e.gameId && (e.savedAt || 0) >= (s.teamsFormedAt || 0) && (e.savedAt || 0) >= recState.since - 120000) recAdvance('rec', { src: recState.src || (e.source === 'history' ? '전적' : '정산 화면'), gameId: e.gameId });
+  }
+  if (Date.now() - recState.since > REC_GIVEUP_MS && !recState.problem) recSet({ problem: 'missed' });
+}
+
 // ── 👑 방장 = 한 번에 한 명(today/host) · 넘겨주기 · 응답 없으면 이어받기 ──────────
 // 방장 앱이 20초마다 at 갱신. 60초 넘게 끊기면 다른 사람이 「방장 이어받기」 가능.
 // 내 계정이 방장으로 적혀 있으면(넘겨받음·재시작) 자동으로 방장이 되고, 남의 이름이면 자동으로 내려옴.
@@ -592,7 +656,8 @@ let hostRec = null;   // { puuid, name, at, from }
 const fetchHost = () => getJson(`${FIREBASE_DB}/${T}/host.json`);
 const hostAlive = h => !!(h && h.puuid && Date.now() - (h.at || 0) < ONLINE_MS);
 function hostView(note) {
-  const h = hostRec && hostRec.puuid ? { name: hostRec.name || '', alive: hostAlive(hostRec), mine: !!(account && hostRec.puuid === account.puuid) } : null;
+  const me = account || _away;
+  const h = hostRec && hostRec.puuid ? { name: hostRec.name || '', alive: hostAlive(hostRec), mine: !!(me && hostRec.puuid === me.puuid) } : null;
   return { host: h, isHost: !!config.isHost, note: note || null };
 }
 function setHostLocal(v, note) {
@@ -610,7 +675,8 @@ function setHostLocal(v, note) {
 function onHostRec(h) {
   const prev = hostRec;
   hostRec = h && h.puuid ? h : null;
-  const mine = !!(account && hostRec && hostRec.puuid === account.puuid);
+  const me = account || _away;   // 클라 잠깐 꺼져도 나
+  const mine = !!(me && hostRec && hostRec.puuid === me.puuid);
   if (mine && !config.isHost && hostAlive(hostRec)) return setHostLocal(true, hostRec.from ? `${hostRec.from}님이 방장을 넘겨줬어요` : null);
   if (!mine && config.isHost) return setHostLocal(false, hostRec ? `${hostRec.name}님이 방장이 됐어요` : null);
   if (JSON.stringify(prev) !== JSON.stringify(hostRec) || !hostAlive(hostRec)) broadcast('host', hostView());
@@ -782,6 +848,7 @@ async function pollSession() {
   broadcast('lobby', lobbyView());
   broadcast('session', { session: sessionData, myName: config.myName || '' });
   if (_lastRect && !inGame && !_floating) updateSlotMarker(_lastRect);   // 📍 팀 상태 변경 → 마커 갱신
+  recTick(s).catch(() => {});
   if (config.isHost) runHost();
 }
 
@@ -1232,7 +1299,8 @@ ipcMain.handle('vote-close', async () => {   // ⏭️ 방장: 미투표자 있�
   return closeVote();
 });
 ipcMain.handle('today-data', async (_e, arg) => getToday(arg && arg.day));
-ipcMain.handle('profile', (_e, arg) => getProfile(arg || { me: true }));   // 👤 개인 내전 프로필
+ipcMain.handle('profile', (_e, arg) => getProfile(arg || { me: true }));
+ipcMain.handle('rec-state', () => recState);   // 📼 기록 저장 진행 상태   // 👤 개인 내전 프로필
 ipcMain.on('open-profile', (_e, arg) => {   // 왼쪽 대기실에서 이름 누름 → 오른쪽 창 프로필 탭
   try { showMainPanel(); } catch (_) {}
   if (leftWin && !leftWin.isDestroyed()) leftWin.webContents.send('open-profile', arg);
@@ -1272,7 +1340,7 @@ else {
     fbStream(`${T}/host`, runSession);                   // ⚡ 방장 바뀜(넘겨받음·이어받음)                  // ⚡ 방장 준비 중 배너
     fbStream(`${T}/bridge/eogStats`, () => { if (config.isHost) runHost(); });   // ⚡ 경기 종료 → 방장 앱이 바로 기록
     setupAutoUpdate();
-    bridge.start({ getOperatorName: () => config.myName || null, appVer: app.getVersion(), onAccount: setAccount, fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
+    bridge.start({ getOperatorName: () => config.myName || null, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
     // 🧪 개발용: 롤 없이 테스트 — TN_FAKE_ACCOUNT="이름#태그" (배포본에선 안 씀)
     if (!app.isPackaged && process.env.TN_FAKE_ACCOUNT) { const [g, t] = process.env.TN_FAKE_ACCOUNT.split('#'); setTimeout(() => setAccount({ puuid: 'fake-' + g, gameName: g, tagLine: t || 'KR1' }), 1500); }
   });

@@ -29,7 +29,7 @@ window.api.onLobby(d => { lobbyData = d || null; if (d) myIsHost = !!d.isHost; r
 window.api.onDocked(v => { document.body.classList.toggle('docked', !!v); });
 
 function showView(v) {
-  for (const k of ['lobby', 'team', 'draft', 'vote', 'result', 'roster']) el('view-' + k).style.display = v === k ? (k === 'team' ? 'flex' : 'block') : 'none';
+  for (const k of ['lobby', 'rec', 'team', 'draft', 'vote', 'result', 'roster']) el('view-' + k).style.display = v === k ? (k === 'team' ? 'flex' : 'block') : 'none';
 }
 function myTeam() {
   const s = sessionData; if (!s) return 0;
@@ -110,6 +110,51 @@ function updateDraftTimer() {
   const sec = document.querySelector('#dr-band .dr-sec'); if (sec) sec.textContent = Math.ceil(ms / 1000) + '초';
 }
 setInterval(updateDraftTimer, 250);
+
+// ── 📼 기록 저장 중 — 게임 끝나고 결과가 오늘 기록에 들어갈 때까지 단계별로 ─────────────
+// ⚠️ 도는 로딩 아이콘 금지(투명 창 무한 애니메이션 = CPU 폭증). 단계 체크 + 1초마다 경과 시간만 바꿈.
+let recData = null;
+window.api.onRec(d => { recData = d || null; render(); });
+window.api.getRec().then(d => { recData = d || null; render(); }).catch(() => {});
+const REC_STEPS = [['end', '게임 종료 확인'], ['get', '게임 결과 가져오기'], ['save', '서버에 저장'], ['rec', '오늘 기록에 반영']];
+const REC_IDX = { end: 0, get: 1, save: 2, rec: 3, done: 4 };
+function recElapsed() { return recData ? Math.max(0, Math.floor((Date.now() - recData.since) / 1000)) : 0; }
+function renderRec() {
+  const r = recData, cur = REC_IDX[r.stage] ?? 1, bad = r.problem === 'missed' || r.problem === 'closed' || r.problem === 'pick';
+  const done = r.stage === 'done';
+  el('rc-head').className = 'rc-head' + (done ? ' ok' : bad ? ' warn' : '');
+  el('rc-head').innerHTML = done ? '<b>✓ 기록 완료</b><span>투표로 넘어가요</span>'
+    : bad ? '<b>확인이 필요해요</b><span id="rc-sec"></span>'
+    : `<b>기록 저장 중</b><span id="rc-sec">${recElapsed()}초</span>`;
+  const sub = {
+    get: r.src === '전적' ? `정산 화면을 못 잡아서 전적에서 찾는 중${r.tries ? ` (${r.tries}/${r.max || 36})` : ''}` : '정산 화면에서 가져오는 중',
+    save: r.src ? `${r.src}에서 받음` : '',
+    rec: r.src === '다른 PC' ? '다른 사람 PC가 먼저 저장했어요' : '방장 앱이 승패를 판정하는 중',
+  };
+  el('rc-steps').innerHTML = REC_STEPS.map(([k, label], i) => {
+    const st = i < cur || done ? 'done' : i === cur ? (bad ? 'bad' : 'now') : 'todo';
+    const mark = st === 'done' ? '✓' : st === 'bad' ? '!' : st === 'now' ? '●' : '';
+    return `<li class="${st}"><i>${mark}</i><span>${label}${st === 'now' && sub[k] ? `<small>${esc(sub[k])}</small>` : ''}</span></li>`;
+  }).join('');
+  const note = el('rc-note');
+  note.className = 'rc-note' + (bad ? ' warn' : '');
+  note.innerHTML = r.problem === 'pick' ? '인게임 이름이 등록 이름과 달라 자동 판정을 못 했어요.<br>방장이 이긴 팀을 골라주세요.'
+    : r.problem === 'missed' ? '게임 결과를 찾지 못했어요.<br>방장이 이긴 팀을 직접 기록해주세요.'
+    : r.problem === 'closed' ? '결과 저장 전에 롤이 꺼졌어요.<br>롤을 다시 켜면 전적에서 가져와요. 급하면 방장이 직접 기록해도 돼요.'
+    : r.problem ? esc(r.problem)
+    : done ? '' : '정산 화면은 바로 나가도 괜찮아요 · 전적에서도 가져와요';
+  const hb = el('rc-host');
+  if (myIsHost && (bad || recElapsed() > 60) && !done) {
+    hb.style.display = '';
+    hb.innerHTML = '<div class="rc-host-h">방장: 이긴 팀 직접 기록</div><div class="rc-acts"><button class="ui-btn-ghost" data-w="teamA">1팀 승리</button><button class="ui-btn-ghost" data-w="teamB">2팀 승리</button></div>';
+    hb.querySelectorAll('button').forEach(b => b.onclick = async () => {
+      if (b.disabled) return; hb.querySelectorAll('button').forEach(x => { x.disabled = true; });
+      const res = await window.api.hostResult(b.dataset.w).catch(() => null);
+      if (!res || !res.ok) { hb.querySelectorAll('button').forEach(x => { x.disabled = false; }); note.textContent = '⚠️ ' + ((res && res.err) || '기록 실패'); }
+    });
+  } else hb.style.display = 'none';
+}
+setInterval(() => { const e = document.getElementById('rc-sec'); if (e && recData && recData.stage !== 'done' && !recData.problem) e.textContent = recElapsed() + '초'; }, 1000);   // 텍스트만 1초에 한 번
 
 // ── 🗳️ 투표 ──────────────────────────────────────────────────────────────
 let _pendMvp = null, _pendManner = null, _voteBusy = false, _voteSig = '';
@@ -323,6 +368,7 @@ function render() {
     renderVote(); showView('vote'); el('phase').textContent = '투표'; return;
   }
   if (ph === 'result' && hasTeams() && s.game && !resultSeen()) { loadToday(); renderResult(); showView('result'); el('phase').textContent = '결과'; return; }
+  if (recData && !inGame && ph === 'teams') { renderRec(); showView('rec'); el('phase').textContent = '기록 저장 중'; return; }
   if (!inGame && ph === 'teams' && hasTeams()) { loadToday(); renderTeam(); showView('team'); el('phase').textContent = _gamePlayed ? '결과 대기' : '팀 배정'; return; }
   if (inGame || roster.length) { renderRoster(); showView('roster'); el('phase').textContent = '게임 중'; return; }
   renderLobby(); showView('lobby'); el('phase').textContent = '대기실';

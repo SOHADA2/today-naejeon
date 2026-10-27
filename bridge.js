@@ -19,6 +19,7 @@ let _log        = () => {};
 let _getOpName  = () => null;   // 진행자 이름 = 오버레이 config.myName
 let _appVer     = '';           // 오버레이 앱 버전(정보용)
 let _onAccount  = () => {};     // 👤 롤에 로그인된 라이엇 계정 변경 알림({puuid,gameName,tagLine} | null)
+let _onEog      = () => {};     // 📼 게임 결과 수집 단계 알림 → 왼쪽 창 「기록 저장 중」 화면
 let _fakeLcu    = null;         // 🧪 개발용 "port:password"(TN_FAKE_LCU) — lockfile 대신 이 주소로 붙음
 
 function log(msg) { try { _log('[bridge] ' + msg); } catch (_) {} }
@@ -152,7 +153,7 @@ const connector = new LockfileConnector();
 let basePort = null, baseAuth = null;   // LCU 접속(포트 + Basic 인증 헤더)
 let lastPhase = null, pollTimer = null, heartbeatTimer = null;
 let activeIsCustom = null, eogSaved = false, gameInProgress = false, activeGameId = null;
-let _eogBusy = false, eogTimer = null, _missedGame = null;   // ⚡ 정산 화면 빠른 감시 · 클라를 꺼서 못 잡은 판(다음 연결 때 전적에서 복구)
+let _eogBusy = false, eogTimer = null, _missedGame = null, _endedEmitted = false;   // ⚡ 정산 화면 빠른 감시 · 클라를 꺼서 못 잡은 판(다음 연결 때 전적에서 복구)
 let inGamePlayersFilled = false, _lastSess = null, _lastPickNames = [], lastSavedGameId = null;
 let _running = false, _pollFailCount = 0;
 
@@ -237,26 +238,29 @@ async function handleEndOfGame(abnormal = false) {
     }
 
     // 🎮 일반게임(비커스텀)은 투데이 내전 기록이 아님 → 저장하지 않음(사이트 normal_matches 에도 안 씀)
-    if (activeIsCustom === false) { eogSaved = true; if (currentGameId) lastSavedGameId = currentGameId; log('🎮 일반게임 — 기록 안 함'); return; }
+    if (activeIsCustom === false) { eogSaved = true; if (currentGameId) lastSavedGameId = currentGameId; log('🎮 일반게임 — 기록 안 함'); emitEog('skip', currentGameId); return; }
 
     // ⚡ LCU에서 받은 즉시 메모리에 확보 → 그다음 서버에 씀(정산 화면을 바로 나가도 이미 손에 있음)
     eogSaved = true; lastSavedGameId = currentGameId; stopEogWatch();
+    emitEog('captured', currentGameId, { src: '정산 화면' });
     await saveEog({ players, winSide, gameId: eog.gameId || null, gameTime: eog.gameLength || 0, savedAt: Date.now() }, '정산 화면');
   } catch (_) {} finally { _eogBusy = false; }
 }
 // 내전 EOG 저장 — ETag 조건부 PUT(다른 PC의 브릿지가 먼저 썼으면 건너뜀)
+function emitEog(stage, gameId, extra) { try { _onEog(Object.assign({ stage, gameId: gameId || null, at: Date.now() }, extra || {})); } catch (_) {} }
 async function saveEog(payload, src) {
   let etag = null;
   try {
     const { data: existing, etag: e } = await fbGetWithEtag(`${BRIDGE_ROOT}/eogStats`);
     etag = e;
-    if (existing && payload.gameId && String(existing.gameId) === String(payload.gameId)) { log('같은 게임 이미 저장됨 — 건너뜀'); return true; }
+    if (existing && payload.gameId && String(existing.gameId) === String(payload.gameId)) { log('같은 게임 이미 저장됨 — 건너뜀'); emitEog('saved', payload.gameId, { src: '다른 PC' }); return true; }
   } catch (_) {}
   let w;
   try { w = await fbSetIfMatch(`${BRIDGE_ROOT}/eogStats`, payload, etag); }
   catch (e) { log('⚠️ EOG 저장 실패 — 일반 PUT 폴백'); w = { ok: await fbSet(`${BRIDGE_ROOT}/eogStats`, payload) }; }
-  if (w && w.conflict) { log('다른 PC가 먼저 저장 — 건너뜀'); return true; }
-  if (w && w.ok) log(`게임 결과 저장 ✅ (${src}) 승리 진영: ${payload.winSide}`);
+  if (w && w.conflict) { log('다른 PC가 먼저 저장 — 건너뜀'); emitEog('saved', payload.gameId, { src: '다른 PC' }); return true; }
+  if (w && w.ok) { log(`게임 결과 저장 ✅ (${src}) 승리 진영: ${payload.winSide}`); emitEog('saved', payload.gameId, { src }); }
+  else emitEog('retry', payload.gameId, { src });
   return !!(w && w.ok);
 }
 
@@ -283,16 +287,19 @@ function scheduleHistoryBackfill(gameId) {
   _histPending.add(String(gameId));
   log(`⚠️ 정산 화면을 못 잡음 — 전적에서 게임 ${gameId} 결과를 가져오는 중`);
   let tries = 0;
+  emitEog('history', gameId, { tries: 0, max: 36 });
   const tick = async () => {
     tries++;
-    if (!basePort) { _histPending.delete(String(gameId)); _missedGame = { gameId, custom: true }; return; }   // 클라 꺼짐 → 다음 연결 때 다시
-    if (tries > 36) { _histPending.delete(String(gameId)); log('전적에서도 못 찾음 — 방장이 승리팀을 직접 고르세요'); return; }
+    if (!basePort) { _histPending.delete(String(gameId)); _missedGame = { gameId, custom: true }; emitEog('closed', gameId); return; }   // 클라 꺼짐 → 다음 연결 때 다시
+    if (tries > 36) { _histPending.delete(String(gameId)); log('전적에서도 못 찾음 — 방장이 승리팀을 직접 고르세요'); emitEog('missed', gameId); return; }
+    emitEog('history', gameId, { tries, max: 36 });
     try {
       const cur = await fbGet(`${BRIDGE_ROOT}/eogStats`);
-      if (cur && String(cur.gameId) === String(gameId)) { _histPending.delete(String(gameId)); log('다른 PC가 이미 저장 — 복구 불필요'); return; }
+      if (cur && String(cur.gameId) === String(gameId)) { _histPending.delete(String(gameId)); log('다른 PC가 이미 저장 — 복구 불필요'); emitEog('saved', gameId, { src: '다른 PC' }); return; }
       const g = await lcu(`/lol-match-history/v1/games/${gameId}`);
       if (g && Array.isArray(g.participants) && g.participants.length) {
-        if (g.gameType && g.gameType !== 'CUSTOM_GAME') { _histPending.delete(String(gameId)); log('🎮 일반게임 — 기록 안 함'); return; }
+        if (g.gameType && g.gameType !== 'CUSTOM_GAME') { _histPending.delete(String(gameId)); log('🎮 일반게임 — 기록 안 함'); emitEog('skip', gameId); return; }
+        emitEog('captured', gameId, { src: '전적' });
         if (await saveEog(await historyToEog(g), '전적에서 복구')) { _histPending.delete(String(gameId)); return; }
       }
     } catch (_) {}
@@ -352,6 +359,8 @@ async function poll() {
     if (phase !== lastPhase) {
       log(`페이즈: ${lastPhase ?? '-'} → ${phase}`);
       lastPhase = phase;
+      if (phase === 'GameStart' || phase === 'InProgress') _endedEmitted = false;
+      else if (gameInProgress && phase !== 'Reconnect' && !_endedEmitted) { _endedEmitted = true; emitEog('ended', activeGameId); }   // 📼 게임 끝남 → 「기록 저장 중」 시작
       if (phase !== 'GameStart' && phase !== 'InProgress') { inGamePlayersFilled = false; fbSet(`${BRIDGE_ROOT}/inGame`, null); }
       switch (phase) {
         case 'ChampSelect':
@@ -436,7 +445,7 @@ connector.on('connect', async data => {
 });
 connector.on('disconnect', async () => {
   log('롤 클라이언트 종료 — 재연결 대기');
-  if (gameInProgress && !eogSaved && activeGameId && activeIsCustom !== false) { _missedGame = { gameId: activeGameId }; log('⚠️ 결과 저장 전에 클라 종료 — 다음에 롤을 켜면 전적에서 가져옴(안 되면 방장이 승리팀 직접 선택)'); }
+  if (gameInProgress && !eogSaved && activeGameId && activeIsCustom !== false) { _missedGame = { gameId: activeGameId }; emitEog('closed', activeGameId); log('⚠️ 결과 저장 전에 클라 종료 — 다음에 롤을 켜면 전적에서 가져옴(안 되면 방장이 승리팀 직접 선택)'); }
   stopEogWatch();
   basePort = null; baseAuth = null; lastPhase = null; eogSaved = false;
   pollAccount();   // 클라 종료 → 계정 없음
@@ -455,6 +464,7 @@ async function start(opts) {
   _appVer    = (opts && opts.appVer)          || '';
   _onAccount = (opts && opts.onAccount)       || (() => {});
   _fakeLcu   = (opts && opts.fakeLcu)         || null;
+  _onEog     = (opts && opts.onEog)           || (() => {});
   log('내장 브릿지 시작 — LCU 감지 대기');
   startHeartbeat();
   connector.start();
