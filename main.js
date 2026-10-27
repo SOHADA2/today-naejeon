@@ -721,6 +721,7 @@ async function handHost(puuid) {
 // today/lobby = { mode:'random'|'draft', captains:{teamA,teamB}, join:{ key:{name, st:'in'|'spec', at, day, guest?} } }
 // 각자 자기 참가/관전을 누름(key=puuid) · 방장은 남의 상태도 바꾸고 앱 없는 사람(key='g_'+이름)을 추가 · 방식·팀장은 방장만
 // 사람 목록 = 지금 접속 중(presence) + 방장이 추가한 사람. 참가 표시는 그날만 유효(새벽 6시 기준).
+// v0.1.16~: 접속 = 기본 참가(아무것도 안 눌러도 자리에 앉음) · 저장된 'spec'만 관전
 let lobbyRaw = null, presenceRaw = null;
 function lobbyView() {
   const L = lobbyRaw || {}, join = L.join || {}, today = dayKey(), now = Date.now();
@@ -728,7 +729,7 @@ function lobbyView() {
   const members = [];
   for (const [puuid, p] of Object.entries(presenceRaw || {})) {
     if (!p || !p.name || now - (p.at || 0) >= ONLINE_MS) continue;
-    members.push({ key: puuid, name: normName(p.name), tag: p.tag || '', icon: p.icon || null, online: true, host: !!(hostRec && hostRec.puuid === puuid && hostAlive(hostRec)), me: !!(account && account.puuid === puuid), st: stOf(puuid) });
+    members.push({ key: puuid, name: normName(p.name), tag: p.tag || '', icon: p.icon || null, online: true, host: !!(hostRec && hostRec.puuid === puuid && hostAlive(hostRec)), me: !!(account && account.puuid === puuid), st: stOf(puuid) || 'in' });   // 접속하면 바로 자리에(고르는 중 없음) · 관전은 본인/방장이 바꿈
   }
   for (const [k, j] of Object.entries(join)) if (j && j.guest && j.day === today && !members.some(m => m.name === normName(j.name))) members.push({ key: k, name: normName(j.name), guest: true, online: false, st: stOf(k) });
   const ord = { in: 0, null: 1, spec: 2 };

@@ -89,8 +89,8 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .lb-me { display:flex; gap:6px; margin-bottom:12px; }
 .lb-mebtn { -webkit-app-region:no-drag; flex:1; padding:11px 6px; font-size:14px; font-weight:800; cursor:pointer; color:var(--ink-soft); background:var(--bg-2); border:1px solid var(--line-2); clip-path:var(--cut); }
 .lb-mebtn:hover { color:var(--ink); border-color:var(--gold-line); }
-.lb-mebtn.in.on { color:#04201c; background:linear-gradient(180deg, #5ee8dc, var(--teal)); border-color:var(--teal); }
-.lb-mebtn.spec.on { color:#1a1206; background:linear-gradient(180deg, var(--gold-hi), var(--gold)); border-color:var(--gold); }
+.lb-mebtn.rejoin { color:#04201c; background:linear-gradient(180deg, #5ee8dc, var(--teal)); border-color:var(--teal); }   /* 관전 중 → 다시 참가 */
+.lb-mebtn.leave { padding:8px 6px; font-size:12.5px; font-weight:700; }   /* 자리에 앉아 있음 → 관전으로(작게) */
 .lb-mebtn span { font-weight:900; }
 
 .lb-list { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }

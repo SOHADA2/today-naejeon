@@ -437,7 +437,7 @@ function avatar(m, cls) {
 function renderLobby() {
   const L = lobbyData || { members: [], mode: 'random', captains: {} };
   const M = L.members || [], caps = L.captains || {}, draft = L.mode === 'draft';
-  const ins = M.filter(m => m.st === 'in'), specs = M.filter(m => m.st === 'spec'), none = M.filter(m => !m.st);
+  const ins = M.filter(m => m.st === 'in'), specs = M.filter(m => m.st === 'spec');
   const me = M.find(m => m.me);
   el('lb-head').innerHTML = !myName ? '<span class="lb-wait"><span class="lobby-pulse"></span>롤 클라이언트에 로그인하면 자동으로 입장돼요</span>'
     : `<span class="lb-title"><span class="lb-en">LOBBY</span><b>대기실</b></span>`
@@ -469,18 +469,17 @@ function renderLobby() {
   };
   el('lb-seats').innerHTML = Array.from({ length: SEATS }, (_, i) => seat(ins[i], i)).join('');
   el('lb-me').style.display = myName ? '' : 'none';
-  document.querySelectorAll('.lb-mebtn').forEach(b => {
-    const on = !!(me && me.st === b.dataset.st);
-    b.classList.toggle('on', on);
-    b.innerHTML = b.dataset.st === 'in' ? (on ? '<span>✓</span> 참가 중' : '참가할게요') : (on ? '<span>✓</span> 관전 중' : '관전할게요');
-    b.onclick = () => lbAct(() => window.api.lobbyMe(on ? null : b.dataset.st));
-  });
-  // 자리에 없는 사람: 아직 고르는 중 · 관전
+  { // 접속하면 바로 자리에 앉음 → 버튼은 하나: 앉아 있으면 「관전으로 빠지기」, 관전 중이면 「다시 참가하기」
+    const b = el('lb-mebtn'), spec = !!(me && me.st === 'spec');
+    b.className = 'lb-mebtn ' + (spec ? 'rejoin' : 'leave');
+    b.textContent = spec ? '다시 참가하기' : '이번 판은 관전할게요';
+    b.onclick = () => lbAct(() => window.api.lobbyMe(spec ? 'in' : 'spec'));
+  }
+  // 자리에 없는 사람 = 관전
   const chip = m => `<span class="lb-chip ${m.st || 'none'}${m.me ? ' me' : ''}">${avatar(m, 'chip-av')}<b class="lb-nm" data-pk="${esc(m.key)}">${esc(m.name)}</b>`
     + (myIsHost && !m.me ? `<button class="seat-btn in" data-in="${esc(m.key)}" title="참가로">＋</button>` : '')
     + (myIsHost && m.guest ? `<button class="seat-btn out" data-rm="${esc(m.key)}" title="목록에서 빼기">✕</button>` : '') + '</span>';
   const others = [];
-  if (none.length) others.push(`<div class="lb-others"><span class="lb-ol">고르는 중 <b>${none.length}</b></span>${none.map(chip).join('')}</div>`);
   if (specs.length) others.push(`<div class="lb-others"><span class="lb-ol">관전 <b>${specs.length}</b></span>${specs.map(chip).join('')}</div>`);
   el('lb-list').innerHTML = others.join('') || (M.length ? '' : '<div class="lb-empty">아직 아무도 없어요<br><small>팀원이 앱을 켜고 롤에 로그인하면 여기에 떠요</small></div>');
   const root = el('view-lobby');
