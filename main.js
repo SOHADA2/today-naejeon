@@ -199,19 +199,24 @@ function setPanelFg() { const v = _ovFocus || _lfFocus; if (v !== panelFg) { pan
 // 🚪 클라 종료 시 "같이 끌까요?" — OS 기본 다이얼로그 대신 앱 톤(블랙+골드) 커스텀 창
 let quitConfirmWin = null;
 function closeQuitConfirm() { _quitPromptOpen = false; if (quitConfirmWin && !quitConfirmWin.isDestroyed()) { try { quitConfirmWin.close(); } catch (_) {} } quitConfirmWin = null; }
+let _quitMode = 'client';   // 'client'=클라 종료 따라 묻기 · 'close'=오른쪽 창 ✕(숨기기/종료)
 function maybePromptQuitOnClientClose() {
   if (app._quitting || _quitPromptOpen || _clientPresent || inGame) return;   // 그새 다시 켜졌거나 게임 중이면 안 띄움
-  _quitPromptOpen = true;
-  const W = 360, H = 182;
+  openQuitConfirm('client');
+}
+function openQuitConfirm(mode) {
+  _quitPromptOpen = true; _quitMode = mode;
+  const W = 360, H = mode === 'close' ? 204 : 182;
   const wa = screen.getPrimaryDisplay().workArea;
-  const x = Math.round(wa.x + (wa.width - W) / 2), y = Math.round(wa.y + (wa.height - H) / 2.5);   // 화면 중앙(살짝 위)
+  const x = mode === 'close' ? wa.x + wa.width - W - 16 : Math.round(wa.x + (wa.width - W) / 2);   // ✕ = 오른쪽 아래(트레이 아이콘 근처)
+  const y = mode === 'close' ? wa.y + wa.height - H - 16 : Math.round(wa.y + (wa.height - H) / 2.5);   // 클라 종료 = 화면 중앙(살짝 위)
   quitConfirmWin = new BrowserWindow({
     width: W, height: H, x, y, frame: false, transparent: true, resizable: false, movable: false,
     alwaysOnTop: true, skipTaskbar: true, show: false, focusable: true, roundedCorners: false,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
   quitConfirmWin.setAlwaysOnTop(true, 'screen-saver');
-  quitConfirmWin.loadFile('desktop/quit-confirm.html');
+  quitConfirmWin.loadFile('desktop/quit-confirm.html', { query: { mode } });
   quitConfirmWin.once('ready-to-show', () => { if (quitConfirmWin && !quitConfirmWin.isDestroyed()) quitConfirmWin.show(); });
   quitConfirmWin.on('closed', () => { quitConfirmWin = null; _quitPromptOpen = false; });
 }
@@ -1242,7 +1247,9 @@ function refreshTrayMenu(updateReady) {
     { type: 'separator' },
     { label: '내전 홈페이지 (기본 브라우저)', click: () => shell.openExternal(WEB_URL) },
     { type: 'separator' },
-    { label: '종료', click: () => { app._quitting = true; app.quit(); } },
+    { label: '✕ 닫을 때 「숨기기/종료」 묻기', type: 'checkbox', checked: config.closeAsk !== false, click: () => { config.closeAsk = (config.closeAsk === false); saveConfig(); refreshTrayMenu(); } },
+    { type: 'separator' },
+    { label: '투데이 내전 종료', click: () => { app._quitting = true; app.quit(); } },
   ];
   if (_updateReady) items.unshift(
     { label: '🔄 지금 업데이트 (재시작)', click: () => { app._quitting = true; try { autoUpdater.quitAndInstall(); } catch (_) { app.quit(); } } },
@@ -1254,7 +1261,7 @@ function makeTray() {
   let icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png'));
   if (!icon.isEmpty()) icon = icon.resize({ width: 18, height: 18 });
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
-  tray.setToolTip('투데이 내전 — 클릭하면 오른쪽 패널');
+  tray.setToolTip('투데이 내전 · 실행 중 — 클릭: 패널 열기 · 우클릭: 종료');
   refreshTrayMenu();
   tray.on('click', showMainPanel);
   tray.on('double-click', showMainPanel);
@@ -1268,9 +1275,20 @@ ipcMain.on('overlay-min', () => {
 ipcMain.on('side-min', () => {
   if (leftWin && !leftWin.isDestroyed()) { leftMinimized = true; try { leftWin.setSkipTaskbar(false); leftWin.minimize(); } catch (_) {} }
 });
-ipcMain.on('side-hide', () => { leftUserHid = true; hideLeftPanel(); });
-ipcMain.on('quit-confirm', (_e, yes) => {
+// ✕ = 숨기기만 하면 트레이에서 계속 돌아 모르고 켜져 있던 문제 → 「숨기기 / 완전히 종료」를 물음(다음부터 묻지 않기 가능)
+ipcMain.on('side-hide', () => {
+  leftUserHid = true; hideLeftPanel();
+  if (config.closeAsk !== false && !app._quitting) { closeQuitConfirm(); openQuitConfirm('close'); }
+});
+ipcMain.on('quit-confirm', (_e, yes, noAsk) => {
+  const mode = _quitMode;
   closeQuitConfirm();
+  if (mode === 'close') {
+    if (noAsk && !yes) { config.closeAsk = false; saveConfig(); }
+    if (yes) { app._quitting = true; app.quit(); }
+    else if (tray && process.platform === 'win32') try { tray.displayBalloon({ title: '투데이 내전은 계속 켜져 있어요', content: '작업 표시줄 오른쪽 아래 숨은 아이콘(^)에서 아이콘을 우클릭 → 「투데이 내전 종료」', iconType: 'info' }); } catch (_) {}
+    return;
+  }
   if (yes && !_clientPresent) { app._quitting = true; app.quit(); }
 });
 ipcMain.on('update-now', () => { app._quitting = true; try { autoUpdater.quitAndInstall(); } catch (_) { app.quit(); } });

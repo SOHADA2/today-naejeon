@@ -21,7 +21,7 @@ contextBridge.exposeInMainWorld('api', {
   onUpdateInfo: (cb) => ipcRenderer.on('update-info', (_e, d) => cb(d)),
   updateNow: () => ipcRenderer.send('update-now'),
   updateLater: () => ipcRenderer.send('update-later'),
-  quitConfirm: (yes) => ipcRenderer.send('quit-confirm', yes),
+  quitConfirm: (yes, noAsk) => ipcRenderer.send('quit-confirm', yes, !!noAsk),
   // 👤 입장(라이엇 계정 자동)
   getPlayers: () => ipcRenderer.invoke('get-players'),
   onAccount: (cb) => ipcRenderer.on('account', (_e, d) => cb(d)),   // 👤 롤 로그인 계정(자동 입장·계정 바뀌면 자동 전환)
