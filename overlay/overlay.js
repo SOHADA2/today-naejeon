@@ -165,13 +165,22 @@ function gameStat(name) {
   const id = (m.ids || {})[fbKeyOf(name)], k = s => nn(s).replace(/\s/g, '').toLowerCase();
   return (id && m.stats.find(p => p.puuid === id)) || m.stats.find(p => k(p.summonerName) === k(name)) || null;
 }
+// 🧩 증강 아이콘 줄(등급 테두리 · 마우스 올리면 이름)
+let _augMap = null;
+window.api.getAugments().then(m => { _augMap = m || {}; render(); }).catch(() => {});
+function augsHtml(st, cls) {
+  const ids = (st && st.augments) || [];
+  if (!ids.length) return '';
+  return `<span class="${cls}">` + ids.map(id => { const a = (_augMap || {})[id] || {};
+    return `<i class="aug ${a.rarity || ''}" title="${esc(a.name || '증강 #' + id)}">${a.icon ? `<img src="${a.icon}" alt="" onerror="this.remove()">` : ''}<b>?</b></i>`; }).join('') + '</span>';
+}
 function champHtml(st, cls) {
   return `<span class="${cls}">${st && st.championId ? `<img src="${champUrl(st.championId)}" alt="" onerror="this.remove()">` : ''}</span>`;
 }
 function voteCardHtml(name, kind, picked) {
   const st = gameStat(name);
   const line = st ? `${esc(st.championName || '')}<span class="num">${st.kills}/${st.deaths}/${st.assists}</span>${st.damage ? `<span class="num dmg">${Math.round(st.damage / 1000)}k</span>` : ''}` : '<span class="vt-nostat">게임 기록 없음</span>';
-  return `<button class="vt-cand ${kind}${picked ? ' on' : ''}" data-kind="${kind}" data-name="${esc(name)}">${champHtml(st, 'vt-ch')}<span class="vt-info"><b class="vt-nm">${esc(name)}</b><small>${line}</small></span><span class="vt-check">${picked ? '✓' : ''}</span></button>`;
+  return `<button class="vt-cand ${kind}${picked ? ' on' : ''}" data-kind="${kind}" data-name="${esc(name)}">${champHtml(st, 'vt-ch')}<span class="vt-info"><b class="vt-nm">${esc(name)}</b><small>${line}</small>${augsHtml(st, 'vt-augs')}</span><span class="vt-check">${picked ? '✓' : ''}</span></button>`;
 }
 function renderVote() {
   const s = sessionData, A = s.teamA || [], B = s.teamB || [], mt = myTeam();
@@ -240,15 +249,15 @@ function renderResult() {
   el('st-banner').className = 'st-banner ' + (winA ? 't1' : 't2');
   el('st-banner').innerHTML = `<span class="lb-sec-en">RESULT</span><b>${winA ? '1팀' : '2팀'} 승리</b>${_today ? `<span>오늘 <span class="num">${_today.matches.length}</span>번째 판</span>` : ''}`;
   const aw = [];
-  if (r.mvp) aw.push(`<span class="st-aw"><b>MVP</b>${esc(r.mvp)}</span>`);
-  if (r.svp) aw.push(`<span class="st-aw"><b>SVP</b>${esc(r.svp)}</span>`);
-  if (r.manner) aw.push(`<span class="st-aw"><b>MANNER</b>${esc(r.manner)}</span>`);
+  if (r.mvp) aw.push(`<span class="st-aw"><b>MVP</b><span class="st-awn">${esc(r.mvp)}</span></span>`);
+  if (r.svp) aw.push(`<span class="st-aw"><b>SVP</b><span class="st-awn">${esc(r.svp)}</span></span>`);
+  if (r.manner) aw.push(`<span class="st-aw"><b>MANNER</b><span class="st-awn">${esc(r.manner)}</span></span>`);
   el('st-awards').innerHTML = aw.join('') || '<span class="st-aw">투표 없음</span>';
   const match = _today && _today.matches.find(m => String(m.gameId) === String(g.id));
   const kda = name => { const st = gameStat(name); return st ? `<span class="st-lp num">${st.kills}/${st.deaths}/${st.assists}</span>` : ''; };
   const badge = n => (nn(n) === nn(r.mvp) ? ' 🏆' : '') + (nn(n) === nn(r.svp) ? ' ⭐' : '') + (nn(n) === nn(r.manner) ? ' 💎' : '');
   const team = (names, isWin) => `<div class="st-team ${isWin ? 'win' : 'lose'}"><div class="st-team-h">${isWin ? '승리' : '패배'}</div><ul>${(names || []).map(n =>
-    `<li class="${nn(n) === nn(myName) ? 'me' : ''}">${champHtml(gameStat(n), 'st-ch')}<span class="st-nm">${esc(n)}${badge(n)}</span>${kda(n)}</li>`).join('')}</ul></div>`;
+    `<li class="${nn(n) === nn(myName) ? 'me' : ''}">${champHtml(gameStat(n), 'st-ch')}<span class="st-nm">${esc(n)}${badge(n)}</span>${augsHtml(gameStat(n), 'st-augs')}${kda(n)}</li>`).join('')}</ul></div>`;
   el('st-teams').innerHTML = winA ? team(s.teamA, true) + team(s.teamB, false) : team(s.teamB, true) + team(s.teamA, false);
   el('st-close').onclick = () => { try { localStorage.setItem(seenKey(), '1'); } catch (_) {} render(); };
 }

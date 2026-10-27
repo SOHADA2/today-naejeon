@@ -1100,6 +1100,35 @@ async function getToday(day) {
   return Object.assign({ ok: true, day: d, today: dayKey() }, computeToday(raw));
 }
 
+// ── 🧩 증강 정보 — CommunityDragon latest(사이트와 같은 출처)를 받아 12시간 캐시 + 디스크 보관(오프라인·CDN 장애 대비) ──
+// 증강 번호 자체는 게임 결과(EOG)에 그 판 그대로 담겨 오므로, 여기선 번호 → 이름·아이콘·등급만 붙임
+const AUG_URL = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1/cherry-augments.json';
+const AUG_ICON_BASE = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default';
+let _aug = null, _augAt = 0, _augBusy = null;
+function augCachePath() { return path.join(app.getPath('userData'), 'augments-cache.json'); }
+async function getAugments() {
+  if (_aug && Date.now() - _augAt < 12 * 3600e3) return _aug;
+  if (_augBusy) return _augBusy;
+  _augBusy = (async () => {
+    const list = await getJson(AUG_URL);
+    if (Array.isArray(list) && list.length) {
+      const map = {};
+      for (const a of list) if (a && a.id) map[a.id] = {
+        name: a.nameTRA || '#' + a.id,
+        icon: a.augmentSmallIconPath ? AUG_ICON_BASE + a.augmentSmallIconPath.replace('/lol-game-data/assets', '').toLowerCase() : '',
+        rarity: String(a.rarity || '').replace(/^k/, '').toLowerCase(),   // silver / gold / prismatic
+      };
+      _aug = map; _augAt = Date.now();
+      try { fs.writeFileSync(augCachePath(), JSON.stringify({ at: _augAt, map })); } catch (_) {}
+    } else if (!_aug) {   // 받기 실패 → 지난번 받아둔 것
+      try { const c = JSON.parse(fs.readFileSync(augCachePath(), 'utf8')); _aug = c.map || {}; _augAt = Date.now() - 11 * 3600e3; } catch (_) { _aug = {}; }
+    }
+    _augBusy = null;
+    return _aug || {};
+  })();
+  return _augBusy;
+}
+
 // ── 👤 개인 내전 프로필 — 지금까지의 모든 날 기록을 사람별로 모음 ─────────────────
 // 사람 키 = 'p:'+puuid(앱으로 들어온 사람) 또는 'n:'+이름(앱 없이 방장이 추가한 사람·옛 기록)
 // 판별 순서: 경기 기록의 ids(이름→puuid) → 게임 결과(stats)의 puuid(이름 매칭) → 계정 목록 이름 → 이름
@@ -1142,7 +1171,7 @@ async function getProfile(arg) {
     games: 0, wins: 0, losses: 0, mvp: 0, svp: 0, manner: 0, k: 0, d: 0, a: 0, statGames: 0, damage: 0, gold: 0, cs: 0, time: 0,
     double: 0, triple: 0, quadra: 0, penta: 0, firstBlood: 0, streak: 0, bestStreak: 0, worstStreak: 0, days: 0, first: null, last: null,
     champs: [], recent: [], best: {}, mates: [], rivals: [] };
-  const champs = {}, mates = {}, rivals = {}, days = new Set();
+  const champs = {}, mates = {}, rivals = {}, days = new Set(), augs = {};
   for (const m of idx.matches) {
     const names = [...m.teamA, ...m.teamB];
     const me = names.find(n => matchKeyOf(idx, m, n) === key);
@@ -1162,6 +1191,7 @@ async function getProfile(arg) {
       P.damage += st.damage || 0; P.gold += st.gold || 0; P.cs += st.cs || 0; P.time += m.gameTime || 0;
       P.double += st.doubleKills || 0; P.triple += st.tripleKills || 0; P.quadra += st.quadraKills || 0; P.penta += st.pentaKills || 0;
       if (st.firstBlood) P.firstBlood++;
+      for (const id of new Set(st.augments || [])) { const x = augs[id] = augs[id] || { id, games: 0, wins: 0 }; x.games++; if (win) x.wins++; }   // 🧩
       const ck = st.championId || st.championName || '?';
       const c = champs[ck] = champs[ck] || { id: st.championId || null, name: st.championName || '', games: 0, wins: 0, k: 0, d: 0, a: 0 };
       c.games++; if (win) c.wins++; c.k += st.kills || 0; c.d += st.deaths || 0; c.a += st.assists || 0;
@@ -1175,6 +1205,7 @@ async function getProfile(arg) {
   }
   P.days = days.size;
   P.champs = Object.values(champs).sort((x, y) => y.games - x.games || y.wins - x.wins).slice(0, 5);
+  P.augs = Object.values(augs).sort((x, y) => y.games - x.games || y.wins - x.wins).slice(0, 6);   // 🧩 많이 고른 증강
   P.recent = P.recent.slice(-10).reverse();
   const rate = x => x.wins / x.games;
   const MIN = 2;   // 2판 이상 같이(또는 상대로) 한 사람만
@@ -1300,6 +1331,7 @@ ipcMain.handle('vote-close', async () => {   // ⏭️ 방장: 미투표자 있�
 });
 ipcMain.handle('today-data', async (_e, arg) => getToday(arg && arg.day));
 ipcMain.handle('profile', (_e, arg) => getProfile(arg || { me: true }));
+ipcMain.handle('augments', () => getAugments());   // 🧩 증강 번호 → {name, icon, rarity}
 ipcMain.handle('rec-state', () => recState);   // 📼 기록 저장 진행 상태   // 👤 개인 내전 프로필
 ipcMain.on('open-profile', (_e, arg) => {   // 왼쪽 대기실에서 이름 누름 → 오른쪽 창 프로필 탭
   try { showMainPanel(); } catch (_) {}

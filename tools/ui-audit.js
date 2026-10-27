@@ -40,14 +40,16 @@ window.__audit = function () {
       if (x.r.raw.right > c.right + 1 || x.r.raw.left < c.left - 1) {
         const key = x.el;
         if (seen.has(key)) break; seen.add(key);
-        const ell = getComputedStyle(x.el).textOverflow === 'ellipsis' || getComputedStyle(e).textOverflow === 'ellipsis';
+        // …은 블록 상자에서만 실제로 붙음(flex·grid 상자 바로 안의 글자엔 안 붙고 양쪽이 그냥 잘림)
+        const ellOk = n => { const cs = getComputedStyle(n); return cs.textOverflow === 'ellipsis' && !/flex|grid/.test(cs.display) && cs.whiteSpace.startsWith('nowrap'); };
+        const ell = ellOk(x.el) || ellOk(e);
         if (ell) out.ellipsis++; else out.clipped.push(`「${x.t}」(${label(x.el)}) — ${label(e)} 밖으로 ${Math.round(Math.max(x.r.raw.right - c.right, c.left - x.r.raw.left))}px`);
       }
       break;
     }
   }
   // 「…」으로 줄인 곳(의도) 개수도 같이: scrollWidth > clientWidth + ellipsis
-  for (const el of document.querySelectorAll('*')) { const cs = getComputedStyle(el); if (cs.textOverflow === 'ellipsis' && el.scrollWidth > el.clientWidth + 1 && visible(el) && !seen.has(el)) out.ellipsis++; }
+  for (const el of document.querySelectorAll('*')) { const cs = getComputedStyle(el); if (cs.textOverflow === 'ellipsis' && el.scrollWidth > el.clientWidth + 1 && visible(el) && !seen.has(el)) { if (/flex|grid/.test(cs.display) && [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) out.clipped.push('「' + el.textContent.trim().slice(0, 24) + '」(.' + String(el.className).split(' ')[0] + ') — flex 상자라 …이 안 붙고 잘림'); else out.ellipsis++; } }
   out.overlap = [...new Set(out.overlap)]; out.clipped = [...new Set(out.clipped)];
   return out;
 };

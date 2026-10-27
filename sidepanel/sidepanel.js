@@ -213,10 +213,12 @@ const champIcon = id => id ? `<img class="pf-ci" src="https://raw.communitydrago
 const md = day => { if (!day) return ''; const [, m, d] = day.split('-'); return `${Number(m)}/${Number(d)}`; };
 const pct = (w, g) => g ? Math.round(w / g * 100) : 0;
 const kdaOf = (k, d, a) => ((k + a) / Math.max(1, d)).toFixed(2);
+let _augMapP = null;
+const augMapP = async () => _augMapP || (_augMapP = await window.api.getAugments().catch(() => ({})) || {});
 async function renderProfile() {
   const body = $('pf-body'), arg = _pfArg;
   body.innerHTML = '<div class="td-empty">불러오는 중…</div>';
-  const P = await window.api.getProfile(arg).catch(() => null);
+  const [P, AUG] = await Promise.all([window.api.getProfile(arg).catch(() => null), augMapP()]);
   if (arg !== _pfArg) return;   // 그사이 다른 사람을 눌렀으면 버림
   $('pf-back').style.display = arg.me ? 'none' : '';
   $('pf-title').textContent = arg.me ? '내 프로필' : '프로필';
@@ -241,6 +243,8 @@ async function renderProfile() {
   }
   const champs = P.champs.length ? `<div class="td-sec">많이 한 챔피언</div>` + P.champs.map(c =>
     `<div class="pf-row">${champIcon(c.id)}<span class="pf-rn">${escH(c.name || '?')}</span><span class="pf-rv">${c.games}판 ${pct(c.wins, c.games)}%</span><span class="pf-rk">${kdaOf(c.k, c.d, c.a)}</span></div>`).join('') : '';
+  const augs = (P.augs || []).length ? `<div class="td-sec">많이 고른 증강</div>` + P.augs.map(x => { const a = AUG[x.id] || {};
+    return `<div class="pf-row"><i class="pf-aug ${a.rarity || ''}">${a.icon ? `<img src="${a.icon}" alt="" onerror="this.remove()">` : ''}<b>?</b></i><span class="pf-rn">${escH(a.name || '증강 #' + x.id)}</span><span class="pf-rv">${x.games}번 ${pct(x.wins, x.games)}%</span></div>`; }).join('') : '';
   const B = P.best, bestRow = (label, b, fmt) => b ? `<div class="pf-row">${champIcon(b.champId)}<span class="pf-rn">${label}</span><span class="pf-rv">${fmt(b.v)}</span><span class="pf-rk">${escH(b.champ || '')} · ${md(b.day)}</span></div>` : '';
   const best = (B.kills || B.damage || B.kda) ? `<div class="td-sec">최고 기록</div>` + bestRow('최다 킬', B.kills, v => v + '킬') + bestRow('최고 피해량', B.damage, v => v.toLocaleString()) + bestRow('최고 KDA', B.kda, v => v) + bestRow('최다 어시', B.assists, v => v + '어시') : '';
   const pals = (label, list, hint) => list.length ? `<div class="td-sec">${label} <small>${hint}</small></div>` + list.map(x =>
@@ -248,7 +252,7 @@ async function renderProfile() {
   const recent = `<div class="td-sec">최근 ${P.recent.length}판</div>` + P.recent.map(g =>
     `<div class="pf-row pf-g ${g.win ? 'w' : 'l'}"><span class="pf-wl">${g.win ? '승' : '패'}</span>${champIcon(g.champId)}<span class="pf-rn">${escH(g.champ || '결과만 기록')}</span>`
     + `<span class="pf-rv">${g.k != null ? `${g.k}/${g.d}/${g.a}` : ''}</span><span class="pf-rk">${g.aw.map(a => ({ mvp: '🏆', svp: '⭐', manner: '💎' })[a]).join('')} ${md(g.day)}</span></div>`).join('');
-  body.innerHTML = head + big + play + champs + best
+  body.innerHTML = head + big + play + champs + augs + best
     + pals('찰떡 팀원', P.mates, '같은 팀일 때 승률 · 2판 이상') + pals('천적', P.rivals, '상대로 만났을 때 승률 · 2판 이상') + recent;
   body.querySelectorAll('.pf-link').forEach(a => a.onclick = () => openProfile({ name: a.textContent }));
 }
