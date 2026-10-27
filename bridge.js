@@ -19,6 +19,7 @@ let _log        = () => {};
 let _getOpName  = () => null;   // 진행자 이름 = 오버레이 config.myName
 let _appVer     = '';           // 오버레이 앱 버전(정보용)
 let _onAccount  = () => {};     // 👤 롤에 로그인된 라이엇 계정 변경 알림({puuid,gameName,tagLine} | null)
+let _fakeLcu    = null;         // 🧪 개발용 "port:password"(TN_FAKE_LCU) — lockfile 대신 이 주소로 붙음
 
 function log(msg) { try { _log('[bridge] ' + msg); } catch (_) {} }
 
@@ -48,7 +49,7 @@ function httpReq(method, url, body, extraHeaders) {
 // ── Firebase (인증 없는 PUT/GET — 실브릿지와 동일) ───────────────────────────
 let fbOk = null, fbErrorLogged = false;
 async function fbSet(p, data) {
-  const r = await httpReq('PUT', `${FIREBASE_URL}/${p}.json`, data === null ? null : data);
+  const r = await httpReq('PUT', `${FIREBASE_URL}/${p}.json`, typeof data === 'string' ? JSON.stringify(data) : data);   // 문자열도 JSON으로(안 하면 HTTP 400 — gamePhase가 계속 실패했음)
   if (r.status >= 200 && r.status < 300) { fbOk = true; fbErrorLogged = false; return true; }
   fbOk = false;
   if (!fbErrorLogged) { log(`⚠️ Firebase 쓰기 실패(${p} · HTTP ${r.status})`); fbErrorLogged = true; }
@@ -106,6 +107,10 @@ class LockfileConnector extends EventEmitter {
     });
   }
   async _poll() {
+    if (_fakeLcu) {   // 🧪 개발용 가짜 LCU
+      if (!this._connected) { const [port, password] = _fakeLcu.split(':'); this._connected = true; this._curPort = port; this.emit('connect', { username: 'riot', password, port, protocol: 'https' }); }
+      return;
+    }
     if (this._busy) return;   // 이전 폴 진행 중이면 겹치지 않게
     this._busy = true;
     let lfPath = null;
@@ -147,6 +152,7 @@ const connector = new LockfileConnector();
 let basePort = null, baseAuth = null;   // LCU 접속(포트 + Basic 인증 헤더)
 let lastPhase = null, pollTimer = null, heartbeatTimer = null;
 let activeIsCustom = null, eogSaved = false, gameInProgress = false, activeGameId = null;
+let _eogBusy = false, eogTimer = null, _missedGame = null;   // ⚡ 정산 화면 빠른 감시 · 클라를 꺼서 못 잡은 판(다음 연결 때 전적에서 복구)
 let inGamePlayersFilled = false, _lastSess = null, _lastPickNames = [], lastSavedGameId = null;
 let _running = false, _pollFailCount = 0;
 
@@ -188,22 +194,14 @@ async function handleChampSelect() {
 
 // ── 게임 종료 통계 수집 (핵심 — KDA·딜량·골드·증강·멀티킬) ─────────────────────
 async function handleEndOfGame(abnormal = false) {
-  if (eogSaved) return;
+  if (eogSaved || _eogBusy) return;
+  _eogBusy = true;   // 1초 감시·3초 폴링이 겹쳐 두 번 저장하지 않게
   try {
     const eog = await lcu('/lol-end-of-game/v1/eog-stats-block');
     if (!eog?.teams) return;
     const currentGameId = eog.gameId || null;
     if (currentGameId && currentGameId === lastSavedGameId) return;   // 직전 게임 재캡처 차단
-    if (abnormal && activeGameId && currentGameId && currentGameId !== activeGameId) return;   // 비정상 경로 gameId 가드
-
-    // 다른 브릿지/오버레이가 이미 저장했는지 (ETag)
-    let _existingEtag = null;
-    try {
-      const { data: existing, etag } = await fbGetWithEtag(`${BRIDGE_ROOT}/eogStats`);
-      _existingEtag = etag;
-      if (existing && currentGameId && existing.gameId === currentGameId) { eogSaved = true; log('동일 gameId 이미 저장 — 건너뜀'); return; }
-      if (existing?.savedAt && Date.now() - existing.savedAt < 30000 && !currentGameId) { eogSaved = true; log('EOG 이미 저장(gameId 미상) — 건너뜀'); return; }
-    } catch (_) {}
+    if (activeGameId && currentGameId && String(currentGameId) !== String(activeGameId)) return;   // 이번 게임 블록만(클라가 이전 게임 결과를 들고 있을 수 있음)
 
     const winTeam = eog.teams.find(t => t.isWinningTeam);
     const winSide = winTeam?.teamId === 100 ? 'blue' : 'red';
@@ -241,16 +239,86 @@ async function handleEndOfGame(abnormal = false) {
     // 🎮 일반게임(비커스텀)은 투데이 내전 기록이 아님 → 저장하지 않음(사이트 normal_matches 에도 안 씀)
     if (activeIsCustom === false) { eogSaved = true; if (currentGameId) lastSavedGameId = currentGameId; log('🎮 일반게임 — 기록 안 함'); return; }
 
-    // 내전 EOG — ETag 조건부 PUT(다른 브릿지가 먼저 쓰면 412 → skip)
-    const _eogPayload = { players, winSide, gameId: eog.gameId || null, gameTime: eog.gameLength || 0, savedAt: Date.now() };
-    let _writeResult;
-    try { _writeResult = await fbSetIfMatch(`${BRIDGE_ROOT}/eogStats`, _eogPayload, _existingEtag); }
-    catch (e) { log('⚠️ EOG 저장 실패 — 일반 PUT 폴백'); await fbSet(`${BRIDGE_ROOT}/eogStats`, _eogPayload); _writeResult = { ok: true }; }
-    if (_writeResult && _writeResult.conflict) { eogSaved = true; log('다른 브릿지가 먼저 저장(ETag 충돌) — 건너뜀'); return; }
-
-    eogSaved = true; lastSavedGameId = currentGameId;
-    log(`게임 종료 저장 ✅ 승리 진영: ${winSide}`);
+    // ⚡ LCU에서 받은 즉시 메모리에 확보 → 그다음 서버에 씀(정산 화면을 바로 나가도 이미 손에 있음)
+    eogSaved = true; lastSavedGameId = currentGameId; stopEogWatch();
+    await saveEog({ players, winSide, gameId: eog.gameId || null, gameTime: eog.gameLength || 0, savedAt: Date.now() }, '정산 화면');
+  } catch (_) {} finally { _eogBusy = false; }
+}
+// 내전 EOG 저장 — ETag 조건부 PUT(다른 PC의 브릿지가 먼저 썼으면 건너뜀)
+async function saveEog(payload, src) {
+  let etag = null;
+  try {
+    const { data: existing, etag: e } = await fbGetWithEtag(`${BRIDGE_ROOT}/eogStats`);
+    etag = e;
+    if (existing && payload.gameId && String(existing.gameId) === String(payload.gameId)) { log('같은 게임 이미 저장됨 — 건너뜀'); return true; }
   } catch (_) {}
+  let w;
+  try { w = await fbSetIfMatch(`${BRIDGE_ROOT}/eogStats`, payload, etag); }
+  catch (e) { log('⚠️ EOG 저장 실패 — 일반 PUT 폴백'); w = { ok: await fbSet(`${BRIDGE_ROOT}/eogStats`, payload) }; }
+  if (w && w.conflict) { log('다른 PC가 먼저 저장 — 건너뜀'); return true; }
+  if (w && w.ok) log(`게임 결과 저장 ✅ (${src}) 승리 진영: ${payload.winSide}`);
+  return !!(w && w.ok);
+}
+
+// ⚡ 게임 중엔 1초마다 정산 결과가 나왔는지 확인 — 3초 폴링 사이에 정산 화면을 나가 버려도 놓치지 않게
+function startEogWatch() {
+  if (eogTimer) return;
+  eogTimer = setInterval(() => {
+    if (!basePort || !gameInProgress || eogSaved) { stopEogWatch(); return; }
+    if (activeGameId) handleEndOfGame(false);   // 이번 게임 ID를 알 때만(이전 게임 결과를 잘못 잡지 않게)
+  }, 1000);
+}
+function stopEogWatch() { if (eogTimer) { clearInterval(eogTimer); eogTimer = null; } }
+
+// 🛟 정산 화면을 끝내 못 잡았으면 롤 클라 「전적(매치 기록)」에서 그 판을 찾아 복구 — 5초 간격 최대 3분
+const _histPending = new Set();
+let _champNames = null;
+async function champNames() {
+  if (_champNames) return _champNames;
+  try { const list = await lcu('/lol-game-data/assets/v1/champion-summary.json'); _champNames = {}; for (const c of list || []) if (c && c.id > 0) _champNames[c.id] = c.name; } catch (_) {}
+  return _champNames || {};
+}
+function scheduleHistoryBackfill(gameId) {
+  if (!gameId || _histPending.has(String(gameId))) return;
+  _histPending.add(String(gameId));
+  log(`⚠️ 정산 화면을 못 잡음 — 전적에서 게임 ${gameId} 결과를 가져오는 중`);
+  let tries = 0;
+  const tick = async () => {
+    tries++;
+    if (!basePort) { _histPending.delete(String(gameId)); _missedGame = { gameId, custom: true }; return; }   // 클라 꺼짐 → 다음 연결 때 다시
+    if (tries > 36) { _histPending.delete(String(gameId)); log('전적에서도 못 찾음 — 방장이 승리팀을 직접 고르세요'); return; }
+    try {
+      const cur = await fbGet(`${BRIDGE_ROOT}/eogStats`);
+      if (cur && String(cur.gameId) === String(gameId)) { _histPending.delete(String(gameId)); log('다른 PC가 이미 저장 — 복구 불필요'); return; }
+      const g = await lcu(`/lol-match-history/v1/games/${gameId}`);
+      if (g && Array.isArray(g.participants) && g.participants.length) {
+        if (g.gameType && g.gameType !== 'CUSTOM_GAME') { _histPending.delete(String(gameId)); log('🎮 일반게임 — 기록 안 함'); return; }
+        if (await saveEog(await historyToEog(g), '전적에서 복구')) { _histPending.delete(String(gameId)); return; }
+      }
+    } catch (_) {}
+    setTimeout(tick, 5000);
+  };
+  setTimeout(tick, 3000);
+}
+async function historyToEog(g) {
+  const names = await champNames();
+  const who = {}; for (const pi of g.participantIdentities || []) who[pi.participantId] = pi.player || {};
+  const players = g.participants.map(p => {
+    const s = p.stats || {}, pl = who[p.participantId] || {};
+    return {
+      summonerName: pl.gameName || pl.summonerName || '', puuid: pl.puuid || null,
+      championId: p.championId, championName: names[p.championId] || '',
+      kills: s.kills || 0, deaths: s.deaths || 0, assists: s.assists || 0,
+      damage: s.totalDamageDealtToChampions || 0, gold: s.goldEarned || 0, cs: (s.totalMinionsKilled || 0) + (s.neutralMinionsKilled || 0),
+      teamId: p.teamId, isWin: !!s.win,
+      items: [s.item0, s.item1, s.item2, s.item3, s.item4, s.item5].filter(i => i > 0),
+      augments: [s.playerAugment1, s.playerAugment2, s.playerAugment3, s.playerAugment4, s.playerAugment5, s.playerAugment6].filter(i => i > 0),
+      doubleKills: s.doubleKills || 0, tripleKills: s.tripleKills || 0, quadraKills: s.quadraKills || 0, pentaKills: s.pentaKills || 0,
+      firstBlood: !!s.firstBloodKill,
+    };
+  });
+  const win = players.find(p => p.isWin) || (() => { const t = (g.teams || []).find(t => t.win === 'Win'); return t ? { teamId: t.teamId } : null; })();
+  return { players, winSide: win ? (win.teamId === 100 ? 'blue' : 'red') : null, gameId: g.gameId, gameTime: g.gameDuration || 0, savedAt: Date.now(), source: 'history' };
 }
 
 // ── 진행 중 참가자 명단 (Live Client 1순위 → champSelect → gameflow) ──────────
@@ -308,6 +376,7 @@ async function poll() {
           } catch (_) {}
           await fbSet(`${BRIDGE_ROOT}/champSelect`, null);
           await updateInGamePlayers(true);
+          startEogWatch();
           break;
         case 'PreEndOfGame':
         case 'WaitingForStats':
@@ -317,10 +386,13 @@ async function poll() {
           await fbSet(`${BRIDGE_ROOT}/gamePhase`, gameInProgress ? 'EndOfGame' : 'Reconnect');
           if (gameInProgress && !eogSaved) await handleEndOfGame(true); break;
         case 'None': case 'Lobby': case 'Matchmaking': case 'ReadyCheck':
-          if (gameInProgress && !eogSaved && (phase === 'None' || phase === 'Lobby')) await handleEndOfGame(true);
+          if (gameInProgress && !eogSaved && (phase === 'None' || phase === 'Lobby')) {
+            await handleEndOfGame(true);
+            if (!eogSaved && activeGameId && activeIsCustom !== false) scheduleHistoryBackfill(activeGameId);   // 🛟 정산 화면을 바로 나감 → 전적에서
+          }
           await fbSet(`${BRIDGE_ROOT}/gamePhase`, phase);
           await fbSet(`${BRIDGE_ROOT}/champSelect`, null);
-          if (['None', 'Lobby'].includes(phase)) { eogSaved = false; gameInProgress = false; activeGameId = null; activeIsCustom = null; }
+          if (['None', 'Lobby'].includes(phase)) { eogSaved = false; gameInProgress = false; activeGameId = null; activeIsCustom = null; stopEogWatch(); }
           break;
       }
     }
@@ -360,10 +432,12 @@ connector.on('connect', async data => {
   await fbSet(`${BRIDGE_ROOT}/connected`, true);
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(poll, 3000); poll();
+  if (_missedGame) { const m = _missedGame; _missedGame = null; scheduleHistoryBackfill(m.gameId); }   // 🛟 게임 직후 클라를 꺼서 못 잡은 판
 });
 connector.on('disconnect', async () => {
   log('롤 클라이언트 종료 — 재연결 대기');
-  if (gameInProgress && !eogSaved) log('⚠️ 게임 중 클라 종료 — 자동 저장 불가. 방장이 승리팀을 직접 고르세요.');
+  if (gameInProgress && !eogSaved && activeGameId && activeIsCustom !== false) { _missedGame = { gameId: activeGameId }; log('⚠️ 결과 저장 전에 클라 종료 — 다음에 롤을 켜면 전적에서 가져옴(안 되면 방장이 승리팀 직접 선택)'); }
+  stopEogWatch();
   basePort = null; baseAuth = null; lastPhase = null; eogSaved = false;
   pollAccount();   // 클라 종료 → 계정 없음
   gameInProgress = false; activeGameId = null; activeIsCustom = null;
@@ -380,6 +454,7 @@ async function start(opts) {
   _getOpName = (opts && opts.getOperatorName) || (() => null);
   _appVer    = (opts && opts.appVer)          || '';
   _onAccount = (opts && opts.onAccount)       || (() => {});
+  _fakeLcu   = (opts && opts.fakeLcu)         || null;
   log('내장 브릿지 시작 — LCU 감지 대기');
   startHeartbeat();
   connector.start();
@@ -390,6 +465,7 @@ function stop() {
   _running = false;
   connector.stop();
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  stopEogWatch();
   if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
   if (_acctTimer) { clearInterval(_acctTimer); _acctTimer = null; }
   fbSet(`${BRIDGE_ROOT}/connected`, false);
