@@ -1,0 +1,71 @@
+{
+  "name": "today-naejeon",
+  "version": "0.1.0",
+  "description": "투데이 내전 — 하루 안에 끝나는 인스턴트 내전(팀짜기·경기 자동 기록·투표·오늘 순위)",
+  "main": "main.js",
+  "author": "SOHADA2",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "icon": "node gen-ico.mjs",
+    "dist": "npm run icon && electron-builder --win nsis",
+    "release": "npm run icon && electron-builder --win nsis --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "electron": "^31.7.0",
+    "electron-builder": "^24.13.3",
+    "png-to-ico": "^3.0.1"
+  },
+  "build": {
+    "appId": "gg.aram.today",
+    "productName": "투데이 내전",
+    "copyright": "SOHADA2",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "teams.js",
+      "bridge.js",
+      "shared.css",
+      "desktop/**",
+      "overlay/**",
+      "sidepanel/**",
+      "slot/**",
+      "assets/**",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "artifactName": "today-naejeon-setup-${version}.exe",
+      "shortcutName": "투데이 내전",
+      "uninstallDisplayName": "투데이 내전"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "SOHADA2",
+        "repo": "today-naejeon",
+        "releaseType": "release"
+      }
+    ],
+    "compression": "maximum"
+  }
+}

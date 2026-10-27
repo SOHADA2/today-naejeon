@@ -1,0 +1,75 @@
+/* ════════════════════════════════════════════════════════════════════════
+   공통 디자인 토큰 — 오버레이(인게임)·데스크톱(로그인/팀짜기/투표) 두 창 공유
+   기준 = 홈페이지 팀발표 감성(청록 1팀 · 골드 2팀 · Black Han Sans · JetBrains Mono)
+   각 창 CSS(overlay.css/desktop.css)보다 먼저 로드 → 여기서 색·폰트·공통 컴포넌트 정의,
+   각 창은 자기 배경(오버레이=투명/데스크톱=불투명)만 따로. 새 화면은 이 토큰을 재사용할 것.
+   ════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* 🎨 롤 클라이언트 헥스텍 팔레트에 맞춤(다크블루+골드+청록+탄) */
+  --teal:#0AC8B9;  --teal-soft:rgba(10,200,185,0.14);  --teal-line:rgba(10,200,185,0.55);
+  --gold:#C8AA6E;  --gold-soft:rgba(200,170,110,0.14);  --gold-line:rgba(120,90,40,0.62);
+  --gold-btn2:#C89B3C;   /* 골드 버튼 그라데이션 하단(헥스텍 골드) */
+  /* 중립 — 헥스텍 탄/그레이 */
+  --dim:#A09B8C;  --ink:#F0E6D2;  --ink-soft:#CDBE91;
+  --win:#0AC8B9;  --lose:#E84057;
+  /* 카드/라인 — 헥스텍 딥블루 */
+  --card-bg:linear-gradient(160deg, rgba(10,22,40,0.92), rgba(3,11,20,0.96));
+  --card-line:rgba(120,90,40,0.55);
+  --hair:rgba(200,170,110,0.09);
+  /* 폰트 */
+  --f-body:'Noto Sans KR','Pretendard','Segoe UI',system-ui,sans-serif;
+  --f-title:'Noto Sans KR',sans-serif;   /* 가독성 위해 Black Han Sans(두꺼운 디스플레이) → Noto 900. 사용처에서 font-weight:900 지정 */
+  --f-mono:'JetBrains Mono',monospace;
+}
+
+* { box-sizing:border-box; margin:0; padding:0; }
+
+/* ── 공통 컴포넌트 (양 창 재사용) ────────────────────────────────────── */
+
+/* 카드 */
+.ui-card { background:var(--card-bg); border:1px solid var(--card-line); border-radius:14px; }
+
+/* 버튼 */
+.ui-btn-gold { padding:12px; border:none; border-radius:11px; font-size:14px; font-weight:800; cursor:pointer;
+  font-family:var(--f-body); color:#1a1206;
+  background:linear-gradient(135deg, var(--gold-btn2), var(--gold)); box-shadow:0 6px 18px rgba(230,180,70,0.28); }
+.ui-btn-gold:disabled { opacity:0.4; cursor:default; box-shadow:none; }
+.ui-btn-gold:not(:disabled):active { transform:translateY(1px); }
+.ui-btn-ghost { padding:11px; border:1px solid var(--gold-line); border-radius:11px; font-size:13px; font-weight:700;
+  cursor:pointer; font-family:var(--f-body); background:rgba(232,200,74,0.07); color:#ffe39a; }
+.ui-btn-ghost:active { transform:translateY(1px); }
+
+/* 배지(LP·티어·카운트 등) */
+.ui-badge { font-family:var(--f-mono); font-size:9.5px; font-weight:600; color:var(--dim);
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.07); border-radius:5px; padding:2px 8px; }
+.ui-lp { font-family:var(--f-mono); font-size:10px; font-weight:800; color:#1a1206;
+  background:linear-gradient(180deg,#ffe08a,#f0c060); padding:1px 7px; border-radius:9px; white-space:nowrap; }
+.ui-lp.none { background:rgba(255,255,255,0.08); color:#7a8092; }
+
+/* 팀 색 유틸 — 텍스트/보더에 팀 색 (블루=1팀, 레드=2팀) */
+.t-blue { color:var(--teal); } .t-red { color:var(--gold); }
+
+/* 스크롤바 */
+.ui-scroll::-webkit-scrollbar { width:6px; }
+.ui-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.14); border-radius:3px; }
+
+/* 제목 */
+.ui-title { font-family:var(--f-title); font-weight:900; letter-spacing:1px; color:var(--gold); text-shadow:0 0 16px rgba(200,155,60,0.5); }
+
+/* ── 🪟 커스텀 확인창(네이티브 confirm 대체 · 헥스텍 톤) ── */
+.ui-modal-overlay { position:fixed; inset:0; z-index:99999; display:flex; align-items:center; justify-content:center;
+  -webkit-app-region:no-drag; background:rgba(0,0,0,0.55); backdrop-filter:blur(2px); }
+.ui-modal { min-width:238px; max-width:88%; border-radius:12px; overflow:hidden;
+  background:linear-gradient(165deg, #0a151b, #050e14); border:1px solid #785A28; border-top:2px solid #C8AA6E;
+  box-shadow:0 18px 54px rgba(0,0,0,0.72); animation:uimIn .14s ease; }
+@keyframes uimIn { from { transform:translateY(8px) scale(0.97); opacity:0; } to { transform:none; opacity:1; } }
+.ui-modal-body { padding:18px 18px 15px; }
+.ui-modal .uim-line { font-family:'Noto Sans KR',sans-serif; font-size:12px; color:#cdbe91; line-height:1.6; text-align:center; word-break:keep-all; }
+.ui-modal .uim-line.uim-h { font-family:'Noto Sans KR',sans-serif; font-size:14px; font-weight:700; color:#F0E6D2; margin-bottom:7px; }
+.ui-modal-btns { display:flex; border-top:1px solid rgba(120,90,40,0.45); }
+.ui-modal-btns button { -webkit-app-region:no-drag; flex:1; padding:12px 8px; border:none; cursor:pointer;
+  font-family:'Noto Sans KR',sans-serif; font-size:13px; font-weight:700; transition:.1s; }
+.ui-modal-btns .uim-cancel { background:rgba(255,255,255,0.05); color:#a09b8c; }
+.ui-modal-btns .uim-cancel:hover { background:rgba(255,255,255,0.09); color:#fff; }
+.ui-modal-btns .uim-ok { background:linear-gradient(180deg,#c8aa6e,#a3833f); color:#1a1206; border-left:1px solid rgba(120,90,40,0.5); }
+.ui-modal-btns .uim-ok:hover { filter:brightness(1.08); }

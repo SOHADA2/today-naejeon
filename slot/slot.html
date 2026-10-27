@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; background:transparent; overflow:hidden; -webkit-user-select:none; }
+    /* 🎯 롤 클라 헥스텍 칩 — 골드 글로우로 버튼 전체 발광 · 얇고 또렷한 글자 · 가운데 정렬 · 앱 문양(⚔️) */
+    #badge {
+      position:absolute; inset:3px;
+      display:flex; align-items:center; justify-content:center; gap:6px;
+      font-family:'Noto Sans KR',sans-serif; font-size:13px; font-weight:600; letter-spacing:1px; line-height:1; white-space:nowrap;
+      color:#F5E7C6;
+      background:linear-gradient(158deg, rgba(12,24,40,0.90), rgba(3,11,20,0.95));
+      border:1px solid rgba(200,170,110,0.7);
+      box-shadow:0 4px 16px rgba(0,0,0,0.5), 0 0 16px rgba(200,170,110,0.32), inset 0 0 16px rgba(200,170,110,0.09);
+      clip-path:polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+      animation:mkGlow 2.6s ease-in-out infinite;
+    }
+    .mk-ic { font-size:12.5px; line-height:1; filter:drop-shadow(0 0 4px rgba(200,170,110,0.55)); }
+    .mk-tx { text-shadow:0 1px 3px rgba(0,0,0,0.7); }
+    /* 골드 글로우 — 버튼 전체가 은은하게 숨쉬듯 발광 */
+    @keyframes mkGlow {
+      0%,100% { border-color:rgba(200,170,110,0.5);  box-shadow:0 4px 16px rgba(0,0,0,0.5), 0 0 12px rgba(200,170,110,0.22), inset 0 0 14px rgba(200,170,110,0.06); }
+      50%     { border-color:rgba(200,170,110,0.95); box-shadow:0 4px 18px rgba(0,0,0,0.5), 0 0 26px rgba(200,170,110,0.58), inset 0 0 18px rgba(200,170,110,0.15); }
+    }
+  </style>
+</head>
+<body>
+  <div id="badge"><span class="mk-ic">⚔️</span><span class="mk-tx">내 팀</span></div>
+  <script>
+    // 팀 구분은 위치(팀 컬럼)로 표시 — 색은 골드로 통일. onSlotTeam은 호환용 no-op.
+    if (window.api) { window.api.onSlotTeam(() => {}); }
+    else {   // 🎨 목업(브라우저 직접 열기) — 다크 배경 + 실제 크기 칩
+      const s = document.createElement('style');
+      s.textContent = "html,body{background:#0a1712;} #badge{position:relative!important;inset:auto!important;width:128px;height:38px;margin:80px auto;}";
+      document.head.appendChild(s);
+    }
+  </script>
+</body>
+</html>

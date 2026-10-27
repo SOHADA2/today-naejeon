@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; background:transparent; overflow:hidden; -webkit-user-select:none; user-select:none;
+    font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; }
+  .toast { height:100%; display:flex; flex-direction:column; gap:9px; padding:13px 15px 14px; border-radius:14px; position:relative; overflow:hidden;
+    background:linear-gradient(160deg, rgba(32,26,15,0.98), rgba(13,11,7,0.99));
+    border:1px solid rgba(240,200,90,0.42); box-shadow:0 14px 44px rgba(0,0,0,0.65); }
+  .toast::before { content:''; position:absolute; top:0; left:18px; right:18px; height:1px;
+    background:linear-gradient(90deg, transparent, rgba(240,200,90,0.6), transparent); }
+  .top { display:flex; align-items:center; gap:9px; }
+  .ic { width:26px; height:26px; border-radius:7px; flex-shrink:0; }
+  .ttl { flex:1; font-size:13px; font-weight:800; color:#ffe39a; letter-spacing:0.3px; }
+  .x { background:none; border:none; color:#8c86a0; font-size:14px; cursor:pointer; padding:2px 5px; line-height:1; }
+  .x:hover { color:#e8ecf6; }
+  .body { font-size:11.5px; color:#cfd4e6; line-height:1.55; }
+  .body b { color:#ffe39a; }
+  .body small { display:block; font-size:10px; color:#8c86a0; margin-top:2px; }
+  .actions { display:flex; gap:8px; margin-top:auto; }
+  .btn { padding:9px 10px; border-radius:9px; font-size:12px; font-weight:800; cursor:pointer; font-family:inherit; }
+  .btn.gold { flex:1.7; border:none; color:#1a1206; background:linear-gradient(135deg,#e0a82e,#e8c84a); box-shadow:0 4px 14px rgba(230,180,70,0.3); }
+  .btn.gold:active { transform:translateY(1px); }
+  .btn.ghost { flex:1; border:1px solid rgba(240,200,90,0.35); background:rgba(240,200,90,0.06); color:#ffe39a; }
+  .btn.ghost:active { transform:translateY(1px); }
+</style>
+</head>
+<body>
+  <div class="toast">
+    <div class="top">
+      <img class="ic" src="../assets/icon.png" alt="">
+      <span class="ttl">투데이 내전</span>
+      <button class="x" id="x" title="닫기">✕</button>
+    </div>
+    <div class="body" id="body">새 버전 준비 완료<small>지금 누르면 앱이 재시작돼요</small></div>
+    <div class="actions">
+      <button class="btn ghost" id="later">나중에</button>
+      <button class="btn gold" id="now">🔄 지금 업데이트</button>
+    </div>
+  </div>
+  <script>
+    document.getElementById('now').onclick = () => window.api.updateNow();
+    document.getElementById('later').onclick = () => window.api.updateLater();
+    document.getElementById('x').onclick = () => window.api.updateLater();
+    window.api.onUpdateInfo(d => {
+      const v = (d && d.version) ? d.version : '';
+      document.getElementById('body').innerHTML =
+        `새 버전 <b>v${v}</b> 준비 완료 — 지금 업데이트할까요?<small>지금 누르면 앱이 재시작돼요</small>`;
+    });
+  </script>
+</body>
+</html>

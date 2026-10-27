@@ -1,0 +1,43 @@
+/* ── 투데이 내전 전용 (오른쪽 패널) — shared.css 토큰 재사용 ── */
+#sbar .s-me { font-size:12px; color:var(--ink-soft); font-weight:700; margin-left:8px; }
+
+/* 진행 중인 판(방장) */
+#tb-live { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
+#tb-live .tb-result { margin:0; }
+.td-state { font-size:12px; color:var(--ink-soft); padding:8px 10px; background:rgba(255,255,255,0.03); border:1px solid var(--hair); }
+.td-state b { color:var(--gold); }
+.td-alert { font-size:12px; line-height:1.6; color:#ffd6a0; padding:9px 10px; background:rgba(232,160,64,0.10); border:1px solid rgba(232,160,64,0.45); }
+.td-acts { display:flex; gap:6px; }
+.td-acts > button { flex:1; margin:0; }
+.td-new { margin-top:2px; }
+
+/* 오늘 탭 헤더: ‹ 날짜 › */
+#cat-today .cat-hd { display:flex; align-items:center; gap:6px; }
+.td-nav { background:none; border:1px solid var(--hair); color:var(--ink-soft); width:22px; height:22px; line-height:18px; font-size:15px; cursor:pointer; padding:0; }
+.td-nav:hover:not(:disabled) { border-color:var(--gold-line); color:var(--gold); }
+.td-nav:disabled { opacity:0.3; cursor:default; }
+
+.td-empty { text-align:center; color:var(--dim); font-size:12.5px; line-height:1.7; padding:36px 12px; }
+.td-empty small { font-size:11px; opacity:0.8; }
+.td-sec { font-size:11px; font-weight:800; letter-spacing:0.4px; color:var(--gold); margin:4px 2px 6px; }
+.td-sec + .td-game { margin-top:0; }
+
+/* 순위표 */
+.td-table { width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:14px; }
+.td-table th { font-weight:700; color:var(--dim); font-size:10.5px; padding:4px 3px; border-bottom:1px solid var(--hair); text-align:center; }
+.td-table td { padding:5px 3px; text-align:center; color:var(--ink); border-bottom:1px solid rgba(255,255,255,0.03); font-family:var(--f-mono); font-size:11px; }
+.td-table th.n, .td-table td.n { text-align:left; font-family:var(--f-body); font-size:12px; }
+.td-table td.n { max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.td-table td.r { color:var(--gold); }
+.td-table tr.me td { background:var(--gold-soft); }
+
+/* 경기 목록 */
+.td-game { padding:8px 10px; margin-bottom:6px; background:rgba(255,255,255,0.025); border:1px solid var(--hair); font-size:11.5px; }
+.td-gh { display:flex; gap:8px; align-items:center; color:var(--dim); font-size:11px; margin-bottom:4px; }
+.td-gh b { color:var(--ink); }
+.td-tag { font-size:9.5px; padding:0 5px; border:1px solid var(--hair); color:var(--dim); }
+.td-gt { line-height:1.6; }
+.td-gt i { font-style:normal; color:var(--dim); margin:0 6px; font-size:10px; }
+.td-gt .w { color:var(--win); font-weight:700; }
+.td-gt .l { color:var(--ink-soft); opacity:0.75; }
+.td-ga { margin-top:3px; color:var(--gold); font-size:11px; }

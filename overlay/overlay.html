@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>투데이 내전</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@600&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared.css">
+  <link rel="stylesheet" href="overlay.css">
+</head>
+<body>
+  <div id="panel">
+    <header id="bar">
+      <span class="ttl">투데이 내전</span>
+      <span id="phase" class="phase">대기</span>
+      <button id="ov-min" class="win-btn" title="최소화">–</button>
+      <button id="close" class="win-btn" title="닫기 (Shift+F7)">✕</button>
+    </header>
+
+    <!-- 팀 배정 뷰 -->
+    <section id="view-team" class="view" style="display:none;">
+      <div id="tv-band" class="tv-band"></div>
+      <div class="ta-teams">
+        <div class="ta-team blue" id="team1">
+          <div class="ta-color-bar"></div>
+          <div class="ta-head"><span class="ta-label">1팀</span><span class="ta-count" id="t1-count"></span></div>
+          <ul class="ta-players" id="t1-players"></ul>
+        </div>
+        <div class="ta-team red" id="team2">
+          <div class="ta-color-bar"></div>
+          <div class="ta-head"><span class="ta-label">2팀</span><span class="ta-count" id="t2-count"></span></div>
+          <ul class="ta-players" id="t2-players"></ul>
+        </div>
+      </div>
+      <div id="tv-pending" class="tv-pending" style="display:none;"></div>
+    </section>
+
+    <!-- 🗳️ MVP·매너왕 투표 -->
+    <section id="view-vote" class="view ui-scroll" style="display:none;">
+      <div id="vt-banner" class="vt-banner"></div>
+      <div id="vt-body"></div>
+      <div id="vt-progress" class="vt-progress"></div>
+    </section>
+
+    <!-- 🏁 결과 -->
+    <section id="view-result" class="view ui-scroll" style="display:none;">
+      <div id="st-banner" class="st-banner"></div>
+      <div id="st-awards" class="st-awards"></div>
+      <div id="st-teams" class="st-teams"></div>
+      <button id="st-close" class="ui-btn-ghost">확인</button>
+    </section>
+
+    <!-- 대기 · 인게임 명단 · 오늘 순위 -->
+    <section id="view-roster" class="view ui-scroll">
+      <div id="status" class="status"></div>
+      <div id="waiting-info" class="waiting-info"></div>
+      <div class="section-h" id="roster-h" style="display:none;">참가자 <span id="pcount"></span></div>
+      <ul id="players" class="players"></ul>
+    </section>
+
+    <footer>Shift+F7 토글 · 헤더 드래그로 이동</footer>
+  </div>
+  <script src="overlay.js"></script>
+</body>
+</html>
