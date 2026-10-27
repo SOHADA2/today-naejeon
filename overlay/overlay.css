@@ -187,7 +187,6 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .dr-team li { display:flex; align-items:center; gap:6px; padding:6px 10px; font-size:13px; min-height:30px; border-top:1px solid var(--hair); overflow:hidden; white-space:nowrap; }
 .dr-team li .nm { overflow:hidden; text-overflow:ellipsis; font-weight:600; }
 .dr-team li.me .nm { color:var(--gold-hi); }
-.dr-team li.just { animation:drJust 1.2s ease-out; }   /* 한 번만 */
 .dr-team li.empty { color:var(--mute); }
 .dr-cap { flex-shrink:0; font-size:9.5px; font-weight:800; padding:0 5px; line-height:15px; color:#fff; }
 .dr-team.blue .dr-cap { background:var(--t1); } .dr-team.red .dr-cap { background:var(--t2); }
@@ -222,7 +221,23 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .cn-res.t1 b { color:var(--t1); } .cn-res.t2 b { color:var(--t2); }
 .cn-res span { display:block; font-size:13px; font-weight:700; color:var(--ink); max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cn-res small { font-size:11.5px; color:var(--ink-soft); }
-@keyframes drJust { from { background:rgba(200,170,110,0.3); } to { background:transparent; } }
+/* 🎯 드래프트 픽 연출 — 한 번만(약 1.7초) · 클릭은 그대로 통과 */
+.pk-layer { position:absolute; left:0; right:0; bottom:0; top:var(--bar-h, 80px); z-index:19; pointer-events:none; display:flex; align-items:center; justify-content:center; overflow:hidden; background:rgba(6,11,16,0.6); }
+.pk-band { position:absolute; left:-10%; right:-10%; top:50%; height:168px; margin-top:-92px; transform:skewY(-7deg); overflow:hidden;
+  border-top:1px solid var(--pk-c); border-bottom:1px solid var(--pk-c);
+  background:linear-gradient(90deg, transparent, var(--pk-soft) 22%, var(--pk-soft) 78%, transparent), rgba(11,19,26,0.92); }
+.pk-shine { position:absolute; top:0; bottom:0; width:38%; left:-40%; background:linear-gradient(100deg, transparent, rgba(255,255,255,0.22), transparent); }
+.pk-card { position:relative; display:flex; flex-direction:column; align-items:center; gap:5px; max-width:92%; text-align:center; }
+.pk-en { font-family:var(--f-num); font-weight:700; font-size:13px; letter-spacing:3px; color:var(--pk-c); }
+.pk-av { position:relative; width:72px; height:72px; display:inline-flex; align-items:center; justify-content:center; overflow:hidden; border-radius:50%; background:var(--bg-3); border:2px solid var(--pk-c); }
+.pk-av img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.pk-av i { font-style:normal; font-weight:800; font-size:28px; color:var(--ink); }
+.pk-nm { display:block; max-width:100%; font-size:22px; font-weight:800; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pk-by { font-size:12px; color:var(--ink-soft); }
+.pk-by b { color:var(--pk-c); font-weight:700; }
+.dr-team li.pk-wait .nm, .dr-team li.pk-wait .dr-cap { visibility:hidden; }
+.dr-team li.pk-land { animation:pkLand 0.9s ease-out; }   /* 연출 끝나고 팀 칸에 들어가는 순간 한 번 */
+@keyframes pkLand { 0% { background:var(--pk-soft2); transform:translateX(var(--pk-from)); opacity:0; } 35% { opacity:1; transform:translateX(0); } 100% { background:transparent; } }
 .dr-pool-h { margin:14px 2px 8px; font-size:12.5px; font-weight:700; color:var(--gold-hi); }
 .dr-pool { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px; }
 .dr-p { display:flex; flex-direction:column; align-items:flex-start; gap:1px; padding:9px 11px; text-align:left; font-size:14px; font-weight:700; color:var(--ink); background:var(--bg-2); border:1px solid var(--line); cursor:pointer; overflow:hidden; clip-path:var(--cut-sm); }

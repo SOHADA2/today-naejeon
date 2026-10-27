@@ -83,7 +83,7 @@ function renderDraft() {
     : `<b>${team === 'teamA' ? '1팀' : '2팀'} 팀장 ${esc(cap || '')}</b> 고르는 중 <span class="dr-sec">${left}초</span>`;
   const col = (tm, label) => {
     const arr = s[tm] || [], size = s.teamSize || arr.length;
-    const rows = arr.map((n, i) => `<li class="${nn(n) === nn(myName) ? 'me' : ''}${s.lastPick && nn(s.lastPick.name) === nn(n) ? ' just' : ''}">${i === 0 ? '<span class="dr-cap">팀장</span>' : ''}<span class="nm">${esc(n)}</span></li>`).join('');
+    const rows = arr.map((n, i) => `<li class="${nn(n) === nn(myName) ? 'me' : ''}${_pickWait && nn(_pickWait) === nn(n) ? ' pk-wait' : ''}">${i === 0 ? '<span class="dr-cap">팀장</span>' : ''}<span class="nm">${esc(n)}</span></li>`).join('');
     const empty = Array.from({ length: Math.max(0, size - arr.length) }, () => '<li class="empty">—</li>').join('');
     return `<div class="dr-th${team === tm ? ' on' : ''}">${label}<span>${arr.length}/${size}</span></div><ul>${rows}${empty}</ul>`;
   };
@@ -103,6 +103,67 @@ function renderDraft() {
     if (!r || !r.ok) { err.textContent = '⚠️ ' + ((r && r.err) || '실패'); err.style.display = ''; setTimeout(() => { err.style.display = 'none'; }, 2500); b.classList.remove('busy'); }
   });
 }
+// 🎯 픽 연출 — lastPick이 새로 바뀌면 모두의 화면에 한 번: 팀 색 띠가 사선으로 그어지고 → 뽑힌 사람 아이콘·이름이 「쾅」 → 빛이 훑고 → 그 팀 칸으로
+const PICK_MS = 1700;
+let _pickSeen = null, _pickTimer = null, _pickWait = null;   // _pickWait = 연출 중인 사람(팀 칸엔 연출 끝나고 들어감)
+function maybePick(s) {
+  const lp = s && s.lastPick; if (!lp || !lp.at) return;
+  const key = lp.at + '|' + lp.name;
+  if (_pickSeen === key) return;
+  const first = _pickSeen === null; _pickSeen = key;
+  if (first && Date.now() - lp.at > 2500) return;   // 켜자마자 옛 픽은 건너뜀
+  if (Date.now() - lp.at > 4000 || Date.now() - lp.at < -3000) return;
+  _pickWait = lp.name;
+  playPick(s, lp);
+}
+function playPick(s, lp) {
+  const A = lp.team === 'teamA', caps = s.captains || {}, cap = caps[lp.team] || '';
+  const nPick = s.pickIdx || 1;
+  const layer = el('pk');
+  layer.style.setProperty('--bar-h', (el('bar') ? el('bar').offsetHeight : 80) + 'px');
+  layer.style.setProperty('--pk-c', A ? 'var(--t1)' : 'var(--t2)');
+  layer.style.setProperty('--pk-soft', A ? 'rgba(74,168,255,0.28)' : 'rgba(255,90,110,0.26)');
+  const m = ((lobbyData && lobbyData.members) || []).find(x => nn(x.name) === nn(lp.name)) || { name: lp.name };
+  const by = lp.auto ? '시간 초과 · <b>자동 픽</b>' : lp.byHost ? `방장이 대신 · <b>${A ? '1팀' : '2팀'}</b>` : `<b>${esc(cap)}</b> 팀장의 선택`;
+  el('pk-card').innerHTML = `<span class="pk-en">${A ? 'TEAM 1' : 'TEAM 2'} · PICK ${nPick}</span>${avatar(m, 'pk-av')}<b class="pk-nm">${esc(lp.name)}</b><span class="pk-by">${by}</span>`;
+  clearTimeout(_pickTimer);
+  layer.getAnimations({ subtree: true }).forEach(a => a.cancel());
+  layer.style.display = 'flex';
+  const band = el('pk-band'), card = el('pk-card'), shine = el('pk-shine'), from = A ? '-110%' : '110%';
+  const go = (node, kf, opt) => node.animate(kf, Object.assign({ fill: 'both' }, opt));
+  go(layer, [{ opacity: 0 }, { opacity: 1 }], { duration: 120 });
+  go(band, [{ transform: `skewY(-7deg) translateX(${from}) scaleY(0.5)` }, { transform: 'skewY(-7deg) translateX(0) scaleY(1)' }], { duration: 260, easing: 'cubic-bezier(.2,.9,.25,1)' });
+  go(card, [
+    { opacity: 0, transform: 'scale(1.7)', filter: 'blur(6px) brightness(2)' },
+    { opacity: 1, transform: 'scale(0.94)', filter: 'blur(0) brightness(1.4)', offset: 0.6 },
+    { opacity: 1, transform: 'scale(1)', filter: 'blur(0) brightness(1)' },
+  ], { duration: 360, delay: 140, easing: 'cubic-bezier(.2,.8,.3,1)' });
+  go(shine, [{ transform: 'translateX(0)' }, { transform: 'translateX(380%)' }], { duration: 520, delay: 420, easing: 'ease-in-out' });
+  // 끝 = 띠와 이름이 그 팀 쪽으로 빠지며 사라짐
+  go(card, [{ opacity: 1, transform: 'translateX(0) scale(1)' }, { opacity: 0, transform: `translateX(${A ? '-40%' : '40%'}) scale(0.7)` }], { duration: 280, delay: PICK_MS - 300, easing: 'ease-in', composite: 'replace' });
+  go(band, [{ opacity: 1 }, { opacity: 0 }], { duration: 280, delay: PICK_MS - 300 });
+  go(layer, [{ opacity: 1 }, { opacity: 0 }], { duration: 200, delay: PICK_MS - 200 });
+  pickSound(A);
+  _pickTimer = setTimeout(() => {
+    layer.style.display = 'none'; layer.getAnimations({ subtree: true }).forEach(a => a.cancel());
+    const li = [...document.querySelectorAll('#dr-' + (A ? 'a' : 'b') + ' li')].find(x => nn(x.textContent.replace(/^팀장/, '')) === nn(lp.name));
+    _pickWait = null;
+    if (li) { li.style.setProperty('--pk-from', A ? '-30px' : '30px'); li.style.setProperty('--pk-soft2', A ? 'rgba(74,168,255,0.35)' : 'rgba(255,90,110,0.33)'); li.classList.remove('pk-wait'); li.classList.add('pk-land'); }
+  }, PICK_MS);
+}
+// 🔊 픽 효과음: 바람 가르는 「슉」 → 「쾅」(낮은 울림+금속) → 팀 신호음(1팀 밝게 올라감·2팀 단단하게)
+function pickScore(ac, t0, A) {
+  const { fx, dry, tone, noise, ring, thud } = sfxKit(ac);
+  noise(dry, t0, 0.38, 0.2, 'bandpass', 500, 1.6, 4200);
+  const hit = t0 + 0.16;
+  thud(dry, hit, 0.9, 95); tone(dry, 62, hit, 0.7, 0.6, 'sine', 36);
+  ring(fx, A ? 1240 : 1060, hit, 0.55, 0.9);
+  noise(dry, hit, 0.4, 0.05, 'highpass', 2500);
+  const notes = A ? [[523.25, 0], [783.99, 0.09], [1046.5, 0.18]] : [[392, 0], [587.33, 0.09], [783.99, 0.18]];
+  notes.forEach(([f, d]) => { tone(fx, f, hit + 0.12 + d, 0.13, 0.7, 'triangle'); tone(fx, f * 2, hit + 0.12 + d, 0.04, 0.5); });
+  noise(fx, t0 + 0.42, 0.12, 0.5, 'highpass', 6000);   // 빛 훑을 때 「샤아」
+}
+function pickSound(A) { try { _ac = _ac || new (window.AudioContext || window.webkitAudioContext)(); if (_ac.state === 'suspended') _ac.resume(); pickScore(_ac, _ac.currentTime + 0.02, A); } catch (_) {} }
 function updateDraftTimer() {
   const s = sessionData; if (!s || s.phase !== 'draft') return;
   const ms = Math.max(0, (s.turnEndsAt || 0) - Date.now());
@@ -119,8 +180,9 @@ let _coinShown = null, _ac = null;
 // 튕김(엄지 딱+묵직한 금속 울림) → 회전 바람 소리(돌수록 느려짐) → 착지 쿵·쨍·통통 → 누운 채 다르륵(점점 빨라지다 멈춤) → 결과 쾅+팀 화음
 // 타이밍 = playCoin과 같은 값(FLY·LAND·ZOOM). 미리보기는 같은 함수를 OfflineAudioContext로 그려 파일로 만듦
 const COIN_SFX_T = { FLY: 0.44, LAND: 1.84, ZOOM: 2.79 };
-function coinScore(ac, t0, A) {
-  const T = COIN_SFX_T, sr = ac.sampleRate;
+// 🔊 효과음 부품(마스터·압축·리미터·잔향 + 소리 조각) — 동전·드래프트 픽이 같이 씀
+function sfxKit(ac) {
+  const sr = ac.sampleRate;
   const master = ac.createGain(); master.gain.value = 0.42;
   const comp = ac.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.2;
   const lim = ac.createDynamicsCompressor(); lim.threshold.value = -4; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.1;   // 찢어지는 소리 방지
@@ -141,7 +203,10 @@ function coinScore(ac, t0, A) {
   const ring = (out, f0, at, k, len) => [[1, 0.5, 1], [2.32, 0.34, 0.75], [4.25, 0.2, 0.5], [6.63, 0.1, 0.32]].forEach(([r, g, d]) => {
     tone(out, f0 * r, at, g * k, len * d); tone(out, f0 * r + 2.5 + r, at, g * k * 0.6, len * d * 0.9); });
   const thud = (out, at, k, f) => { tone(out, f || 130, at, 0.9 * k, 0.22, 'sine', (f || 130) * 0.38); noise(out, at, 0.5 * k, 0.08, 'lowpass', 700); };
-  const fx = bus(0.45), dry = bus(0);
+  return { fx: bus(0.45), dry: bus(0), tone, noise, ring, thud, noiseBuf };
+}
+function coinScore(ac, t0, A) {
+  const T = COIN_SFX_T, { fx, dry, tone, noise, ring, thud, noiseBuf } = sfxKit(ac);
   // ① 튕김: 엄지 「딱」 + 묵직한 「쨍~」
   const f = t0 + T.FLY;
   noise(dry, f, 0.7, 0.018, 'bandpass', 3200, 1.4); thud(dry, f, 0.35, 180);
@@ -538,7 +603,7 @@ function renderRoster() {
 
 function render() {
   const s = sessionData, ph = s && s.phase;
-  if (ph === 'draft' && !inGame) { loadToday(); renderDraft(); updateDraftTimer(); showView('draft'); el('phase').textContent = '드래프트'; maybeCoin(s); return; }
+  if (ph === 'draft' && !inGame) { maybePick(s); loadToday(); renderDraft(); updateDraftTimer(); showView('draft'); el('phase').textContent = '드래프트'; maybeCoin(s); return; }   // 픽 먼저(뽑힌 칸을 연출 끝까지 비워둠)
   if (ph === 'vote' && hasTeams() && s.game) {
     const sig = s.game.id;
     if (sig !== _voteSig) { _voteSig = sig; _pendMvp = _pendManner = null; }
@@ -546,7 +611,7 @@ function render() {
   }
   if (ph === 'result' && hasTeams() && s.game && !resultSeen()) { loadToday(); renderResult(); showView('result'); el('phase').textContent = '결과'; return; }
   if (recData && !inGame && ph === 'teams') { renderRec(); showView('rec'); el('phase').textContent = '기록 저장 중'; return; }
-  if (!inGame && ph === 'teams' && hasTeams()) { loadToday(); renderTeam(); showView('team'); el('phase').textContent = _gamePlayed ? '결과 대기' : '팀 배정'; return; }
+  if (!inGame && ph === 'teams' && hasTeams()) { loadToday(); renderTeam(); showView('team'); el('phase').textContent = _gamePlayed ? '결과 대기' : '팀 배정'; if (sessionData.mode === 'draft') maybePick(sessionData); return; }   // 마지막 픽은 바로 팀 화면이 되므로 여기서도
   if (inGame || roster.length) { renderRoster(); showView('roster'); el('phase').textContent = '게임 중'; return; }
   renderLobby(); showView('lobby'); el('phase').textContent = '대기실';
 }
