@@ -382,3 +382,4 @@ button.lb-pill { -webkit-app-region:no-drag; cursor:pointer; }
 .lb-start { -webkit-app-region:no-drag; width:100%; }
 .lb-foot { text-align:center; font-size:11px; color:var(--dim); line-height:1.6; margin:4px 0 10px; }
 .lb-today { margin-top:4px; }
+.lb-nm { cursor:pointer; -webkit-app-region:no-drag; } .lb-nm:hover { color:var(--gold); }

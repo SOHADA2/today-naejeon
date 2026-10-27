@@ -28,7 +28,7 @@
 | `today/host` | 👑 지금 방장 `{puuid, name, at, from?}` · 방장 앱이 20초마다 `at` 갱신 · 60초 넘게 끊기면 다른 사람이 이어받기 가능 · `from`=넘겨준 사람(받는 쪽 알림용, 첫 하트비트에서 지움) |
 | `today/lobby` | 🚪 대기실(v0.1.4) `{mode:'random'|'draft', captains:{teamA,teamB}, join:{key:{name, st:'in'|'spec', at, day, guest?}}}` · key=puuid(본인이 누름) 또는 `g_이름`(방장이 추가한 앱 없는 사람) · 참가 표시는 그날(`day`)만 유효 |
 | `today/bridge/*` | 내장 브릿지: `eogStats`(gameId·winSide·players[KDA…]·savedAt, ETag CAS) · `gamePhase` · `inGame` · `champSelect` · `operators/{id}` · `connected` |
-| `today/days/{YYYY-MM-DD}/matches/{gameId}` | 오늘 경기 기록(조건부 PUT으로 1회만 생성): 팀·winner·stats·mvp/svp/manner·votes·source(auto/manual) |
+| `today/days/{YYYY-MM-DD}/matches/{gameId}` | 경기 기록(조건부 PUT으로 1회만 생성·**지우지 않음=영구 보관**): 팀·winner·gameTime·stats(선수별 챔프·KDA·피해량·골드·CS·아이템·증강·멀티킬·퍼블·puuid)·mvp/svp/manner·votes·source(auto/manual)·**ids(이름→puuid, v0.1.6~)** |
 
 - **하루 = 새벽 6시 기준**(`DAY_START_HOUR`) — 밤샘 내전이 자정 넘어도 같은 날.
 - fbKey = normName 후 공백→`_`, Firebase 금지문자(`.#$[]/`)→`_`.
@@ -76,4 +76,5 @@ npm start      # ⚠️ 이 PC 셸은 ELECTRON_RUN_AS_NODE=1 → env -u ELECTRON
 - **v0.1.3 (2026-10-27)**: 👑 방장 한 명만 · 넘겨주기 · 응답 없으면 이어받기 · 정상 종료 시 방장 자리 정리. E2E(방장 하기 → 접속 중인 B에게 넘김 → B 방장일 때 잠김 → B 응답 없음 → 이어받기 → 외부에서 B가 가져가면 자동으로 내려옴 → B가 넘겨주면 자동으로 방장+알림 → 하트비트가 from 지움 → 그만하기 → 정상 종료 시 host·presence 삭제) 통과.
 - **v0.1.4 (2026-10-27)**: 🚪 모두 같이 보는 대기실. E2E(TN_HIDDEN, 화면 안 띄움: 방장 없음 안내 → A 참가 · 다른 PC B 참가/C 관전/D 고르는 중 → A 방장 → 드래프트 · D 참가로 · 손님1 추가 → 랜덤 팀장 → 드래프트 시작(4명) → 대기실로 돌아가기 → 랜덤 시작 → 2:2 팀 화면) 통과 + 대기실 캡처 확인.
 - **v0.1.5 (2026-10-27)**: ⚡ 버벅임·반응 개선 — 무한 애니메이션 3곳 제거(대기실 점·입장 대기 점·내 팀 마커 숨쉬는 빛) · 같은 내용 재전송 차단 · 대기실 낙관적 반영 · 스트림이 바뀐 노드만 읽기. 실측 CPU 33%→0.4%, 내 클릭 반영 256→6ms, 다른 PC ~180ms(변화 없음=네트워크 한계). ⚠️ 기존 aram-overlay에도 무한 애니메이션 4파일(desktop.css·overlay.css·sidepanel.css·slot.html) 남아 있음(사장님 결정 대기).
+- **v0.1.6 (2026-10-27)**: 👤 개인 내전 프로필 — 오른쪽 창 「프로필」 탭(`getProfile`): 모든 날 기록을 사람별로(전적·승률·지금 연승/연패·최고 연승·MVP/SVP/매너·평균 KDA·피해량(분당)·골드·CS·멀티킬·퍼블·많이 한 챔피언 5·최고 기록(킬·피해량·KDA·어시)·찰떡 팀원/천적(2판 이상)·최근 10판). 사람 키 = `p:puuid`(경기 기록 ids → stats puuid → accounts 이름 순으로 판별, **닉변해도 합쳐짐**) / `n:이름`(앱 없는 사람). 「오늘」 순위표 이름·대기실 이름·찰떡/천적 이름 누르면 그 사람 프로필. 챔피언 아이콘 = CommunityDragon champion-icons/{id}.png. `today/days` 전체를 받아 30초 캐시(경기 기록·투표 마감 시 무효화) — ⚠️ 기록이 수천 판 쌓이면 사람별 요약 노드로 바꿀 것. E2E(이틀치 4판 시드·옛 닉네임 판 포함 → A 4판 3승1패 2연승·챔프/최고기록/찰떡/천적/손님 n:키 전부 기대값 일치, 순위표 이름→B 프로필) 통과.
 - ⏭️ 다음: **밸런스 팀짜기 새 로직(사장님 설계)** · 하루 안에 끝나는 인스턴트 콘텐츠(사장님 기획) · 인게임 화면

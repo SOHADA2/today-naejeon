@@ -844,8 +844,10 @@ async function recordGame(winner, eog) {
     teamA: s.teamA, teamB: s.teamB, spectators: s.spectators || null, mode: s.mode || null,
     winner, winSide: (eog && eog.winSide) || null, gameTime: (eog && eog.gameTime) || 0,
     stats: (eog && eog.players) || null, teamsFormedAt: s.teamsFormedAt || null,
+    ids: s.ids || null,   // 👤 이름→puuid(프로필이 닉변해도 같은 사람으로 묶음)
   };
   const w = await fbPutIfAbsent(`${T}/days/${day}/matches/${gid}`, rec);
+  _profIdx = null;
   if (!w.ok && !w.conflict) return { ok: false, err: w.err };
   const u = await fbUpdate(`${T}/session`, { phase: 'vote', game: { id: gid, day, winner, at: Date.now() }, votes: null, result: null, lastGameId: gid, pendingEog: null });
   return { ok: u.ok, err: u.err };
@@ -877,6 +879,7 @@ async function closeVote() {
   const svp = tally(byTeam(win).map(v => v.mvp).filter(n => inTeam(lose, n)), statsByName);
   const manner = tally([...byTeam('teamA'), ...byTeam('teamB')].map(v => v.manner), statsByName);
   const result = { mvp: mvp || null, svp: svp || null, manner: manner || null, voteCount: Object.keys(votes).length, closedAt: Date.now() };
+  _profIdx = null;
   await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { mvp: result.mvp, svp: result.svp, manner: result.manner, votes: s.votes || null });
   const u = await fbUpdate(`${T}/session`, { phase: 'result', result });
   return { ok: u.ok, err: u.err };
@@ -1030,6 +1033,90 @@ async function getToday(day) {
   return Object.assign({ ok: true, day: d, today: dayKey() }, computeToday(raw));
 }
 
+// ── 👤 개인 내전 프로필 — 지금까지의 모든 날 기록을 사람별로 모음 ─────────────────
+// 사람 키 = 'p:'+puuid(앱으로 들어온 사람) 또는 'n:'+이름(앱 없이 방장이 추가한 사람·옛 기록)
+// 판별 순서: 경기 기록의 ids(이름→puuid) → 게임 결과(stats)의 puuid(이름 매칭) → 계정 목록 이름 → 이름
+const fetchAllDays = () => getJson(`${FIREBASE_DB}/${T}/days.json`);
+const fetchAccounts = () => getJson(`${FIREBASE_DB}/${T}/accounts.json`);
+let _profIdx = null, _profAt = 0;
+async function profileIndex() {
+  if (_profIdx && Date.now() - _profAt < 30000) return _profIdx;   // 30초 캐시(탭 오갈 때마다 전체를 다시 받지 않게)
+  const [days, accounts] = await Promise.all([fetchAllDays(), fetchAccounts()]);
+  const matches = [];
+  for (const [day, d] of Object.entries(days || {})) for (const m of Object.values((d && d.matches) || {})) if (m && m.teamA && m.teamB) matches.push({ ...m, day: m.day || day });
+  matches.sort((a, b) => (a.ts || 0) - (b.ts || 0));   // 시간순
+  const nameToPuuid = {};
+  for (const [puuid, a] of Object.entries(accounts || {})) if (a && a.name) { const n = normName(a.name); nameToPuuid[n] = nameToPuuid[n] === undefined ? puuid : null; }   // 같은 이름 둘이면 못 씀(null)
+  _profIdx = { matches, accounts: accounts || {}, nameToPuuid }; _profAt = Date.now();
+  return _profIdx;
+}
+function matchKeyOf(idx, m, name) {
+  const n = normName(name);
+  const id = (m.ids || {})[fbKeyOf(n)];
+  if (id) return 'p:' + id;
+  const st = (m.stats || []).find(p => p.puuid && norm(p.summonerName) === norm(n));
+  if (st) return 'p:' + st.puuid;
+  if (idx.nameToPuuid[n]) return 'p:' + idx.nameToPuuid[n];
+  return 'n:' + n;
+}
+function statOf(m, name, key) {
+  const list = m.stats || [];
+  return (key.startsWith('p:') && list.find(p => p.puuid === key.slice(2))) || list.find(p => norm(p.summonerName) === norm(name)) || null;
+}
+async function getProfile(arg) {
+  const idx = await profileIndex();
+  let key = null;
+  if (arg && arg.me) key = account ? 'p:' + account.puuid : null;
+  else if (arg && arg.puuid && !String(arg.puuid).startsWith('g_')) key = 'p:' + arg.puuid;
+  else if (arg && arg.name) { const n = normName(arg.name); key = idx.nameToPuuid[n] ? 'p:' + idx.nameToPuuid[n] : 'n:' + n; }
+  if (!key) return { ok: false, err: '롤에 로그인하면 내 프로필을 볼 수 있어요' };
+  const acc = key.startsWith('p:') ? idx.accounts[key.slice(2)] : null;
+  const P = { ok: true, key, name: (acc && acc.name) || (arg && arg.name) || key.slice(2), tag: (acc && acc.tag) || '', me: !!(account && key === 'p:' + account.puuid),
+    games: 0, wins: 0, losses: 0, mvp: 0, svp: 0, manner: 0, k: 0, d: 0, a: 0, statGames: 0, damage: 0, gold: 0, cs: 0, time: 0,
+    double: 0, triple: 0, quadra: 0, penta: 0, firstBlood: 0, streak: 0, bestStreak: 0, worstStreak: 0, days: 0, first: null, last: null,
+    champs: [], recent: [], best: {}, mates: [], rivals: [] };
+  const champs = {}, mates = {}, rivals = {}, days = new Set();
+  for (const m of idx.matches) {
+    const names = [...m.teamA, ...m.teamB];
+    const me = names.find(n => matchKeyOf(idx, m, n) === key);
+    if (!me) continue;
+    const team = m.teamA.some(x => normName(x) === normName(me)) ? 'teamA' : 'teamB', opp = team === 'teamA' ? 'teamB' : 'teamA';
+    const win = m.winner === team;
+    P.games++; days.add(m.day); if (!P.first) P.first = m.day; P.last = m.day;
+    if (win) { P.wins++; P.streak = Math.max(0, P.streak) + 1; } else { P.losses++; P.streak = Math.min(0, P.streak) - 1; }
+    P.bestStreak = Math.max(P.bestStreak, P.streak); P.worstStreak = Math.min(P.worstStreak, P.streak);
+    const aw = [];
+    if (m.mvp && normName(m.mvp) === normName(me)) { P.mvp++; aw.push('mvp'); }
+    if (m.svp && normName(m.svp) === normName(me)) { P.svp++; aw.push('svp'); }
+    if (m.manner && normName(m.manner) === normName(me)) { P.manner++; aw.push('manner'); }
+    const st = statOf(m, me, key);
+    if (st) {
+      P.statGames++; P.k += st.kills || 0; P.d += st.deaths || 0; P.a += st.assists || 0;
+      P.damage += st.damage || 0; P.gold += st.gold || 0; P.cs += st.cs || 0; P.time += m.gameTime || 0;
+      P.double += st.doubleKills || 0; P.triple += st.tripleKills || 0; P.quadra += st.quadraKills || 0; P.penta += st.pentaKills || 0;
+      if (st.firstBlood) P.firstBlood++;
+      const ck = st.championId || st.championName || '?';
+      const c = champs[ck] = champs[ck] || { id: st.championId || null, name: st.championName || '', games: 0, wins: 0, k: 0, d: 0, a: 0 };
+      c.games++; if (win) c.wins++; c.k += st.kills || 0; c.d += st.deaths || 0; c.a += st.assists || 0;
+      const rec = (field, v) => { if (v > 0 && (!P.best[field] || v > P.best[field].v)) P.best[field] = { v, champ: st.championName || '', champId: st.championId || null, day: m.day, win }; };
+      rec('kills', st.kills || 0); rec('damage', st.damage || 0); rec('assists', st.assists || 0);
+      const kda = ((st.kills || 0) + (st.assists || 0)) / Math.max(1, st.deaths || 0); rec('kda', Math.round(kda * 10) / 10);
+    }
+    P.recent.push({ day: m.day, ts: m.ts, win, champ: st ? st.championName || '' : '', champId: st ? st.championId || null : null, k: st ? st.kills : null, d: st ? st.deaths : null, a: st ? st.assists : null, aw, mode: m.mode || null });
+    for (const n of m[team]) { if (normName(n) === normName(me)) continue; const k = matchKeyOf(idx, m, n); const x = mates[k] = mates[k] || { name: normName(n), games: 0, wins: 0 }; x.games++; if (win) x.wins++; }
+    for (const n of m[opp]) { const k = matchKeyOf(idx, m, n); const x = rivals[k] = rivals[k] || { name: normName(n), games: 0, wins: 0 }; x.games++; if (win) x.wins++; }
+  }
+  P.days = days.size;
+  P.champs = Object.values(champs).sort((x, y) => y.games - x.games || y.wins - x.wins).slice(0, 5);
+  P.recent = P.recent.slice(-10).reverse();
+  const rate = x => x.wins / x.games;
+  const MIN = 2;   // 2판 이상 같이(또는 상대로) 한 사람만
+  P.mates = Object.values(mates).filter(x => x.games >= MIN).sort((x, y) => rate(y) - rate(x) || y.games - x.games).slice(0, 3);
+  P.rivals = Object.values(rivals).filter(x => x.games >= MIN).sort((x, y) => rate(x) - rate(y) || y.games - x.games).slice(0, 3);
+  for (const x of [...Object.values(mates), ...Object.values(rivals)]) { const pk = idx.nameToPuuid[x.name]; const a = pk && idx.accounts[pk]; if (a && a.name) x.name = normName(a.name); }   // 닉변한 사람은 지금 이름으로
+  return P;
+}
+
 // ── 트레이 ──────────────────────────────────────────────────────────────
 function toggleDock() {
   config.dock = (config.dock === false);   // 뒤집기(기본 켜짐)
@@ -1145,6 +1232,11 @@ ipcMain.handle('vote-close', async () => {   // ⏭️ 방장: 미투표자 있�
   return closeVote();
 });
 ipcMain.handle('today-data', async (_e, arg) => getToday(arg && arg.day));
+ipcMain.handle('profile', (_e, arg) => getProfile(arg || { me: true }));   // 👤 개인 내전 프로필
+ipcMain.on('open-profile', (_e, arg) => {   // 왼쪽 대기실에서 이름 누름 → 오른쪽 창 프로필 탭
+  try { showMainPanel(); } catch (_) {}
+  if (leftWin && !leftWin.isDestroyed()) leftWin.webContents.send('open-profile', arg);
+});
 
 // ── 앱 시작 ──────────────────────────────────────────────────────────────
 const _gotLock = app.requestSingleInstanceLock();

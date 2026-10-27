@@ -53,4 +53,8 @@ contextBridge.exposeInMainWorld('api', {
   voteClose: () => ipcRenderer.invoke('vote-close'),
   // 📊 오늘 기록
   getToday: (day) => ipcRenderer.invoke('today-data', { day }),
+  // 👤 개인 내전 프로필 — arg: {me:true} | {puuid} | {name}
+  getProfile: (arg) => ipcRenderer.invoke('profile', arg),
+  openProfile: (arg) => ipcRenderer.send('open-profile', arg),
+  onOpenProfile: (cb) => ipcRenderer.on('open-profile', (_e, d) => cb(d)),
 });

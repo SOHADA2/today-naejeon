@@ -41,6 +41,7 @@
       <nav class="rail">
         <button class="rail-btn" data-cat="team" id="s-rail-team" style="display:none;"><span class="ri">⚔️</span><span class="rl">진행</span></button>
         <button class="rail-btn on" data-cat="today"><span class="ri">📅</span><span class="rl">오늘</span></button>
+        <button class="rail-btn" data-cat="profile"><span class="ri">👤</span><span class="rl">프로필</span></button>
       </nav>
       <div class="cat">
         <!-- ⚔️ 팀짜기(방장) -->
@@ -56,6 +57,11 @@
             </div>
             <div id="tb-err" class="tb-err" style="display:none;"></div>
           </div>
+        </section>
+        <!-- 👤 개인 내전 프로필 -->
+        <section class="cat-view" id="cat-profile" style="display:none;">
+          <div class="cat-hd"><span id="pf-title">내 프로필</span><button class="pf-back" id="pf-back" style="display:none;">내 프로필로</button></div>
+          <div id="pf-body" class="cat-scroll ui-scroll"></div>
         </section>
         <!-- 📅 오늘 -->
         <section class="cat-view" id="cat-today" style="display:flex;">

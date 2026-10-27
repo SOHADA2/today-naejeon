@@ -109,6 +109,7 @@ function switchCat(cat) {
   document.querySelectorAll('.rail-btn').forEach(b => b.classList.toggle('on', b.dataset.cat === cat));
   document.querySelectorAll('.cat-view').forEach(v => { v.style.display = (v.id === 'cat-' + cat) ? 'flex' : 'none'; });
   if (cat === 'team') renderLive();
+  else if (cat === 'profile') renderProfile();
   else renderToday();
 }
 document.querySelectorAll('.rail-btn').forEach(b => b.addEventListener('click', () => switchCat(b.dataset.cat)));
@@ -186,7 +187,7 @@ async function renderToday() {
   if (!t.matches.length) { body.innerHTML = `<div class="td-empty">${t.day === t.today ? '오늘은 아직 경기가 없어요<br><small>방장이 팀을 짜고 게임이 끝나면 자동으로 쌓여요</small>' : '이 날은 경기가 없어요'}</div>`; return; }
   const rows = t.standings.map(p => {
     const kda = p.d || p.k || p.a ? ((p.k + p.a) / Math.max(1, p.d)).toFixed(1) : '-';
-    return `<tr class="${nn(p.name) === nn(_myName) ? 'me' : ''}"><td class="r">${p.rank}</td><td class="n">${escH(p.name)}</td><td>${p.wins}-${p.losses}</td><td>${Math.round(p.wins / p.games * 100)}%</td><td>${p.mvp || ''}</td><td>${p.manner || ''}</td><td>${kda}</td></tr>`;
+    return `<tr class="${nn(p.name) === nn(_myName) ? 'me' : ''}"><td class="r">${p.rank}</td><td class="n"><a class="pf-link" data-name="${escH(p.name)}">${escH(p.name)}</a></td><td>${p.wins}-${p.losses}</td><td>${Math.round(p.wins / p.games * 100)}%</td><td>${p.mvp || ''}</td><td>${p.manner || ''}</td><td>${kda}</td></tr>`;
   }).join('');
   const fmt = ts => { const d = new Date(ts); return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; };
   const games = t.matches.map((m, i) => {
@@ -199,6 +200,57 @@ async function renderToday() {
   body.innerHTML = `<div class="td-sec">순위 · ${t.matches.length}판</div>`
     + `<table class="td-table"><thead><tr><th>#</th><th class="n">이름</th><th>전적</th><th>승률</th><th>🏆</th><th>💎</th><th>KDA</th></tr></thead><tbody>${rows}</tbody></table>`
     + `<div class="td-sec">경기</div>${games}`;
+  body.querySelectorAll('.pf-link').forEach(a => a.onclick = () => openProfile({ name: a.textContent }));
+}
+
+// ── 👤 개인 내전 프로필 ─────────────────────────────────────────────────────
+// 지금까지 모든 날의 기록을 사람별로 모음: 전적·연승·수상·KDA·챔피언·최고 기록·찰떡 팀원·천적·최근 10판
+let _pfArg = { me: true };
+function openProfile(arg) { _pfArg = arg || { me: true }; switchCat('profile'); }
+window.api.onOpenProfile(arg => openProfile(arg));
+$('pf-back').onclick = () => openProfile({ me: true });
+const champIcon = id => id ? `<img class="pf-ci" src="https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${Number(id)}.png" onerror="this.style.visibility='hidden'" alt="">` : '<span class="pf-ci"></span>';
+const md = day => { if (!day) return ''; const [, m, d] = day.split('-'); return `${Number(m)}/${Number(d)}`; };
+const pct = (w, g) => g ? Math.round(w / g * 100) : 0;
+const kdaOf = (k, d, a) => ((k + a) / Math.max(1, d)).toFixed(2);
+async function renderProfile() {
+  const body = $('pf-body'), arg = _pfArg;
+  body.innerHTML = '<div class="td-empty">불러오는 중…</div>';
+  const P = await window.api.getProfile(arg).catch(() => null);
+  if (arg !== _pfArg) return;   // 그사이 다른 사람을 눌렀으면 버림
+  $('pf-back').style.display = arg.me ? 'none' : '';
+  $('pf-title').textContent = arg.me ? '내 프로필' : '프로필';
+  if (!P || !P.ok) { body.innerHTML = `<div class="td-empty">${escH((P && P.err) || '프로필을 불러오지 못했어요')}</div>`; return; }
+  const head = `<div class="pf-head"><div class="pf-nm">${escH(P.name)}${P.tag ? `<small>#${escH(P.tag)}</small>` : ''}${P.me ? '<span class="pf-me">나</span>' : ''}</div>`
+    + `<div class="pf-sub">${P.games ? `첫 내전 ${md(P.first)} · 내전 ${P.days}일 · 마지막 ${md(P.last)}` : '아직 내전 기록이 없어요'}</div></div>`;
+  if (!P.games) { body.innerHTML = head + '<div class="td-empty">내전을 한 판 하면 여기에 기록이 쌓여요</div>'; return; }
+  const streak = P.streak > 0 ? `<b class="w">${P.streak}연승</b>` : `<b class="l">${-P.streak}연패</b>`;
+  const big = `<div class="pf-big">`
+    + `<div><span>전적</span><b>${P.wins}승 ${P.losses}패</b><em>승률 ${pct(P.wins, P.games)}%</em></div>`
+    + `<div><span>지금</span>${streak}<em>최고 ${P.bestStreak}연승</em></div>`
+    + `<div><span>수상</span><b class="aw">🏆${P.mvp} ⭐${P.svp} 💎${P.manner}</b><em>MVP · SVP · 매너</em></div></div>`;
+  let play = '';
+  if (P.statGames) {
+    const n = P.statGames, min = P.time / 60;
+    const multi = [P.penta ? `펜타 ${P.penta}` : '', P.quadra ? `쿼드라 ${P.quadra}` : '', P.triple ? `트리플 ${P.triple}` : '', P.double ? `더블 ${P.double}` : ''].filter(Boolean).join(' · ') || '없음';
+    play = `<div class="td-sec">플레이 · 기록 있는 ${n}판 평균</div><div class="pf-grid">`
+      + `<div><span>KDA</span><b>${(P.k / n).toFixed(1)} / ${(P.d / n).toFixed(1)} / ${(P.a / n).toFixed(1)}</b><em>${kdaOf(P.k, P.d, P.a)}</em></div>`
+      + `<div><span>피해량</span><b>${Math.round(P.damage / n).toLocaleString()}</b><em>${min ? `분당 ${Math.round(P.damage / min).toLocaleString()}` : ''}</em></div>`
+      + `<div><span>골드</span><b>${Math.round(P.gold / n).toLocaleString()}</b><em>CS ${Math.round(P.cs / n)}</em></div>`
+      + `<div><span>멀티킬</span><b class="sm">${multi}</b><em>퍼블 ${P.firstBlood}번</em></div></div>`;
+  }
+  const champs = P.champs.length ? `<div class="td-sec">많이 한 챔피언</div>` + P.champs.map(c =>
+    `<div class="pf-row">${champIcon(c.id)}<span class="pf-rn">${escH(c.name || '?')}</span><span class="pf-rv">${c.games}판 ${pct(c.wins, c.games)}%</span><span class="pf-rk">${kdaOf(c.k, c.d, c.a)}</span></div>`).join('') : '';
+  const B = P.best, bestRow = (label, b, fmt) => b ? `<div class="pf-row">${champIcon(b.champId)}<span class="pf-rn">${label}</span><span class="pf-rv">${fmt(b.v)}</span><span class="pf-rk">${escH(b.champ || '')} · ${md(b.day)}</span></div>` : '';
+  const best = (B.kills || B.damage || B.kda) ? `<div class="td-sec">최고 기록</div>` + bestRow('최다 킬', B.kills, v => v + '킬') + bestRow('최고 피해량', B.damage, v => v.toLocaleString()) + bestRow('최고 KDA', B.kda, v => v) + bestRow('최다 어시', B.assists, v => v + '어시') : '';
+  const pals = (label, list, hint) => list.length ? `<div class="td-sec">${label} <small>${hint}</small></div>` + list.map(x =>
+    `<div class="pf-row"><a class="pf-rn pf-link">${escH(x.name)}</a><span class="pf-rv">${x.games}판 ${x.wins}승</span><span class="pf-rk">${pct(x.wins, x.games)}%</span></div>`).join('') : '';
+  const recent = `<div class="td-sec">최근 ${P.recent.length}판</div>` + P.recent.map(g =>
+    `<div class="pf-row pf-g ${g.win ? 'w' : 'l'}"><span class="pf-wl">${g.win ? '승' : '패'}</span>${champIcon(g.champId)}<span class="pf-rn">${escH(g.champ || '결과만 기록')}</span>`
+    + `<span class="pf-rv">${g.k != null ? `${g.k}/${g.d}/${g.a}` : ''}</span><span class="pf-rk">${g.aw.map(a => ({ mvp: '🏆', svp: '⭐', manner: '💎' })[a]).join('')} ${md(g.day)}</span></div>`).join('');
+  body.innerHTML = head + big + play + champs + best
+    + pals('찰떡 팀원', P.mates, '같은 팀일 때 승률 · 2판 이상') + pals('천적', P.rivals, '상대로 만났을 때 승률 · 2판 이상') + recent;
+  body.querySelectorAll('.pf-link').forEach(a => a.onclick = () => openProfile({ name: a.textContent }));
 }
 
 // ── 세션 실시간 ─────────────────────────────────────────────────────────

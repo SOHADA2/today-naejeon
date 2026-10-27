@@ -250,7 +250,7 @@ function renderLobby() {
     const pill = myIsHost && !m.me ? `<button class="lb-pill ${m.st || 'none'}" data-k="${esc(m.key)}" title="눌러서 바꾸기(참가 → 관전 → 빼기)">${stLabel}</button>` : `<span class="lb-pill ${m.st || 'none'}">${stLabel}</span>`;
     const capBtn = draft && myIsHost && m.st === 'in' ? `<button class="lb-mini lb-capbtn${cap ? ' on' : ''}" data-n="${esc(m.name)}">${cap ? cap + '팀 팀장' : '팀장'}</button>` : (cap ? `<span class="lb-capb t${cap}">${cap}팀 팀장</span>` : '');
     return `<div class="lb-row ${m.st || 'none'}${m.me ? ' me' : ''}"><i class="lb-dot${m.online ? ' on' : ''}" title="${m.online ? '앱 접속 중' : '앱 없음(방장이 추가)'}"></i>`
-      + `<span class="lb-nm">${esc(m.name)}${m.tag ? `<small>#${esc(m.tag)}</small>` : ''}${m.host ? ' <span class="lb-crown">👑</span>' : ''}</span>`
+      + `<span class="lb-nm" data-pk="${esc(m.key)}" title="프로필 보기">${esc(m.name)}${m.tag ? `<small>#${esc(m.tag)}</small>` : ''}${m.host ? ' <span class="lb-crown">👑</span>' : ''}</span>`
       + (st ? `<span class="lb-rec">${st.wins}승 ${st.losses}패</span>` : '') + capBtn + pill
       + (myIsHost && m.guest ? `<button class="lb-x" data-g="${esc(m.key)}" title="목록에서 빼기">✕</button>` : '') + '</div>';
   };
@@ -262,6 +262,10 @@ function renderLobby() {
     lbAct(() => window.api.lobbySet(m.key, next[m.st || 'none']));
   });
   el('lb-list').querySelectorAll('.lb-capbtn').forEach(b => b.onclick = () => lbAct(() => window.api.lobbyCaptain(b.dataset.n, false)));
+  el('lb-list').querySelectorAll('.lb-nm').forEach(n => n.onclick = () => {
+    const m = M.find(x => x.key === n.dataset.pk); if (!m) return;
+    window.api.openProfile(m.guest ? { name: m.name } : { puuid: m.key, name: m.name });
+  });
   el('lb-list').querySelectorAll('.lb-x').forEach(b => b.onclick = () => lbAct(() => window.api.lobbyGuestRm(b.dataset.g)));
   // 👑 방장: 추가·시작 / 나머지: 안내
   el('lb-hostbox').style.display = myIsHost ? '' : 'none';
