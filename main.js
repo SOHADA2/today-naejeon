@@ -549,7 +549,7 @@ async function beatPresence() {
     if (_away && config.isHost) fbCas(`${T}/host`, cur => cur && cur.puuid === _away.puuid ? { value: { puuid: cur.puuid, name: cur.name, at: Date.now() } } : { err: 'not mine' }).catch(() => {});
     return;
   }
-  await fbSet(`${T}/presence/${account.puuid}`, { name: account.gameName, tag: account.tagLine || null, at: Date.now(), host: !!config.isHost, app: app.getVersion() }).catch(() => {});
+  await fbSet(`${T}/presence/${account.puuid}`, { name: account.gameName, tag: account.tagLine || null, icon: account.iconId || null, at: Date.now(), host: !!config.isHost, app: app.getVersion() }).catch(() => {});
   if (config.isHost) fbCas(`${T}/host`, cur => cur && cur.puuid === account.puuid ? { value: { puuid: cur.puuid, name: cur.name, at: Date.now() } } : { err: 'not mine' }).catch(() => {});   // 👑 방장 살아있음 표시
 }
 // 🔌 롤 클라를 잠깐 끈 것(게임 끝나고 껐다 켜기 등)은 로그아웃으로 치지 않음 — 같은 계정이 2분 안에 돌아오면 방장·참가 그대로
@@ -564,7 +564,7 @@ function releaseAccount(prev) {   // 이전 계정의 접속 표시·방장·대
 function setAccount(acc) {
   const prev = account;
   if (acc && !acc.gameName) acc = null;
-  if ((prev && prev.puuid) === (acc && acc.puuid) && (prev && prev.gameName) === (acc && acc.gameName)) return;
+  if ((prev && prev.puuid) === (acc && acc.puuid) && (prev && prev.gameName) === (acc && acc.gameName) && (prev && prev.iconId) === (acc && acc.iconId)) return;
   if (prev && !acc) {   // 클라 꺼짐 → 2분 기다림
     _away = prev; clearTimeout(_awayTimer);
     _awayTimer = setTimeout(() => { const a = _away; _away = null; if (a && !account) releaseAccount(a); }, AWAY_GRACE_MS);
@@ -578,7 +578,7 @@ function setAccount(acc) {
   config.myName = acc ? acc.gameName : '';
   if (acc) {
     beatPresence();
-    fbUpdate(`${T}/accounts/${acc.puuid}`, { name: acc.gameName, tag: acc.tagLine || null, lastSeen: Date.now() }).catch(() => {});
+    fbUpdate(`${T}/accounts/${acc.puuid}`, { name: acc.gameName, tag: acc.tagLine || null, icon: acc.iconId || null, lastSeen: Date.now() }).catch(() => {});
     if (!_presenceTimer) _presenceTimer = setInterval(beatPresence, PRESENCE_MS);
   }
   broadcast('account', { account, isHost: !!config.isHost, switched: !!(prev && acc && prev.puuid !== acc.puuid) });
@@ -720,7 +720,7 @@ function lobbyView() {
   const members = [];
   for (const [puuid, p] of Object.entries(presenceRaw || {})) {
     if (!p || !p.name || now - (p.at || 0) >= ONLINE_MS) continue;
-    members.push({ key: puuid, name: normName(p.name), tag: p.tag || '', online: true, host: !!(hostRec && hostRec.puuid === puuid && hostAlive(hostRec)), me: !!(account && account.puuid === puuid), st: stOf(puuid) });
+    members.push({ key: puuid, name: normName(p.name), tag: p.tag || '', icon: p.icon || null, online: true, host: !!(hostRec && hostRec.puuid === puuid && hostAlive(hostRec)), me: !!(account && account.puuid === puuid), st: stOf(puuid) });
   }
   for (const [k, j] of Object.entries(join)) if (j && j.guest && j.day === today && !members.some(m => m.name === normName(j.name))) members.push({ key: k, name: normName(j.name), guest: true, online: false, st: stOf(k) });
   const ord = { in: 0, null: 1, spec: 2 };
@@ -1342,7 +1342,7 @@ else {
     setupAutoUpdate();
     bridge.start({ getOperatorName: () => config.myName || null, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
     // 🧪 개발용: 롤 없이 테스트 — TN_FAKE_ACCOUNT="이름#태그" (배포본에선 안 씀)
-    if (!app.isPackaged && process.env.TN_FAKE_ACCOUNT) { const [g, t] = process.env.TN_FAKE_ACCOUNT.split('#'); setTimeout(() => setAccount({ puuid: 'fake-' + g, gameName: g, tagLine: t || 'KR1' }), 1500); }
+    if (!app.isPackaged && process.env.TN_FAKE_ACCOUNT) { const [g, t] = process.env.TN_FAKE_ACCOUNT.split('#'); setTimeout(() => setAccount({ puuid: 'fake-' + g, gameName: g, tagLine: t || 'KR1', iconId: 29 }), 1500); }
   });
 }
 

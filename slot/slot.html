@@ -2,9 +2,6 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin:0; box-sizing:border-box; }
     html, body { width:100%; height:100%; background:transparent; overflow:hidden; -webkit-user-select:none; }
@@ -12,7 +9,7 @@
     #badge {
       position:absolute; inset:3px;
       display:flex; align-items:center; justify-content:center; gap:6px;
-      font-family:'Noto Sans KR',sans-serif; font-size:13px; font-weight:600; letter-spacing:1px; line-height:1; white-space:nowrap;
+      font-family:var(--f-body); font-size:13px; font-weight:600; letter-spacing:1px; line-height:1; white-space:nowrap;
       color:#F5E7C6;
       background:linear-gradient(158deg, rgba(12,24,40,0.90), rgba(3,11,20,0.95));
       border:1px solid rgba(200,170,110,0.7);
@@ -23,6 +20,7 @@
     .mk-ic { font-size:12.5px; line-height:1; filter:drop-shadow(0 0 4px rgba(200,170,110,0.55)); }
     .mk-tx { text-shadow:0 1px 3px rgba(0,0,0,0.7); }
   </style>
+  <link rel="stylesheet" href="../shared.css">
 </head>
 <body>
   <div id="badge"><span class="mk-ic">⚔️</span><span class="mk-tx">내 팀</span></div>

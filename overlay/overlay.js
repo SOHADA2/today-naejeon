@@ -44,15 +44,15 @@ const hasTeams = () => !!(sessionData && ((sessionData.teamA || []).length || (s
 function playerRow(name, i) {
   const me = (myName && nn(name) === nn(myName)) ? ' class="me"' : '';
   const st = _standing(name);
-  const rec = st ? `<span class="lp">${st.wins}승 ${st.losses}패</span>` : '';
-  return `<li${me}><span class="num">${i + 1}</span><span class="nm">${esc(name)}</span>${rec}</li>`;
+  const rec = st ? `<span class="lp"><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : '';
+  return `<li${me}><span class="no num">${i + 1}</span><span class="nm">${esc(name)}</span>${rec}</li>`;
 }
 function renderTeam() {
   const s = sessionData, A = s.teamA || [], B = s.teamB || [], mt = myTeam();
   const band = el('tv-band');
   band.className = 'tv-band' + (mt === 1 ? ' t1' : mt === 2 ? ' t2' : '');
-  band.innerHTML = mt === 1 ? '<span class="tv-lead">내가 들어갈 팀</span><b class="tv-team">1팀</b>'
-    : mt === 2 ? '<span class="tv-lead">내가 들어갈 팀</span><b class="tv-team">2팀</b>'
+  band.innerHTML = mt === 1 ? '<span class="tv-lead">내가 들어갈 팀</span><b class="tv-team">1팀 <span class="lb-sec-en">BLUE</span></b>'
+    : mt === 2 ? '<span class="tv-lead">내가 들어갈 팀</span><b class="tv-team">2팀 <span class="lb-sec-en">RED</span></b>'
     : (s.spectators || []).some(x => nn(x) === nn(myName)) ? '이번 판은 <b>관전</b>이에요' : '이번 판 팀 배정';
   el('team1').className = 'ta-team blue' + (mt === 1 ? ' mine' : mt === 2 ? ' dim' : '');
   el('team2').className = 'ta-team red' + (mt === 2 ? ' mine' : mt === 1 ? ' dim' : '');
@@ -158,14 +158,26 @@ setInterval(() => { const e = document.getElementById('rc-sec'); if (e && recDat
 
 // ── 🗳️ 투표 ──────────────────────────────────────────────────────────────
 let _pendMvp = null, _pendManner = null, _voteBusy = false, _voteSig = '';
+// 이번 판 게임 결과(챔피언·KDA·피해량) — 오늘 기록에서 찾음(계정 ID 우선, 없으면 이름)
+function gameStat(name) {
+  const g = sessionData && sessionData.game; if (!g || !_today) return null;
+  const m = _today.matches.find(x => String(x.gameId) === String(g.id)); if (!m || !m.stats) return null;
+  const id = (m.ids || {})[fbKeyOf(name)], k = s => nn(s).replace(/\s/g, '').toLowerCase();
+  return (id && m.stats.find(p => p.puuid === id)) || m.stats.find(p => k(p.summonerName) === k(name)) || null;
+}
+function champHtml(st, cls) {
+  return `<span class="${cls}">${st && st.championId ? `<img src="${champUrl(st.championId)}" alt="" onerror="this.remove()">` : ''}</span>`;
+}
 function voteCardHtml(name, kind, picked) {
-  return `<button class="vt-cand ${kind}${picked ? ' on' : ''}" data-kind="${kind}" data-name="${esc(name)}"><span class="vt-badge">${kind === 'mvp' ? '🏆' : '💎'}</span><span class="vt-nm">${esc(name)}</span></button>`;
+  const st = gameStat(name);
+  const line = st ? `${esc(st.championName || '')}<span class="num">${st.kills}/${st.deaths}/${st.assists}</span>${st.damage ? `<span class="num dmg">${Math.round(st.damage / 1000)}k</span>` : ''}` : '<span class="vt-nostat">게임 기록 없음</span>';
+  return `<button class="vt-cand ${kind}${picked ? ' on' : ''}" data-kind="${kind}" data-name="${esc(name)}">${champHtml(st, 'vt-ch')}<span class="vt-info"><b class="vt-nm">${esc(name)}</b><small>${line}</small></span><span class="vt-check">${picked ? '✓' : ''}</span></button>`;
 }
 function renderVote() {
   const s = sessionData, A = s.teamA || [], B = s.teamB || [], mt = myTeam();
   const wt = s.game && s.game.winner === 'teamA' ? 1 : 2;
   el('vt-banner').className = 'vt-banner ' + (wt === 1 ? 't1' : 't2');
-  el('vt-banner').innerHTML = `<b>${wt}팀 승리</b> · MVP·매너왕을 뽑아주세요`;
+  el('vt-banner').innerHTML = `<span class="lb-sec-en">TEAM ${wt} WIN</span><b>${wt}팀 승리</b><span>MVP와 매너왕을 뽑아주세요</span>`;
   const body = el('vt-body');
   if (mt === 0) { body.innerHTML = '<div class="vt-note">관전자는 투표하지 않아요.<br>결과가 나오면 여기에 떠요.</div>'; renderVoteProgress(); return; }
   const mine = (s.votes || {})[fbKeyOf(myName)];
@@ -180,9 +192,10 @@ function renderVote() {
   const opp = mt === 1 ? B : A;
   const ours = (mt === 1 ? A : B).filter(x => nn(x) !== nn(myName));
   const ready = _pendMvp && _pendManner;
+  if (!_today || !_today.matches.some(x => s.game && String(x.gameId) === String(s.game.id))) { _todayAt = 0; loadToday(); }   // 방금 기록된 판의 챔피언 정보
   body.innerHTML =
-    `<div class="vt-sec"><div class="vt-sec-h t-red">🏆 MVP — 상대 팀 최고의 활약</div><div class="vt-cands">${opp.map(x => voteCardHtml(x, 'mvp', nn(x) === nn(_pendMvp))).join('')}</div></div>`
-    + `<div class="vt-sec"><div class="vt-sec-h t-blue">💎 매너왕 — 우리 팀 매너</div><div class="vt-cands">${ours.map(x => voteCardHtml(x, 'manner', nn(x) === nn(_pendManner))).join('') || '<div class="vt-note">후보 없음</div>'}</div></div>`
+    `<div class="vt-sec"><div class="vt-sec-h mvp"><span class="lb-sec-en">MVP</span>상대 팀에서 제일 잘한 사람</div><div class="vt-cands">${opp.map(x => voteCardHtml(x, 'mvp', nn(x) === nn(_pendMvp))).join('')}</div></div>`
+    + `<div class="vt-sec"><div class="vt-sec-h manner"><span class="lb-sec-en">MANNER</span>우리 팀 매너왕</div><div class="vt-cands">${ours.map(x => voteCardHtml(x, 'manner', nn(x) === nn(_pendManner))).join('') || '<div class="vt-note">후보 없음</div>'}</div></div>`
     + `<button id="vt-cast" class="ui-btn-gold" ${ready ? '' : 'disabled'}>${ready ? '투표 확정' : 'MVP·매너왕을 각각 골라주세요'}</button>`;
   body.querySelectorAll('.vt-cand').forEach(btn => btn.onclick = () => {
     const name = btn.dataset.name;
@@ -225,20 +238,17 @@ function renderResult() {
   const s = sessionData, r = s.result || {}, g = s.game || {};
   const winA = g.winner === 'teamA';
   el('st-banner').className = 'st-banner ' + (winA ? 't1' : 't2');
-  el('st-banner').innerHTML = `<b>${winA ? '1팀' : '2팀'} 승리</b> · 오늘 ${(_today && _today.matches.length) || ''}${_today ? '번째 판' : ''}`;
+  el('st-banner').innerHTML = `<span class="lb-sec-en">RESULT</span><b>${winA ? '1팀' : '2팀'} 승리</b>${_today ? `<span>오늘 <span class="num">${_today.matches.length}</span>번째 판</span>` : ''}`;
   const aw = [];
-  if (r.mvp) aw.push(`<span class="st-aw"><b>🏆 MVP</b> ${esc(r.mvp)}</span>`);
-  if (r.svp) aw.push(`<span class="st-aw"><b>⭐ SVP</b> ${esc(r.svp)}</span>`);
-  if (r.manner) aw.push(`<span class="st-aw"><b>💎 매너</b> ${esc(r.manner)}</span>`);
+  if (r.mvp) aw.push(`<span class="st-aw"><b>MVP</b>${esc(r.mvp)}</span>`);
+  if (r.svp) aw.push(`<span class="st-aw"><b>SVP</b>${esc(r.svp)}</span>`);
+  if (r.manner) aw.push(`<span class="st-aw"><b>MANNER</b>${esc(r.manner)}</span>`);
   el('st-awards').innerHTML = aw.join('') || '<span class="st-aw">투표 없음</span>';
   const match = _today && _today.matches.find(m => String(m.gameId) === String(g.id));
-  const kda = name => {
-    const st = match && (match.stats || []).find(p => nn(p.summonerName).replace(/\s/g, '').toLowerCase() === nn(name).replace(/\s/g, '').toLowerCase());
-    return st ? `<span class="st-lp">${st.kills}/${st.deaths}/${st.assists}</span>` : '';
-  };
+  const kda = name => { const st = gameStat(name); return st ? `<span class="st-lp num">${st.kills}/${st.deaths}/${st.assists}</span>` : ''; };
   const badge = n => (nn(n) === nn(r.mvp) ? ' 🏆' : '') + (nn(n) === nn(r.svp) ? ' ⭐' : '') + (nn(n) === nn(r.manner) ? ' 💎' : '');
   const team = (names, isWin) => `<div class="st-team ${isWin ? 'win' : 'lose'}"><div class="st-team-h">${isWin ? '승리' : '패배'}</div><ul>${(names || []).map(n =>
-    `<li class="${nn(n) === nn(myName) ? 'me' : ''}"><span class="st-nm">${esc(n)}${badge(n)}</span>${kda(n)}</li>`).join('')}</ul></div>`;
+    `<li class="${nn(n) === nn(myName) ? 'me' : ''}">${champHtml(gameStat(n), 'st-ch')}<span class="st-nm">${esc(n)}${badge(n)}</span>${kda(n)}</li>`).join('')}</ul></div>`;
   el('st-teams').innerHTML = winA ? team(s.teamA, true) + team(s.teamB, false) : team(s.teamB, true) + team(s.teamA, false);
   el('st-close').onclick = () => { try { localStorage.setItem(seenKey(), '1'); } catch (_) {} render(); };
 }
@@ -263,14 +273,21 @@ async function lbAct(fn) {
   try { const r = await fn(); if (r && r.ok === false && r.err) lbErr(r.err); } catch (_) { lbErr('실패했어요'); }
   _lbBusy = false;
 }
+const SEATS = 10;   // 최대 5:5
+const iconUrl = id => id ? `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/profile-icons/${Number(id)}.jpg` : '';
+const champUrl = id => id ? `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${Number(id)}.png` : '';
+function avatar(m, cls) {
+  const ini = esc(String(m.name || '?').trim().charAt(0) || '?');
+  return `<span class="${cls}">${m.icon ? `<img src="${iconUrl(m.icon)}" alt="" onerror="this.remove()">` : ''}<i>${ini}</i></span>`;
+}
 function renderLobby() {
   const L = lobbyData || { members: [], mode: 'random', captains: {} };
   const M = L.members || [], caps = L.captains || {}, draft = L.mode === 'draft';
   const ins = M.filter(m => m.st === 'in'), specs = M.filter(m => m.st === 'spec'), none = M.filter(m => !m.st);
   const me = M.find(m => m.me);
-  el('lb-head').innerHTML = !myName ? '<span class="lobby-pulse"></span>롤 클라이언트에 로그인하면 자동으로 입장돼요'
-    : `<b>대기실</b><span class="lb-cnt">참가 ${ins.length} · 관전 ${specs.length}${none.length ? ` · 고르는 중 ${none.length}` : ''}</span>`
-      + `<span class="lb-host">${L.hostName ? `👑 ${esc(L.hostName)}` : '방장 없음'}</span>`;
+  el('lb-head').innerHTML = !myName ? '<span class="lb-wait"><span class="lobby-pulse"></span>롤 클라이언트에 로그인하면 자동으로 입장돼요</span>'
+    : `<span class="lb-title"><span class="lb-en">LOBBY</span><b>대기실</b></span>`
+      + `<span class="lb-host">${L.hostName ? `<em>방장</em>${esc(L.hostName)}` : '<em class="no">방장 없음</em>'}</span>`;
   document.querySelectorAll('.lb-seg').forEach(b => {
     b.classList.toggle('on', b.dataset.mode === L.mode);
     b.disabled = !myIsHost;
@@ -278,56 +295,63 @@ function renderLobby() {
   });
   const cb = el('lb-caps');
   cb.style.display = draft ? '' : 'none';
-  if (draft) cb.innerHTML = `<span class="lb-cap t1">1팀 팀장 <b>${caps.teamA ? esc(caps.teamA) : '—'}</b></span><span class="lb-cap t2">2팀 팀장 <b>${caps.teamB ? esc(caps.teamB) : '—'}</b></span>`
+  if (draft) cb.innerHTML = `<span class="lb-cap t1"><em>1팀 팀장</em><b>${caps.teamA ? esc(caps.teamA) : '미정'}</b></span><span class="lb-cap t2"><em>2팀 팀장</em><b>${caps.teamB ? esc(caps.teamB) : '미정'}</b></span>`
     + (myIsHost ? '<button id="lb-caprand" class="lb-mini">랜덤 팀장</button>' : '');
   const cr = el('lb-caprand'); if (cr) cr.onclick = () => lbAct(() => window.api.lobbyCaptain(null, true));
+  // 🪑 자리 10칸 — 참가한 사람 순서대로 앉고 나머지는 빈 자리
+  const capOf = n => nn(n) === nn(caps.teamA) ? 1 : nn(n) === nn(caps.teamB) ? 2 : 0;
+  el('lb-seat-cnt').innerHTML = `<b>${Math.min(ins.length, SEATS)}</b> / ${SEATS}${ins.length > SEATS ? ` <em>+${ins.length - SEATS}명 대기</em>` : ''}`;
+  const seat = (m, i) => {
+    const no = String(i + 1).padStart(2, '0');
+    if (!m) return `<div class="seat empty"><span class="seat-no">${no}</span><span class="seat-av"></span><span class="seat-main"><b>빈 자리</b></span></div>`;
+    const st = _standing(m.name), cap = capOf(m.name);
+    const tags = (m.host ? '<span class="seat-tag host">방장</span>' : '') + (cap ? `<span class="seat-tag c${cap}">${cap}팀 팀장</span>` : '');
+    const ctl = myIsHost ? ((draft ? `<button class="seat-btn cap${cap ? ' on' : ''}" data-cap="${esc(m.name)}" title="팀장 지정/해제">팀장</button>` : '')
+      + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="${m.guest ? '목록에서 빼기' : '관전으로 보내기'}">${m.guest ? '✕' : '↓'}</button>` : '')) : '';
+    return `<div class="seat filled${m.me ? ' me' : ''}${cap ? ' cap' + cap : ''}">`
+      + `<span class="seat-no">${no}</span>${avatar(m, 'seat-av')}`
+      + `<span class="seat-main"><b class="lb-nm" data-pk="${esc(m.key)}" title="프로필 보기">${esc(m.name)}</b><small>${m.guest ? '앱 없음' : m.online ? '' : '오프라인'}${st ? `${m.guest || !m.online ? ' · ' : ''}<span class="num">${st.wins}승 ${st.losses}패</span>` : ''}</small></span>`
+      + (tags ? `<span class="seat-tags">${tags}</span>` : '') + (ctl ? `<span class="seat-ctl">${ctl}</span>` : '') + '</div>';
+  };
+  el('lb-seats').innerHTML = Array.from({ length: SEATS }, (_, i) => seat(ins[i], i)).join('');
   el('lb-me').style.display = myName ? '' : 'none';
   document.querySelectorAll('.lb-mebtn').forEach(b => {
     const on = !!(me && me.st === b.dataset.st);
     b.classList.toggle('on', on);
-    b.textContent = b.dataset.st === 'in' ? (on ? '✓ 참가' : '참가할게요') : (on ? '✓ 관전' : '관전할게요');
+    b.innerHTML = b.dataset.st === 'in' ? (on ? '<span>✓</span> 참가 중' : '참가할게요') : (on ? '<span>✓</span> 관전 중' : '관전할게요');
     b.onclick = () => lbAct(() => window.api.lobbyMe(on ? null : b.dataset.st));
   });
-  const capOf = n => nn(n) === nn(caps.teamA) ? 1 : nn(n) === nn(caps.teamB) ? 2 : 0;
-  const row = m => {
-    const st = _standing(m.name), cap = capOf(m.name);
-    const stLabel = m.st === 'in' ? '참가' : m.st === 'spec' ? '관전' : '고르는 중';
-    const pill = myIsHost && !m.me ? `<button class="lb-pill ${m.st || 'none'}" data-k="${esc(m.key)}" title="눌러서 바꾸기(참가 → 관전 → 빼기)">${stLabel}</button>` : `<span class="lb-pill ${m.st || 'none'}">${stLabel}</span>`;
-    const capBtn = draft && myIsHost && m.st === 'in' ? `<button class="lb-mini lb-capbtn${cap ? ' on' : ''}" data-n="${esc(m.name)}">${cap ? cap + '팀 팀장' : '팀장'}</button>` : (cap ? `<span class="lb-capb t${cap}">${cap}팀 팀장</span>` : '');
-    return `<div class="lb-row ${m.st || 'none'}${m.me ? ' me' : ''}"><i class="lb-dot${m.online ? ' on' : ''}" title="${m.online ? '앱 접속 중' : '앱 없음(방장이 추가)'}"></i>`
-      + `<span class="lb-nm" data-pk="${esc(m.key)}" title="프로필 보기">${esc(m.name)}${m.tag ? `<small>#${esc(m.tag)}</small>` : ''}${m.host ? ' <span class="lb-crown">👑</span>' : ''}</span>`
-      + (st ? `<span class="lb-rec">${st.wins}승 ${st.losses}패</span>` : '') + capBtn + pill
-      + (myIsHost && m.guest ? `<button class="lb-x" data-g="${esc(m.key)}" title="목록에서 빼기">✕</button>` : '') + '</div>';
-  };
-  el('lb-list').innerHTML = M.length ? M.map(row).join('')
-    : '<div class="lb-empty">아직 아무도 없어요<br><small>팀원이 앱을 켜고 롤에 로그인하면 여기에 떠요</small></div>';
-  const next = { in: 'spec', spec: null, none: 'in' };
-  el('lb-list').querySelectorAll('button.lb-pill').forEach(b => b.onclick = () => {
-    const m = M.find(x => x.key === b.dataset.k); if (!m) return;
-    lbAct(() => window.api.lobbySet(m.key, next[m.st || 'none']));
-  });
-  el('lb-list').querySelectorAll('.lb-capbtn').forEach(b => b.onclick = () => lbAct(() => window.api.lobbyCaptain(b.dataset.n, false)));
-  el('lb-list').querySelectorAll('.lb-nm').forEach(n => n.onclick = () => {
+  // 자리에 없는 사람: 아직 고르는 중 · 관전
+  const chip = m => `<span class="lb-chip ${m.st || 'none'}${m.me ? ' me' : ''}">${avatar(m, 'chip-av')}<b class="lb-nm" data-pk="${esc(m.key)}">${esc(m.name)}</b>`
+    + (myIsHost && !m.me ? `<button class="seat-btn in" data-in="${esc(m.key)}" title="참가로">＋</button>` : '')
+    + (myIsHost && m.guest ? `<button class="seat-btn out" data-rm="${esc(m.key)}" title="목록에서 빼기">✕</button>` : '') + '</span>';
+  const others = [];
+  if (none.length) others.push(`<div class="lb-others"><span class="lb-ol">고르는 중 <b>${none.length}</b></span>${none.map(chip).join('')}</div>`);
+  if (specs.length) others.push(`<div class="lb-others"><span class="lb-ol">관전 <b>${specs.length}</b></span>${specs.map(chip).join('')}</div>`);
+  el('lb-list').innerHTML = others.join('') || (M.length ? '' : '<div class="lb-empty">아직 아무도 없어요<br><small>팀원이 앱을 켜고 롤에 로그인하면 여기에 떠요</small></div>');
+  const root = el('view-lobby');
+  root.querySelectorAll('[data-cap]').forEach(b => b.onclick = () => lbAct(() => window.api.lobbyCaptain(b.dataset.cap, false)));
+  root.querySelectorAll('[data-out]').forEach(b => b.onclick = () => { const m = M.find(x => x.key === b.dataset.out); if (m) lbAct(() => m.guest ? window.api.lobbyGuestRm(m.key) : window.api.lobbySet(m.key, 'spec')); });
+  root.querySelectorAll('[data-in]').forEach(b => b.onclick = () => lbAct(() => window.api.lobbySet(b.dataset.in, 'in')));
+  root.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => lbAct(() => window.api.lobbyGuestRm(b.dataset.rm)));
+  root.querySelectorAll('.lb-nm').forEach(n => n.onclick = () => {
     const m = M.find(x => x.key === n.dataset.pk); if (!m) return;
     window.api.openProfile(m.guest ? { name: m.name } : { puuid: m.key, name: m.name });
   });
-  el('lb-list').querySelectorAll('.lb-x').forEach(b => b.onclick = () => lbAct(() => window.api.lobbyGuestRm(b.dataset.g)));
   // 👑 방장: 추가·시작 / 나머지: 안내
   el('lb-hostbox').style.display = myIsHost ? '' : 'none';
   const n = ins.length, capsOk = !draft || (caps.teamA && caps.teamB);
   const go = el('lb-start');
   go.disabled = n < 4 || !capsOk;
-  go.textContent = n < 4 ? `참가 ${n}명 · 4명부터 시작할 수 있어요` : !capsOk ? '팀장 2명을 정해주세요' : draft ? `드래프트 시작 · ${n}명` : `랜덤 팀 구성 · ${n}명`;
-  el('lb-foot').innerHTML = myIsHost ? (n > 10 || n % 2 ? '<span>11명 이상·홀수면 남는 사람은 관전으로 빠져요</span>' : '')
-    : !myName ? '' : L.hostName ? `<span class="lobby-pulse"></span>${esc(L.hostName)}님이 시작하면 바로 팀이 떠요` : '방장이 없어요 · 오른쪽 창 위 「👑 방장 하기」로 맡을 수 있어요';
+  go.textContent = n < 4 ? `4명부터 시작할 수 있어요 · 지금 ${n}명` : !capsOk ? '팀장 2명을 정해주세요' : draft ? `드래프트 시작 · ${n}명` : `랜덤으로 팀 짜기 · ${n}명`;
+  el('lb-foot').innerHTML = myIsHost ? (n > 10 || n % 2 ? '<span>11명 이상이거나 홀수면 남는 사람은 관전으로 빠져요</span>' : '')
+    : !myName ? '' : L.hostName ? `<span class="lobby-pulse"></span>${esc(L.hostName)}님이 시작하면 바로 팀이 떠요` : '방장이 없어요 · 오른쪽 창 위 「방장 하기」로 맡을 수 있어요';
   // 오늘 순위(짧게)
   loadToday();
   const t = el('lb-today');
   if (!_today || !_today.standings.length) { t.innerHTML = ''; return; }
-  t.innerHTML = `<div class="wi-sec-h">오늘 순위 · ${_today.matches.length}판</div><div class="wi-rk">` + _today.standings.slice(0, 5).map(p => {
-    const medal = p.rank <= 3 ? ['🥇', '🥈', '🥉'][p.rank - 1] : `<b>${p.rank}</b>`;
-    return `<div class="wi-rk-row${nn(p.name) === nn(myName) ? ' me' : ''}"><span class="wi-rk-r">${medal}</span><span class="wi-rk-nm">${esc(p.name)}</span><span class="wi-rk-lp">${p.wins}승 ${p.losses}패</span></div>`;
-  }).join('') + '</div>';
+  t.innerHTML = `<div class="lb-sec"><span class="lb-sec-en">TODAY</span><span>오늘 순위 · <span class="num">${_today.matches.length}</span>판</span></div><div class="wi-rk">` + _today.standings.slice(0, 5).map(p =>
+    `<div class="wi-rk-row${nn(p.name) === nn(myName) ? ' me' : ''}"><span class="wi-rk-r num">${p.rank}</span><span class="wi-rk-nm">${esc(p.name)}</span><span class="wi-rk-lp"><span class="num">${p.wins}</span>승 <span class="num">${p.losses}</span>패</span></div>`).join('') + '</div>';
 }
 el('lb-start').onclick = () => lbAct(() => window.api.lobbyStart());
 function lbAddGuest() { const i = el('lb-add'), v = i.value.trim(); if (!v) return; i.value = ''; lbAct(() => window.api.lobbyGuest(v)); }

@@ -423,10 +423,10 @@ async function pollAccount() {
   if (basePort) {
     try {
       const me = await lcu('/lol-summoner/v1/current-summoner');
-      if (me && me.puuid) acc = { puuid: me.puuid, gameName: String(me.gameName || me.displayName || '').trim(), tagLine: String(me.tagLine || '').trim() };
+      if (me && me.puuid) acc = { puuid: me.puuid, gameName: String(me.gameName || me.displayName || '').trim(), tagLine: String(me.tagLine || '').trim(), iconId: me.profileIconId || null };
     } catch (_) {}
   }
-  const key = acc ? acc.puuid + '|' + acc.gameName + '|' + acc.tagLine : null;
+  const key = acc ? acc.puuid + '|' + acc.gameName + '|' + acc.tagLine + '|' + (acc.iconId || '') : null;
   if (key !== _acctKey) { _acctKey = key; try { _onAccount(acc); } catch (_) {} }
 }
 

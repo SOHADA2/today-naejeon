@@ -1,28 +1,43 @@
 /* ════════════════════════════════════════════════════════════════════════
-   공통 디자인 토큰 — 오버레이(인게임)·데스크톱(로그인/팀짜기/투표) 두 창 공유
-   기준 = 홈페이지 팀발표 감성(청록 1팀 · 골드 2팀 · Black Han Sans · JetBrains Mono)
-   각 창 CSS(overlay.css/desktop.css)보다 먼저 로드 → 여기서 색·폰트·공통 컴포넌트 정의,
-   각 창은 자기 배경(오버레이=투명/데스크톱=불투명)만 따로. 새 화면은 이 토큰을 재사용할 것.
+   투데이 내전 공통 디자인 토큰 (v0.1.9 리디자인)
+   방향 = 롤 클라이언트 옆에 붙는 「헥스텍 매치 로비」: 짙은 남색 바탕 · 금색 가는 선 · 비스듬히 자른 모서리
+   팀 색 = 롤과 같은 1팀 파랑 / 2팀 빨강 (금색은 방장·강조 전용, 청록은 완료·참가 확인 전용 — 역할 겹치지 말 것)
+   글꼴 = 앱에 넣은 파일(assets/fonts) → 인터넷·PC 설정과 무관하게 똑같이 보임
+     · Pretendard: 모든 한글  · Barlow Condensed: 숫자·짧은 영문 라벨(LOBBY·TEAM 1·타이머)
+   ⚠️ 무한 애니메이션 금지(투명 창 CPU 폭증 — CLAUDE.md 성능 규칙)
    ════════════════════════════════════════════════════════════════════════ */
+@font-face { font-family:'Pretendard'; src:url('assets/fonts/PretendardVariable.woff2') format('woff2-variations'); font-weight:45 920; font-display:block; }
+@font-face { font-family:'Barlow Condensed'; src:url('assets/fonts/BarlowCondensed-600.woff2') format('woff2'); font-weight:600; font-display:block; }
+@font-face { font-family:'Barlow Condensed'; src:url('assets/fonts/BarlowCondensed-700.woff2') format('woff2'); font-weight:700; font-display:block; }
 :root {
-  /* 🎨 롤 클라이언트 헥스텍 팔레트에 맞춤(다크블루+골드+청록+탄) */
-  --teal:#0AC8B9;  --teal-soft:rgba(10,200,185,0.14);  --teal-line:rgba(10,200,185,0.55);
-  --gold:#C8AA6E;  --gold-soft:rgba(200,170,110,0.14);  --gold-line:rgba(120,90,40,0.62);
-  --gold-btn2:#C89B3C;   /* 골드 버튼 그라데이션 하단(헥스텍 골드) */
-  /* 중립 — 헥스텍 탄/그레이 */
-  --dim:#A09B8C;  --ink:#F0E6D2;  --ink-soft:#CDBE91;
-  --win:#0AC8B9;  --lose:#E84057;
-  /* 카드/라인 — 헥스텍 딥블루 */
-  --card-bg:linear-gradient(160deg, rgba(10,22,40,0.92), rgba(3,11,20,0.96));
-  --card-line:rgba(120,90,40,0.55);
-  --hair:rgba(200,170,110,0.09);
-  /* 폰트 */
-  --f-body:'Noto Sans KR','Pretendard','Segoe UI',system-ui,sans-serif;
-  --f-title:'Noto Sans KR',sans-serif;   /* 가독성 위해 Black Han Sans(두꺼운 디스플레이) → Noto 900. 사용처에서 font-weight:900 지정 */
-  --f-mono:'JetBrains Mono',monospace;
+  /* 바탕 — 롤 클라 로비보다 한 톤 깊게 */
+  --bg-0:#060b10; --bg-1:#0b131a; --bg-2:#111b24; --bg-3:#18242f;
+  /* 선 */
+  --line:rgba(200,170,110,0.16); --line-2:rgba(200,170,110,0.34); --line-3:#785A28; --hair:rgba(255,255,255,0.06);
+  /* 글자 */
+  --ink:#F0E6D2; --ink-soft:#C9BC9C; --dim:#8D897C; --mute:#5B5E63;
+  /* 금색 = 방장·강조·주 버튼 */
+  --gold:#C8AA6E; --gold-hi:#F0D79A; --gold-btn2:#A8822E; --gold-soft:rgba(200,170,110,0.12); --gold-line:rgba(200,170,110,0.42);
+  /* 팀 = 롤과 같은 파랑/빨강 */
+  --t1:#4AA8FF; --t1-soft:rgba(74,168,255,0.12); --t1-line:rgba(74,168,255,0.5);
+  --t2:#FF5A6E; --t2-soft:rgba(255,90,110,0.11); --t2-line:rgba(255,90,110,0.48);
+  /* 상태 */
+  --teal:#0AC8B9; --teal-soft:rgba(10,200,185,0.13); --teal-line:rgba(10,200,185,0.5);
+  --win:#0AC8B9; --lose:#E84057; --online:#3DDC84;
+  /* 호환(옛 이름) */
+  --card-bg:linear-gradient(160deg, rgba(14,24,33,0.95), rgba(7,13,19,0.97)); --card-line:var(--line-2);
+  /* 글꼴 */
+  --f-body:'Pretendard','Malgun Gothic',system-ui,sans-serif;
+  --f-title:'Pretendard','Malgun Gothic',sans-serif;
+  --f-num:'Barlow Condensed','Pretendard',sans-serif;
+  --f-mono:'Barlow Condensed','Pretendard',sans-serif;
+  /* 비스듬히 자른 모서리(롤 클라 버튼·패널) */
+  --cut:polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+  --cut-sm:polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
 }
-
 * { box-sizing:border-box; margin:0; padding:0; }
+body, button, input, select, textarea { font-family:var(--f-body); }
+body { -webkit-font-smoothing:antialiased; font-feature-settings:'tnum' 0; letter-spacing:-0.01em; }
 
 /* ── 공통 컴포넌트 (양 창 재사용) ────────────────────────────────────── */
 
@@ -30,13 +45,15 @@
 .ui-card { background:var(--card-bg); border:1px solid var(--card-line); border-radius:14px; }
 
 /* 버튼 */
-.ui-btn-gold { padding:12px; border:none; border-radius:11px; font-size:14px; font-weight:800; cursor:pointer;
-  font-family:var(--f-body); color:#1a1206;
-  background:linear-gradient(135deg, var(--gold-btn2), var(--gold)); box-shadow:0 6px 18px rgba(230,180,70,0.28); }
-.ui-btn-gold:disabled { opacity:0.4; cursor:default; box-shadow:none; }
+.ui-btn-gold { padding:12px; border:none; font-size:14px; font-weight:800; letter-spacing:0; cursor:pointer; color:#1a1206;
+  background:linear-gradient(180deg, var(--gold-hi) 0%, var(--gold) 45%, var(--gold-btn2) 100%); clip-path:var(--cut); }
+.ui-btn-gold:hover:not(:disabled) { filter:brightness(1.07); }
+.ui-btn-gold:disabled { cursor:default; color:var(--dim); background:var(--bg-3); }
 .ui-btn-gold:not(:disabled):active { transform:translateY(1px); }
-.ui-btn-ghost { padding:11px; border:1px solid var(--gold-line); border-radius:11px; font-size:13px; font-weight:700;
-  cursor:pointer; font-family:var(--f-body); background:rgba(232,200,74,0.07); color:#ffe39a; }
+.ui-btn-ghost { padding:11px; font-size:13px; font-weight:700; cursor:pointer; color:var(--gold-hi);
+  background:rgba(200,170,110,0.06); border:1px solid var(--gold-line); clip-path:var(--cut); }
+.ui-btn-ghost:hover:not(:disabled) { background:rgba(200,170,110,0.12); }
+.ui-btn-ghost:disabled { opacity:0.45; cursor:default; }
 .ui-btn-ghost:active { transform:translateY(1px); }
 
 /* 배지(LP·티어·카운트 등) */
@@ -47,7 +64,7 @@
 .ui-lp.none { background:rgba(255,255,255,0.08); color:#7a8092; }
 
 /* 팀 색 유틸 — 텍스트/보더에 팀 색 (블루=1팀, 레드=2팀) */
-.t-blue { color:var(--teal); } .t-red { color:var(--gold); }
+.t-blue { color:var(--t1); } .t-red { color:var(--t2); }
 
 /* 스크롤바 */
 .ui-scroll::-webkit-scrollbar { width:6px; }
@@ -64,11 +81,11 @@
   box-shadow:0 18px 54px rgba(0,0,0,0.72); animation:uimIn .14s ease; }
 @keyframes uimIn { from { transform:translateY(8px) scale(0.97); opacity:0; } to { transform:none; opacity:1; } }
 .ui-modal-body { padding:18px 18px 15px; }
-.ui-modal .uim-line { font-family:'Noto Sans KR',sans-serif; font-size:12px; color:#cdbe91; line-height:1.6; text-align:center; word-break:keep-all; }
-.ui-modal .uim-line.uim-h { font-family:'Noto Sans KR',sans-serif; font-size:14px; font-weight:700; color:#F0E6D2; margin-bottom:7px; }
+.ui-modal .uim-line { font-family:var(--f-body); font-size:12px; color:#cdbe91; line-height:1.6; text-align:center; word-break:keep-all; }
+.ui-modal .uim-line.uim-h { font-family:var(--f-body); font-size:14px; font-weight:700; color:#F0E6D2; margin-bottom:7px; }
 .ui-modal-btns { display:flex; border-top:1px solid rgba(120,90,40,0.45); }
 .ui-modal-btns button { -webkit-app-region:no-drag; flex:1; padding:12px 8px; border:none; cursor:pointer;
-  font-family:'Noto Sans KR',sans-serif; font-size:13px; font-weight:700; transition:.1s; }
+  font-family:var(--f-body); font-size:13px; font-weight:700; transition:.1s; }
 .ui-modal-btns .uim-cancel { background:rgba(255,255,255,0.05); color:#a09b8c; }
 .ui-modal-btns .uim-cancel:hover { background:rgba(255,255,255,0.09); color:#fff; }
 .ui-modal-btns .uim-ok { background:linear-gradient(180deg,#c8aa6e,#a3833f); color:#1a1206; border-left:1px solid rgba(120,90,40,0.5); }

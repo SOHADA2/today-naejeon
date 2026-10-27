@@ -97,3 +97,22 @@
 .pf-rk { flex-shrink:0; min-width:44px; text-align:right; font-family:var(--f-mono); font-size:10px; color:var(--dim); }
 .pf-g.w { border-left:2px solid var(--win); } .pf-g.l { border-left:2px solid var(--lose); }
 .pf-wl { flex-shrink:0; width:16px; font-weight:900; font-size:11px; } .pf-g.w .pf-wl { color:var(--win); } .pf-g.l .pf-wl { color:var(--lose); }
+/* v0.1.9 리디자인 — 왼쪽 창과 같은 머리·버튼 */
+.s-brand { display:flex; align-items:center; gap:9px; min-width:0; }
+.s-brand-mk { width:24px; height:24px; color:var(--gold); flex-shrink:0; }
+.s-brand-tx { display:flex; flex-direction:column; line-height:1.1; }
+.s-brand-en { font-family:var(--f-num); font-weight:700; font-size:9.5px; letter-spacing:0.22em; color:var(--gold); opacity:0.8; }
+#sbar .s-ttl { font-size:16px; font-weight:800; letter-spacing:-0.02em; color:var(--ink); text-shadow:none; }
+#sbar .s-me { font-size:13px; font-weight:700; }
+.s-hostbtn { padding:5px 11px; font-size:12px; clip-path:var(--cut-sm); border-color:var(--gold-line); color:var(--gold-hi); background:var(--gold-soft); }
+.s-hostbtn.on { color:#1a1206; background:linear-gradient(180deg, var(--gold-hi), var(--gold)); border-color:var(--gold); }
+.s-hostbtn.busy { background:transparent; }
+.pf-head, .pf-big > div, .pf-grid > div { clip-path:var(--cut-sm); }
+.pf-nm { font-size:18px; font-weight:800; letter-spacing:-0.02em; }
+.pf-big b, .pf-grid b { font-size:14px; }
+.td-table td { font-family:var(--f-num); font-size:13px; }
+.td-table td.n { font-family:var(--f-body); }
+#sbar { gap:8px; }
+.s-brand-tx, .s-hostbtn { white-space:nowrap; }
+.s-brand-en { font-size:9px; letter-spacing:0.16em; }
+#sbar .s-me { min-width:0; flex:0 1 auto; }

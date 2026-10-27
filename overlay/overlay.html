@@ -3,16 +3,13 @@
 <head>
   <meta charset="utf-8">
   <title>투데이 내전</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@600&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared.css">
   <link rel="stylesheet" href="overlay.css">
 </head>
 <body>
   <div id="panel">
     <header id="bar">
-      <span class="ttl">투데이 내전</span>
+      <span class="brand"><svg class="brand-mk" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5 21.1 6.75v10.5L12 22.5 2.9 17.25V6.75Z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 6.5 16.8 9.25v5.5L12 17.5 7.2 14.75v-5.5Z" fill="currentColor" opacity=".9"/></svg><span class="brand-tx"><span class="brand-en">TODAY NAEJEON</span><span class="ttl">투데이 내전</span></span></span>
       <span id="phase" class="phase">대기</span>
       <button id="ov-min" class="win-btn" title="최소화">–</button>
       <button id="close" class="win-btn" title="닫기 (Shift+F7)">✕</button>
@@ -75,8 +72,10 @@
     <!-- 🚪 대기실 — 접속한 사람 모두가 같은 화면 -->
     <section id="view-lobby" class="view ui-scroll" style="display:none;">
       <div id="lb-head" class="lb-head"></div>
-      <div class="lb-mode"><span class="lb-mode-l">이번 판</span><button class="lb-seg" data-mode="random">랜덤</button><button class="lb-seg" data-mode="draft">드래프트</button></div>
+      <div class="lb-mode"><span class="lb-mode-l">이번 판 방식</span><button class="lb-seg" data-mode="random">랜덤</button><button class="lb-seg" data-mode="draft">드래프트</button></div>
       <div id="lb-caps" class="lb-caps" style="display:none;"></div>
+      <div class="lb-sec"><span class="lb-sec-en">ROOM</span><span id="lb-seat-cnt"></span></div>
+      <div id="lb-seats" class="lb-seats"></div>
       <div id="lb-me" class="lb-me"><button class="lb-mebtn in" data-st="in">참가할게요</button><button class="lb-mebtn spec" data-st="spec">관전할게요</button></div>
       <div id="lb-list" class="lb-list"></div>
       <div id="lb-hostbox" class="lb-hostbox" style="display:none;">
