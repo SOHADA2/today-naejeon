@@ -5,12 +5,13 @@
 //  ② 고르기(방장 앱): 몰아친 킬(10초 안) · 솔로킬 · 에이스 · 퍼블 · 오브젝트 스틸 · 낮은 체력으로 점수 → session.potg
 //     ⚠️ 딜량은 게임 중엔 롤이 안 알려줌 → 장면 고르기엔 못 씀(판 전체 딜량은 정산 기록에 있음)
 //  ③ 영상(선택): today/clips/{day}/{gameId} = 512KB 조각(base64) — 리플레이 녹화가 붙으면 방장이 올림(지금은 개발용 TN_FAKE_CLIP만)
-//  ④ 정리: today/clips·today/potg/raw 는 **그날만** — 앱이 켜질 때·30분마다 다른 날 것을 지움. 각자 「내 컴퓨터에 저장」으로 소장
+//  ④ 정리: today/clips·today/potg/raw 는 **3일**(오늘·어제·그제, v0.1.31) — 앱이 켜질 때·30분마다 그보다 오래된 날을 지움. 각자 「내 컴퓨터에 저장」으로 소장
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
 const CHUNK = 512 * 1024;        // 영상 조각 크기(base64 전) — Firebase 한 번 쓰기 부담 줄이기
+const KEEP_DAYS = 3;             // 영상·수집 보관 일수(오늘 포함 · 하루 = 새벽 6시 기준)
 const MULTI_GAP = 10;            // 이 초 안에 이어진 킬 = 한 장면(롤 멀티킬 기준과 같음)
 const KEEP_EVENTS = ['ChampionKill', 'Multikill', 'Ace', 'FirstBlood', 'DragonKill', 'BaronKill', 'HeraldKill', 'HordeKill', 'AtakhanKill', 'InhibKilled', 'TurretKilled', 'GameEnd'];
 const MULTI_LABEL = ['', '킬', '더블킬', '트리플킬', '쿼드라킬', '펜타킬'];
@@ -166,15 +167,15 @@ module.exports = function makePotg(d) {
     return f;
   }
 
-  // ── ④ 정리: 다른 날 영상·수집 지우기 + 내 PC 임시 영상 2일 지난 것 ─────────────
+  // ── ④ 정리: 3일 지난 영상·수집 지우기 + 내 PC 임시 영상도 3일 지난 것 ─────────────
   async function cleanup() {
-    const today = d.dayKey();
+    const oldest = d.dayKey(Date.now() - (KEEP_DAYS - 1) * 86400000);   // 이 날짜보다 앞이면 삭제(YYYY-MM-DD 문자열 비교)
     for (const root of ['clips', 'potg/raw']) {
       const days = await d.getJson(`${d.FIREBASE_DB}/${d.T}/${root}.json?shallow=true`);
       if (!days || typeof days !== 'object') continue;
-      for (const day of Object.keys(days)) if (day !== today) { await d.fbDelete(`${d.T}/${root}/${day}`); log(`지난 ${root} 삭제: ${day}`); }
+      for (const day of Object.keys(days)) if (day < oldest) { await d.fbDelete(`${d.T}/${root}/${day}`); log(`지난 ${root} 삭제: ${day}`); }
     }
-    try { for (const f of fs.readdirSync(clipDir())) { const p = path.join(clipDir(), f); if (Date.now() - fs.statSync(p).mtimeMs > 2 * 86400000) fs.unlinkSync(p); } } catch (_) {}
+    try { for (const f of fs.readdirSync(clipDir())) { const p = path.join(clipDir(), f); if (Date.now() - fs.statSync(p).mtimeMs > KEEP_DAYS * 86400000) fs.unlinkSync(p); } } catch (_) {}
   }
 
   return { startCollect, stopCollect, pickPotg, readRaws, uploadClip, getClip, cleanup, extOf, _pick: pickPotg };
