@@ -18,5 +18,7 @@ jobs:
           node-version: 20
       - name: 팟지 점검
         run: TZ=Asia/Seoul node tools/potg-report.cjs $(head -1 tools/.potg-check | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}' || true)
+      - name: 날짜별 경기 기록
+        run: TZ=Asia/Seoul node tools/days-report.cjs
       - name: 리플레이 확인
         run: TZ=Asia/Seoul node tools/replay-report.cjs
