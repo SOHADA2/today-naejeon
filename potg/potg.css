@@ -30,31 +30,37 @@ html, body { height:100%; background:var(--bg-0); color:var(--ink); overflow:hid
 /* 장면 */
 .pg-stage { position:relative; flex:1; min-height:0; display:flex; align-items:center; justify-content:center; background:#000; }
 .pg-vwrap { position:absolute; inset:0; overflow:hidden; }
+.pg-canvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
 .pg-video { width:100%; height:100%; object-fit:cover; background:#000; transform-origin:50% 50%; will-change:transform; }
 /* 🎬 편집 연출(v0.1.35) — 시네마 띠·비네트·킬 순간 섬광·킬 피드·멀티킬 글자·이름표 · 전부 한 번만 재생 */
 .pg-fx { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
 .pg-bar { position:absolute; left:0; right:0; height:7%; background:#000; transform:scaleY(0); }
 .pg-bar.top { top:0; transform-origin:top; } .pg-bar.bot { bottom:0; transform-origin:bottom; }
-.pg-vig { position:absolute; inset:0; background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%); opacity:0; }
+.pg-vig { display:none; }   /* v0.1.38: 비네트는 WebGL 셰이더가 함 */
 .pg-flash { position:absolute; inset:0; background:#fff; opacity:0; mix-blend-mode:screen; }
 .pg-feed { position:absolute; top:calc(7% + 10px); right:12px; display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
-.pg-fk { display:flex; align-items:center; gap:7px; padding:4px 10px 4px 4px; background:rgba(6,11,16,0.82); border-right:3px solid var(--tc); clip-path:var(--cut-sm); }
-.pg-fk .pg-av { width:30px; height:30px; border-width:1px; }
-.pg-fk .vic { filter:grayscale(0.9) brightness(0.75); border-color:var(--line-2); }
-.pg-fk .sw { font-size:13px; color:var(--tc); font-weight:800; }
-.pg-fk span { max-width:120px; font-size:12px; font-weight:700; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pg-kb { position:absolute; left:0; right:0; top:58%; display:flex; justify-content:center; }
-.pg-kbt { font-family:var(--f-title); font-weight:900; font-size:clamp(28px, 6vw, 58px); letter-spacing:0.04em; color:#fff; white-space:nowrap;
-  text-shadow:0 0 18px var(--tc), 0 3px 0 rgba(0,0,0,0.6); }
-.pg-kbt.final { font-size:clamp(34px, 7.4vw, 72px); color:var(--tc); text-shadow:0 0 24px rgba(0,0,0,0.9), 0 3px 0 rgba(0,0,0,0.7); }
-.pg-kbf { display:flex; flex-direction:column; align-items:center; gap:4px; }
-.pg-kbs { font-size:15px; font-weight:800; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,0.9); white-space:nowrap; }
+.pg-fk { display:flex; align-items:center; gap:6px; padding:3px 10px 3px 3px; background:linear-gradient(90deg, rgba(4,8,12,0.88), rgba(4,8,12,0.7)); border-right:3px solid var(--tc); }
+.pg-fk .pg-av { width:28px; height:28px; border-width:1px; }
+.pg-fk .vic { filter:grayscale(1) brightness(0.7); border-color:rgba(255,255,255,0.25); }
+.pg-fk .sw { width:14px; height:3px; background:var(--tc); transform:skewX(-30deg); }
+.pg-fk span { max-width:120px; font-size:12px; font-weight:700; color:rgba(255,255,255,0.85); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-decoration:line-through; text-decoration-color:rgba(255,255,255,0.35); }
+/* 킬 글자(v0.1.38) = e스포츠 하이라이트식: 큰 영문(Barlow Condensed·기울임) + 작은 한글 · 「쾅」 들어올 때만 RGB 갈라짐 */
+.pg-kb { position:absolute; left:0; right:0; top:62%; display:flex; justify-content:center; transition:top .2s; }
+.pg-kb.final { top:50%; transform:translateY(-50%); }
+.pg-kbt { display:flex; flex-direction:column; align-items:center; gap:2px; }
+.pg-kbt .en { font-family:var(--f-num); font-weight:700; font-size:clamp(30px, 6.2vw, 58px); line-height:0.95; letter-spacing:0.02em; color:#fff; white-space:nowrap;
+  transform:skewX(-10deg); -webkit-text-stroke:1px rgba(0,0,0,0.35); filter:drop-shadow(0 3px 0 rgba(0,0,0,0.55)) drop-shadow(0 0 14px rgba(0,0,0,0.5)); }
+.pg-kbt .ko { display:flex; align-items:center; gap:8px; padding:2px 12px; font-size:13px; font-weight:800; letter-spacing:0.08em; color:#fff; background:var(--tc); transform:skewX(-10deg); white-space:nowrap; }
+.pg-kbt .ko em { font-style:normal; font-weight:700; color:rgba(255,255,255,0.85); padding-left:8px; border-left:1px solid rgba(255,255,255,0.5); }
+.pg-kbt.final .en { font-size:clamp(44px, 10vw, 104px); }
+.pg-kbt.final .ko { font-size:15px; padding:3px 16px; }
 .pg-tag { position:absolute; left:14px; bottom:calc(7% + 12px); display:flex; align-items:center; gap:10px; max-width:70%; padding:6px 16px 6px 6px;
   background:linear-gradient(90deg, rgba(6,11,16,0.9), rgba(6,11,16,0.55)); border-left:3px solid var(--tc); clip-path:var(--cut-sm); opacity:0; }
 .pg-tag .pg-av { width:38px; height:38px; }
 .pg-tag div { min-width:0; display:flex; flex-direction:column; }
 .pg-tag small { font-family:var(--f-num); font-weight:700; font-size:11px; letter-spacing:0.16em; color:var(--gold); }
 .pg-tag b { font-size:16px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pg-tag i { font-style:normal; font-size:11px; color:rgba(255,255,255,0.7); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .pg-wait { position:absolute; font-size:14px; color:var(--dim); }
 .pg-card { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:20px;
   background:radial-gradient(90% 70% at 50% 40%, #0f1d28 0%, var(--bg-0) 75%); }
