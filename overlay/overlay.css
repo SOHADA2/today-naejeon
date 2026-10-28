@@ -371,3 +371,13 @@ header .phase, header .win-btn { flex-shrink:0; }
   background:radial-gradient(60% 18% at 50% 92%, rgba(200,170,110,0.16), transparent 70%); }
 .coin-layer.cn3d .cn-shadow, .coin-layer.cn3d .cn-pos { display:none; }
 .cn-3d { position:absolute; inset:0; width:100% !important; height:100% !important; display:block; }
+
+/* 🪙 3D(v0.1.22): 무대를 남는 높이 전부로(발끝까지 크게) · 결과 글자는 무대 아래쪽 위에 겹쳐 뜸 · 사미라는 서서히 등장 */
+.cn-sub { display:none; font-size:11.5px; color:var(--ink-soft); }
+.coin-layer.cn3d .cn-sub { display:block; }
+.coin-layer.cn3d { justify-content:flex-start; }
+.coin-layer.cn3d .cn-stage { flex:1 1 auto; height:auto; min-height:220px;
+  background:radial-gradient(55% 9% at 50% 93%, rgba(200,170,110,0.22), transparent 72%), radial-gradient(70% 45% at 50% 55%, rgba(200,170,110,0.06), transparent 70%); }
+.coin-layer.cn3d .cn-res { position:absolute; left:14px; right:14px; bottom:18px; z-index:2; text-shadow:0 2px 10px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.9); }
+.cn-3d { animation:cn3dIn .45s ease-out both; }   /* 한 번만 */
+@keyframes cn3dIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }

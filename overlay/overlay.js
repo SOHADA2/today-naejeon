@@ -181,7 +181,7 @@ setInterval(updateDraftTimer, 250);
 
 // ── 🪙 선픽 동전 던지기 — 드래프트가 막 시작됐으면 모두에게 한 번 재생(main COIN_MS 동안 픽 잠김) ──────────
 // 동전이 「띵!」 튀어 오름 → 빙글빙글 돌다 떨어짐 → 착지(짤랑) → 결과 면 확대 → 「1팀 선픽!」. 면 = assets/coin-t1·t2.webp. 결과 면은 서버의 firstPick 그대로.
-const COIN_MS = 5600;   // main.js COIN_MS와 같게(이 시간 동안 픽 잠김) — 3D 사미라 Taunt(약 5초)에 맞춤
+const COIN_MS = 6000;   // main.js COIN_MS와 같게(이 시간 동안 픽 잠김) — 3D 사미라 Taunt(약 5초)에 맞춤
 let _coinShown = null, _ac = null;
 // 🔊 동전 효과음 전체(WebAudio 합성·에셋 없음) — 연출 시작 시각 t0 기준으로 한 번에 예약(setTimeout보다 정확)
 // 튕김(엄지 딱+묵직한 금속 울림) → 회전 바람 소리(돌수록 느려짐) → 착지 쿵·쨍·통통 → 누운 채 다르륵(점점 빨라지다 멈춤) → 결과 쾅+팀 화음
@@ -251,7 +251,8 @@ function coinReveal(ac, K, z, A) {
 }
 // 🔊 3D 사미라 장면 효과음 — 위로 튕김(띵) → 받음(톡) → 화면 쪽으로 튕김(딱+쨍) → 다가오는 바람 → 결과 쾅
 function coinScore3d(ac, t0, A) {
-  const C = window.coin3d, K = sfxKit(ac), { fx, dry, tone, noise, ring, thud, noiseBuf } = K;
+  const C = window.coin3d, K = sfxKit(ac); t0 += C.INTRO || 0;   // 등장(서서히 나타남) 뒤부터 Taunt 박자
+  const { fx, dry, tone, noise, ring, thud, noiseBuf } = K;
   const up = t0 + 0.12; noise(dry, up, 0.5, 0.016, 'bandpass', 3400, 1.4); ring(fx, 1240, up + 0.004, 0.55, 1.4);
   const ct = t0 + 0.8; noise(dry, ct, 0.35, 0.02, 'bandpass', 2200, 1.2); thud(dry, ct, 0.16, 210); ring(fx, 1100, ct, 0.22, 0.5);
   const f = t0 + C.FLICK; noise(dry, f, 0.75, 0.018, 'bandpass', 3200, 1.4); thud(dry, f, 0.3, 180); ring(fx, 1180, f + 0.004, 0.9, 2.0);

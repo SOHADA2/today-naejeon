@@ -11,6 +11,7 @@ const FLICK = 2.93;        // 정면으로 튕기는 순간(초) — Coin 뼈 �
 const CATCH_AT = 3.12;     // 날아오던 동전을 카메라 앞에서 받아 세우기 시작
 const SHOW_AT = 3.62;      // 결과 면이 정면에 멈춤(= 결과 글자·쾅 소리)
 const TOSS = [0.1, 0.8];   // 처음 위로 튕겼다 받는 구간(빙글빙글)
+const INTRO = 0.4;         // 등장: 첫 자세로 서서히 나타난 뒤 Taunt 시작(바로 튕기면 누가 왜 나왔는지 볼 틈이 없었음) — 위 시각들은 Taunt 기준, 실제 = INTRO + 값
 
 let _gltf = null, _loading = null, _tex = null;
 function load() {
@@ -65,9 +66,9 @@ async function play({ stage, A, onShow, dur }) {
   let bone = null; root.traverse(o => { if (o.name === 'Coin') bone = o; });
 
   // 카메라: 사미라 정면(동전이 날아오는 쪽)·살짝 위 — 위로 튕긴 동전(2.6m)까지 보이게
-  const cam = new THREE.PerspectiveCamera(33, W / H, 0.05, 50);
-  const look = new THREE.Vector3(0, 1.62, 0);
-  const camFrom = new THREE.Vector3(0.12, 2.0, 4.35), camTo = new THREE.Vector3(0.1, 1.95, 3.85);   // 위로 튕긴 동전 꼭대기(2.62m)까지 보이게   // 정면 가까이(동전이 손에서 화면 가운데로 곧장) · 튕기기 전까지 살짝 밀고 들어감
+  const cam = new THREE.PerspectiveCamera(35, W / H, 0.05, 50);
+  const look = new THREE.Vector3(0, 1.36, 0);
+  const camFrom = new THREE.Vector3(0.1, 1.55, 5.05), camTo = new THREE.Vector3(0.08, 1.52, 4.85);   // 발끝~동전 꼭대기 전부(세로 ±1.5m) · 아주 살짝만 밀고 들어감   // 위로 튕긴 동전 꼭대기(2.62m)까지 보이게   // 정면 가까이(동전이 손에서 화면 가운데로 곧장) · 튕기기 전까지 살짝 밀고 들어감
   cam.position.copy(camFrom); cam.lookAt(look);
   const dir = look.clone().sub(cam.position).normalize();
   const holdAt = () => cam.position.clone().add(dir.clone().multiplyScalar(0.95)).add(new THREE.Vector3(0, 0.03, 0));   // 결과 면이 멈출 자리(카메라 바로 앞)
@@ -76,16 +77,16 @@ async function play({ stage, A, onShow, dur }) {
   const coin = makeCoin(); scene.add(coin.pos);
   coin.pos.quaternion.copy(cam.quaternion);   // 면이 카메라를 보게(결과 면 = spin 각도로)
   const wp = new THREE.Vector3(), from = new THREE.Vector3();
-  let ang = 0, last = 0, caught = false, shown = false, angFrom = 0, angTo = 0;
+  let ang = 0, last = -INTRO, caught = false, shown = false, angFrom = 0, angTo = 0;
   const finalAng = A ? 0 : Math.PI;
 
   const t0 = performance.now();
   await new Promise(done => {
     renderer.setAnimationLoop(() => {
       // 🎥 녹화용: window.__coinClock()(초)가 있으면 그 시각으로 그림(프레임 단위로 정확히 캡처) — 평소엔 없음
-      const now = window.__coinClock ?t0 + window.__coinClock() * 1000 : performance.now(), t = (now - t0) / 1000, dt = Math.min(0.05, t - last); last = t;
-      mixer.setTime(Math.min(t, act.getClip().duration)); root.updateMatrixWorld(true);
-      if (t <= CATCH_AT) { cam.position.lerpVectors(camFrom, camTo, ease.out3(clamp01(t / FLICK))); cam.lookAt(look); dir.copy(look).sub(cam.position).normalize(); coin.pos.quaternion.copy(cam.quaternion); hold = holdAt(); }
+      const now = window.__coinClock ? t0 + window.__coinClock() * 1000 : performance.now(), t = (now - t0) / 1000 - INTRO, dt = Math.max(0, Math.min(0.05, t - last)); last = t;
+      mixer.setTime(Math.max(0, Math.min(t, act.getClip().duration))); root.updateMatrixWorld(true);
+      if (t <= CATCH_AT) { cam.position.lerpVectors(camFrom, camTo, ease.out3(clamp01(Math.max(0, t) / FLICK))); cam.lookAt(look); dir.copy(look).sub(cam.position).normalize(); coin.pos.quaternion.copy(cam.quaternion); hold = holdAt(); }
       if (t < CATCH_AT) {
         if (bone) bone.getWorldPosition(wp); coin.pos.position.copy(wp);
         const w = (t > TOSS[0] && t < TOSS[1]) ? 26 : t >= FLICK ? 34 : 0;   // 튕긴 동안만 빙글
@@ -124,7 +125,7 @@ window.coin3d = {
   ready: () => !!_gltf,
   preload: () => load().then(() => true, () => false),
   play,
-  FLICK, CATCH_AT, SHOW_AT,
+  INTRO, FLICK, CATCH_AT, SHOW_AT,
 };
 // 드래프트 시작 순간 바로 재생할 수 있게 미리 받아둠(앱 켠 뒤 잠깐 쉬었다가 — 첫 화면 그리기 방해 안 하게)
 if (window.coin3d.ok) setTimeout(() => window.coin3d.preload(), 2500);
