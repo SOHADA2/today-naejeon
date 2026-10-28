@@ -250,7 +250,7 @@ function coinReveal(ac, K, z, A) {
   for (let i = 0; i < 7; i++) tone(fx, 3200 + Math.random() * 3200, z + 0.06 + i * 0.045, 0.06, 0.25);
 }
 // 🔊 3D 사미라 장면 소리 = 실제 녹음을 미리 섞은 파일 하나(assets/sfx/coin-samira.ogg · 합성음 아님 — 사장님: 합성음 안 어울림)
-// v0.1.26: 모델의 실제 움직임(뼈 속도·동전-손 거리, 60fps)에 맞춰 배치 — 시각은 Taunt 기준(+INTRO 0.4): 0.03 몸 비틀 때 옷자락 · 0.16 튕김 「팅」 · 0.64 장갑 손에 받는 「탁」
+// v0.1.26: 모델의 실제 움직임(뼈 속도·동전-손 거리, 60fps)에 맞춰 배치 — 시각은 Taunt 기준(+INTRO 0.4): 0.03 몸 비틀 때 옷자락 · 0.16 튕김 「팅~」(엄지 금속 소리+동전 울림, 받는 순간 0.64에 울림 끊김) · 0.64 장갑 손에 받는 「탁」
 // · 0.76 리볼버 돌리는 「휙」 · 1.16/2.33 몸 돌릴 때 옷자락 · 2.91 정면 튕김 「팅·휙」 · 3.38 꽂힘 「쿵+와장창」 · 4.08 총 뽑는 「철컥」 · 4.43 「찰칵」 (전엔 받는 소리가 0.15초 늦고 움직임에 소리가 없었음)
 // 시각 = coin3d INTRO(0.4)+Taunt 시각과 맞춤 · 재료·섞는 법 = assets/sfx/CREDITS.txt
 const _coinSfx = (() => { try { const a = new Audio('../assets/sfx/coin-samira.ogg'); a.preload = 'auto'; return a; } catch (_) { return null; } })();
