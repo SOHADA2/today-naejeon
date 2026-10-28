@@ -8,8 +8,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 const FLICK = 2.93;        // 정면으로 튕기는 순간(초) — Coin 뼈 속도로 잰 값
-const CATCH_AT = 3.12;     // 날아오던 동전을 카메라 앞에서 받아 세우기 시작
-const SHOW_AT = 3.62;      // 결과 면이 정면에 멈춤(= 결과 글자·쾅 소리)
+const CATCH_AT = 3.12;     // 날아오던 동전을 붙잡아 화면 쪽으로 가속
+const SHOW_AT = 3.40;      // 💥 동전이 화면(유리)에 꽂히는 순간 = 결과 면 정면 + 금 가는 효과·쨍그랑·결과 글자
 const TOSS = [0.1, 0.8];   // 처음 위로 튕겼다 받는 구간(빙글빙글)
 const INTRO = 0.4;         // 등장: 첫 자세로 서서히 나타난 뒤 Taunt 시작(바로 튕기면 누가 왜 나왔는지 볼 틈이 없었음) — 위 시각들은 Taunt 기준, 실제 = INTRO + 값
 
@@ -40,7 +40,7 @@ function makeCoin() {
   return { pos, spin, mesh };
 }
 
-const ease = { out3: u => 1 - Math.pow(1 - u, 3), outBack: u => { const c = 1.6; return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2); } };
+const ease = { out3: u => 1 - Math.pow(1 - u, 3), out2: u => 1 - (1 - u) * (1 - u), in: u => Math.pow(u, 2.4), outBack: u => { const c = 1.6; return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2); } };
 const clamp01 = v => Math.max(0, Math.min(1, v));
 
 // stage = 캔버스를 넣을 상자 · A = 1팀 선픽 여부 · onShow = 결과 면이 멈춘 순간(글자 띄우기) · dur = 전체 길이(ms)
@@ -68,7 +68,7 @@ async function play({ stage, A, onShow, dur }) {
   // 카메라: 사미라 정면(동전이 날아오는 쪽)·살짝 위 — 위로 튕긴 동전(2.6m)까지 보이게
   const cam = new THREE.PerspectiveCamera(35, W / H, 0.05, 50);
   const look = new THREE.Vector3(0, 1.36, 0);
-  const camFrom = new THREE.Vector3(0.1, 1.55, 5.05), camTo = new THREE.Vector3(0.08, 1.52, 4.85);   // 발끝~동전 꼭대기 전부(세로 ±1.5m) · 아주 살짝만 밀고 들어감   // 위로 튕긴 동전 꼭대기(2.62m)까지 보이게   // 정면 가까이(동전이 손에서 화면 가운데로 곧장) · 튕기기 전까지 살짝 밀고 들어감
+  const camFrom = new THREE.Vector3(0.1, 1.55, 5.05), camTo = new THREE.Vector3(0.08, 1.52, 4.85);   // 발끝~위로 튕긴 동전 꼭대기(2.62m) 전부(세로 ±1.5m) · 아주 살짝만 밀고 들어감
   cam.position.copy(camFrom); cam.lookAt(look);
   const dir = look.clone().sub(cam.position).normalize();
   const holdAt = () => cam.position.clone().add(dir.clone().multiplyScalar(0.95)).add(new THREE.Vector3(0, 0.03, 0));   // 결과 면이 멈출 자리(카메라 바로 앞)
@@ -93,16 +93,22 @@ async function play({ stage, A, onShow, dur }) {
         ang += w * dt;
         if (t >= TOSS[1] && t < FLICK) ang += (Math.round(ang / Math.PI) * Math.PI - ang) * 0.2;   // 손에 쥐면 면이 보이게 정리
       } else {
-        if (!caught) { caught = true; from.copy(coin.pos.position); angFrom = ang; angTo = ang + Math.PI * 4 + ((finalAng - ang) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2); }
+        if (!caught) { caught = true; from.copy(coin.pos.position); angFrom = ang; angTo = ang + Math.PI * 6 + ((finalAng - ang) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2); }
         const u = clamp01((t - CATCH_AT) / (SHOW_AT - CATCH_AT));
-        coin.pos.position.lerpVectors(from, hold, ease.outBack(u));
-        ang = angFrom + (angTo - angFrom) * ease.out3(u);
+        coin.pos.position.lerpVectors(from, hold, ease.in(u));               // 점점 빨라지며 화면으로 돌진
+        ang = angFrom + (angTo - angFrom) * ease.out2(u);                    // 돌며 날아와 꽂히는 순간 결과 면이 정면
         if (u >= 1) {
           const k = t - SHOW_AT;
-          coin.pos.position.y = hold.y + Math.sin(k * 3.2) * 0.006;           // 살짝 떠 있음
-          coin.spin.rotation.y = Math.sin(k * 2.1) * 0.12;                     // 살짝 흔들림
-          glow.intensity = 1.6 * Math.exp(-k * 1.6) + 0.35;                    // 「쾅」 빛 → 은은하게
-          if (!shown) { shown = true; try { onShow && onShow(); } catch (_) {} }
+          coin.pos.position.copy(hold);                                        // 유리에 박힘(떠다니지 않음)
+          const sq = 1 - 0.07 * Math.exp(-k * 14) * Math.cos(k * 40);          // 꽂힐 때 「턱」 움찔
+          coin.pos.scale.setScalar(sq);
+          coin.spin.rotation.y = Math.sin(k * 22) * 0.1 * Math.exp(-k * 5);    // 박힌 채 바르르 떨다 멈춤
+          glow.intensity = 2.2 * Math.exp(-k * 1.8) + 0.35;                    // 「쾅」 빛 → 은은하게
+          if (!shown) { shown = true;
+            // 화면 좌표(무대 안 px)로 넘겨줌 → overlay가 그 자리에 금·연기·파편
+            const p = hold.clone().project(cam), e = hold.clone().add(new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion).multiplyScalar(0.075)).project(cam);
+            const x = (p.x + 1) / 2 * W, y = (1 - p.y) / 2 * H, r = Math.abs((e.x - p.x) / 2 * W);
+            try { onShow && onShow({ x, y, r }); } catch (_) {} }
         }
         glow.position.copy(coin.pos.position).add(dir.clone().multiplyScalar(-0.25));
       }
