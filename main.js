@@ -913,7 +913,7 @@ async function hostTick() {
     return;
   }
   if ((s.phase === 'vote' || s.phase === 'result') && s.game && (!s.potg || s.potg.gameId !== String(s.game.id))) hostPotg(s).catch(() => {});   // 🎬
-  if (s.potg && s.potg.pending && !replayBusy && Date.now() - (s.potg.pendingAt || 0) > 200000) {   // 🎬 녹화하던 방장 앱이 꺼졌거나 넘겨받음 → 카드로라도 보여줌
+  if (s.potg && s.potg.pending && !replayBusy && Date.now() - (s.potg.pendingAt || 0) > 260000) {   // 🎬 녹화하던 방장 앱이 꺼졌거나 넘겨받음 → 카드로라도 보여줌
     const c = Object.assign({}, s.potg, { pending: null, pendingAt: null, showAt: Date.now() + 1500 });
     await fbUpdate(`${T}/session`, { potg: c }); if (s.game) await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: c });
   }
@@ -965,7 +965,9 @@ async function recordPotgClip(card, s) {
     const file = await Promise.race([recP, new Promise(r => setTimeout(() => r(null), 180000))]);
     if (!file) why = Date.now() - t0 >= 179000 ? '3분 초과' : '녹화 안 됨';
     else {
-      const buf = fs.readFileSync(file);
+      let buf = fs.readFileSync(file);
+      const small = await shrinkClip(file).catch(e => { _recLog.push('줄이기 실패 ' + (e && e.message)); return null; });   // 롤이 모니터 크기(예: 3440×1440)로 저장 → 가로 960으로
+      if (small && small.length > 100000 && small.length < buf.length) { _recLog.push(`줄임 ${(buf.length / 1048576).toFixed(1)}→${(small.length / 1048576).toFixed(1)}MB`); buf = small; }
       if (buf.length > CLIP_MAX) why = `너무 큼 ${(buf.length / 1048576).toFixed(1)}MB`;
       else { meta = await potg.uploadClip(s.game.id, buf, 'video/webm'); if (!meta) why = '올리기 실패'; }
       try { fs.unlinkSync(file); } catch (_) {}
@@ -974,6 +976,15 @@ async function recordPotgClip(card, s) {
   const sec = Math.round((Date.now() - t0) / 1000);
   fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potgRec: { ok: !!meta, why: why || null, sec, mb: meta ? +(meta.size / 1048576).toFixed(1) : null, lines: _recLog.slice(-40), at: Date.now() } }).catch(() => {});
   return meta;
+}
+// 🎬 녹화 영상 줄이기(v0.1.34) — 숨은 창에서 다시 재생하며 가로 960·2.5Mbps로 다시 녹화(소리 포함) · 영상 길이만큼 걸림
+async function shrinkClip(file) {
+  const w = new BrowserWindow({ show: false, width: 320, height: 200, skipTaskbar: true, webPreferences: { backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required', contextIsolation: true } });
+  try {
+    await w.loadFile('potg/shrink.html');
+    const r = await Promise.race([w.webContents.executeJavaScript(`shrink(${JSON.stringify(pathToFileURL(file).href)}, 960, 2500)`), new Promise((_, no) => setTimeout(() => no(new Error('시간 초과')), 90000))]);
+    return r && r.b64 ? Buffer.from(r.b64, 'base64') : null;
+  } finally { try { w.destroy(); } catch (_) {} }
 }
 const runHost = coalesce(async () => { if (_hostBusy) return; _hostBusy = true; try { await hostTick(); } finally { _hostBusy = false; } });
 

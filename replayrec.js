@@ -100,7 +100,15 @@ function makeReplayRec(d) {
       if (!len) { log('리플레이 창구가 안 열림(EnableReplayApi?)'); return null; }
       log(`리플레이 열림 · 길이 ${Math.round(len)}초 (${sec()}초)`);
       to = Math.min(to, len - 0.5); from = Math.max(0, Math.min(from, to - 3));
-      await live('POST', '/replay/playback', { time: Math.max(0, from - 1), paused: true, speed: 1 });
+      // v0.1.34: 앞 구간(PRE초) 먼저 재생해 화면·카메라가 자리 잡은 뒤 녹화 — 전엔 되감기(seek)가 끝나기 전에 녹화가 시작돼
+      //   첫 몇 초가 멈춘 기지 화면이었고, 녹화도 7~10초 만에 끊겨 정작 킬 장면이 빠졌음(실제 판 8436676738·8436741245)
+      const PRE = 3, startAt = Math.max(0, from - PRE);
+      const seekTo = async t => {   // 되감기 끝날 때까지(최대 40초)
+        await live('POST', '/replay/playback', { time: t, paused: true, speed: 1 });
+        for (let i = 0; i < 80; i++) { await sleep(500); const p = await live('GET', '/replay/playback'); if (p.data && !p.data.seeking && Math.abs((p.data.time || 0) - t) < 1.5) return true; }
+        return false;
+      };
+      log(`되감기 ${startAt}초 ${await seekTo(startAt) ? '완료' : '확인 못 함'} (${sec()}초)`);
       const view = { cameraAttached: true, cameraMode: 'top', interfaceScoreboard: false, interfaceChat: false, interfaceTimeline: false, interfaceReplay: false };
       await live('POST', '/replay/render', Object.assign({ selectionName: focus }, view));
       const r = await live('GET', '/replay/render');
@@ -110,17 +118,21 @@ function makeReplayRec(d) {
       const since = Date.now();
       const rr = await live('POST', '/replay/recording', { recording: true, startTime: from, endTime: to, framesPerSecond: FPS, enforceFrameRate: true, codec: 'webm', lossless: false, width: W, height: H, path: outDir, replaySpeed: 1 });
       if (!(rr.status >= 200 && rr.status < 300)) { log('녹화 시작 실패 HTTP ' + rr.status); return null; }
-      await live('POST', '/replay/playback', { time: from, paused: false, speed: 1 });
-      let seen = false, lastPath = null;   // ⑤ 끝날 때까지(구간 길이 ×5 + 30초)
-      const limit = Date.now() + ((to - from) * 5 + 30) * 1000;
+      await live('POST', '/replay/playback', { time: startAt, paused: false, speed: 1 });
+      // ⑤ 끝 = 리플레이 시간이 to를 지나고 녹화가 멈춤(녹화 쪽 값만 믿지 않음 — 리플레이 시간 기준) · 최대 (구간+앞부분)×4 + 30초
+      let lastPath = null, last = 0, n = 0;
+      const limit = Date.now() + ((to - startAt) * 4 + 30) * 1000;
       while (Date.now() < limit) {
         await sleep(1000);
-        const g = await live('GET', '/replay/recording');
-        if (g.status !== 200 || !g.data) continue;
-        if (g.data.path) lastPath = g.data.path;
-        if (g.data.recording) seen = true;
-        else if (seen || g.data.currentTime >= to - 0.2) break;
+        const [g, p] = await Promise.all([live('GET', '/replay/recording'), live('GET', '/replay/playback')]);
+        const rec = g.data || {}, t = p.data ? p.data.time : null;
+        if (rec.outputPath || rec.path) lastPath = rec.outputPath || rec.path;
+        if (++n % 3 === 1) log(`진행 리플레이 ${t == null ? '?' : t.toFixed(1)}초 · 녹화 ${rec.recording ? '중' : '멈춤'}${rec.currentTime != null ? ' ' + Number(rec.currentTime).toFixed(1) : ''}`);
+        if (t != null) last = t;
+        if (t != null && t >= to + 0.5 && !rec.recording) break;
+        if (p.data && p.data.paused && t != null && t < to) await live('POST', '/replay/playback', { paused: false });   // 누가 멈췄으면 다시 재생
       }
+      log(`녹화 구간 끝 · 리플레이 ${last.toFixed(1)}초 (${sec()}초)`);
       await live('POST', '/replay/playback', { paused: true });
       let clip = null, prev = -1;   // 파일 다 써질 때까지(크기가 그대로면 끝)
       for (let i = 0; i < 20; i++) {

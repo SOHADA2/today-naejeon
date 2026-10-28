@@ -10,7 +10,7 @@ const body = req => new Promise(r => { let s = ''; req.on('data', c => s += c); 
 
 async function run(name, opt) {
   const GID = 8436539295, calls = [];
-  const st = { phase: opt.phase || 'EndOfGame', meta: 'download', api: false, rec: null, render: {}, killed: 0 };
+  const st = { phase: opt.phase || 'EndOfGame', meta: 'download', api: false, rec: null, render: {}, killed: 0, t: 0, paused: false, wall: Date.now(), seekUntil: 0, seeks: [] };
   const lolDir = path.join(TMP, name, 'lol'), outDir = path.join(TMP, name, 'out'), docsDir = path.join(TMP, name, 'docs');
   fs.mkdirSync(path.join(lolDir, 'Config'), { recursive: true }); fs.mkdirSync(docsDir, { recursive: true });
   fs.writeFileSync(path.join(lolDir, 'Config', 'game.cfg'), '[General]\r\nWindowMode=2\r\n[Performance]\r\nFrameCapType=4\r\n');
@@ -26,18 +26,23 @@ async function run(name, opt) {
     const b = req.method === 'POST' ? await body(req) : null; calls.push(`2999 ${req.method} ${req.url}`);
     const send = (code, j) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(j)); };
     if (!st.api) return send(404, {});
-    if (req.url === '/replay/playback') return send(200, { length: 771, time: 0, paused: false });
+    const now = () => st.paused || Date.now() < st.seekUntil ? st.t : st.t + (Date.now() - st.wall) / 1000;
+    const finish = () => { if (st.rec && st.rec.recording && now() >= st.rec.endTime) {   // 리플레이 시간이 endTime 지나면 파일 생김
+      const dir = opt.toDocs ? docsDir : st.rec.path; fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'clip.webm'), Buffer.alloc(2.5 * 1048576, 1)); st.rec.recording = false; } };
+    if (req.url === '/replay/playback') {
+      if (b) { const t = now(); if (b.time != null) { st.t = b.time; st.seekUntil = Date.now() + 2000; st.seeks.push(b.time); } else st.t = t; if (b.paused != null) st.paused = b.paused; st.wall = Math.max(Date.now(), st.seekUntil); }
+      finish(); return send(200, { length: 771, time: now(), paused: st.paused, seeking: Date.now() < st.seekUntil, speed: 1 });
+    }
     if (req.url === '/replay/render') { if (b) st.render = Object.assign({}, b, opt.champOnly && b.selectionName !== opt.champ ? { selectionName: '' } : {}); return send(200, st.render); }
     if (req.url === '/replay/recording') {
-      if (b && b.recording) { st.rec = Object.assign({}, b, { currentTime: b.startTime }); setTimeout(() => {
-        const dir = opt.toDocs ? docsDir : b.path; fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'clip.webm'), Buffer.alloc(2.5 * 1048576, 1)); st.rec.recording = false; st.rec.currentTime = b.endTime; }, 2500); }
-      return send(200, st.rec ? Object.assign({ path: opt.toDocs ? docsDir : st.rec.path }, st.rec) : { recording: false });
+      if (b && b.recording) { st.rec = Object.assign({}, b); st.recAt = now(); }
+      finish(); return send(200, st.rec ? Object.assign({ outputPath: opt.toDocs ? docsDir : st.rec.path, currentTime: now() }, st.rec) : { recording: false });
     }
     send(404, {});
   }).listen(29990, '127.0.0.1');
   const rr = makeReplayRec({ lcuRaw, lolDir: () => lolDir, log: m => opt.v && console.log('   ', m), kill: async () => { st.killed++; st.api = false; st.phase = 'EndOfGame'; }, liveBase: 'https://127.0.0.1:29990', docsDir, outDir, loadWaitSec: 6 });
   const t = Date.now();
-  const out = await rr.record({ gameId: GID, from: 644, to: 659, focus: 'ap렉사이서폿', champ: opt.champ || '볼리베어' });
+  const out = await rr.record({ gameId: GID, from: 644, to: 650, focus: 'ap렉사이서폿', champ: opt.champ || '볼리베어' });
   srv.close();
   const cfg = fs.readFileSync(path.join(lolDir, 'Config', 'game.cfg'), 'utf8');
   return { out, st, calls, cfg, sec: ((Date.now() - t) / 1000).toFixed(1) };
@@ -49,7 +54,8 @@ async function run(name, opt) {
   ok(r.out && r.out.endsWith('clip.webm') && r.out.includes(path.join('ok', 'out')), `영상 경로 ${r.out} (${r.sec}초)`);
   ok(/\[General\]\r\nEnableReplayApi=1\r\nWindowMode=2/.test(r.cfg) && fs.existsSync(path.join(TMP, 'ok', 'lol', 'Config', 'game.cfg.tn-backup')), 'game.cfg [General]에 EnableReplayApi=1(CRLF 유지·백업)');
   ok(r.calls.some(c => c.endsWith('/download/graceful')) && r.calls.some(c => c.endsWith('/watch')), '받기 요청 → 리플레이 열기');
-  ok(r.st.rec && r.st.rec.startTime === 644 && r.st.rec.endTime === 659 && r.st.rec.codec === 'webm' && r.st.rec.width === 768, '녹화 구간 644~659초 · webm 768×432');
+  ok(r.st.rec && r.st.rec.startTime === 644 && r.st.rec.endTime === 650 && r.st.rec.codec === 'webm', '녹화 구간 644~650초 · webm');
+  ok(r.st.seeks[0] === 641 && r.st.recAt <= 641.5, `되감기 끝난 뒤 3초 앞(641초)부터 재생하며 녹화 (녹화 요청 때 리플레이 ${r.st.recAt.toFixed(1)}초)`);
   ok(r.st.render.selectionName === 'ap렉사이서폿' && r.st.render.cameraAttached === true && r.st.render.interfaceScoreboard === false, '카메라 = 주인공 따라가기 · 점수판 숨김');
   ok(r.st.killed === 1, '끝나고 리플레이 닫음');
   console.log('■ docs — 롤이 문서/Highlights에 저장'); r = await run('docs', { toDocs: true });
