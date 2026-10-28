@@ -387,7 +387,7 @@ header .phase, header .win-btn { flex-shrink:0; }
 .cn-flash { position:absolute; width:220px; height:220px; border-radius:50%; background:radial-gradient(closest-side, rgba(255,255,255,0.9), rgba(255,255,255,0.25) 35%, transparent 70%); }
 .cn-crack { position:absolute; left:0; top:0; overflow:visible; }
 .cn-crack path { fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:1; stroke-dashoffset:1; }
-.cn-crack path.dk { stroke:rgba(0,0,0,0.28); }   /* 유리 금 = 가늘고 반투명(빛 번짐 없음 — 번지면 서리처럼 보였음) */
-.cn-crack path.lt { stroke:rgba(255,255,255,0.58); }
+.cn-crack path.dk { stroke:rgba(0,0,0,0.15); }   /* 유리 금 = 가늘고 반투명(빛 번짐 없음 — 번지면 서리처럼 보였음) */
+.cn-crack path.lt { stroke:rgba(255,255,255,0.34); }   /* v0.1.26: 더 옅게(사장님: 아직 너무 잘 보임) */
 .cn-shard { position:absolute; width:11px; height:13px; background:linear-gradient(135deg, rgba(255,255,255,0.55) 0 10%, rgba(255,255,255,0.10) 30%, rgba(255,255,255,0.03) 70%, rgba(255,255,255,0.35)); clip-path:polygon(50% 0, 100% 78%, 0 100%); }   /* 투명 유리 조각(가장자리만 빛) */
 .cn-glint { position:absolute; width:14px; height:14px; background:radial-gradient(closest-side, rgba(255,255,255,0.95), transparent); clip-path:polygon(50% 0, 58% 42%, 100% 50%, 58% 58%, 50% 100%, 42% 58%, 0 50%, 42% 42%); }
