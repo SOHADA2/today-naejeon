@@ -109,7 +109,7 @@ function makeReplayRec(d) {
         return false;
       };
       log(`되감기 ${startAt}초 ${await seekTo(startAt) ? '완료' : '확인 못 함'} (${sec()}초)`);
-      const view = { cameraAttached: true, cameraMode: 'top', interfaceScoreboard: false, interfaceChat: false, interfaceTimeline: false, interfaceReplay: false };
+      const view = { cameraAttached: true, cameraMode: 'top', interfaceScoreboard: false, interfaceChat: false, interfaceTimeline: false, interfaceReplay: false, interfaceMinimap: false, interfaceFrames: false, interfaceScore: false, interfaceTarget: false, interfaceQuests: false };   // 화면 깨끗하게(킬 알림·체력바는 남김)
       await live('POST', '/replay/render', Object.assign({ selectionName: focus }, view));
       const r = await live('GET', '/replay/render');
       if (champ && !(r.data && r.data.selectionName)) { await live('POST', '/replay/render', Object.assign({ selectionName: champ }, view)); log('카메라: 챔피언 이름으로 다시 지정'); }   // 게임 이름이 안 먹으면

@@ -16,7 +16,7 @@ let r = P.pickPotg({ a: { name: '테스터A', players: pl, hp: [[830, 100], [834
   K(834, '테스터A', '테스터C', ['테스터B']), K(837, '테스터A', '테스터D'), K(840, '테스터A', '테스터E'), { n: 'Ace', t: 840, k: '테스터A', team: 'ORDER' } ] } }, s, eog);
 check('트리플', r && r.name === '테스터A' && r.label === '트리플킬' && r.kills.length === 3, r);
 check('체력 태그', r && r.tags.includes('체력 8%') && r.tags.includes('에이스'), r && r.tags);
-check('구간', r && r.clipFrom === 826 && r.clipTo === 843, r && [r.clipFrom, r.clipTo]);
+check('구간', r && r.clipFrom === 829 && r.clipTo === 843, r && [r.clipFrom, r.clipTo]);
 check('팀·챔피언', r && r.team === 'teamA' && r.championId === 100 && r.kills[0].championId === 102, r);
 
 // 2) 10초 넘게 떨어진 킬은 다른 장면

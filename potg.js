@@ -124,7 +124,7 @@ module.exports = function makePotg(d) {
     return {
       name, champ: p.champ || '', championId: champId(c.killer), team: teamOfName(c.killer),
       label, tags: c.tags.filter(t => t !== label), score: Math.round(c.score),
-      t0: c.t0, t1: c.t1, clipFrom: Math.max(0, Math.floor(c.t0 - 8)), clipTo: Math.ceil(c.t1 + 3),
+      t0: c.t0, t1: c.t1, clipFrom: Math.max(0, Math.floor(c.t0 - 5)), clipTo: Math.ceil(c.t1 + 3),   // 팟지 공식: 킬 5초 전부터(빌드업) — v0.1.35 8→5초
       kills: c.ks.map(k => { const v = players[norm(k.v)] || {}; return { t: k.t, victim: String(k.v).split('#')[0], champ: v.champ || '', championId: champId(k.v), solo: !k.a || !k.a.length }; }),
       obj: c.obj ? { n: c.obj.n, t: c.obj.t } : null,
       apps: list.length,
