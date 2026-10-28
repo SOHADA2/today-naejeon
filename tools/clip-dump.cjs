@@ -2,7 +2,7 @@
 // 사용: node tools/clip-dump.cjs [날짜] 출력폴더
 const fs = require('fs'), path = require('path');
 const DB = 'https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app/today';
-const get = async p => { const r = await fetch(`${DB}/${p}.json`); return r.ok ? r.json() : null; };
+const get = async p => { const [a, q] = p.split('?'); const r = await fetch(`${DB}/${a}.json${q ? '?' + q : ''}`); return r.ok ? r.json() : null; };
 const dayKey = (t = Date.now()) => { const d = new Date(t - 6 * 3600e3); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 (async () => {
   const day = /^\d{4}-\d{2}-\d{2}$/.test(process.argv[2] || '') ? process.argv[2] : dayKey(), out = process.argv[3] || process.argv[2] || 'clips';
