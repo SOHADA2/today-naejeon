@@ -250,7 +250,7 @@ function coinReveal(ac, K, z, A) {
   for (let i = 0; i < 7; i++) tone(fx, 3200 + Math.random() * 3200, z + 0.06 + i * 0.045, 0.06, 0.25);
 }
 // 🔊 3D 사미라 장면 소리 = 실제 녹음을 미리 섞은 파일 하나(assets/sfx/coin-samira.ogg · 합성음 아님 — 사장님: 합성음 안 어울림)
-// 사미라 챔피언 선택 대사(한국어) → 0.52초 위로 튕김 「팅」 → 1.2초 받음 「찰캉」 → 3.33초 화면 쪽 튕김 「팅·휙」 → 3.79초 꽂힘 「와장창」+파편
+// (v0.1.25: 대사 뺌·얼음 같던 고음 유리 파편 소리 뺌) 0.52초 위로 튕김 「팅」 → 1.2초 받음 「찰캉」 → 3.33초 화면 쪽 튕김 「팅·휙」 → 3.78초 꽂힘 「쿵」+묵직한 유리 「와장창」
 // 시각 = coin3d INTRO(0.4)+Taunt 시각과 맞춤 · 재료·섞는 법 = assets/sfx/CREDITS.txt
 const _coinSfx = (() => { try { const a = new Audio('../assets/sfx/coin-samira.ogg'); a.preload = 'auto'; return a; } catch (_) { return null; } })();
 function coinSamiraSound() { try { if (!_coinSfx) return; _coinSfx.pause(); _coinSfx.currentTime = 0; _coinSfx.volume = 0.3; _coinSfx.play().catch(() => {}); } catch (_) {} }
@@ -355,46 +355,54 @@ function playCoin3d(layer, res, A) {
   go(layer, [{ opacity: 1 }, { opacity: 0 }], { duration: 350, delay: COIN_MS - 350 });
   setTimeout(() => { layer.style.display = 'none'; layer.classList.remove('cn3d'); anims.forEach(a => { try { a.cancel(); } catch (_) {} }); stage.querySelectorAll('.cn-fx').forEach(n => n.remove()); }, COIN_MS + 30);
 }
-// 💥 동전이 화면에 꽂히는 순간 — 섬광 + 유리 금(매번 다른 모양: 동전 가장자리에서 뻗는 금 + 둥근 금) + 파편 + 연기 + 화면 흔들림
-// 전부 한 번만 재생(성능 규칙) · 금은 연출이 끝날 때 레이어와 함께 사라짐
+// 💥 동전이 화면에 꽂히는 순간 — 짧은 섬광 + 투명한 유리 금(가늘고 반투명·빛 번짐 없음) + 유리 면(조각마다 빛이 살짝 다르게 꺾임) + 투명 파편 + 화면 흔들림
+// v0.1.25: 굵고 하얗게 빛나는 금·푸른 번짐·연기가 「얼음/서리」처럼 보였음(사장님) → 투명 유리로. 전부 한 번만 재생 · 연출 끝날 때 레이어와 함께 사라짐
 function coinImpactFx(stage, x, y, r, go) {
   const W = stage.clientWidth, H = stage.clientHeight, rnd = (a, b) => a + Math.random() * (b - a);
   const fx = document.createElement('div'); fx.className = 'cn-fx'; stage.appendChild(fx);
   const at = (node, px, py) => { node.style.left = px + 'px'; node.style.top = py + 'px'; fx.appendChild(node); return node; };
   // 섬광
   const fl = at(document.createElement('i'), x, y); fl.className = 'cn-flash';
-  go(fl, [{ opacity: 0.95, transform: 'translate(-50%,-50%) scale(0.35)' }, { opacity: 0, transform: 'translate(-50%,-50%) scale(2.4)' }], { duration: 340, easing: 'ease-out' });
+  go(fl, [{ opacity: 0.8, transform: 'translate(-50%,-50%) scale(0.35)' }, { opacity: 0, transform: 'translate(-50%,-50%) scale(1.6)' }], { duration: 200, easing: 'ease-out' });
   // 유리 금 — 바퀴살(울퉁불퉁하게 꺾이며 뻗음, 가끔 갈라짐) + 바퀴살 사이를 잇는 둥근 금
   const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('class', 'cn-crack'); svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
   const maxR = Math.hypot(Math.max(x, W - x), Math.max(y, H - y));
   const n = 11 + Math.floor(Math.random() * 5), spokes = [], paths = [];
   const walk = (px, py, a, from, len) => { const pts = [[px, py]]; let d = from; while (d < len) { const st = rnd(12, 30); a += rnd(-0.24, 0.24); d += st; px += Math.cos(a) * st; py += Math.sin(a) * st; pts.push([px, py]);
-    if (Math.random() < 0.09 && d < len * 0.75) paths.push({ pts: walk(px, py, a + (Math.random() < 0.5 ? -1 : 1) * rnd(0.4, 0.8), d, d + rnd(25, 70)), w: 0.8, delay: 70 }); } return pts; };
+    if (Math.random() < 0.09 && d < len * 0.75) paths.push({ pts: walk(px, py, a + (Math.random() < 0.5 ? -1 : 1) * rnd(0.4, 0.8), d, d + rnd(25, 70)), w: 0.6, delay: 70 }); } return pts; };
   for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2 + rnd(-0.17, 0.17), len = rnd(0.42, 0.95) * maxR;
-    const pts = walk(x + Math.cos(a) * r * 0.9, y + Math.sin(a) * r * 0.9, a, r * 0.9, len); spokes.push(pts); paths.push({ pts, w: 1.25, delay: 0 }); }
+    const pts = walk(x + Math.cos(a) * r * 0.9, y + Math.sin(a) * r * 0.9, a, r * 0.9, len); spokes.push(pts); paths.push({ pts, w: 0.9, delay: 0 }); }
   const near = (pts, d) => pts.reduce((b, p) => Math.abs(Math.hypot(p[0] - x, p[1] - y) - d) < Math.abs(Math.hypot(b[0] - x, b[1] - y) - d) ? p : b, pts[0]);
   for (const k of [1.55, 2.5, 3.6]) for (let i = 0; i < n; i++) { if (Math.random() < 0.38) continue;
     const p = near(spokes[i], r * k * rnd(0.9, 1.1)), q = near(spokes[(i + 1) % n], r * k * rnd(0.9, 1.1));
     if (Math.hypot(p[0] - x, p[1] - y) < r * k * 0.7 || Math.hypot(q[0] - x, q[1] - y) < r * k * 0.7) continue;
     const m = [(p[0] + q[0]) / 2 + rnd(-6, 6), (p[1] + q[1]) / 2 + rnd(-6, 6)];
-    paths.push({ pts: [p, m, q], w: 0.9, delay: 90 }); }
-  for (const pa of paths) for (const [cls, w] of [['dk', pa.w + 1.6], ['lt', pa.w]]) {
+    paths.push({ pts: [p, m, q], w: 0.7, delay: 90 }); }
+  for (let i = 0; i < n; i++) {
+    const A = spokes[i], B = spokes[(i + 1) % n], R1 = r * rnd(1.4, 2.0), R2 = r * rnd(2.3, 3.4);
+    const inner = [A[0], near(A, R1), near(B, R1), B[0]], outer = [near(A, R1), near(A, R2), near(B, R2), near(B, R1)];
+    for (const [poly, k] of [[inner, 1], [outer, 0.6]]) {
+      const el = document.createElementNS(NS, 'polygon'); el.setAttribute('points', poly.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' '));
+      const lit = Math.random() < 0.55; el.setAttribute('class', 'facet');
+      el.setAttribute('fill', lit ? `rgba(255,255,255,${(rnd(0.03, 0.09) * k).toFixed(3)})` : `rgba(0,0,0,${(rnd(0.04, 0.12) * k).toFixed(3)})`);
+      svg.appendChild(el); go(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 160, delay: 40 });
+    }
+  }
+  for (const pa of paths) for (const [cls, w] of [['dk', pa.w + 1.2], ['lt', pa.w]]) {
     const el = document.createElementNS(NS, 'path'); el.setAttribute('d', 'M' + pa.pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L'));
     el.setAttribute('class', cls); el.setAttribute('stroke-width', w); el.setAttribute('pathLength', '1'); svg.appendChild(el);
     go(el, [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: 170, delay: pa.delay, easing: 'cubic-bezier(.2,.8,.3,1)' });
   }
+  for (let i = 0; i < 6; i++) { const sp = spokes[Math.floor(Math.random() * n)], p = sp[Math.min(sp.length - 1, 1 + Math.floor(Math.random() * Math.min(6, sp.length - 1)))];
+    const g = at(document.createElement('i'), p[0], p[1]); g.className = 'cn-glint';
+    go(g, [{ opacity: 0, transform: 'translate(-50%,-50%) scale(0.3)' }, { opacity: 1, transform: 'translate(-50%,-50%) scale(1)', offset: 0.3 }, { opacity: 0, transform: 'translate(-50%,-50%) scale(0.6)' }], { duration: rnd(380, 620), delay: rnd(60, 260) }); }
   fx.appendChild(svg);
   // 파편: 동전 가장자리에서 튀어 나갔다 떨어짐
   for (let i = 0; i < 10; i++) { const a = rnd(0, Math.PI * 2), sp = rnd(50, 130), s = rnd(0.6, 1.4);
     const el = at(document.createElement('i'), x + Math.cos(a) * r, y + Math.sin(a) * r); el.className = 'cn-shard';
     const dx = Math.cos(a) * sp, dy = Math.sin(a) * sp, rot = rnd(-540, 540);
     go(el, [{ opacity: 1, transform: `translate(-50%,-50%) scale(${s}) rotate(0deg)` }, { opacity: 0, transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy + 120}px)) scale(${s}) rotate(${rot}deg)` }], { duration: rnd(650, 950), easing: 'cubic-bezier(.25,.6,.6,1)' }); }
-  // 연기: 동전 가장자리에서 피어올라 흩어짐
-  for (let i = 0; i < 8; i++) { const a = rnd(0, Math.PI * 2), d = r * rnd(0.7, 1.1);
-    const el = at(document.createElement('i'), x + Math.cos(a) * d, y + Math.sin(a) * d); el.className = 'cn-puff';
-    go(el, [{ opacity: 0, transform: 'translate(-50%,-50%) scale(0.35)' }, { opacity: rnd(0.45, 0.7), transform: `translate(calc(-50% + ${Math.cos(a) * 14}px), calc(-50% + ${Math.sin(a) * 14 - 8}px)) scale(1)`, offset: 0.25 },
-      { opacity: 0, transform: `translate(calc(-50% + ${Math.cos(a) * 46}px), calc(-50% + ${Math.sin(a) * 30 - 46}px)) scale(${rnd(1.8, 2.6)})` }], { duration: rnd(1100, 1600), delay: rnd(0, 120), easing: 'ease-out' }); }
   // 화면 흔들림
   go(stage, [{ transform: 'translate(0,0)' }, { transform: 'translate(-7px,4px)', offset: 0.12 }, { transform: 'translate(6px,-5px)', offset: 0.28 }, { transform: 'translate(-4px,2px)', offset: 0.46 }, { transform: 'translate(2px,-1px)', offset: 0.66 }, { transform: 'translate(0,0)' }], { duration: 340, easing: 'ease-out' });
 }

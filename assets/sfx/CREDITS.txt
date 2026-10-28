@@ -12,3 +12,6 @@ coin-samira.ogg (v0.1.24 선픽 동전 3D 사미라 장면, 6초, -16 LUFS, 앱 
 - 동전·유리 = CC0: 「75 CC0 breaking/falling/hit sfx」(OpenGameArt sfx_breaking_and_falling.zip: bfh1_metal_hit_01/06·bfh1_glass_hit_01·bfh1_glass_falling_02)
   · 「Glass Break」(OpenGameArt glass_breaking.wav) · 「80 CC0 RPG SFX」(blade_01) · Kenney 「RPG Audio」(handleCoins2)
 - 섞는 법(ffmpeg adelay+amix normalize=0+loudnorm I=-16): 대사 0.05 · 금속 팅 0.52(×0.45) · 동전 쥠 1.20(×1.6) · 금속 팅 3.33(×0.55) · 휙 3.36(×0.5) · 유리 와장창 3.79(×0.95)+유리 탁 3.79(×0.55) · 파편 4.08(×0.5)
+
+v0.1.25 coin-samira.ogg 다시 섞음(사장님: 얼어붙는 소리 같음·대사 안 어울림): 대사 뺌 · 고음 많은 유리 파편/탁 소리(6kHz 이상 84%·54%) 뺌 →
+  금속 팅 0.52(×0.45) · 동전 쥠 1.20(×1.6) · 금속 팅 3.33(×0.55) · 휙 3.36(×0.5) · 쿵 bfh1_hit_07(저음 91%) 3.78(×0.9) · 유리 와장창 glass_breaking.wav(고음 15%·7.5kHz 위 깎음) 3.79(×0.95)
