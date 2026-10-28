@@ -113,6 +113,23 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .lb-add input:focus { border-color:var(--gold-line); }
 .lb-add button { -webkit-app-region:no-drag; padding:0 14px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--ink-soft); background:var(--bg-2); border:1px solid var(--line-2); }
 .lb-start { -webkit-app-region:no-drag; width:100%; font-size:15px; padding:13px; }
+.lb-gobar { position:sticky; bottom:-10px; z-index:5; margin:4px -14px -10px; padding:14px 14px 12px;
+  background:linear-gradient(180deg, rgba(6,11,16,0), rgba(6,11,16,0.96) 14px, rgba(6,11,16,0.98)); }   /* 스크롤해도 아래에 붙음 */
+/* 🎯 뽑는 순서 막대 — 글 대신 팀 색 칸으로(스네이크 1·2·2·1…) · 같은 팀 연속은 한 묶음 */
+.dr-order { display:flex; align-items:center; justify-content:center; gap:9px; margin:0 0 12px; flex-wrap:wrap; row-gap:6px; }
+.dr-order .og { display:flex; gap:3px; }
+.op { font-style:normal; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; font-family:var(--f-num); font-weight:700; font-size:12.5px; line-height:1; border:1.5px solid; clip-path:var(--cut-sm); }
+.op.t1 { color:var(--t1); border-color:var(--t1-line); background:var(--t1-soft); }
+.op.t2 { color:var(--t2); border-color:var(--t2-line); background:var(--t2-soft); }
+.op.done { opacity:0.32; }
+.op.now { color:#fff; transform:scale(1.18); animation:opNow 0.45s ease-out; }   /* 지금 차례(한 번만 튀어 오름) */
+.op.now.t1 { background:var(--t1); border-color:var(--t1); } .op.now.t2 { background:var(--t2); border-color:var(--t2); }
+@keyframes opNow { 0% { transform:scale(0.7); } 60% { transform:scale(1.3); } 100% { transform:scale(1.18); } }
+.lb-order { margin:-4px 0 12px; flex-direction:column; gap:5px; }
+.lb-order .ogs, .dr-order .ogs { display:flex; gap:9px; flex-wrap:nowrap; }
+.op.f { color:var(--gold-hi); border-color:var(--gold-line); background:var(--gold-soft); font-family:var(--f-body); font-size:11px; }   /* 대기실 미리보기: 선픽 */
+.op.s { color:var(--ink-soft); border-color:var(--line-2); background:var(--bg-2); font-family:var(--f-body); font-size:11px; }       /* 후픽 */
+.ord-l { font-family:var(--f-num); font-weight:700; font-size:10.5px; letter-spacing:1.5px; color:var(--dim); }
 .lb-foot { text-align:center; font-size:12px; color:var(--dim); line-height:1.6; margin:6px 0 14px; }
 .lobby-pulse { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--gold); margin-right:7px; vertical-align:middle; }   /* 깜빡이지 않음(성능) */
 .lb-today { margin-top:4px; padding-top:12px; border-top:1px solid var(--hair); }
@@ -172,6 +189,8 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .dr-band.t1 { border-color:var(--t1-line); background:linear-gradient(180deg, var(--t1-soft), var(--bg-2)); }
 .dr-band.t2 { border-color:var(--t2-line); background:linear-gradient(180deg, var(--t2-soft), var(--bg-2)); }
 .dr-band b { font-weight:800; }
+.dr-nw { white-space:nowrap; }
+.dr-capn { display:inline-block; max-width:50%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom; }   /* 긴 팀장 이름이 「고르는 중」을 쪼개지 않게 */
 .dr-band .dr-sec { font-family:var(--f-num); font-weight:700; font-size:18px; color:var(--gold-hi); margin-left:8px; }
 .dr-bar-track { height:3px; margin-bottom:12px; background:rgba(255,255,255,0.06); overflow:hidden; }
 .dr-bar { height:100%; width:100%; background:var(--gold); transition:width 0.25s linear; }

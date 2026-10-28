@@ -80,13 +80,14 @@ function renderDraft() {
   const left = Math.max(0, Math.ceil(((s.turnEndsAt || 0) - Date.now()) / 1000));
   band.innerHTML = myTurn
     ? `<b>내 차례!</b> 팀원을 골라주세요 <span class="dr-sec">${left}초</span>`
-    : `<b>${team === 'teamA' ? '1팀' : '2팀'} 팀장 ${esc(cap || '')}</b> 고르는 중 <span class="dr-sec">${left}초</span>`;
+    : `<b>${team === 'teamA' ? '1팀' : '2팀'} 팀장 <span class="dr-capn">${esc(cap || '')}</span></b> <span class="dr-nw">고르는 중</span> <span class="dr-sec">${left}초</span>`;
   const col = (tm, label) => {
     const arr = s[tm] || [], size = s.teamSize || arr.length;
     const rows = arr.map((n, i) => `<li class="${nn(n) === nn(myName) ? 'me' : ''}${_pickWait && nn(_pickWait) === nn(n) ? ' pk-wait' : ''}">${i === 0 ? '<span class="dr-cap">팀장</span>' : ''}<span class="nm">${esc(n)}</span></li>`).join('');
     const empty = Array.from({ length: Math.max(0, size - arr.length) }, () => '<li class="empty">—</li>').join('');
     return `<div class="dr-th${team === tm ? ' on' : ''}">${label}<span>${arr.length}/${size}</span></div><ul>${rows}${empty}</ul>`;
   };
+  el('dr-order').innerHTML = orderBar(s.order || [], s.pickIdx || 0);
   el('dr-a').innerHTML = col('teamA', '1팀');
   el('dr-b').innerHTML = col('teamB', '2팀');
   el('dr-a').classList.toggle('turn', team === 'teamA');
@@ -160,6 +161,16 @@ function playPick(s, lp) {
 const PICK_SFX = { A: new Audio('../assets/sfx/pick-t1.ogg'), B: new Audio('../assets/sfx/pick-t2.ogg') };
 Object.values(PICK_SFX).forEach(a => { a.preload = 'auto'; a.volume = 0.2; });   // 사장님: 0.7에서 10~11dB 더 작게
 function pickSound(A) { try { const a = PICK_SFX[A ? 'A' : 'B']; a.currentTime = 0; const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (_) {} }
+// 🎯 뽑는 순서 막대: 같은 팀이 연달아 뽑는 칸은 한 묶음 · 뽑은 칸=흐리게 · 지금 차례=꽉 채워 튀어 오름
+function orderBar(order, idx, labels) {
+  const groups = [];
+  order.forEach((t, i) => { const g = groups[groups.length - 1]; if (g && g.t === t) g.i.push(i); else groups.push({ t, i: [i] }); });
+  return '<span class="ogs">' + groups.map(g => `<span class="og">${g.i.map(i => {
+    const cls = labels ? (g.t === 'teamA' ? 'f' : 's') : (g.t === 'teamA' ? 't1' : 't2');
+    const st = labels ? '' : i < idx ? ' done' : i === idx ? ' now' : '';
+    const tx = labels ? (g.t === 'teamA' ? '선' : '후') : (g.t === 'teamA' ? '1' : '2');
+    return `<i class="op ${cls}${st}">${tx}</i>`; }).join('')}</span>`).join('') + '</span>';
+}
 function updateDraftTimer() {
   const s = sessionData; if (!s || s.phase !== 'draft') return;
   const ms = Math.max(0, (s.turnEndsAt || 0) - Date.now());
@@ -513,6 +524,13 @@ function renderLobby() {
   if (draft) cb.innerHTML = `<span class="lb-cap t1"><em>1팀 팀장</em><b>${caps.teamA ? esc(caps.teamA) : '미정'}</b></span><span class="lb-cap t2"><em>2팀 팀장</em><b>${caps.teamB ? esc(caps.teamB) : '미정'}</b></span>`
     + (myIsHost ? '<button id="lb-caprand" class="lb-mini">랜덤 팀장</button>' : '');
   const cr = el('lb-caprand'); if (cr) cr.onclick = () => lbAct(() => window.api.lobbyCaptain(null, true));
+  { // 🎯 드래프트면 뽑는 순서 미리보기(선픽은 동전으로 정해짐 → 선/후로 표시)
+    const n = M.filter(m => m.st === 'in').length, ts = Math.min(5, Math.floor(n / 2)), picks = Math.max(0, (ts - 1) * 2);
+    const ob = el('lb-order'), ord = [];
+    for (let i = 0; i < picks; i++) ord.push(((i + 1) >> 1) % 2 === 0 ? 'teamA' : 'teamB');   // main draftOrder와 같은 스네이크
+    ob.style.display = draft && picks ? '' : 'none';
+    if (draft && picks) ob.innerHTML = `<span class="ord-l">PICK ORDER</span>` + orderBar(ord, 0, true);
+  }
   // 🪑 자리 10칸 — 참가한 사람 순서대로 앉고 나머지는 빈 자리
   const capOf = n => nn(n) === nn(caps.teamA) ? 1 : nn(n) === nn(caps.teamB) ? 2 : 0;
   el('lb-seat-cnt').innerHTML = `<b>${Math.min(ins.length, SEATS)}</b> / ${SEATS}${ins.length > SEATS ? ` <em>+${ins.length - SEATS}명 대기</em>` : ''}`;
@@ -554,6 +572,7 @@ function renderLobby() {
   });
   // 👑 방장: 추가·시작 / 나머지: 안내
   el('lb-hostbox').style.display = myIsHost ? '' : 'none';
+  el('lb-gobar').style.display = myIsHost ? '' : 'none';
   const n = ins.length, capsOk = !draft || (caps.teamA && caps.teamB);
   const go = el('lb-start');
   go.disabled = n < 4 || !capsOk;

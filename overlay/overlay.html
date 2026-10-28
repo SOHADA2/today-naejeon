@@ -37,6 +37,7 @@
     <section id="view-draft" class="view ui-scroll" style="display:none;">
       <div id="dr-band" class="dr-band"></div>
       <div class="dr-bar-track"><div id="dr-bar" class="dr-bar"></div></div>
+      <div id="dr-order" class="dr-order"></div>
       <div class="dr-teams">
         <div class="dr-team blue" id="dr-a"></div>
         <div class="dr-team red" id="dr-b"></div>
@@ -95,17 +96,19 @@
       <div id="lb-head" class="lb-head"></div>
       <div class="lb-mode"><span class="lb-mode-l">이번 판 방식</span><button class="lb-seg" data-mode="random">랜덤</button><button class="lb-seg" data-mode="draft">드래프트</button></div>
       <div id="lb-caps" class="lb-caps" style="display:none;"></div>
+      <div id="lb-order" class="dr-order lb-order" style="display:none;"></div>
       <div class="lb-sec"><span class="lb-sec-en">ROOM</span><span id="lb-seat-cnt"></span></div>
       <div id="lb-seats" class="lb-seats"></div>
       <div id="lb-me" class="lb-me"><button id="lb-mebtn" class="lb-mebtn"></button></div>
       <div id="lb-list" class="lb-list"></div>
       <div id="lb-hostbox" class="lb-hostbox" style="display:none;">
         <div class="lb-add"><input id="lb-add" maxlength="24" placeholder="앱 없는 사람 이름 추가"><button id="lb-add-go">추가</button></div>
-        <button id="lb-start" class="ui-btn-gold lb-start" disabled>시작</button>
       </div>
       <div id="lb-foot" class="lb-foot"></div>
       <div id="lb-err" class="dr-err" style="display:none;"></div>
       <div id="lb-today" class="lb-today"></div>
+      <!-- 👑 시작 버튼 = 스크롤해도 늘 화면 아래에 붙어 있음 -->
+      <div id="lb-gobar" class="lb-gobar" style="display:none;"><button id="lb-start" class="ui-btn-gold lb-start" disabled>시작</button></div>
     </section>
 
     <!-- 게임 중 명단 -->
