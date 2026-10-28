@@ -22,3 +22,31 @@ jobs:
         run: TZ=Asia/Seoul node tools/days-report.cjs
       - name: 리플레이 확인
         run: TZ=Asia/Seoul node tools/replay-report.cjs
+  clip:
+    # 🎬 팟지 영상 내용 확인 — ffprobe 정보 + 1초마다 한 장 캡처 모음을 potg-check-out 브랜치에 올림(사장님 동의: 공개)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 영상 받기·검사
+        run: |
+          sudo apt-get install -y -qq ffmpeg >/dev/null 2>&1 || true
+          mkdir -p out
+          TZ=Asia/Seoul node tools/clip-dump.cjs $(head -1 tools/.potg-check | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}' || true) out
+          for f in out/*.webm; do
+            [ -e "$f" ] || continue
+            echo "■ $f"; ffprobe -v error -show_entries format=duration:stream=codec_name,width,height,r_frame_rate,nb_frames -of compact "$f"
+            ffmpeg -v error -i "$f" -vf "fps=1,scale=384:-1,drawtext=text='%{pts\\:hms}':x=6:y=6:fontsize=16:fontcolor=yellow:box=1:boxcolor=black@0.6,tile=4x6" -frames:v 1 "${f%.webm}.jpg" || ffmpeg -v error -i "$f" -vf "fps=1,scale=384:-1,tile=4x6" -frames:v 1 "${f%.webm}.jpg" || echo "캡처 실패"
+            ffmpeg -v error -i "$f" -vf blackdetect=d=0.5:pix_th=0.1 -an -f null - 2>&1 | head -5
+          done
+          ls -la out
+      - name: 결과 올리기
+        run: |
+          cd out && git init -q && git checkout -q -b potg-check-out
+          git config user.name "potg-check" && git config user.email "potg-check@users.noreply.github.com"
+          git add *.jpg *.json 2>/dev/null; git commit -qm "팟지 영상 캡처" || exit 0
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" potg-check-out
