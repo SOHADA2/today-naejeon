@@ -15,7 +15,8 @@ const https = require('https');
 const W = 768, H = 432, FPS = 30;   // 작게(서버 용량·팀원 내려받기) — 15초 ≈ 수 MB 예상
 
 function makeReplayRec(d) {
-  // d = { lcuRaw(method, path, body) → {status,data}, lolDir() → 롤 폴더|null, log, kill() → Promise, liveBase?, docsDir?, outDir }
+  // d = { lcuRaw(method, path, body) → {status,data}, lolDir() → 롤 폴더|null, log, kill() → Promise, liveBase?, docsDir?, outDir,
+  //       restoreFile?(바꾼 game.cfg 값 기억), hideWindow?() → {stop() → 숨긴 횟수, show()} }
   const log = m => { try { d.log('[replay] ' + m); } catch (_) {} };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const base = d.liveBase || 'https://127.0.0.1:2999';
@@ -29,21 +30,48 @@ function makeReplayRec(d) {
     if (payload) req.write(payload); req.end();
   });
 
-  // ① 리플레이 조작 창구 켜기(game.cfg)
-  function ensureReplayApi() {
-    const dir = d.lolDir && d.lolDir();
-    if (!dir) return 'no-dir';
-    const f = path.join(dir, 'Config', 'game.cfg');
+  // ① game.cfg [General] — EnableReplayApi=1(계속 둠) + 녹화하는 동안만 창 모드 1920×1080(v0.1.37: 화면 밖으로 숨기려면 창 모드여야 하고,
+  //    방장 모니터가 달라도 늘 같은 크기·화질로 찍힘) → 끝나면 바꾼 값만 원래대로. 앱이 중간에 꺼져도 다음 실행 때 restorePending()이 되돌림
+  const cfgPath = () => { const dir = d.lolDir && d.lolDir(); return dir ? path.join(dir, 'Config', 'game.cfg') : null; };
+  function setGeneral(f, vals) {   // → 바꾸기 전 값({키: 값 또는 null=없던 줄})
     let s = ''; try { s = fs.readFileSync(f, 'utf8'); } catch (_) {}
-    if (/^\s*EnableReplayApi\s*=\s*1\s*$/mi.test(s)) return 'already';
-    const eol = s.includes('\r\n') ? '\r\n' : '\n';
+    const eol = s.includes('\r\n') ? '\r\n' : '\n', before = {};
     try { if (s && !fs.existsSync(f + '.tn-backup')) fs.writeFileSync(f + '.tn-backup', s); } catch (_) {}
-    if (/^\s*EnableReplayApi\s*=.*$/mi.test(s)) s = s.replace(/^\s*EnableReplayApi\s*=.*$/mi, 'EnableReplayApi=1');
-    else if (/^\[General\][ \t]*$/mi.test(s)) s = s.replace(/^\[General\][ \t]*$/mi, m => m + eol + 'EnableReplayApi=1');
-    else s = `[General]${eol}EnableReplayApi=1${eol}` + s;
+    if (!/^\[General\][ \t]*$/mi.test(s)) s = `[General]${eol}` + s;
+    for (const [k, v] of Object.entries(vals)) {
+      const re = new RegExp(`^[ \\t]*${k}[ \\t]*=(.*)$`, 'mi'), m = s.match(re);
+      before[k] = m ? m[1].trim() : null;
+      if (v == null) { if (m) s = s.replace(new RegExp(`^[ \\t]*${k}[ \\t]*=.*(\\r?\\n)?`, 'mi'), ''); }
+      else if (m) s = s.replace(re, `${k}=${v}`);
+      else s = s.replace(/^\[General\][ \t]*$/mi, h => h + eol + `${k}=${v}`);
+    }
     fs.mkdirSync(path.dirname(f), { recursive: true });
     fs.writeFileSync(f, s);
-    return 'set';
+    return before;
+  }
+  function ensureReplayApi() {
+    const f = cfgPath(); if (!f) return 'no-dir';
+    let s = ''; try { s = fs.readFileSync(f, 'utf8'); } catch (_) {}
+    if (/^\s*EnableReplayApi\s*=\s*1\s*$/mi.test(s)) return 'already';
+    setGeneral(f, { EnableReplayApi: 1 }); return 'set';
+  }
+  const WIN = { WindowMode: 1, Width: 1920, Height: 1080 };   // 1 = 창 모드
+  function cfgForRecord() {
+    const f = cfgPath(); if (!f) return null;
+    const before = setGeneral(f, WIN);
+    if (d.restoreFile) try { fs.writeFileSync(d.restoreFile, JSON.stringify({ f, before, at: Date.now() })); } catch (_) {}
+    return { f, before };
+  }
+  function restoreCfg(r) {
+    if (!r) { try { r = JSON.parse(fs.readFileSync(d.restoreFile, 'utf8')); } catch (_) { return 'none'; } }
+    try {
+      let s = fs.readFileSync(r.f, 'utf8'); const cur = {};
+      for (const k of Object.keys(WIN)) { const m = s.match(new RegExp(`^[ \\t]*${k}[ \\t]*=(.*)$`, 'mi')); cur[k] = m ? m[1].trim() : null; }
+      const back = {}; for (const k of Object.keys(WIN)) if (String(cur[k]) === String(WIN[k])) back[k] = r.before[k];   // 그새 사용자가 바꾼 값은 건드리지 않음
+      setGeneral(r.f, back);
+    } catch (_) {}
+    try { if (d.restoreFile) fs.unlinkSync(d.restoreFile); } catch (_) {}
+    return 'restored';
   }
 
   // ② 리플레이 파일 준비(최대 90초)
@@ -92,8 +120,10 @@ function makeReplayRec(d) {
     log(`게임 ${gameId} ${from}~${to}초 녹화 시작 · 창구 ${ensureReplayApi()}`);
     if (!await waitRofl(gameId)) return null;
     log(`리플레이 준비됨 (${sec()}초)`);
+    const cfg = cfgForRecord(); if (cfg) log(`창 모드 1920×1080 (원래 ${JSON.stringify(cfg.before)})`);
+    const hid = d.hideWindow ? d.hideWindow() : null;   // 리플레이 창이 뜨면 바로 화면 밖으로
     const w = await d.lcuRaw('POST', `/lol-replays/v1/rofls/${gameId}/watch`, { componentType: 'replay-button_match-history' });
-    if (!(w.status >= 200 && w.status < 300)) { log('리플레이 열기 실패 HTTP ' + w.status); return null; }
+    if (!(w.status >= 200 && w.status < 300)) { log('리플레이 열기 실패 HTTP ' + w.status); if (hid) hid.stop(); restoreCfg(cfg); return null; }
     try {
       let len = 0;   // ④ 리플레이 로딩(최대 120초)
       for (let i = 0; i < (d.loadWaitSec || 120) && !len; i++) { const p = await live('GET', '/replay/playback'); if (p.status === 200 && p.data && p.data.length > 0) len = p.data.length; else await sleep(1000); }
@@ -120,7 +150,7 @@ function makeReplayRec(d) {
       if (!(rr.status >= 200 && rr.status < 300)) { log('녹화 시작 실패 HTTP ' + rr.status); return null; }
       await live('POST', '/replay/playback', { time: startAt, paused: false, speed: 1 });
       // ⑤ 끝 = 리플레이 시간이 to를 지나고 녹화가 멈춤(녹화 쪽 값만 믿지 않음 — 리플레이 시간 기준) · 최대 (구간+앞부분)×4 + 30초
-      let lastPath = null, last = 0, n = 0;
+      let lastPath = null, last = 0, n = 0, moveAt = Date.now(), moveT = -1, shown = !hid;
       const limit = Date.now() + ((to - startAt) * 4 + 30) * 1000;
       while (Date.now() < limit) {
         await sleep(1000);
@@ -129,6 +159,8 @@ function makeReplayRec(d) {
         if (rec.outputPath || rec.path) lastPath = rec.outputPath || rec.path;
         if (++n % 3 === 1) log(`진행 리플레이 ${t == null ? '?' : t.toFixed(1)}초 · 녹화 ${rec.recording ? '중' : '멈춤'}${rec.currentTime != null ? ' ' + Number(rec.currentTime).toFixed(1) : ''}`);
         if (t != null) last = t;
+        if (t != null && Math.abs(t - moveT) > 0.3) { moveT = t; moveAt = Date.now(); }
+        else if (!shown && Date.now() - moveAt > 6000) { shown = true; hid.show(); log('화면 밖에선 리플레이가 멈춰서 화면 안으로 꺼냄'); await live('POST', '/replay/playback', { paused: false }); moveAt = Date.now(); }
         if (t != null && t >= to + 0.5 && !rec.recording) break;
         if (p.data && p.data.paused && t != null && t < to) await live('POST', '/replay/playback', { paused: false });   // 누가 멈췄으면 다시 재생
       }
@@ -145,10 +177,12 @@ function makeReplayRec(d) {
       return clip.p;
     } finally {
       await closeReplay();   // 열기 요청을 보냈으면 늘 정리(창구가 안 열렸어도 게임 창은 떴을 수 있음)
+      if (hid) { const h = hid.stop(); if (h != null) log(`창 숨김 ${h}회`); }
+      restoreCfg(cfg);   // 리플레이를 강제로 닫아서 롤이 설정을 덮어쓰지 않음 → 그 뒤에 되돌림
     }
   }
 
-  return { record, ensureReplayApi, _findClip: findClip };
+  return { record, ensureReplayApi, restorePending: () => restoreCfg(null), _findClip: findClip };
 }
 
 module.exports = makeReplayRec;

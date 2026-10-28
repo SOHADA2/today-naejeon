@@ -986,6 +986,44 @@ async function shrinkClip(file) {
     return r && r.b64 ? Buffer.from(r.b64, 'base64') : null;
   } finally { try { w.destroy(); } catch (_) {} }
 }
+// 🎬 리플레이 창 숨기기(v0.1.37) — 리플레이 게임 창(League of Legends.exe)이 뜨면 0.1초마다 확인해 화면 밖(-4000,-4000)으로 옮기고
+//    작업 표시줄에서 빼고(도구 창), 포커스를 가져갔으면 원래 창(롤 클라 등)에 돌려줌 · show() = 숨기기 멈추고 화면 안으로(화면 밖에서 롤이 멈출 때 대비)
+const HIDE_PS = String.raw`
+Add-Type @'
+using System; using System.Runtime.InteropServices;
+public class TNW {
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int cx, int cy, uint f);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int i);
+  [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr h, int i, int v);
+  public struct RECT { public int L, T, R, B; }
+}
+'@
+$mode = $args[0]; $prev = [TNW]::GetForegroundWindow(); $end = (Get-Date).AddSeconds([int]$args[1]); $n = 0
+while ((Get-Date) -lt $end) {
+  foreach ($p in Get-Process -Name 'League of Legends' -ErrorAction SilentlyContinue) {
+    $h = $p.MainWindowHandle; if ($h -eq [IntPtr]::Zero) { continue }
+    $r = New-Object TNW+RECT; [void][TNW]::GetWindowRect($h, [ref]$r)
+    if ($mode -eq 'show') { [void][TNW]::SetWindowPos($h, [IntPtr]::Zero, 80, 80, 0, 0, 0x15); Write-Output 'shown'; exit }
+    if ($r.L -gt -3000) {
+      $ex = [TNW]::GetWindowLong($h, -20); [void][TNW]::SetWindowLong($h, -20, (($ex -bor 0x80) -band (-bnot 0x40000)))
+      [void][TNW]::SetWindowPos($h, [IntPtr]::Zero, -4000, -4000, 0, 0, 0x15); $n++; Write-Output "moved $n"
+      if ($prev -ne [IntPtr]::Zero -and [TNW]::GetForegroundWindow() -eq $h) { [void][TNW]::SetForegroundWindow($prev) }
+    }
+  }
+  Start-Sleep -Milliseconds 100
+}`;
+function hideReplayWindow() {
+  const { spawn } = require('child_process');
+  const run = (mode, sec) => spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(`& {${HIDE_PS}} ${mode} ${sec}`, 'utf16le').toString('base64')], { windowsHide: true });   // 여러 줄 스크립트는 인코딩해서 넘김
+  let moved = 0, ps = run('hide', 300);
+  ps.stdout.on('data', b => { const m = String(b).match(/moved (\d+)/g); if (m) moved = +m[m.length - 1].split(' ')[1]; });
+  ps.on('error', () => {});
+  const stop = () => { try { ps.kill(); } catch (_) {} return moved; };
+  return { stop, show: () => { stop(); try { run('show', 10).on('error', () => {}); } catch (_) {} } };
+}
 const runHost = coalesce(async () => { if (_hostBusy) return; _hostBusy = true; try { await hostTick(); } finally { _hostBusy = false; } });
 
 // EOG 승리 진영 → 1팀/2팀 판정(인게임 이름 ↔ 등록 이름 매칭). 애매하면 null(방장이 직접 선택)
@@ -1510,7 +1548,10 @@ else {
       lcuRaw: bridge.lcuRaw, lolDir: bridge.lolDir, outDir: path.join(app.getPath('userData'), 'replay-rec'),
       kill: () => new Promise(r => require('child_process').execFile('taskkill', ['/IM', 'League of Legends.exe', '/F'], () => r())),
       log: (m) => { _recLog.push(`${new Date().toTimeString().slice(0, 8)} ${m}`); try { console.log(m); } catch (_) {} },
+      restoreFile: path.join(app.getPath('userData'), 'replay-cfg-restore.json'),
+      hideWindow: process.platform === 'win32' ? hideReplayWindow : null,
     }));
+    try { replayRec.restorePending(); } catch (_) {}   // 지난번에 녹화하다 앱이 꺼졌으면 game.cfg 창 설정 되돌림
     potg = makePotg({ T, FIREBASE_DB, fbSet, fbDelete, getJson, dayKey, normName, userData: app.getPath('userData'), getPlayers: () => latestPlayers, log: (m) => { try { console.log(m); } catch (_) {} } });
     setTimeout(() => potg.cleanup().catch(() => {}), 8000); setInterval(() => potg.cleanup().catch(() => {}), 30 * 60 * 1000);   // 🎬 3일 지난 영상·수집 지우기
     bridge.start({ getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
