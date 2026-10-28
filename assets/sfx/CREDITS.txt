@@ -3,3 +3,12 @@ https://github.com/sgossner/VSCO-2-CE
 - pick-t1.ogg / pick-t2.ogg (드래프트 픽 「둥–툭–둥」 베이스, 1.75초, -16 LUFS): 콘트라베이스 피치카토 + 첼로 섹션 피치카토(한 옥타브 위로 겹침)
   0.20초 「둥」 으뜸음(이름 꽂힘) → 0.37초 「툭」 같은 음 짧게 막음 → 0.54초 「둥」 5도 위. 1팀 = 레→라 · 2팀 = 도→솔.
   재료 위치: Strings/Solo Contrabass/Pizz(파일 이름 + 1옥타브가 실제 음), Strings/Cello Section/pizzT(파일 이름 + 2옥타브)
+
+
+coin-samira.ogg (v0.1.24 선픽 동전 3D 사미라 장면, 6초, -16 LUFS, 앱 재생 볼륨 0.3) — 실제 녹음만 섞음(합성음 없음)
+- 사미라 대사 = 롤 클라이언트 챔피언 선택 음성(한국어) · Riot Games 에셋(비상업 팬 프로젝트 용도)
+  https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1/champion-choose-vo/360.ogg
+  (게임 안 Taunt 대사는 CommunityDragon에 없음 — 클라이언트 선택·금지 대사만 있음)
+- 동전·유리 = CC0: 「75 CC0 breaking/falling/hit sfx」(OpenGameArt sfx_breaking_and_falling.zip: bfh1_metal_hit_01/06·bfh1_glass_hit_01·bfh1_glass_falling_02)
+  · 「Glass Break」(OpenGameArt glass_breaking.wav) · 「80 CC0 RPG SFX」(blade_01) · Kenney 「RPG Audio」(handleCoins2)
+- 섞는 법(ffmpeg adelay+amix normalize=0+loudnorm I=-16): 대사 0.05 · 금속 팅 0.52(×0.45) · 동전 쥠 1.20(×1.6) · 금속 팅 3.33(×0.55) · 휙 3.36(×0.5) · 유리 와장창 3.79(×0.95)+유리 탁 3.79(×0.55) · 파편 4.08(×0.5)

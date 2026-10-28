@@ -249,25 +249,11 @@ function coinReveal(ac, K, z, A) {
     o.connect(g); g.connect(fx); o.start(z); o.stop(z + 2); });
   for (let i = 0; i < 7; i++) tone(fx, 3200 + Math.random() * 3200, z + 0.06 + i * 0.045, 0.06, 0.25);
 }
-// 🔊 3D 사미라 장면 효과음 — 위로 튕김(띵) → 받음(톡) → 화면 쪽으로 튕김(딱+쨍) → 다가오는 바람 → 결과 쾅
-function coinScore3d(ac, t0, A) {
-  const C = window.coin3d, K = sfxKit(ac); t0 += C.INTRO || 0;   // 등장(서서히 나타남) 뒤부터 Taunt 박자
-  const { fx, dry, tone, noise, ring, thud, noiseBuf } = K;
-  const up = t0 + 0.12; noise(dry, up, 0.5, 0.016, 'bandpass', 3400, 1.4); ring(fx, 1240, up + 0.004, 0.55, 1.4);
-  const ct = t0 + 0.8; noise(dry, ct, 0.35, 0.02, 'bandpass', 2200, 1.2); thud(dry, ct, 0.16, 210); ring(fx, 1100, ct, 0.22, 0.5);
-  const f = t0 + C.FLICK; noise(dry, f, 0.75, 0.018, 'bandpass', 3200, 1.4); thud(dry, f, 0.3, 180); ring(fx, 1180, f + 0.004, 0.9, 2.0);
-  { const s = ac.createBufferSource(), bp = ac.createBiquadFilter(), g = ac.createGain(), a = f + 0.03, e = t0 + C.CATCH_AT + 0.12;
-    s.buffer = noiseBuf(e - a + 0.1); bp.type = 'bandpass'; bp.Q.value = 2; bp.frequency.setValueAtTime(520, a); bp.frequency.exponentialRampToValueAtTime(2800, e);
-    g.gain.setValueAtTime(0.0001, a); g.gain.exponentialRampToValueAtTime(0.42, e - 0.02); g.gain.exponentialRampToValueAtTime(0.0001, e + 0.06);
-    s.connect(bp); bp.connect(g); g.connect(dry); s.start(a); s.stop(e + 0.1); }
-  // 💥 화면(유리)에 꽂힘: 「쩍」 금 가는 소리 + 「쨍그랑」 + 떨어지는 파편 「찰랑찰랑」 + 낮은 「쿵」
-  const z = t0 + C.SHOW_AT;
-  noise(dry, z, 0.95, 0.05, 'highpass', 2600);
-  noise(fx, z + 0.004, 0.55, 0.4, 'bandpass', 5600, 0.9, 2400);
-  thud(dry, z, 0.6, 95);
-  for (let i = 0; i < 16; i++) { const at = z + 0.03 + 0.6 * Math.pow(Math.random(), 1.6); tone(fx, 2600 + Math.random() * 4400, at, 0.04 + Math.random() * 0.07, 0.08 + Math.random() * 0.16, 'triangle'); }
-  coinReveal(ac, K, z, A);
-}
+// 🔊 3D 사미라 장면 소리 = 실제 녹음을 미리 섞은 파일 하나(assets/sfx/coin-samira.ogg · 합성음 아님 — 사장님: 합성음 안 어울림)
+// 사미라 챔피언 선택 대사(한국어) → 0.52초 위로 튕김 「팅」 → 1.2초 받음 「찰캉」 → 3.33초 화면 쪽 튕김 「팅·휙」 → 3.79초 꽂힘 「와장창」+파편
+// 시각 = coin3d INTRO(0.4)+Taunt 시각과 맞춤 · 재료·섞는 법 = assets/sfx/CREDITS.txt
+const _coinSfx = (() => { try { const a = new Audio('../assets/sfx/coin-samira.ogg'); a.preload = 'auto'; return a; } catch (_) { return null; } })();
+function coinSamiraSound() { try { if (!_coinSfx) return; _coinSfx.pause(); _coinSfx.currentTime = 0; _coinSfx.volume = 0.3; _coinSfx.play().catch(() => {}); } catch (_) {} }
 function coinSound(A) {   // 앱에서 재생 = 지금 시각 기준으로 전체 예약
   try {
     _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
@@ -358,7 +344,8 @@ function playCoin3d(layer, res, A) {
   const anims = [];
   const go = (node, kf, opt) => { const a = node.animate(kf, Object.assign({ fill: 'forwards' }, opt)); anims.push(a); return a; };
   go(layer, [{ opacity: 0 }, { opacity: 1 }], { duration: 220 });
-  try { _ac = _ac || new (window.AudioContext || window.webkitAudioContext)(); if (_ac.state === 'suspended') _ac.resume(); coinScore3d(_ac, _ac.currentTime + 0.02, A); } catch (_) {}
+  stage.querySelectorAll('.cn-fx').forEach(n => n.remove());   // 혹시 남은 지난 연출 조각(금·파편·연기) 먼저 치움
+  coinSamiraSound();
   window.coin3d.play({ stage, A, dur: COIN_MS - 250,
     onShow: (at) => {
       if (at) coinImpactFx(stage, at.x, at.y, at.r, go);   // 💥 꽂힌 자리에 금·섬광·파편·연기·흔들림
