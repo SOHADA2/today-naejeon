@@ -14,7 +14,7 @@ el('ov-min').addEventListener('click', () => window.api.overlayMinimize());
 
 window.api.onState(({ inGame: ig }) => { const was = inGame; inGame = !!ig; if (inGame && !was) _gamePlayed = true; render(); });
 window.api.onPlayers(({ players }) => { roster = players || []; render(); });
-window.api.onSession(({ session, myName: mn, isHost }) => {
+function applySession({ session, myName: mn, isHost }) {
   const prevPhase = sessionData && sessionData.phase;
   sessionData = session || null;
   const f = (session && session.teamsFormedAt) || 0;
@@ -23,7 +23,8 @@ window.api.onSession(({ session, myName: mn, isHost }) => {
   if (isHost !== undefined) myIsHost = !!isHost;
   if (session && session.phase !== prevPhase) _todayAt = 0;   // 단계 바뀜(경기 기록됨 등) → 오늘 순위 새로
   render();
-});
+}
+window.api.onSession(applySession);
 window.api.onMyName(name => { myName = name || ''; render(); });
 window.api.onLobby(d => { lobbyData = d || null; if (d) myIsHost = !!d.isHost; render(); });
 window.api.onDocked(v => { document.body.classList.toggle('docked', !!v); });
@@ -710,5 +711,8 @@ function render() {
   if (inGame || roster.length) { renderRoster(); showView('roster'); el('phase').textContent = '게임 중'; return; }
   renderLobby(); showView('lobby'); el('phase').textContent = '대기실';
 }
+// 🩹 v0.1.28: 켤 때 내 이름·판 상태를 직접 받아옴 — 롤이 이미 켜져 있으면 계정이 창 로딩 중(듣기 전)에 잡혀 이름 알림을 놓치고,
+// 같은 내용은 다시 안 보내서(broadcast 중복 차단) 이름이 끝까지 비어 「관전할게요」 버튼·안내가 사라지던 버그(특정 사람만 = 롤 먼저 켠 사람·느린 PC)
+window.api.getPlayers().then(d => { if (d) applySession({ session: d.session, myName: d.myName, isHost: d.isHost }); }).catch(() => {});
 window.api.getLobby().then(d => { if (d) { lobbyData = d; myIsHost = !!d.isHost; render(); } }).catch(() => {});
 render();
