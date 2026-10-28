@@ -82,7 +82,8 @@ async function play({ stage, A, onShow, dur }) {
   const t0 = performance.now();
   await new Promise(done => {
     renderer.setAnimationLoop(() => {
-      const now = performance.now(), t = (now - t0) / 1000, dt = Math.min(0.05, t - last); last = t;
+      // 🎥 녹화용: window.__coinClock()(초)가 있으면 그 시각으로 그림(프레임 단위로 정확히 캡처) — 평소엔 없음
+      const now = window.__coinClock ?t0 + window.__coinClock() * 1000 : performance.now(), t = (now - t0) / 1000, dt = Math.min(0.05, t - last); last = t;
       mixer.setTime(Math.min(t, act.getClip().duration)); root.updateMatrixWorld(true);
       if (t <= CATCH_AT) { cam.position.lerpVectors(camFrom, camTo, ease.out3(clamp01(t / FLICK))); cam.lookAt(look); dir.copy(look).sub(cam.position).normalize(); coin.pos.quaternion.copy(cam.quaternion); hold = holdAt(); }
       if (t < CATCH_AT) {
