@@ -28,6 +28,7 @@ const mmss = s => s == null ? '-' : `${Math.floor(s / 60)}:${String(Math.floor(s
     else if (p.none) console.log('  ② 팟지: 고를 장면 없음(킬 사건이 하나도 없었음)');
     else console.log(`  ② 팟지: ${p.name}(${p.champ}) · ${p.label} ${p.tags ? '· ' + [].concat(p.tags).join('·') : ''} · ${mmss(p.t0)}~${mmss(p.t1)} · 킬 ${(p.kills || []).length}개${p.clip ? ' · 영상 있음' : ' · 영상 없음(카드로 나옴)'}`);
     // ③ 영상
+    if (m.potgRec) { const r = m.potgRec; console.log(`  ③ 리플레이 녹화(방장 PC): ${r.ok ? '✅ 성공' : '❌ ' + (r.why || '실패')} · ${r.sec}초${r.mb ? ' · ' + r.mb + 'MB' : ''}`); for (const l of r.lines || []) console.log('       ' + l); }
     console.log(`  ③ 영상: ${c && c.meta ? `${c.meta.n}조각 · ${(c.meta.size / 1048576).toFixed(1)}MB · ${c.meta.mime}` : '없음(리플레이 녹화는 아직 없음 — 정상)'}`);
     // ④ 리플레이 확인
     const pr = (probe || {})[gid];

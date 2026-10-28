@@ -331,7 +331,7 @@ function startReplayProbe(gameId) {
   log(`🎬 게임 ${gameId} 리플레이 확인 시작`);
   (async () => {
     try {   // 리플레이 조작 창구 설정(읽기만) · 클라 리플레이 설정
-      if (_lolDir) { const cfg = fs.readFileSync(path.join(_lolDir, 'Config', 'game.cfg'), 'utf8'); const m = cfg.match(/EnableReplayApis*=s*(S+)/i); rec.cfg = m ? m[1] : 'none'; }
+      if (_lolDir) { const cfg = fs.readFileSync(path.join(_lolDir, 'Config', 'game.cfg'), 'utf8'); const m = cfg.match(/EnableReplayApi\s*=\s*(\S+)/i); rec.cfg = m ? m[1] : 'none'; }   // v0.1.33 고침: 백슬래시가 빠져 늘 none으로 읽혔음
     } catch (_) { rec.cfg = 'unreadable'; }
     const c = await lcuRaw('GET', '/lol-replays/v1/configuration');
     rec.config = c.status === 200 && c.data ? { enabled: c.data.isReplaysEnabled, patching: c.data.isPatching, forEnd: c.data.isReplaysForEndOfGameEnabled, forHistory: c.data.isReplaysForMatchHistoryEnabled, minVer: c.data.minServerVersion || null } : { status: c.status };
@@ -550,4 +550,5 @@ function stop() {
   fbSet(`${BRIDGE_ROOT}/operators/${OPERATOR_ID}`, null);
 }
 
-module.exports = { start, stop, getGameId: () => activeGameId || lastSavedGameId || null };   // 🎬 팟지 수집이 어느 게임인지
+module.exports = { start, stop, getGameId: () => activeGameId || lastSavedGameId || null,   // 🎬 팟지 수집이 어느 게임인지
+  lcuRaw: (m, p, b) => basePort ? lcuRaw(m, p, b) : Promise.resolve({ status: 0, data: null }), lolDir: () => _lolDir };   // 🎬 팟지 리플레이 녹화(replayrec.js)   // 🎬 팟지 수집이 어느 게임인지

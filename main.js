@@ -19,8 +19,9 @@ const TOGGLE_HOTKEY = 'Shift+F7';   // 기존 오버레이(Shift+F5)와 겹치�
 const T = 'today';                  // ⚠️ 이 앱의 모든 쓰기 루트 — 사이트 노드(session·lobby·bridge·matches…)에 절대 쓰지 않음
 const { buildTeams, normName } = require('./teams');   // ⚔️ 홈페이지 makeTeams 1:1 이식(밸런스 계산)
 const bridge = require('./bridge');                    // 🔌 내장 브릿지(LCU EOG 캡처 → today/bridge)
+const makeReplayRec = require('./replayrec');           // 🎬 팟지 영상 = 방장 PC가 리플레이를 열어 그 장면만 녹화(v0.1.33)
 const makePotg = require('./potg');                    // 🎬 팟지(게임 중 킬·체력 수집 → 방장이 최고 장면 고름 → 가운데 창)
-let potg = null;                                        // app ready 뒤 생성(userData 경로 필요)
+let potg = null, replayRec = null, replayBusy = false;   // replayBusy = 리플레이 녹화 중(그동안 2999가 열려도 「게임 시작」으로 보지 않음)                                        // app ready 뒤 생성(userData 경로 필요)
 
 let overlayWin = null, tray = null;
 let inGame = false, userHid = false, latestPlayers = [];
@@ -502,6 +503,7 @@ function broadcast(channel, payload) {
 
 // ── 폴링 루프 ──────────────────────────────────────────────────────────────
 async function pollGame() {
+  if (replayBusy) return;   // 🎬 팟지 리플레이 녹화 중 = 리플레이 게임 창이라 실제 게임 아님(패널 숨김·「기록 저장 중」·수집이 잘못 켜지지 않게)
   const list = await liveClientPlayerList();
   const nowIn = Array.isArray(list);
   if (nowIn) sampleActive = false;          // 실게임 시작 → 미리보기 해제
@@ -911,6 +913,10 @@ async function hostTick() {
     return;
   }
   if ((s.phase === 'vote' || s.phase === 'result') && s.game && (!s.potg || s.potg.gameId !== String(s.game.id))) hostPotg(s).catch(() => {});   // 🎬
+  if (s.potg && s.potg.pending && !replayBusy && Date.now() - (s.potg.pendingAt || 0) > 200000) {   // 🎬 녹화하던 방장 앱이 꺼졌거나 넘겨받음 → 카드로라도 보여줌
+    const c = Object.assign({}, s.potg, { pending: null, pendingAt: null, showAt: Date.now() + 1500 });
+    await fbUpdate(`${T}/session`, { potg: c }); if (s.game) await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: c });
+  }
   if (s.phase === 'vote' && s.game) {
     const voters = [...(s.teamA || []), ...(s.teamB || [])];
     const votes = s.votes || {};
@@ -932,13 +938,42 @@ async function hostPotg(s) {
     const card = n ? potg.pickPotg(raws, s, rec && rec.stats) : null;
     if (!card) { await fbUpdate(`${T}/session`, { potg: { none: true, gameId: String(s.game.id) } }); return; }
     card.gameId = String(s.game.id);
+    const publish = async () => {   // 모두에게 보여주기(showAt = 다 같이 시작할 시각)
+      card.pending = null; card.pendingAt = null; card.showAt = Date.now() + 1500;
+      await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: card });
+      const cur = sessionData && sessionData.game;   // 녹화하는 사이 다음 판이 기록됐으면 지금 판 팟지를 덮지 않음(경기 기록에만 남김)
+      if (!cur || String(cur.id) === card.gameId) await fbUpdate(`${T}/session`, { potg: card });
+    };
     if (!app.isPackaged && process.env.TN_FAKE_CLIP) {   // 🧪 개발용: 리플레이 녹화 대신 이 파일을 영상으로 올림
       try { card.clip = await potg.uploadClip(s.game.id, fs.readFileSync(process.env.TN_FAKE_CLIP), /\.mp4$/i.test(process.env.TN_FAKE_CLIP) ? 'video/mp4' : 'video/webm'); } catch (_) {}
+      return publish();
     }
-    card.showAt = Date.now() + 1500;
-    await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: card });
-    await fbUpdate(`${T}/session`, { potg: card });
+    if (!replayRec || process.platform !== 'win32') return publish();
+    // 🎬 리플레이 녹화(방장 PC) — 그동안은 「준비 중」(showAt 없음 → 아무 창도 안 뜸) · 3분 넘거나 실패하면 카드로
+    await fbUpdate(`${T}/session`, { potg: Object.assign({}, card, { pending: true, pendingAt: Date.now() }) });
+    recordPotgClip(card, s).then(clip => { if (clip) card.clip = clip; }).catch(() => {}).finally(() => publish().catch(() => {}));
   } finally { _potgBusy = false; }
+}
+const CLIP_MAX = 12 * 1048576;   // 이보다 크면 안 올림(서버 용량·팀원 내려받기) → 카드
+let _recLog = [];   // 🎬 녹화 기록(경기 기록 potgRec에 남김 → tools/potg-report.cjs로 어디서 멈췄는지 확인)
+async function recordPotgClip(card, s) {
+  replayBusy = true; _recLog = [];
+  const t0 = Date.now(), recP = replayRec.record({ gameId: s.game.id, from: card.clipFrom, to: card.clipTo, focus: card.name, champ: card.champ });
+  recP.catch(() => {}).finally(() => setTimeout(() => { replayBusy = false; }, 6000));   // 리플레이가 실제로 끝나고(닫히고) 조금 더 지나야 풀림(시간 초과로 먼저 카드를 보여줘도)
+  let meta = null, why = '';
+  try {
+    const file = await Promise.race([recP, new Promise(r => setTimeout(() => r(null), 180000))]);
+    if (!file) why = Date.now() - t0 >= 179000 ? '3분 초과' : '녹화 안 됨';
+    else {
+      const buf = fs.readFileSync(file);
+      if (buf.length > CLIP_MAX) why = `너무 큼 ${(buf.length / 1048576).toFixed(1)}MB`;
+      else { meta = await potg.uploadClip(s.game.id, buf, 'video/webm'); if (!meta) why = '올리기 실패'; }
+      try { fs.unlinkSync(file); } catch (_) {}
+    }
+  } catch (e) { why = '오류 ' + (e && e.message); }
+  const sec = Math.round((Date.now() - t0) / 1000);
+  fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potgRec: { ok: !!meta, why: why || null, sec, mb: meta ? +(meta.size / 1048576).toFixed(1) : null, lines: _recLog.slice(-40), at: Date.now() } }).catch(() => {});
+  return meta;
 }
 const runHost = coalesce(async () => { if (_hostBusy) return; _hostBusy = true; try { await hostTick(); } finally { _hostBusy = false; } });
 
@@ -1460,6 +1495,11 @@ else {
     fbStream(`${T}/host`, runSession);                   // ⚡ 방장 바뀜(넘겨받음·이어받음)                  // ⚡ 방장 준비 중 배너
     fbStream(`${T}/bridge/eogStats`, () => { if (config.isHost) runHost(); });   // ⚡ 경기 종료 → 방장 앱이 바로 기록
     setupAutoUpdate();
+    replayRec = makeReplayRec(Object.assign(makeReplayRec.defaults(), {   // 🎬 방장 PC가 팟지 장면을 리플레이로 녹화
+      lcuRaw: bridge.lcuRaw, lolDir: bridge.lolDir, outDir: path.join(app.getPath('userData'), 'replay-rec'),
+      kill: () => new Promise(r => require('child_process').execFile('taskkill', ['/IM', 'League of Legends.exe', '/F'], () => r())),
+      log: (m) => { _recLog.push(`${new Date().toTimeString().slice(0, 8)} ${m}`); try { console.log(m); } catch (_) {} },
+    }));
     potg = makePotg({ T, FIREBASE_DB, fbSet, fbDelete, getJson, dayKey, normName, userData: app.getPath('userData'), getPlayers: () => latestPlayers, log: (m) => { try { console.log(m); } catch (_) {} } });
     setTimeout(() => potg.cleanup().catch(() => {}), 8000); setInterval(() => potg.cleanup().catch(() => {}), 30 * 60 * 1000);   // 🎬 3일 지난 영상·수집 지우기
     bridge.start({ getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
