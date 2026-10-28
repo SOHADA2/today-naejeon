@@ -1,6 +1,0 @@
-🎵 팟지 BGM (v0.1.37) — tools/potg-bgm/mkbgm.py 로 만듦
-potg-bed.ogg    8초 반복: D단조 Dm–B♭–F–C(120bpm) · 콘트라베이스·첼로·비올라 스피카토 8분 오스티나토 + 팀파니·큰북 + 호른 화음 + (뒤 두 마디) 바이올린 지속음
-potg-climax.ogg 0~2.5초 상승(A 딸림화음 트롬본·호른·튜바 크레센도 + 팀파니·스네어 롤 + 서스펜디드 심벌 크레센도 + 현 16분) → 2.5초 「쾅」 D장조 총주(튜바·트롬본·호른·트럼펫·현) + 공·큰북·팀파니·크래시 → 긴 울림
-재료: VSCO-2 Community Edition (Versilian Studios, CC0 1.0) https://github.com/sgossner/VSCO-2-CE
-  ⚠️ VSCO-2 파일 이름 = 실제 음보다 1옥타브 낮게 적혀 있음(자기상관으로 잼, 이 곡에 쓴 악기 전부) → lib.py offset=12
-소리 크기 = ffmpeg loudnorm -16 LUFS
