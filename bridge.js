@@ -21,6 +21,8 @@ let _appVer     = '';           // 오버레이 앱 버전(정보용)
 let _onAccount  = () => {};     // 👤 롤에 로그인된 라이엇 계정 변경 알림({puuid,gameName,tagLine} | null)
 let _onEog      = () => {};     // 📼 게임 결과 수집 단계 알림 → 왼쪽 창 「기록 저장 중」 화면
 let _fakeLcu    = null;         // 🧪 개발용 "port:password"(TN_FAKE_LCU) — lockfile 대신 이 주소로 붙음
+let _isHost     = () => false;  // 👑 이 PC가 방장인지(리플레이 확인에서 실제 다운로드는 방장만)
+let _lolDir     = null;         // 롤 설치 폴더(lockfile 있는 곳) — Config/game.cfg 확인용
 
 function log(msg) { try { _log('[bridge] ' + msg); } catch (_) {} }
 
@@ -125,7 +127,7 @@ class LockfileConnector extends EventEmitter {
             this._connected = false; this._curPort = null; this.emit('disconnect');
           }
           if (!this._connected) {
-            this._connected = true; this._curPort = port;
+            this._connected = true; this._curPort = port; _lolDir = path.dirname(lfPath);
             this.emit('connect', { username: 'riot', password, port, protocol: protocol || 'https' });
           }
         }
@@ -163,6 +165,11 @@ async function lcu(pathStr) {
   const r = await httpReq('GET', `https://127.0.0.1:${basePort}${pathStr}`, undefined, { Authorization: baseAuth });
   if (r.status >= 200 && r.status < 300) return r.data;
   throw new Error('lcu ' + r.status);
+}
+// 상태 코드까지 그대로 돌려줌(리플레이 확인 기록용)
+async function lcuRaw(method, pathStr, body) {
+  if (!basePort) return { status: 0, data: null };
+  return httpReq(method, `https://127.0.0.1:${basePort}${pathStr}`, body, { Authorization: baseAuth });
 }
 
 // ── 하트비트(프로세스 생존 신호 + 진행자 표시) ────────────────────────────────
@@ -307,6 +314,65 @@ function scheduleHistoryBackfill(gameId) {
   };
   setTimeout(tick, 3000);
 }
+// 🎬 리플레이 확인(v0.1.29 · 팟지 준비) — 내전이 끝나면 「이 판 리플레이를 받아서 볼 수 있나」를 조용히 확인해 서버에 남김
+// 화면엔 아무것도 안 띄움. 모든 참가자 앱 = 리플레이 상태만 10초마다 기록 · 방장 앱만 실제로 한 번 받아 파일이 생기는지까지 확인
+// 기록: today/bridge/replayProbe/{gameId}/{PC id} = { name, appVer, host, cfg, config, steps:[{t,state}], create, download, file, result }
+// t = 게임 끝나고 몇 초 뒤인지. 커스텀 게임 리플레이 지원 여부·준비 시간·리플레이 조작 창구(game.cfg EnableReplayApi) 설정 여부를 실제 게임에서 확인하려는 것
+const _probed = new Set();
+const REPLAY_DONE = ['watch', 'missingOrExpired', 'unsupported', 'incompatible', 'error'];
+function startReplayProbe(gameId) {
+  if (!gameId || _probed.has(String(gameId))) return;
+  _probed.add(String(gameId));
+  const t0 = Date.now(), sec = () => Math.round((Date.now() - t0) / 1000);
+  const rec = { name: _getOpName() || '', appVer: _appVer, host: !!_isHost(), at: t0, steps: [], result: 'checking' };
+  const key = `${BRIDGE_ROOT}/replayProbe/${gameId}/${OPERATOR_ID}`;
+  const save = () => fbSet(key, rec).catch(() => {});
+  let tries = 0, created = false, asked = false, last = null;
+  log(`🎬 게임 ${gameId} 리플레이 확인 시작`);
+  (async () => {
+    try {   // 리플레이 조작 창구 설정(읽기만) · 클라 리플레이 설정
+      if (_lolDir) { const cfg = fs.readFileSync(path.join(_lolDir, 'Config', 'game.cfg'), 'utf8'); const m = cfg.match(/EnableReplayApis*=s*(S+)/i); rec.cfg = m ? m[1] : 'none'; }
+    } catch (_) { rec.cfg = 'unreadable'; }
+    const c = await lcuRaw('GET', '/lol-replays/v1/configuration');
+    rec.config = c.status === 200 && c.data ? { enabled: c.data.isReplaysEnabled, patching: c.data.isPatching, forEnd: c.data.isReplaysForEndOfGameEnabled, forHistory: c.data.isReplaysForMatchHistoryEnabled, minVer: c.data.minServerVersion || null } : { status: c.status };
+    save();
+  })();
+  const tick = async () => {
+    tries++;
+    if (!basePort || tries > 90) { rec.result = rec.result === 'checking' ? (basePort ? 'timeout' : 'client-closed') : rec.result; save(); return; }   // 최대 15분
+    const m = await lcuRaw('GET', `/lol-replays/v1/metadata/${gameId}`);
+    const state = m.status === 200 && m.data ? String(m.data.state || 'unknown') : 'http' + m.status;
+    if (state !== last) { last = state; rec.steps.push({ t: sec(), state }); log(`🎬 리플레이 상태: ${state} (${sec()}초)`); save(); }
+    if (!created && (m.status === 404 || state === 'unknown' || state === 'checking') && tries >= 2) {   // 전적 화면이 하듯 정보 만들기 요청
+      created = true;
+      try {
+        const g = await lcu(`/lol-match-history/v1/games/${gameId}`);
+        const r = await lcuRaw('POST', `/lol-replays/v1/metadata/${gameId}/create/gameVersion/${encodeURIComponent(g.gameVersion || '')}/gameType/${encodeURIComponent(g.gameType || '')}/queueId/${g.queueId || 0}`, {});
+        rec.create = { t: sec(), status: r.status, gameType: g.gameType || null, queueId: g.queueId == null ? null : g.queueId, ver: g.gameVersion || null };
+      } catch (_) { rec.create = { t: sec(), status: 'no-history' }; created = false; }
+      save();
+    }
+    if (state === 'download' && !asked && _isHost()) {   // 방장 PC만 실제로 받아 봄(시간당 10개 제한·디스크)
+      asked = true;
+      const r = await lcuRaw('POST', `/lol-replays/v1/rofls/${gameId}/download/graceful`, { componentType: 'replay-button_match-history' });
+      rec.download = { t: sec(), status: r.status };
+      save();
+    }
+    if (state === 'watch') {   // 받아짐 → 파일 확인
+      try {
+        const p = await lcu('/lol-replays/v1/rofls/path');
+        const f = fs.readdirSync(p).find(n => n.includes(String(gameId)) && n.endsWith('.rofl'));
+        rec.file = f ? { name: f, mb: +(fs.statSync(path.join(p, f)).size / 1048576).toFixed(1) } : { missing: true };
+      } catch (_) { rec.file = { error: true }; }
+    }
+    if (REPLAY_DONE.includes(state) || (state === 'download' && !_isHost() && tries >= 3)) {   // 끝(방장 아니면 「받을 수 있음」 확인까지만)
+      rec.result = state === 'watch' || state === 'download' ? 'ok-' + state : state; rec.done = sec();
+      log(`🎬 리플레이 확인 끝: ${rec.result}`); save(); return;
+    }
+    setTimeout(tick, 10000);
+  };
+  setTimeout(tick, 5000);
+}
 async function historyToEog(g) {
   const names = await champNames();
   const who = {}; for (const pi of g.participantIdentities || []) who[pi.participantId] = pi.player || {};
@@ -360,7 +426,7 @@ async function poll() {
       log(`페이즈: ${lastPhase ?? '-'} → ${phase}`);
       lastPhase = phase;
       if (phase === 'GameStart' || phase === 'InProgress') _endedEmitted = false;
-      else if (gameInProgress && phase !== 'Reconnect' && !_endedEmitted) { _endedEmitted = true; emitEog('ended', activeGameId); }   // 📼 게임 끝남 → 「기록 저장 중」 시작
+      else if (gameInProgress && phase !== 'Reconnect' && !_endedEmitted) { _endedEmitted = true; emitEog('ended', activeGameId); if (activeIsCustom !== false) startReplayProbe(activeGameId); }   // 📼 게임 끝남 → 「기록 저장 중」 시작
       if (phase !== 'GameStart' && phase !== 'InProgress') { inGamePlayersFilled = false; fbSet(`${BRIDGE_ROOT}/inGame`, null); }
       switch (phase) {
         case 'ChampSelect':
@@ -465,6 +531,7 @@ async function start(opts) {
   _onAccount = (opts && opts.onAccount)       || (() => {});
   _fakeLcu   = (opts && opts.fakeLcu)         || null;
   _onEog     = (opts && opts.onEog)           || (() => {});
+  _isHost    = (opts && opts.isHost)          || (() => false);
   log('내장 브릿지 시작 — LCU 감지 대기');
   startHeartbeat();
   connector.start();

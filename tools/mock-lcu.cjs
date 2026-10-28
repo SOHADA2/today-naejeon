@@ -1,5 +1,7 @@
 // 🧪 가짜 롤 클라이언트(LCU) — 투데이 내전 브릿지가 정산 결과를 놓치지 않는지 시험
-// 사용: node tools/mock-lcu.cjs <시나리오> (fastexit | skip | closed)   포트 27999 · 비번 testpw
+// 사용: node tools/mock-lcu.cjs <시나리오> (fastexit | skip | closed | replay)   포트 27999 · 비번 testpw
+//   replay = fastexit + 리플레이(v0.1.29 리플레이 확인): 정보 없음(404) → 만들기 요청 → checking → download → (방장 앱이 받기) → downloading → watch + 가짜 .rofl
+//   ⚠️ replay는 앱을 방장으로 만들어야 받기까지 감(아니면 download에서 끝) · 결과 = today/bridge/replayProbe/{gameId}
 // 앱: TN_HIDDEN=1 TN_FAKE_LCU=27999:testpw 로 실행(개발 실행만). 인증서 = MOCK_LCU_CERT 폴더의 key.pem/cert.pem
 //   만들기: openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 2 -subj /CN=127.0.0.1  (Git Bash는 MSYS_NO_PATHCONV=1)
 // ⚠️ 실제 Firebase today/bridge/eogStats에 씀 → 끝나면 today/ 테스트 데이터 삭제
@@ -12,12 +14,21 @@ const names = ['테스터A', '테스터B', '테스터C', '테스터D'];
 const eogBlock = () => ({ gameId: GID, gameLength: 1234, teams: [100, 200].map(tid => ({ teamId: tid, isWinningTeam: tid === 100,
   players: names.filter((_, i) => (i < 2) === (tid === 100)).map((n, i) => ({ riotIdGameName: n, puuid: 'fake-' + n, championId: tid === 100 ? 103 + i : 1 + i, championName: '챔프' + n,
     stats: { CHAMPIONS_KILLED: 5 + i, NUM_DEATHS: 2, ASSISTS: 7, TOTAL_DAMAGE_DEALT_TO_CHAMPIONS: 20000 } })) })) });
-const history = () => ({ gameId: GID, gameType: 'CUSTOM_GAME', gameDuration: 1234,
+const history = () => ({ gameId: GID, gameType: 'CUSTOM_GAME', gameVersion: '16.21.123.4567', queueId: 0, gameDuration: 1234,
   participantIdentities: names.map((n, i) => ({ participantId: i + 1, player: { gameName: n, puuid: 'fake-' + n } })),
   participants: names.map((n, i) => ({ participantId: i + 1, teamId: i < 2 ? 100 : 200, championId: i < 2 ? 103 + i : 1 + i,
     stats: { kills: 5 + i, deaths: 2, assists: 7, totalDamageDealtToChampions: 20000, goldEarned: 11000, totalMinionsKilled: 30, win: i < 2 } })),
   teams: [{ teamId: 100, win: 'Win' }, { teamId: 200, win: 'Fail' }] });
+const ROFL_DIR = path.join(require('os').tmpdir(), 'mock-replays');
+let rep = null, repAt = 0;   // 리플레이 상태(null = 정보 없음 404)
+const repState = () => { if (rep === 'checking' && Date.now() - repAt > 4000) rep = 'download';
+  if (rep === 'downloading' && Date.now() - repAt > 3000) { rep = 'watch'; fs.mkdirSync(ROFL_DIR, { recursive: true }); fs.writeFileSync(path.join(ROFL_DIR, 'KR-' + GID + '.rofl'), Buffer.alloc(3 * 1048576)); }
+  return rep; };
 const routes = {
+  '/lol-replays/v1/configuration': () => ({ isReplaysEnabled: true, isPatching: false, isReplaysForEndOfGameEnabled: true, isReplaysForMatchHistoryEnabled: true, minServerVersion: '16.21' }),
+  ['/lol-replays/v1/metadata/' + GID]: () => { const st = repState(); return st ? { gameId: GID, state: st, downloadProgress: 0 } : null; },
+  '/lol-replays/v1/rofls/path': () => ROFL_DIR,
+  ['POST /lol-replays/v1/rofls/' + GID + '/download/graceful']: () => { if (rep === 'download') { rep = 'downloading'; repAt = Date.now(); } return {}; },
   '/lol-gameflow/v1/gameflow-phase': () => phase,
   '/lol-gameflow/v1/session': () => ({ gameData: { gameId: GID, isCustomGame: true, teamOne: [], teamTwo: [] } }),
   '/lol-summoner/v1/current-summoner': () => ({ puuid: 'fake-테스터A', gameName: '테스터A', tagLine: 'KR1' }),
@@ -29,7 +40,9 @@ const hits = {};
 const CERT = process.env.MOCK_LCU_CERT || __dirname;
 const srv = https.createServer({ key: fs.readFileSync(path.join(CERT, 'key.pem')), cert: fs.readFileSync(path.join(CERT, 'cert.pem')) }, (req, res) => {
   const p = req.url.split('?')[0]; hits[p] = (hits[p] || 0) + 1;
-  const f = routes[p]; const v = f ? f() : null;
+  if (req.method === 'POST' && p.startsWith('/lol-replays/v1/metadata/' + GID + '/create/')) { if (!rep) { rep = 'checking'; repAt = Date.now(); } log('리플레이 정보 만들기 요청: ' + decodeURIComponent(p.split('/create/')[1])); }
+  const f = routes[req.method === 'POST' ? 'POST ' + p : p] || (req.method === 'POST' ? () => ({}) : null); const v = f ? f() : null;
+  if (req.method === 'POST' && p.includes('/download')) log('리플레이 받기 요청');
   if (!up) { req.socket.destroy(); return; }
   if (v == null) { res.writeHead(404); res.end('{}'); return; }
   res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(v));
@@ -41,10 +54,10 @@ srv.listen(27999, '127.0.0.1', async () => {
   await sleep(6000);
   phase = 'InProgress'; log('게임 시작(InProgress)');
   await sleep(5000);
-  if (scen === 'fastexit') {
+  if (scen === 'fastexit' || scen === 'replay') {
     phase = 'EndOfGame'; eogOn = true; log('정산 화면(EndOfGame) — 결과 있음');
     await sleep(1200);
-    phase = 'Lobby'; eogOn = false; log('1.2초 만에 로비로 나감 — 정산 결과 사라짐');
+    phase = 'Lobby'; eogOn = false; if (scen === 'replay') histOn = true; log('1.2초 만에 로비로 나감 — 정산 결과 사라짐');
   } else if (scen === 'skip') {
     phase = 'Lobby'; log('정산 화면 못 잡고 바로 로비 — 전적은 6초 뒤에 생김');
     await sleep(6000); histOn = true; log('전적(매치 기록)에 이 판 생김');
@@ -59,7 +72,14 @@ srv.listen(27999, '127.0.0.1', async () => {
     if (e && e.gameId === GID) {
       log(`✅ 저장됨 · 출처=${e.source || '정산 화면'} · 승리=${e.winSide} · ${e.players.map(p => `${p.summonerName}(${p.championName} ${p.kills}/${p.deaths}/${p.assists}${p.isWin ? ' 승' : ''})`).join(', ')}`);
       log(`LCU 호출 수: 정산 ${hits['/lol-end-of-game/v1/eog-stats-block'] || 0} · 전적 ${hits['/lol-match-history/v1/games/' + GID] || 0}`);
-      process.exit(0);
+      if (scen !== 'replay') process.exit(0);
+      for (let j = 0; j < 30; j++) {   // 🎬 리플레이 확인 기록 기다림
+        await sleep(3000);
+        const pr = await (await fetch(`${DB}/today/bridge/replayProbe/${GID}.json`)).json();
+        const r = pr && Object.values(pr)[0];
+        if (r && r.done != null) { log('🎬 리플레이 확인 기록: ' + JSON.stringify(r)); process.exit(r.result.startsWith('ok') ? 0 : 1); }
+      }
+      log('❌ 리플레이 확인 기록 없음'); process.exit(1);
     }
   }
   log('❌ 40초 안에 저장 안 됨'); process.exit(1);
