@@ -16,6 +16,11 @@ const when = t => t ? new Date(t).toLocaleString('ko-KR') : '-';
   }
   const s = await get('session');
   if (s) console.log(`\n지금 판: phase ${s.phase} · day ${s.day} · game ${s.game ? `${s.game.id}(${s.game.day})` : '-'} · lastGameId ${s.lastGameId || '-'} · teamsFormedAt ${when(s.teamsFormedAt)}`);
+  const pres = await get('presence');   // 지금 켜져 있는 앱(20초마다 갱신 · 60초 넘으면 꺼진 것)
+  const now = Date.now(), on = Object.values(pres || {}).filter(p => p && now - (p.at || 0) < 60000);
+  console.log(`\n지금 켜진 앱 ${on.length}개: ${on.map(p => `${p.name} v${p.app || '?'}${p.host ? '(방장)' : ''}`).join(', ') || '없음'}`);
+  const off = Object.values(pres || {}).filter(p => p && now - (p.at || 0) >= 60000);
+  if (off.length) console.log(`최근에 꺼진 앱: ${off.map(p => `${p.name} v${p.app || '?'} · ${when(p.at)}`).join(', ')}`);
   const eog = await get('bridge/eogStats');
   if (eog) console.log(`마지막 정산: game ${eog.gameId} · ${when(eog.savedAt)} · source ${eog.source || 'eog'}`);
 })().catch(e => console.log('읽기 실패:', e.message));
