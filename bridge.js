@@ -550,4 +550,4 @@ function stop() {
   fbSet(`${BRIDGE_ROOT}/operators/${OPERATOR_ID}`, null);
 }
 
-module.exports = { start, stop };
+module.exports = { start, stop, getGameId: () => activeGameId || lastSavedGameId || null };   // 🎬 팟지 수집이 어느 게임인지

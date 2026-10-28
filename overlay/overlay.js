@@ -557,6 +557,10 @@ function renderResult() {
   const team = (names, isWin) => `<div class="st-team ${isWin ? 'win' : 'lose'}"><div class="st-team-h">${isWin ? '승리' : '패배'}</div><ul>${(names || []).map(n =>
     `<li class="${nn(n) === nn(myName) ? 'me' : ''}">${champHtml(gameStat(n), 'st-ch')}<span class="st-nm">${esc(n)}${badge(n)}</span>${augsHtml(gameStat(n), 'st-augs')}${kda(n)}</li>`).join('')}</ul></div>`;
   el('st-teams').innerHTML = winA ? team(s.teamA, true) + team(s.teamB, false) : team(s.teamB, true) + team(s.teamA, false);
+  const P = s.potg, pb = el('st-potg');   // 🎬 팟지 다시 보기(가운데 창)
+  pb.style.display = P && !P.none && P.gameId === String(g.id) ? '' : 'none';
+  if (P && !P.none) pb.textContent = `팟지 다시 보기 · ${P.name} ${P.label}`;
+  pb.onclick = () => window.api.potgReplay();
   el('st-close').onclick = () => { try { localStorage.setItem(seenKey(), '1'); } catch (_) {} render(); };
 }
 

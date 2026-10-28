@@ -61,4 +61,10 @@ contextBridge.exposeInMainWorld('api', {
   getRec: () => ipcRenderer.invoke('rec-state'),
   openProfile: (arg) => ipcRenderer.send('open-profile', arg),
   onOpenProfile: (cb) => ipcRenderer.on('open-profile', (_e, d) => cb(d)),
+  // 🎬 팟지 — 가운데 창 {card, manual} · 영상 받기 → {url} · 저장 · 닫기 · 결과 화면에서 다시 보기
+  onPotg: (cb) => ipcRenderer.on('potg', (_e, d) => cb(d)),
+  potgClip: (meta) => ipcRenderer.invoke('potg-clip', meta),
+  potgSave: (meta, name) => ipcRenderer.invoke('potg-save', { meta, name }),
+  potgClose: () => ipcRenderer.send('potg-close'),
+  potgReplay: () => ipcRenderer.send('potg-replay'),
 });

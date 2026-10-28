@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>PLAY OF THE GAME</title>
+<link rel="stylesheet" href="../shared.css">
+<link rel="stylesheet" href="potg.css">
+</head>
+<body>
+  <!-- 🎬 팟지 창 — 롤 클라 가운데 · 소개 → 장면(영상 또는 킬 타임라인) → 저장/닫기 -->
+  <div id="pg" class="pg">
+    <header class="pg-top">
+      <span class="pg-en">PLAY OF THE GAME</span>
+      <button id="pg-x" class="pg-x" title="닫기">✕</button>
+    </header>
+    <section id="pg-intro" class="pg-intro">
+      <div class="pg-intro-en">PLAY OF THE GAME</div>
+      <div class="pg-hero">
+        <span id="pg-av" class="pg-av"></span>
+        <div class="pg-who"><b id="pg-name" class="pg-name"></b><span id="pg-sub" class="pg-sub"></span></div>
+      </div>
+      <div id="pg-label" class="pg-label"></div>
+    </section>
+    <section id="pg-stage" class="pg-stage" style="display:none;">
+      <video id="pg-video" class="pg-video" playsinline></video>
+      <div id="pg-wait" class="pg-wait" style="display:none;">영상 받는 중…</div>
+      <div id="pg-card" class="pg-card" style="display:none;"></div>
+    </section>
+    <footer id="pg-end" class="pg-end" style="display:none;">
+      <div id="pg-sum" class="pg-sum"></div>
+      <div class="pg-btns">
+        <button id="pg-save" class="ui-btn-gold" style="display:none;">내 컴퓨터에 저장</button>
+        <button id="pg-again" class="ui-btn-ghost">다시 보기</button>
+        <button id="pg-close" class="ui-btn-ghost">닫기</button>
+      </div>
+      <div id="pg-msg" class="pg-msg"></div>
+    </footer>
+  </div>
+  <script src="potg.js"></script>
+</body>
+</html>

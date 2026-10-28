@@ -4,7 +4,8 @@
 //   · 흐름: 입장 → 방장 팀짜기 → 게임(내장 브릿지가 EOG 캡처 → today/bridge/eogStats)
 //          → 방장 앱이 오늘 기록에 저장(today/days/{날짜}/matches/{gameId}) → MVP·매너 투표 → 결과
 //   · 기존 aram-overlay(사이트 프로그램 버전)는 그대로 둠. 이 앱은 별도 설치·별도 업데이트.
-const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, shell, nativeImage, screen } = require('electron');
+const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, shell, nativeImage, screen, dialog } = require('electron');
+const { pathToFileURL } = require('url');
 const { autoUpdater } = require('electron-updater');   // 🔄 GitHub Releases 자동 업데이트(SOHADA2/today-naejeon)
 const path = require('path');
 const https = require('https');
@@ -18,6 +19,8 @@ const TOGGLE_HOTKEY = 'Shift+F7';   // 기존 오버레이(Shift+F5)와 겹치�
 const T = 'today';                  // ⚠️ 이 앱의 모든 쓰기 루트 — 사이트 노드(session·lobby·bridge·matches…)에 절대 쓰지 않음
 const { buildTeams, normName } = require('./teams');   // ⚔️ 홈페이지 makeTeams 1:1 이식(밸런스 계산)
 const bridge = require('./bridge');                    // 🔌 내장 브릿지(LCU EOG 캡처 → today/bridge)
+const makePotg = require('./potg');                    // 🎬 팟지(게임 중 킬·체력 수집 → 방장이 최고 장면 고름 → 가운데 창)
+let potg = null;                                        // app ready 뒤 생성(userData 경로 필요)
 
 let overlayWin = null, tray = null;
 let inGame = false, userHid = false, latestPlayers = [];
@@ -514,8 +517,8 @@ async function pollGame() {
     inGame = nowIn;
     // 게임 중(전체화면)만 위로, 로비/클라에선 같은 층위(클라 활성 시에만 evalRaise가 올림)
     try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setAlwaysOnTop(inGame, inGame ? 'screen-saver' : 'normal'); } catch (_) {}
-    if (inGame) { hideOverlay(); hideLeftPanel(); _slotDoneFormed = lastFormed; hideSlotMarker(); }   // 게임 시작 → 양쪽 패널 완전히 숨김(전투 중 정보 미노출, 새 폼 재설계 예정) · 좌측 내 정보 패널도 숨김(클라 창 사라지며 floatPanels가 잠깐 띄우는 레이스 차단) · applyRaise/floatPanels가 inGame return이라 재등장 없음
-    else { hideOverlay(); userHid = false; latestPlayers = []; _lastRaise = null; evalRaise(); recGameEnded(); }   // 게임 종료 → 로비 층위 재적용 · 📼 「기록 저장 중」 시작
+    if (inGame) { hideOverlay(); hideLeftPanel(); _slotDoneFormed = lastFormed; hideSlotMarker(); closePotg(); if (potg) potg.startCollect(bridge.getGameId()); }   // 🎬 팟지 수집 시작   // 게임 시작 → 양쪽 패널 완전히 숨김(전투 중 정보 미노출, 새 폼 재설계 예정) · 좌측 내 정보 패널도 숨김(클라 창 사라지며 floatPanels가 잠깐 띄우는 레이스 차단) · applyRaise/floatPanels가 inGame return이라 재등장 없음
+    else { hideOverlay(); userHid = false; latestPlayers = []; _lastRaise = null; evalRaise(); recGameEnded(); if (potg) potg.stopCollect(bridge.getGameId()).catch(() => {}); }   // 🎬 수집 올림   // 게임 종료 → 로비 층위 재적용 · 📼 「기록 저장 중」 시작
     broadcast('state', { inGame, label: inGame ? '게임 중' : '대기' });
   }
   broadcast('players', { players: latestPlayers });
@@ -858,8 +861,34 @@ async function pollSession() {
   broadcast('session', { session: sessionData, myName: config.myName || '' });
   if (_lastRect && !inGame && !_floating) updateSlotMarker(_lastRect);   // 📍 팀 상태 변경 → 마커 갱신
   recTick(s).catch(() => {});
+  const P = s && s.potg;   // 🎬 팟지 = 모두 같은 시각에 가운데 창(늦게 켠 앱은 20초 지나면 건너뜀 · 결과 화면 「팟지 다시 보기」로 볼 수 있음)
+  if (P && P.showAt && !P.none && !inGame && _potgSeen !== P.gameId && Date.now() - P.showAt < 20000) { _potgSeen = P.gameId; openPotg(P, false); }
   if (config.isHost) runHost();
 }
+
+// ── 🎬 팟지 창 — 롤 클라 가운데(클라 없으면 화면 가운데) · 영상 재생이라 투명 창 아님 ─────────
+let potgWin = null, _potgSeen = null;
+function potgBounds() {
+  let cx, cy, cw, ch;
+  if (_lastRect && !_floating) { const sf = screen.getPrimaryDisplay().scaleFactor || 1; cx = _lastRect[0] / sf; cy = _lastRect[1] / sf; cw = (_lastRect[2] - _lastRect[0]) / sf; ch = (_lastRect[3] - _lastRect[1]) / sf; }
+  else { const wa = screen.getPrimaryDisplay().workArea; cx = wa.x; cy = wa.y; cw = wa.width; ch = wa.height; }
+  const W = Math.round(Math.max(560, Math.min(960, cw * 0.66))), H = Math.round(Math.min(ch * 0.92, W * 9 / 16 + 136));
+  return { x: Math.round(cx + (cw - W) / 2), y: Math.round(cy + (ch - H) / 2), width: W, height: H };
+}
+function openPotg(card, manual) {
+  if (inGame || !card || card.none) return;
+  const send = () => { try { potgWin.webContents.send('potg', { card, manual: !!manual }); } catch (_) {} };
+  if (potgWin && !potgWin.isDestroyed()) { potgWin.setBounds(potgBounds()); send(); potgWin.showInactive(); return; }
+  potgWin = new BrowserWindow(Object.assign(potgBounds(), {
+    show: false, frame: false, resizable: false, skipTaskbar: true, alwaysOnTop: true, roundedCorners: false, backgroundColor: '#060b10',
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, autoplayPolicy: 'no-user-gesture-required' },
+  }));
+  try { potgWin.setAlwaysOnTop(true, 'floating'); } catch (_) {}
+  potgWin.webContents.on('did-finish-load', () => { send(); if (potgWin) potgWin.showInactive(); });
+  potgWin.loadFile('potg/potg.html');
+  potgWin.on('closed', () => { potgWin = null; });
+}
+function closePotg() { if (potgWin && !potgWin.isDestroyed()) { try { potgWin.destroy(); } catch (_) {} } potgWin = null; }
 
 // ── 👑 방장 담당: EOG → 오늘 기록 저장 / 전원 투표 → 결과 확정 ─────────────────
 let _hostBusy = false;
@@ -881,11 +910,35 @@ async function hostTick() {
     if (s.turnEndsAt && Date.now() > s.turnEndsAt + 1000) await draftPick(null, true);   // ⏱️ 시간 초과 → 남은 사람 중 무작위
     return;
   }
+  if ((s.phase === 'vote' || s.phase === 'result') && s.game && (!s.potg || s.potg.gameId !== String(s.game.id))) hostPotg(s).catch(() => {});   // 🎬
   if (s.phase === 'vote' && s.game) {
     const voters = [...(s.teamA || []), ...(s.teamB || [])];
     const votes = s.votes || {};
     if (voters.length && voters.every(n => votes[fbKeyOf(n)])) await closeVote();   // 전원 투표 → 자동 확정
   }
+}
+// 🎬 팟지 고르기(방장) — 모든 PC의 수집이 모이면(최대 25초 기다림) 점수 1위 장면 → session.potg(showAt=모두 같이 시작할 시각)
+let _potgBusy = false, _potgFor = null;
+async function hostPotg(s) {
+  if (!potg || _potgBusy || _potgFor === String(s.game.id) || String(s.game.id).startsWith('m')) return;   // 수동 기록 판은 게임 번호가 없어 수집과 못 이음
+  _potgBusy = true;
+  try {
+    const raws = await potg.readRaws(s.game.id);
+    const n = raws ? Object.keys(raws).length : 0, age = Date.now() - (s.game.at || 0);
+    const expect = (s.teamA || []).length + (s.teamB || []).length;
+    if ((n === 0 && age < 60000) || (n > 0 && n < expect && age < 25000)) return;   // 다른 PC 수집 기다림
+    _potgFor = String(s.game.id);
+    const rec = await getJson(`${FIREBASE_DB}/${T}/days/${s.game.day}/matches/${s.game.id}.json`);
+    const card = n ? potg.pickPotg(raws, s, rec && rec.stats) : null;
+    if (!card) { await fbUpdate(`${T}/session`, { potg: { none: true, gameId: String(s.game.id) } }); return; }
+    card.gameId = String(s.game.id);
+    if (!app.isPackaged && process.env.TN_FAKE_CLIP) {   // 🧪 개발용: 리플레이 녹화 대신 이 파일을 영상으로 올림
+      try { card.clip = await potg.uploadClip(s.game.id, fs.readFileSync(process.env.TN_FAKE_CLIP), /\.mp4$/i.test(process.env.TN_FAKE_CLIP) ? 'video/mp4' : 'video/webm'); } catch (_) {}
+    }
+    card.showAt = Date.now() + 1500;
+    await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: card });
+    await fbUpdate(`${T}/session`, { potg: card });
+  } finally { _potgBusy = false; }
 }
 const runHost = coalesce(async () => { if (_hostBusy) return; _hostBusy = true; try { await hostTick(); } finally { _hostBusy = false; } });
 
@@ -925,7 +978,7 @@ async function recordGame(winner, eog) {
   const w = await fbPutIfAbsent(`${T}/days/${day}/matches/${gid}`, rec);
   _profIdx = null;
   if (!w.ok && !w.conflict) return { ok: false, err: w.err };
-  const u = await fbUpdate(`${T}/session`, { phase: 'vote', game: { id: gid, day, winner, at: Date.now() }, votes: null, result: null, lastGameId: gid, pendingEog: null });
+  const u = await fbUpdate(`${T}/session`, { phase: 'vote', game: { id: gid, day, winner, at: Date.now() }, votes: null, result: null, lastGameId: gid, pendingEog: null, potg: null });
   return { ok: u.ok, err: u.err };
 }
 
@@ -1356,6 +1409,17 @@ ipcMain.handle('vote-close', async () => {   // ⏭️ 방장: 미투표자 있�
 ipcMain.handle('today-data', async (_e, arg) => getToday(arg && arg.day));
 ipcMain.handle('profile', (_e, arg) => getProfile(arg || { me: true }));
 ipcMain.handle('augments', () => getAugments());   // 🧩 증강 번호 → {name, icon, rarity}
+ipcMain.handle('potg-clip', async (_e, meta) => { const p = potg && await potg.getClip(meta); return p ? { url: pathToFileURL(p).href } : null; });   // 🎬 영상 → 내 PC 임시 파일
+ipcMain.handle('potg-save', async (_e, { meta, name }) => {   // 🎬 「내 컴퓨터에 저장」
+  const p = potg && await potg.getClip(meta); if (!p) return { ok: false };
+  const safe = String(name || '팟지').replace(/[\\/:*?"<>|]/g, '_');
+  const ext = potg.extOf(meta.mime);
+  const r = await dialog.showSaveDialog(potgWin && !potgWin.isDestroyed() ? potgWin : undefined, { title: '팟지 영상 저장', defaultPath: path.join(app.getPath('videos'), `투데이내전_팟지_${meta.day}_${safe}.${ext}`), filters: [{ name: '영상', extensions: [ext] }] });
+  if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+  try { fs.copyFileSync(p, r.filePath); return { ok: true, path: r.filePath }; } catch (_) { return { ok: false }; }
+});
+ipcMain.on('potg-close', () => closePotg());
+ipcMain.on('potg-replay', () => { const P = sessionData && sessionData.potg; if (P && !P.none) openPotg(P, true); });   // 결과 화면 「팟지 다시 보기」
 ipcMain.handle('rec-state', () => recState);   // 📼 기록 저장 진행 상태   // 👤 개인 내전 프로필
 ipcMain.on('open-profile', (_e, arg) => {   // 왼쪽 대기실에서 이름 누름 → 오른쪽 창 프로필 탭
   try { showMainPanel(); } catch (_) {}
@@ -1396,6 +1460,8 @@ else {
     fbStream(`${T}/host`, runSession);                   // ⚡ 방장 바뀜(넘겨받음·이어받음)                  // ⚡ 방장 준비 중 배너
     fbStream(`${T}/bridge/eogStats`, () => { if (config.isHost) runHost(); });   // ⚡ 경기 종료 → 방장 앱이 바로 기록
     setupAutoUpdate();
+    potg = makePotg({ T, FIREBASE_DB, fbSet, fbDelete, getJson, dayKey, normName, userData: app.getPath('userData'), getPlayers: () => latestPlayers, log: (m) => { try { console.log(m); } catch (_) {} } });
+    setTimeout(() => potg.cleanup().catch(() => {}), 8000); setInterval(() => potg.cleanup().catch(() => {}), 30 * 60 * 1000);   // 🎬 지난 날 영상·수집 지우기(그날만 보관)
     bridge.start({ getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
     // 🧪 개발용: 롤 없이 테스트 — TN_FAKE_ACCOUNT="이름#태그" (배포본에선 안 씀) · TN_FAKE_DELAY=ms(기본 1500 · 50이면 창 로딩 도중 계정이 잡히는 경우 재현)
     if (!app.isPackaged && process.env.TN_FAKE_ACCOUNT) { const [g, t] = process.env.TN_FAKE_ACCOUNT.split('#'); setTimeout(() => setAccount({ puuid: 'fake-' + g, gameName: g, tagLine: t || 'KR1', iconId: 29 }), +(process.env.TN_FAKE_DELAY || 1500)); }
