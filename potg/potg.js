@@ -37,6 +37,7 @@ async function play() {
   go(en, [{ opacity: 0, transform: 'scale(1.25)', filter: 'blur(6px)' }, { opacity: 1, transform: 'scale(1)', filter: 'blur(0)' }], { duration: 520 });
   go(hero, [{ opacity: 0, transform: 'translateX(-40px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 420, delay: 650 });
   go(lab, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 380, delay: 1150 });
+  bgmStart();
   setTimeout(() => { if (my === run) sfx(c.team === 'teamB' ? 2 : 1); }, 650);
   await sleep(3200); if (my !== run) return;
   // ② 장면
@@ -54,6 +55,31 @@ async function play() {
 // 🎬 팟지 편집(v0.1.35) — 오버워치 팟지 공식: 시네마 띠+이름표로 시작 → 킬 직전 확대(줌 인)·슬로모션 → 킬 순간 섬광·흔들림·킬 피드·「더블킬」
 //   → 마지막 킬은 더 느리게 + 0.45초 뒤 정지 화면(1.5초, 큰 글자) → 다시 재생하며 줌 아웃 → 끝. 시각은 전부 영상 기준(킬 시각 - clipFrom)
 const MULTI = ['처치', '더블킬', '트리플킬', '쿼드라킬', '펜타킬'];
+const MULTI_EN = { 처치: 'KILL', 더블킬: 'DOUBLE KILL', 트리플킬: 'TRIPLE KILL', 쿼드라킬: 'QUADRA KILL', 펜타킬: 'PENTA KILL', 솔로킬: 'SOLO KILL' };
+const kbHtml = (ko, final) => `<div class="pg-kbt${final ? ' final' : ''}"><i class="en">${MULTI_EN[ko] || (/스틸$/.test(ko) ? 'STEAL' : 'PLAY OF THE GAME')}</i><b>${esc(ko)}</b></div>`;
+
+// 🎵 BGM(v0.1.37) — 「레전드 장면」 오케스트라(assets/bgm, VSCO-2 실제 악기 녹음): 소개부터 8초 반복 bed → 정지 화면 순간에 climax의 「쾅」(2.5초 지점)이 꽂히게 미리 시작
+const BGM_HIT = 2.5, BGM_VOL = 0.32;
+const bgm = { bed: null, cl: null, timers: [] };
+function bgmFade(a, to, ms) { if (!a) return; const from = a.volume, t0 = performance.now(); const id = setInterval(() => { const k = Math.min(1, (performance.now() - t0) / ms); a.volume = Math.max(0, Math.min(1, from + (to - from) * k)); if (k >= 1) { clearInterval(id); if (to === 0) a.pause(); } }, 30); bgm.timers.push(id); }
+function bgmStop() { bgm.timers.forEach(clearInterval); bgm.timers.forEach(clearTimeout); bgm.timers = []; for (const a of [bgm.bed, bgm.cl]) if (a) { a.pause(); a.currentTime = 0; } bgm.climaxed = false; }
+function bgmStart() {
+  bgmStop();
+  try {
+    bgm.bed = bgm.bed || Object.assign(new Audio('../assets/bgm/potg-bed.ogg'), { loop: true });
+    bgm.cl = bgm.cl || new Audio('../assets/bgm/potg-climax.ogg');
+    bgm.bed.volume = 0; bgm.bed.play().catch(() => {}); bgmFade(bgm.bed, BGM_VOL, 600);
+  } catch (_) {}
+}
+function bgmClimax(inSec) {   // inSec초 뒤에 「쾅」
+  if (bgm.climaxed || !bgm.cl) return; bgm.climaxed = true;
+  const go2 = () => { try { bgm.cl.currentTime = Math.max(0, BGM_HIT - inSec); bgm.cl.volume = BGM_VOL * 1.15; bgm.cl.play().catch(() => {}); } catch (_) {} };
+  const wait = Math.max(0, inSec - BGM_HIT);
+  if (wait) bgm.timers.push(setTimeout(go2, wait * 1000)); else go2();
+  bgm.timers.push(setTimeout(() => bgmFade(bgm.bed, 0, 250), Math.max(0, inSec - 0.2) * 1000));   // 반복 반주는 「쾅」 직전에 빠짐
+}
+function bgmEnd(ms) { bgmFade(bgm.bed, 0, ms); bgmFade(bgm.cl, 0, ms); }
+
 const smooth = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
 function playVideo(my) {
   return new Promise(resolve => {
@@ -81,19 +107,27 @@ function playVideo(my) {
       for (const m of ms) { if (m === last ? t >= m - 0.7 && t <= m + 0.45 : t >= m - 0.45 && t <= m + 0.3) return m === last ? 0.3 : 0.4; }
       return 1;
     };
-    const finish = ok => { if (done) return; done = true; cancelAnimationFrame(raf); v.playbackRate = 1; resolve(ok && my === run); };
+    const finish = ok => { if (done) return; done = true; cancelAnimationFrame(raf); v.playbackRate = 1; if (ok) bgmClimax(0); resolve(ok && my === run); };
     const tick = () => {
       if (my !== run) return finish(false);
       const t = v.currentTime;
       if (!frozen) { const r = rateAt(t); if (r !== rate) { rate = r; v.playbackRate = r; } }
       v.style.transform = `scale(${zoomAt(t).toFixed(4)})`;
       ms.forEach((m, i) => { if (!fired.has(i) && t >= m) { fired.add(i); onKill(i); } });
+      if (!frozen) {   // 정지 화면까지 남은 실제 시간(슬로모션 감안) ≤ 2.5초면 climax 시작 → 「쾅」이 정지 순간에
+        let w = 0; for (let x = t; x < last + 0.45 && w <= BGM_HIT + 0.1; x += 0.02) w += 0.02 / rateAt(x);
+        if (!bgm.climaxed && w <= BGM_HIT + 0.05) bgmClimax(w);
+        else if (bgm.climaxed && bgm.cl && !bgm.cl.paused && w <= BGM_HIT) {   // 영상 재생이 조금 밀리면 상승 구간 속도를 살짝 조절해 「쾅」을 정지 순간에 맞춤
+          const diff = (BGM_HIT - w) - bgm.cl.currentTime, r = Math.abs(diff) < 0.05 ? 1 : Math.max(0.88, Math.min(1.15, 1 + diff * 0.8)); if (Math.abs(r - bgm.cl.playbackRate) > 0.02) bgm.cl.playbackRate = r;
+        }
+      }
       if (!frozen && t >= last + 0.45) {   // 마지막 킬 = 정지 화면
         frozen = 1; v.pause();
+        if (bgm.cl) { if (bgm.climaxed && bgm.cl.currentTime < BGM_HIT - 0.12) bgm.cl.currentTime = BGM_HIT - 0.02; bgm.cl.playbackRate = 1; }
         v.animate([{ filter: 'none' }, { filter: 'saturate(1.5) contrast(1.15) brightness(1.08)' }], { duration: 200, fill: 'forwards' });
         const lab = c.label || MULTI[Math.min(ms.length, 5) - 1];
-        el('pg-kb').innerHTML = `<div class="pg-kbf"><div class="pg-kbt final">${esc(lab)}</div>${c.tags && c.tags.length ? `<div class="pg-kbs">${c.tags.map(esc).join(' · ')}</div>` : ''}</div>`;
-        go(el('pg-kb').firstChild, [{ opacity: 0, transform: 'scale(1.8)', filter: 'blur(8px)' }, { opacity: 1, transform: 'scale(1)', filter: 'blur(0)' }], { duration: 320, easing: 'cubic-bezier(.2,1.3,.4,1)' });
+        el('pg-kb').innerHTML = `<div class="pg-kbf">${kbHtml(lab, true)}${c.tags && c.tags.length ? `<div class="pg-kbs">${c.tags.map(esc).join(' · ')}</div>` : ''}</div>`;
+        go(el('pg-kb').firstChild, [{ opacity: 0, transform: 'translateX(-60px)', clipPath: 'inset(0 100% 0 0)' }, { opacity: 1, transform: 'translateX(0)', clipPath: 'inset(0 0 0 0)' }], { duration: 300, easing: 'cubic-bezier(.15,.9,.3,1)' });
         setTimeout(() => {
           if (my !== run) return;
           frozen = 2; rate = 1; v.playbackRate = 1;
@@ -115,11 +149,12 @@ function playVideo(my) {
         go(row, [{ opacity: 0, transform: 'translateX(40px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 260 });
       }
       if (i !== ms.length - 1 && ms.length > 1) {   // 중간 킬 = 「처치」「더블킬」… (마지막은 정지 화면에서 크게)
-        el('pg-kb').innerHTML = `<div class="pg-kbt">${MULTI[Math.min(i, 4)]}</div>`;
-        go(el('pg-kb').firstChild, [{ opacity: 0, transform: 'scale(1.6)' }, { opacity: 1, transform: 'scale(1)', offset: 0.25 }, { opacity: 1, offset: 0.75 }, { opacity: 0, transform: 'scale(0.96)' }], { duration: 1400, easing: 'ease-out' });
+        el('pg-kb').innerHTML = kbHtml(MULTI[Math.min(i, 4)], false);
+        go(el('pg-kb').firstChild, [{ opacity: 0, transform: 'translateX(-40px)', clipPath: 'inset(0 100% 0 0)' }, { opacity: 1, transform: 'translateX(0)', clipPath: 'inset(0 0 0 0)', offset: 0.18 }, { opacity: 1, transform: 'translateX(6px)', offset: 0.8 }, { opacity: 0, transform: 'translateX(30px)', clipPath: 'inset(0 0 0 0)' }], { duration: 1300, easing: 'linear' });
       }
     }
     v.preservesPitch = false;   // 슬로모션 때 소리도 낮고 무겁게
+    v.volume = 0.6;   // 게임 소리는 BGM 밑으로
     v.src = clipPath;
     v.onended = () => finish(true);
     v.onerror = () => finish(false);
@@ -145,6 +180,7 @@ async function showCard(my) {   // 영상 없을 때: 킬 타임라인
   box.style.display = '';
   const ks = [...box.querySelectorAll('.pg-kill')];
   ks.forEach((k, i) => go(k, [{ opacity: 0, transform: 'scale(1.6)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 260, delay: 400 + i * 380, easing: 'cubic-bezier(.3,1.4,.5,1)' }));
+  bgmClimax((400 + Math.max(0, ks.length - 1) * 380) / 1000);   // 마지막 킬 칸이 찍힐 때 「쾅」
   await sleep(400 + ks.length * 380 + 2600);
 }
 
@@ -154,6 +190,7 @@ function end(my) {
   el('pg-sum').innerHTML = `<b>${esc(c.name)}</b>${c.champ ? ' · ' + esc(c.champ) : ''} · ${esc(c.label)} · <span class="num">${mmss(c.t0)}</span>`;
   el('pg-save').style.display = clipPath ? '' : 'none';
   el('pg-end').style.display = '';
+  bgm.timers.push(setTimeout(() => bgmEnd(2500), 2500));   // 「쾅」 울림을 조금 들려주고 서서히
   if (!touched) idleTimer = setTimeout(() => window.api.potgClose(), 15000);   // 아무도 안 누르면 15초 뒤 닫힘
 }
 
