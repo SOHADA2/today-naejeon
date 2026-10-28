@@ -181,7 +181,7 @@ setInterval(updateDraftTimer, 250);
 
 // ── 🪙 선픽 동전 던지기 — 드래프트가 막 시작됐으면 모두에게 한 번 재생(main COIN_MS 동안 픽 잠김) ──────────
 // 동전이 「띵!」 튀어 오름 → 빙글빙글 돌다 떨어짐 → 착지(짤랑) → 결과 면 확대 → 「1팀 선픽!」. 면 = assets/coin-t1·t2.webp. 결과 면은 서버의 firstPick 그대로.
-const COIN_MS = 4800;
+const COIN_MS = 5600;   // main.js COIN_MS와 같게(이 시간 동안 픽 잠김) — 3D 사미라 Taunt(약 5초)에 맞춤
 let _coinShown = null, _ac = null;
 // 🔊 동전 효과음 전체(WebAudio 합성·에셋 없음) — 연출 시작 시각 t0 기준으로 한 번에 예약(setTimeout보다 정확)
 // 튕김(엄지 딱+묵직한 금속 울림) → 회전 바람 소리(돌수록 느려짐) → 착지 쿵·쨍·통통 → 누운 채 다르륵(점점 빨라지다 멈춤) → 결과 쾅+팀 화음
@@ -233,8 +233,11 @@ function coinScore(ac, t0, A) {
   // ④ 누운 채 흔들림: 바닥에서 도는 동전 「다르르륵」 — 간격이 점점 짧아지다 멈춤
   { let t = l + 0.3, gap = 0.11, k = 0.55; while (t < l + 0.92 && gap > 0.012) { noise(dry, t, 0.3 * k, 0.012, 'bandpass', 2600, 2); tone(fx, 2900 + Math.random() * 400, t, 0.05 * k, 0.05); t += gap; gap *= 0.8; k *= 0.93; }
     tone(fx, 1020, t, 0.12, 0.5); }
-  // ⑤ 결과: 빨려 드는 바람 → 「쾅」 + 팀 화음(1팀 밝게·2팀 단단하게) + 반짝이
-  const z = t0 + T.ZOOM;
+  coinReveal(ac, { fx, dry, tone, noise, noiseBuf }, t0 + T.ZOOM, A);
+}
+// ⑤ 결과: 빨려 드는 바람 → 「쾅」 + 팀 화음(1팀 밝게·2팀 단단하게) + 반짝이 — 2D·3D 동전이 같이 씀
+function coinReveal(ac, K, z, A) {
+  const { fx, dry, tone, noise, noiseBuf } = K;
   { const s = ac.createBufferSource(), hp = ac.createBiquadFilter(), g = ac.createGain(), a = z - 0.35;
     s.buffer = noiseBuf(0.45); hp.type = 'highpass'; hp.frequency.setValueAtTime(400, a); hp.frequency.exponentialRampToValueAtTime(5000, z);
     g.gain.setValueAtTime(0.0001, a); g.gain.exponentialRampToValueAtTime(0.35, z - 0.01); g.gain.exponentialRampToValueAtTime(0.0001, z + 0.03);
@@ -245,6 +248,18 @@ function coinScore(ac, t0, A) {
     g.gain.setValueAtTime(0.0001, z); g.gain.exponentialRampToValueAtTime(0.16 - i * 0.02, z + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, z + 1.9);
     o.connect(g); g.connect(fx); o.start(z); o.stop(z + 2); });
   for (let i = 0; i < 7; i++) tone(fx, 3200 + Math.random() * 3200, z + 0.06 + i * 0.045, 0.06, 0.25);
+}
+// 🔊 3D 사미라 장면 효과음 — 위로 튕김(띵) → 받음(톡) → 화면 쪽으로 튕김(딱+쨍) → 다가오는 바람 → 결과 쾅
+function coinScore3d(ac, t0, A) {
+  const C = window.coin3d, K = sfxKit(ac), { fx, dry, tone, noise, ring, thud, noiseBuf } = K;
+  const up = t0 + 0.12; noise(dry, up, 0.5, 0.016, 'bandpass', 3400, 1.4); ring(fx, 1240, up + 0.004, 0.55, 1.4);
+  const ct = t0 + 0.8; noise(dry, ct, 0.35, 0.02, 'bandpass', 2200, 1.2); thud(dry, ct, 0.16, 210); ring(fx, 1100, ct, 0.22, 0.5);
+  const f = t0 + C.FLICK; noise(dry, f, 0.75, 0.018, 'bandpass', 3200, 1.4); thud(dry, f, 0.3, 180); ring(fx, 1180, f + 0.004, 0.9, 2.0);
+  { const s = ac.createBufferSource(), bp = ac.createBiquadFilter(), g = ac.createGain(), a = f + 0.03, e = t0 + C.CATCH_AT + 0.12;
+    s.buffer = noiseBuf(e - a + 0.1); bp.type = 'bandpass'; bp.Q.value = 2; bp.frequency.setValueAtTime(520, a); bp.frequency.exponentialRampToValueAtTime(2800, e);
+    g.gain.setValueAtTime(0.0001, a); g.gain.exponentialRampToValueAtTime(0.42, e - 0.02); g.gain.exponentialRampToValueAtTime(0.0001, e + 0.06);
+    s.connect(bp); bp.connect(g); g.connect(dry); s.start(a); s.stop(e + 0.1); }
+  coinReveal(ac, K, t0 + C.SHOW_AT, A);
 }
 function coinSound(A) {   // 앱에서 재생 = 지금 시각 기준으로 전체 예약
   try {
@@ -269,6 +284,7 @@ function playCoin(s) {
   res.innerHTML = `<b>${A ? '1팀' : '2팀'} 선픽!</b><span>${esc((A ? caps.teamA : caps.teamB) || '')}</span><small>팀장이 먼저 골라요</small>`;
   res.style.opacity = 0;
   layer.style.display = 'flex';
+  if (window.coin3d && window.coin3d.ok && window.coin3d.ready()) return playCoin3d(layer, res, A);   // 🎯 사미라 3D(모델이 준비됐을 때) · 아니면 아래 2D 동전
   const UP = 720, DOWN = 680, H = 140, SPINS = 7;
   const endRot = SPINS * 360 + (A ? 0 : 180);
   const dx = (Math.random() < 0.5 ? -1 : 1) * (14 + Math.random() * 12);   // 매번 조금씩 다른 방향으로 흘러감
@@ -326,6 +342,21 @@ function playCoin(s) {
   go(res, [{ opacity: 0, transform: 'scale(0.7)' }, { opacity: 1, transform: 'scale(1.08)', offset: 0.6 }, { opacity: 1, transform: 'scale(1)' }], { duration: 380, delay: zoom + 300, easing: 'ease-out' });
   go(layer, [{ opacity: 1 }, { opacity: 0 }], { duration: 350, delay: COIN_MS - 350 });
   setTimeout(() => { layer.style.display = 'none'; anims.forEach(a => { try { a.cancel(); } catch (_) {} }); }, COIN_MS + 30);
+}
+
+// 🪙 3D: 사미라가 Taunt로 동전을 튕겨 화면 쪽으로 날림 → 카메라 앞에 멈춰 결과 면 → 「N팀 선픽!」
+function playCoin3d(layer, res, A) {
+  layer.classList.add('cn3d');
+  const stage = layer.querySelector('.cn-stage');
+  const anims = [];
+  const go = (node, kf, opt) => { const a = node.animate(kf, Object.assign({ fill: 'forwards' }, opt)); anims.push(a); return a; };
+  go(layer, [{ opacity: 0 }, { opacity: 1 }], { duration: 220 });
+  try { _ac = _ac || new (window.AudioContext || window.webkitAudioContext)(); if (_ac.state === 'suspended') _ac.resume(); coinScore3d(_ac, _ac.currentTime + 0.02, A); } catch (_) {}
+  window.coin3d.play({ stage, A, dur: COIN_MS - 250,
+    onShow: () => go(res, [{ opacity: 0, transform: 'scale(0.7)' }, { opacity: 1, transform: 'scale(1.08)', offset: 0.6 }, { opacity: 1, transform: 'scale(1)' }], { duration: 380, easing: 'ease-out' }),
+  }).catch(() => {});
+  go(layer, [{ opacity: 1 }, { opacity: 0 }], { duration: 350, delay: COIN_MS - 350 });
+  setTimeout(() => { layer.style.display = 'none'; layer.classList.remove('cn3d'); anims.forEach(a => { try { a.cancel(); } catch (_) {} }); }, COIN_MS + 30);
 }
 
 // ── 📼 기록 저장 중 — 게임 끝나고 결과가 오늘 기록에 들어갈 때까지 단계별로 ─────────────

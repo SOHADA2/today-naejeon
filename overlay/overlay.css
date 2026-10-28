@@ -365,3 +365,9 @@ header .phase, header .win-btn { flex-shrink:0; }
   .seat-no { display:none; }
   .seat-av { width:30px; height:30px; }
 }
+
+/* 🪙 3D 사미라 동전(v0.1.21) — 무대를 넓게, 2D 동전은 숨김 */
+.coin-layer.cn3d .cn-stage { width:100%; height:min(430px, 58vh); perspective:none;
+  background:radial-gradient(60% 18% at 50% 92%, rgba(200,170,110,0.16), transparent 70%); }
+.coin-layer.cn3d .cn-shadow, .coin-layer.cn3d .cn-pos { display:none; }
+.cn-3d { position:absolute; inset:0; width:100% !important; height:100% !important; display:block; }

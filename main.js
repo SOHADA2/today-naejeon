@@ -1022,7 +1022,7 @@ async function fbCas(pathStr, mutate, tries = 5) {
   }
   return { ok: false, err: '다른 기기와 동시에 바뀌어서 실패했어요 — 다시 눌러주세요' };
 }
-const COIN_MS = 4800;   // 🪙 선픽 동전 연출 길이(overlay.js COIN_MS와 같게)
+const COIN_MS = 5600;   // 🪙 선픽 동전 연출 길이(overlay.js COIN_MS와 같게)
 function draftOrder(first, picks) {   // 스네이크: first, other, other, first, first, other…
   const other = first === 'teamA' ? 'teamB' : 'teamA', out = [];
   for (let i = 0; i < picks; i++) out.push(((i + 1) >> 1) % 2 === 0 ? first : other);

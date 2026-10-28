@@ -1,0 +1,4 @@
+samira-taunt.glb
+- 사미라 모델·텍스처·Taunt 동작 = Riot Games 「League of Legends」 에셋. 친구들끼리 쓰는 비상업 팬 프로젝트(라이엇 「Legal Jibber Jabber」 팬 콘텐츠 정책) 용도.
+- 사장님이 준 사미라.glb(12.7MB, 동작 95개)에서 Taunt 하나만 남기고 meshopt 압축 → 1.1MB. 만드는 법 = tools/samira-slim.mjs.
+- 동전 그림(coin-t1·t2.webp)은 사장님이 만든 이미지. 3D 엔진 = three.js r169(MIT, vendor/three/LICENSE).
