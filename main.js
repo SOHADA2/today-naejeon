@@ -765,7 +765,7 @@ function lobbyView() {
   const inNames = members.filter(m => m.st === 'in').map(m => m.name);
   const sd = L.sides || {}, sides = {};
   for (const n of inNames) { const t = sd[fbKeyOf(n)]; if (t === 'teamA' || t === 'teamB') sides[n] = t; }
-  return { members, sides, mode: ['draft', 'manual'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
+  return { members, sides, mode: ['draft', 'manual', 'normal'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
     hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members) };
 }
 // 🔄 버전 비교(v0.1.56) — 대기실 「업데이트 필요」 표시·방장 「업데이트 시키기」용
@@ -819,7 +819,7 @@ async function lobbyRemoveGuest(key) {
 }
 async function lobbySetMode(mode) {
   if (!config.isHost) return { ok: false, err: '방장만 방식을 정할 수 있어요' };
-  const m = ['draft', 'manual'].includes(mode) ? mode : 'random';
+  const m = ['draft', 'manual', 'normal'].includes(mode) ? mode : 'random';   // normal = 🎮 일반판 진행(v0.1.60 · 팀짜기 없음)
   lobbyLocal(L => { L.mode = m; });
   return lobbyWrite(fbUpdate(`${T}/lobby`, { mode: m }));
 }
@@ -873,6 +873,7 @@ async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(�
   lobbyRaw = L || null; presenceRaw = P || null;
   const v = lobbyView(), names = v.members.filter(m => m.st === 'in').map(m => m.name);
   if (names.length < 2) return { ok: false, err: `참가자가 2명 이상이어야 해요 (지금 ${names.length}명)` };
+  if (v.mode === 'normal') return { ok: false, err: '일반판은 시작 버튼 없이 같은 팀으로 큐를 잡으면 돼요' };
   if (v.mode === 'draft') {
     if (!v.captains.teamA || !v.captains.teamB) return { ok: false, err: '팀장 2명을 정해주세요' };
     return startDraft(names, [v.captains.teamA, v.captains.teamB]);

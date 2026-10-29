@@ -60,6 +60,8 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .lb-seg { -webkit-app-region:no-drag; flex:1; padding:8px 4px; font-size:13px; font-weight:700; cursor:pointer; color:var(--dim); background:var(--bg-1); border:1px solid var(--hair); clip-path:var(--cut-sm); }
 .lb-seg.on { color:#1a1206; background:linear-gradient(180deg, var(--gold-hi), var(--gold)); border-color:var(--gold); }
 .lb-seg:disabled { cursor:default; }
+.lb-start.normal:disabled { opacity:1; color:#06101a; background:linear-gradient(180deg, #8FD3FF, var(--t1)); cursor:default; }   /* 🎮 일반판 진행 중 = 눌리는 버튼 아님(상태 표시) */
+.lb-normal { display:block; font-size:11.5px; line-height:1.55; color:var(--ink-soft); } .lb-normal b { color:var(--gold-hi); } .lb-normal .warn { color:#FFB4A8; }
 .lb-seg:disabled:not(.on) { opacity:0.5; }
 .lb-caps { display:flex; align-items:center; gap:12px; margin:-2px 2px 12px; flex-wrap:wrap; }
 .lb-cap { display:flex; align-items:baseline; gap:6px; font-size:13px; font-weight:700; }
@@ -377,7 +379,7 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .brand-tx { min-width:0; }
 .brand-en, header .ttl { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 header .phase, header .win-btn { flex-shrink:0; }
-@media (max-width: 340px) { .brand-en { display:none; } header { gap:8px; padding:0 10px; } }
+@media (max-width: 340px) { .brand-en { display:none; } header { gap:8px; padding:0 10px; } .lb-mode-l { display:none; } .lb-seg { padding:8px 2px; font-size:12.5px; } }   /* 방식 버튼 4개(v0.1.60) — 좁은 폭에선 「이번 판 방식」 숨김 */
 .lb-hn { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }   /* flex 칸 안에선 …이 안 붙어서 안쪽 칸에 */
 @media (max-width: 340px) {   /* 좁은 폭: 이름 자리 확보 — 자리 번호 숨김·아이콘 축소 */
   .seat { gap:6px; padding:0 6px; }

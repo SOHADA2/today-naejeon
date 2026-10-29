@@ -608,7 +608,7 @@ function avatar(m, cls) {
 const verLt = (a, b) => { const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0; } return false; };   // 🔄 a가 b보다 옛 버전(v0.1.56)
 function renderLobby() {
   const L = lobbyData || { members: [], mode: 'random', captains: {} };
-  const M = L.members || [], caps = L.captains || {}, draft = L.mode === 'draft', manual = L.mode === 'manual', sides = L.sides || {};
+  const M = L.members || [], caps = L.captains || {}, draft = L.mode === 'draft', manual = L.mode === 'manual', normal = L.mode === 'normal', sides = L.sides || {};
   const ins = M.filter(m => m.st === 'in'), specs = M.filter(m => m.st === 'spec');
   const sA = ins.filter(m => sides[m.name] === 'teamA'), sB = ins.filter(m => sides[m.name] === 'teamB'), sNone = ins.filter(m => !sides[m.name]);   // 🧩 직접
   const me = M.find(m => m.me);
@@ -634,7 +634,9 @@ function renderLobby() {
     b.onclick = () => { if (myIsHost && b.dataset.mode !== L.mode) lbAct(() => window.api.lobbyMode(b.dataset.mode)); };
   });
   const cb = el('lb-caps');
-  cb.style.display = draft || manual ? '' : 'none';
+  cb.style.display = draft || manual || normal ? '' : 'none';
+  // 🎮 일반판(v0.1.60) 안내 = 방식 바로 아래(아래 고정 버튼에 가리지 않게) — 같은 팀 2명+이 일반 게임 → 기록·하이라이트(방장 PC가 리플레이로 찍음 · 방장도 그 판에 있어야)
+  if (normal) cb.innerHTML = `<span class="lb-normal">같은 팀으로 일반 게임(칼바람 등)을 하면 판 기록·하이라이트를 자동으로 만들어요 · 앱 켠 사람 2명+<br>${L.hostName ? `하이라이트는 방장 <b>${esc(L.hostName)}</b>님 PC가 찍어요 — 방장도 그 판에 같이 있어야 해요` : '<b class="warn">⚠️ 지금 방장이 없어요</b> — 「방장 하기」를 눌러야 하이라이트가 찍혀요'}</span>`;
   if (draft) cb.innerHTML = `<span class="lb-cap t1"><em>1팀 팀장</em><b>${caps.teamA ? esc(caps.teamA) : '미정'}</b></span><span class="lb-cap t2"><em>2팀 팀장</em><b>${caps.teamB ? esc(caps.teamB) : '미정'}</b></span>`
     + (myIsHost ? '<button id="lb-caprand" class="lb-mini">랜덤 팀장</button>' : '');
   if (manual) cb.innerHTML = `<span class="lb-cap t1"><em>1팀</em><b class="num">${sA.length}</b></span><span class="lb-cap t2"><em>2팀</em><b class="num">${sB.length}</b></span>`
@@ -705,14 +707,15 @@ v0.1.56 전 버전은 이 요청을 못 알아들어서 직접 트레이에서 �
   });
   // 👑 방장: 추가·시작 / 나머지: 안내
   el('lb-hostbox').style.display = myIsHost ? '' : 'none';
-  el('lb-gobar').style.display = myIsHost ? '' : 'none';
+  el('lb-gobar').style.display = myIsHost || normal ? '' : 'none';   // 🎮 일반판 = 모두에게 진행 상태
   const n = ins.length, capsOk = !draft || (caps.teamA && caps.teamB), sideOk = !manual || (!sNone.length && sA.length && sB.length);
   const go = el('lb-start');
-  go.disabled = n < 2 || !capsOk || !sideOk;
-  go.textContent = n < 2 ? `2명부터 시작할 수 있어요 · 지금 ${n}명` : !capsOk ? '팀장 2명을 정해주세요'
+  go.disabled = normal || n < 2 || !capsOk || !sideOk;
+  go.classList.toggle('normal', normal);
+  go.textContent = normal ? '🎮 일반판 진행 중' : n < 2 ? `2명부터 시작할 수 있어요 · 지금 ${n}명` : !capsOk ? '팀장 2명을 정해주세요'
     : manual ? (sNone.length ? `팀 안 정한 사람 ${sNone.length}명` : !sideOk ? '두 팀에 한 명 이상씩' : `이 팀으로 시작 · ${sA.length}:${sB.length}`)
     : draft ? `드래프트 시작 · ${n}명` : `랜덤으로 팀 짜기 · ${n}명`;
-  el('lb-foot').innerHTML = myIsHost ? (manual ? (sNone.length ? '<span>아래 「팀 미정」에서 1팀·2팀을 눌러 넣어요 · 자리에 마우스를 올리면 ⇄ 옮기기 · ↩ 빼기</span>' : '') : n > 10 || n % 2 ? '<span>11명 이상이거나 홀수면 남는 사람은 관전으로 빠져요</span>' : '')
+  el('lb-foot').innerHTML = normal ? '' : myIsHost ? (manual ? (sNone.length ? '<span>아래 「팀 미정」에서 1팀·2팀을 눌러 넣어요 · 자리에 마우스를 올리면 ⇄ 옮기기 · ↩ 빼기</span>' : '') : n > 10 || n % 2 ? '<span>11명 이상이거나 홀수면 남는 사람은 관전으로 빠져요</span>' : '')
     : !myName ? '' : L.hostName ? `<span class="lobby-pulse"></span>${esc(L.hostName)}님이 시작하면 바로 팀이 떠요` : '';
   // 오늘 순위(짧게)
   loadToday();
