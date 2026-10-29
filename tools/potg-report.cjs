@@ -38,6 +38,19 @@ const mmss = s => s == null ? '-' : `${Math.floor(s / 60)}:${String(Math.floor(s
     const pr = (probe || {})[gid];
     if (pr) for (const x of Object.values(pr)) console.log(`  ④ 리플레이 ${x.name || '?'}${x.host ? '(방장)' : ''}: ${x.result} · ${(x.steps || []).map(s => `${s.t}초 ${s.state}`).join(' → ')}${x.file ? ' · 파일 ' + JSON.stringify(x.file) : ''}`);
     else console.log('  ④ 리플레이 확인 기록 없음');
+    // ⑤ 타임라인 확인(v0.1.46) — 원본(raw)은 크니 요약만
+    const [tlOk, tlSum, tlTries, tlBytes] = await Promise.all([get(`bridge/timelineProbe/${gid}/ok`), get(`bridge/timelineProbe/${gid}/sum`), get(`bridge/timelineProbe/${gid}/tries`), get(`bridge/timelineProbe/${gid}/bytes`)]);
+    if (tlOk == null && !tlTries) console.log('  ⑤ 타임라인 확인 기록 없음(v0.1.46 이후 방장 앱에서만)');
+    else {
+      console.log(`  ⑤ 타임라인: ${tlOk ? `✅ 받음 ${((tlBytes || 0) / 1024).toFixed(0)}KB` : '❌ 못 받음'} · 시도 ${(tlTries || []).map(t => `${t.t}초 ${t.status}`).join(', ')}`);
+      if (tlSum) {
+        console.log(`     프레임 ${tlSum.frames}개(간격 ${tlSum.interval}) · 프레임 키 ${(tlSum.frameKeys || []).join(',')}`);
+        console.log(`     선수 프레임 키 ${(tlSum.pfKeys || []).join(',')}${tlSum.damageKeys ? ' · 딜 ' + tlSum.damageKeys.join(',') : ''}`);
+        console.log(`     사건 ${Object.entries(tlSum.eventTypes || {}).map(([k, v]) => k + ' ' + v).join(' · ')}`);
+        console.log(`     킬 키 ${(tlSum.killKeys || []).join(',')} · ★ 킬마다 딜 상세 ${tlSum.killDamage ? '있음' : '없음'}`);
+        if (tlSum.sample && tlSum.sample.CHAMPION_KILL) console.log(`     킬 예시 ${tlSum.sample.CHAMPION_KILL.slice(0, 600)}`);
+      }
+    }
   }
   if (session) console.log(`\n지금 판 상태: phase ${session.phase} · 게임 ${session.game ? session.game.id : '-'} · potg ${session.potg ? (session.potg.none ? '없음' : session.potg.name) : '-'}`);
 })().catch(e => console.log('읽기 실패:', e.message));
