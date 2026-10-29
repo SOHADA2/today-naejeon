@@ -4,11 +4,16 @@
 #   구간은 스펙트로그램으로 찾음(타격 = 저음 40~200Hz가 확 뛰는 곳). 각 파일 안 「타격 시각」은 potg.js SFX_HIT와 같아야 함
 # 사용: python tools/potg-audio.py "<Victory Strike.mp3>" "<Impact Sequence.mp3>"   (리포 루트에서 · ffmpeg 경로 FF는 PC에 맞게)
 import sys, subprocess, numpy as np
+from scipy.signal import butter, sosfiltfilt
 FF = r"C:/Users/sbs_n/AppData/Roaming/Python/Python314/site-packages/imageio_ffmpeg/binaries/ffmpeg-win-x86_64-v7.1.exe"
 SR = 44100
+# v0.1.42: 수노 원곡 두 개 모두 15~23kHz에 곡 내내 울리는 「삐-」 음이 있음(효과음 묶음 16.5·18·19.5kHz +20dB 이상 — 사장님: 기계음이 계속 들림)
+#   → 15kHz 위를 가파르게 깎음(10차 버터워스·앞뒤로 걸어 시각 밀림 없음). 음악 소리는 대부분 그 아래라 거의 안 바뀜
+LP = butter(10, 15000, btype='lowpass', fs=SR, output='sos')
 def load(f, a, b):
-    raw = subprocess.run([FF, '-v', 'quiet', '-ss', str(a), '-t', str(b - a), '-i', f, '-ac', '2', '-ar', str(SR), '-f', 'f32le', '-'], capture_output=True).stdout
-    return np.frombuffer(raw, np.float32).reshape(-1, 2).astype(np.float64)
+    raw = subprocess.run([FF, '-v', 'quiet', '-ss', str(a - 0.5), '-t', str(b - a + 1.0), '-i', f, '-ac', '2', '-ar', str(SR), '-f', 'f32le', '-'], capture_output=True).stdout
+    x = sosfiltfilt(LP, np.frombuffer(raw, np.float32).reshape(-1, 2).astype(np.float64), axis=0)
+    return x[int(0.5 * SR): int(0.5 * SR) + int((b - a) * SR)]   # 앞뒤 0.5초 여유로 걸러서 가장자리 흔들림 없앰
 def fade(x, fin, fout):
     x = x.copy(); n1, n2 = int(fin * SR), int(fout * SR)
     if n1: x[:n1] *= np.linspace(0, 1, n1)[:, None]

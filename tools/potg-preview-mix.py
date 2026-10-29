@@ -9,15 +9,24 @@ L = json.load(open(d + '/log.json', encoding='utf-8'))
 def load(f): return np.frombuffer(subprocess.run([FF, '-v', 'quiet', '-i', f, '-ac', '2', '-ar', str(SR), '-f', 'f32le', '-'], capture_output=True).stdout, np.float32).reshape(-1, 2).astype(np.float64)
 N = int(L['dur'] * SR); mix = np.zeros((N, 2)); t = np.arange(N) / SR
 s = np.array(L['s'])   # [t, v.time, v.play, v.vol, v.rate, bgm.time, bgm.play, bgm.vol]
-def track(src, col_pos, col_play, col_vol):
-    pos = np.interp(t, s[:, 0], s[:, col_pos]); play = np.interp(t, s[:, 0], s[:, col_play]) > 0.5; vol = np.interp(t, s[:, 0], s[:, col_vol])
+def smooth_pos(col_pos, col_play, col_rate):
+    # 기록된 재생 위치(currentTime)는 띄엄띄엄 갱신돼 그대로 따라 읽으면 소리가 미세하게 튐(지지직) → 속도×시간으로 이어 붙이고,
+    #   기록과 0.1초 넘게 벌어지면(건너뛰기·되감기) 그 자리로 옮기고, 작은 차이는 천천히 따라감
+    p = np.zeros(len(s)); p[0] = s[0, col_pos]
+    for i in range(1, len(s)):
+        dt = s[i, 0] - s[i - 1, 0]; r = (s[i - 1, col_rate] if col_rate is not None else 1.0) * (s[i - 1, col_play] > 0.5)
+        q = p[i - 1] + dt * r; d = s[i, col_pos] - q
+        p[i] = s[i, col_pos] if abs(d) > 0.1 else q + d * 0.03
+    return p
+def track(src, col_pos, col_play, col_vol, col_rate=None):
+    pos = np.interp(t, s[:, 0], smooth_pos(col_pos, col_play, col_rate)); play = np.interp(t, s[:, 0], s[:, col_play]) > 0.5; vol = np.interp(t, s[:, 0], s[:, col_vol])
     i = np.clip(pos * SR, 0, len(src) - 2); k = i.astype(int); f = (i - k)[:, None]
     y = src[k] * (1 - f) + src[k + 1] * f
     g = (play * vol)[:, None]
     # 끊김 방지: 재생/정지 바뀌는 곳 5ms 부드럽게
     g = np.convolve(g[:, 0], np.ones(240) / 240, 'same')[:, None]
     return y * g
-mix += track(load(clip), 1, 2, 3)
+mix += track(load(clip), 1, 2, 3, 4)
 mix += track(load('assets/bgm/potg-bgm.ogg'), 5, 6, 7)
 VOL = {'intro': 0.55, 'hit': 0.45, 'slow': 0.5, 'slam': 0.65}
 for e in L['ev']:
