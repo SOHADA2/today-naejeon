@@ -112,12 +112,19 @@ function makeReplayRec(d) {
   }
 
   // ⑥까지 한 번에 — 성공하면 webm 경로, 아니면 null(그땐 카드로 나옴)
-  async function record({ gameId, from, to, focus, champ }) {
+  //   v0.1.44: parts = [{from,to,focus,champ}, …] 이면 리플레이를 한 번만 열고 장면마다 이어서 녹화 → 경로 배열(실패한 장면은 null)
+  async function record(opt) {
+    const multi = Array.isArray(opt.parts);
+    const out = await recordParts(opt.gameId, multi ? opt.parts : [{ from: opt.from, to: opt.to, focus: opt.focus, champ: opt.champ }]);
+    return multi ? (out || parts0(opt.parts)) : (out && out[0]) || null;
+  }
+  const parts0 = ps => ps.map(() => null);
+  async function recordParts(gameId, parts) {
     const t0 = Date.now(), sec = () => ((Date.now() - t0) / 1000).toFixed(1);
     const ph = await d.lcuRaw('GET', '/lol-gameflow/v1/gameflow-phase');
     if (ph.status !== 200) { log('롤 클라 연결 없음'); return null; }
-    if (['GameStart', 'InProgress', 'Reconnect', 'ChampSelect'].includes(ph.data)) { log('게임/챔프 선택 중이라 녹화 안 함: ' + ph.data); return null; }
-    log(`게임 ${gameId} ${from}~${to}초 녹화 시작 · 창구 ${ensureReplayApi()}`);
+    if (['GameStart', 'InProgress', 'Reconnect', 'ChampSelect', 'Matchmaking', 'ReadyCheck'].includes(ph.data)) { log('게임/큐/챔프 선택 중이라 녹화 안 함: ' + ph.data); return null; }   // 큐 잡는 중에 리플레이를 열면 큐가 꼬임(일반 판은 바로 다음 큐를 잡는 경우가 많음)
+    log(`게임 ${gameId} ${parts.map(p => p.from + '~' + p.to).join(', ')}초 녹화 시작 · 창구 ${ensureReplayApi()}`);
     if (!await waitRofl(gameId)) return null;
     log(`리플레이 준비됨 (${sec()}초)`);
     const cfg = cfgForRecord(); if (cfg) log(`창 모드 1920×1080 (원래 ${JSON.stringify(cfg.before)})`);
@@ -129,52 +136,58 @@ function makeReplayRec(d) {
       for (let i = 0; i < (d.loadWaitSec || 120) && !len; i++) { const p = await live('GET', '/replay/playback'); if (p.status === 200 && p.data && p.data.length > 0) len = p.data.length; else await sleep(1000); }
       if (!len) { log('리플레이 창구가 안 열림(EnableReplayApi?)'); return null; }
       log(`리플레이 열림 · 길이 ${Math.round(len)}초 (${sec()}초)`);
-      to = Math.min(to, len - 0.5); from = Math.max(0, Math.min(from, to - 3));
-      // v0.1.34: 앞 구간(PRE초) 먼저 재생해 화면·카메라가 자리 잡은 뒤 녹화 — 전엔 되감기(seek)가 끝나기 전에 녹화가 시작돼
-      //   첫 몇 초가 멈춘 기지 화면이었고, 녹화도 7~10초 만에 끊겨 정작 킬 장면이 빠졌음(실제 판 8436676738·8436741245)
-      const PRE = 3, startAt = Math.max(0, from - PRE);
-      const seekTo = async t => {   // 되감기 끝날 때까지(최대 40초)
-        await live('POST', '/replay/playback', { time: t, paused: true, speed: 1 });
-        for (let i = 0; i < 80; i++) { await sleep(500); const p = await live('GET', '/replay/playback'); if (p.data && !p.data.seeking && Math.abs((p.data.time || 0) - t) < 1.5) return true; }
-        return false;
-      };
-      log(`되감기 ${startAt}초 ${await seekTo(startAt) ? '완료' : '확인 못 함'} (${sec()}초)`);
-      const view = { cameraAttached: true, cameraMode: 'top', interfaceScoreboard: false, interfaceChat: false, interfaceTimeline: false, interfaceReplay: false, interfaceMinimap: false, interfaceFrames: false, interfaceScore: false, interfaceTarget: false, interfaceQuests: false, interfaceKillCallouts: false, interfaceAnnounce: false };   // 화면 깨끗하게(체력바만 남김 · 롤 킬 알림은 확대하면 위가 잘려서 끄고 팟지 킬 피드로 대신)
-      await live('POST', '/replay/render', Object.assign({ selectionName: focus }, view));
-      const r = await live('GET', '/replay/render');
-      if (champ && !(r.data && r.data.selectionName)) { await live('POST', '/replay/render', Object.assign({ selectionName: champ }, view)); log('카메라: 챔피언 이름으로 다시 지정'); }   // 게임 이름이 안 먹으면
-      await sleep(1500);   // 장면 불러오기
-      const outDir = d.outDir; fs.mkdirSync(outDir, { recursive: true });
-      const since = Date.now();
-      const rr = await live('POST', '/replay/recording', { recording: true, startTime: from, endTime: to, framesPerSecond: FPS, enforceFrameRate: true, codec: 'webm', lossless: false, width: W, height: H, path: outDir, replaySpeed: 1 });
-      if (!(rr.status >= 200 && rr.status < 300)) { log('녹화 시작 실패 HTTP ' + rr.status); return null; }
-      await live('POST', '/replay/playback', { time: startAt, paused: false, speed: 1 });
-      // ⑤ 끝 = 리플레이 시간이 to를 지나고 녹화가 멈춤(녹화 쪽 값만 믿지 않음 — 리플레이 시간 기준) · 최대 (구간+앞부분)×4 + 30초
-      let lastPath = null, last = 0, n = 0, moveAt = Date.now(), moveT = -1, shown = !hid;
-      const limit = Date.now() + ((to - startAt) * 4 + 30) * 1000;
-      while (Date.now() < limit) {
-        await sleep(1000);
-        const [g, p] = await Promise.all([live('GET', '/replay/recording'), live('GET', '/replay/playback')]);
-        const rec = g.data || {}, t = p.data ? p.data.time : null;
-        if (rec.outputPath || rec.path) lastPath = rec.outputPath || rec.path;
-        if (++n % 3 === 1) log(`진행 리플레이 ${t == null ? '?' : t.toFixed(1)}초 · 녹화 ${rec.recording ? '중' : '멈춤'}${rec.currentTime != null ? ' ' + Number(rec.currentTime).toFixed(1) : ''}`);
-        if (t != null) last = t;
-        if (t != null && Math.abs(t - moveT) > 0.3) { moveT = t; moveAt = Date.now(); }
-        else if (!shown && Date.now() - moveAt > 6000) { shown = true; hid.show(); log('화면 밖에선 리플레이가 멈춰서 화면 안으로 꺼냄'); await live('POST', '/replay/playback', { paused: false }); moveAt = Date.now(); }
-        if (t != null && t >= to + 0.5 && !rec.recording) break;
-        if (p.data && p.data.paused && t != null && t < to) await live('POST', '/replay/playback', { paused: false });   // 누가 멈췄으면 다시 재생
+      const outs = [];
+      for (let pi = 0; pi < parts.length; pi++) outs.push(await recordOne(parts[pi], pi).catch(e => { log(`장면 ${pi + 1} 오류 ${e && e.message}`); return null; }));
+      return outs;
+      async function recordOne({ from, to, focus, champ }, pi) {   // 장면 하나(되감기 → 카메라 → 녹화 → 파일)
+        if (pi) log(`── 장면 ${pi + 1} · ${from}~${to}초`);
+          to = Math.min(to, len - 0.5); from = Math.max(0, Math.min(from, to - 3));
+          // v0.1.34: 앞 구간(PRE초) 먼저 재생해 화면·카메라가 자리 잡은 뒤 녹화 — 전엔 되감기(seek)가 끝나기 전에 녹화가 시작돼
+          //   첫 몇 초가 멈춘 기지 화면이었고, 녹화도 7~10초 만에 끊겨 정작 킬 장면이 빠졌음(실제 판 8436676738·8436741245)
+          const PRE = 3, startAt = Math.max(0, from - PRE);
+          const seekTo = async t => {   // 되감기 끝날 때까지(최대 40초)
+            await live('POST', '/replay/playback', { time: t, paused: true, speed: 1 });
+            for (let i = 0; i < 80; i++) { await sleep(500); const p = await live('GET', '/replay/playback'); if (p.data && !p.data.seeking && Math.abs((p.data.time || 0) - t) < 1.5) return true; }
+            return false;
+          };
+          log(`되감기 ${startAt}초 ${await seekTo(startAt) ? '완료' : '확인 못 함'} (${sec()}초)`);
+          const view = { cameraAttached: true, cameraMode: 'top', interfaceScoreboard: false, interfaceChat: false, interfaceTimeline: false, interfaceReplay: false, interfaceMinimap: false, interfaceFrames: false, interfaceScore: false, interfaceTarget: false, interfaceQuests: false, interfaceKillCallouts: false, interfaceAnnounce: false };   // 화면 깨끗하게(체력바만 남김 · 롤 킬 알림은 확대하면 위가 잘려서 끄고 팟지 킬 피드로 대신)
+          await live('POST', '/replay/render', Object.assign({ selectionName: focus }, view));
+          const r = await live('GET', '/replay/render');
+          if (champ && !(r.data && r.data.selectionName)) { await live('POST', '/replay/render', Object.assign({ selectionName: champ }, view)); log('카메라: 챔피언 이름으로 다시 지정'); }   // 게임 이름이 안 먹으면
+          await sleep(1500);   // 장면 불러오기
+          const outDir = d.outDir; fs.mkdirSync(outDir, { recursive: true });
+          const since = Date.now();
+          const rr = await live('POST', '/replay/recording', { recording: true, startTime: from, endTime: to, framesPerSecond: FPS, enforceFrameRate: true, codec: 'webm', lossless: false, width: W, height: H, path: outDir, replaySpeed: 1 });
+          if (!(rr.status >= 200 && rr.status < 300)) { log('녹화 시작 실패 HTTP ' + rr.status); return null; }
+          await live('POST', '/replay/playback', { time: startAt, paused: false, speed: 1 });
+          // ⑤ 끝 = 리플레이 시간이 to를 지나고 녹화가 멈춤(녹화 쪽 값만 믿지 않음 — 리플레이 시간 기준) · 최대 (구간+앞부분)×4 + 30초
+          let lastPath = null, last = 0, n = 0, moveAt = Date.now(), moveT = -1, shown = !hid;
+          const limit = Date.now() + ((to - startAt) * 4 + 30) * 1000;
+          while (Date.now() < limit) {
+            await sleep(1000);
+            const [g, p] = await Promise.all([live('GET', '/replay/recording'), live('GET', '/replay/playback')]);
+            const rec = g.data || {}, t = p.data ? p.data.time : null;
+            if (rec.outputPath || rec.path) lastPath = rec.outputPath || rec.path;
+            if (++n % 3 === 1) log(`진행 리플레이 ${t == null ? '?' : t.toFixed(1)}초 · 녹화 ${rec.recording ? '중' : '멈춤'}${rec.currentTime != null ? ' ' + Number(rec.currentTime).toFixed(1) : ''}`);
+            if (t != null) last = t;
+            if (t != null && Math.abs(t - moveT) > 0.3) { moveT = t; moveAt = Date.now(); }
+            else if (!shown && Date.now() - moveAt > 6000) { shown = true; hid.show(); log('화면 밖에선 리플레이가 멈춰서 화면 안으로 꺼냄'); await live('POST', '/replay/playback', { paused: false }); moveAt = Date.now(); }
+            if (t != null && t >= to + 0.5 && !rec.recording) break;
+            if (p.data && p.data.paused && t != null && t < to) await live('POST', '/replay/playback', { paused: false });   // 누가 멈췄으면 다시 재생
+          }
+          log(`녹화 구간 끝 · 리플레이 ${last.toFixed(1)}초 (${sec()}초)`);
+          await live('POST', '/replay/playback', { paused: true });
+          let clip = null, prev = -1;   // 파일 다 써질 때까지(크기가 그대로면 끝)
+          for (let i = 0; i < 20; i++) {
+            clip = findClip([outDir, lastPath && (path.extname(lastPath) ? path.dirname(lastPath) : lastPath), d.docsDir], since);
+            if (clip && clip.size === prev) break;
+            prev = clip ? clip.size : -1; await sleep(700);
+          }
+          if (!clip) { log('녹화 파일을 못 찾음'); return null; }
+          log(`녹화 끝 ✅ ${(clip.size / 1048576).toFixed(1)}MB · ${clip.p} (${sec()}초)`);
+          return clip.p;
       }
-      log(`녹화 구간 끝 · 리플레이 ${last.toFixed(1)}초 (${sec()}초)`);
-      await live('POST', '/replay/playback', { paused: true });
-      let clip = null, prev = -1;   // 파일 다 써질 때까지(크기가 그대로면 끝)
-      for (let i = 0; i < 20; i++) {
-        clip = findClip([outDir, lastPath && (path.extname(lastPath) ? path.dirname(lastPath) : lastPath), d.docsDir], since);
-        if (clip && clip.size === prev) break;
-        prev = clip ? clip.size : -1; await sleep(700);
-      }
-      if (!clip) { log('녹화 파일을 못 찾음'); return null; }
-      log(`녹화 끝 ✅ ${(clip.size / 1048576).toFixed(1)}MB · ${clip.p} (${sec()}초)`);
-      return clip.p;
     } finally {
       await closeReplay();   // 열기 요청을 보냈으면 늘 정리(창구가 안 열렸어도 게임 창은 떴을 수 있음)
       if (hid) { const h = hid.stop(); if (h != null) log(`창 숨김 ${h}회`); }

@@ -50,6 +50,9 @@ contextBridge.exposeInMainWorld('api', {
   lobbyMode: (mode) => ipcRenderer.invoke('lobby-mode', { mode }),         // 👑 랜덤/드래프트
   lobbyCaptain: (name, rand) => ipcRenderer.invoke('lobby-captain', { name, rand }),   // 👑 팀장 지정
   lobbyStart: () => ipcRenderer.invoke('lobby-start'),                      // 👑 시작
+  lobbySide: (name, team) => ipcRenderer.invoke('lobby-side', { name, team }),   // 🧩 직접: 1팀/2팀/빼기(null)
+  lobbySidesPrev: () => ipcRenderer.invoke('lobby-sides-prev'),               // 🧩 지난 판 팀 그대로
+  lobbySidesClear: () => ipcRenderer.invoke('lobby-sides-clear'),
   lobbyReopen: () => ipcRenderer.invoke('lobby-reopen'),                    // 👑 지금 판 접고 대기실로
   showOverlay: () => ipcRenderer.send('overlay-show'),
   hostResult: (winner) => ipcRenderer.invoke('host-result', { winner }),   // 🏁 승리팀 직접 기록
@@ -70,7 +73,8 @@ contextBridge.exposeInMainWorld('api', {
   // 🎬 팟지 — 가운데 창 {card, manual} · 영상 받기 → {url} · 저장 · 닫기 · 결과 화면에서 다시 보기
   onPotg: (cb) => ipcRenderer.on('potg', (_e, d) => cb(d)),
   potgClip: (meta) => ipcRenderer.invoke('potg-clip', meta),
-  potgSave: (meta, name) => ipcRenderer.invoke('potg-save', { meta, name }),
+  potgSave: (meta, name, hero) => ipcRenderer.invoke('potg-save', { meta, name, hero: !!hero }),
   potgClose: () => ipcRenderer.send('potg-close'),
   potgReplay: () => ipcRenderer.send('potg-replay'),
+  potgOpen: (card) => ipcRenderer.send('potg-open', card),   // 🎮 「오늘」 탭 일반 판 팟지
 });

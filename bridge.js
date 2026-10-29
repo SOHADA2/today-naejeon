@@ -20,6 +20,7 @@ let _getOpName  = () => null;   // 진행자 이름 = 오버레이 config.myName
 let _appVer     = '';           // 오버레이 앱 버전(정보용)
 let _onAccount  = () => {};     // 👤 롤에 로그인된 라이엇 계정 변경 알림({puuid,gameName,tagLine} | null)
 let _onEog      = () => {};     // 📼 게임 결과 수집 단계 알림 → 왼쪽 창 「기록 저장 중」 화면
+let _onNormal   = () => {};     // 🎮 일반 게임(비커스텀) 결과 → main recordNormal(앱 켠 친구 2명+가 같은 팀이면 「같이 한 일반 판」)
 let _fakeLcu    = null;         // 🧪 개발용 "port:password"(TN_FAKE_LCU) — lockfile 대신 이 주소로 붙음
 let _isHost     = () => false;  // 👑 이 PC가 방장인지(리플레이 확인에서 실제 다운로드는 방장만)
 let _lolDir     = null;         // 롤 설치 폴더(lockfile 있는 곳) — Config/game.cfg 확인용
@@ -155,6 +156,7 @@ const connector = new LockfileConnector();
 let basePort = null, baseAuth = null;   // LCU 접속(포트 + Basic 인증 헤더)
 let lastPhase = null, pollTimer = null, heartbeatTimer = null;
 let activeIsCustom = null, eogSaved = false, gameInProgress = false, activeGameId = null;
+let activeQueue = null;   // 🎮 { id, mode } — 일반 게임 기록에 큐 이름(칼바람·일반…) 붙이기용
 let _eogBusy = false, eogTimer = null, _missedGame = null, _endedEmitted = false;   // ⚡ 정산 화면 빠른 감시 · 클라를 꺼서 못 잡은 판(다음 연결 때 전적에서 복구)
 let inGamePlayersFilled = false, _lastSess = null, _lastPickNames = [], lastSavedGameId = null;
 let _running = false, _pollFailCount = 0;
@@ -240,12 +242,20 @@ async function handleEndOfGame(abnormal = false) {
           doubleKills: s.DOUBLE_KILLS || 0, tripleKills: s.TRIPLE_KILLS || 0,
           quadraKills: s.QUADRA_KILLS || 0, pentaKills: s.PENTA_KILLS || 0,
           firstBlood: (s.FIRST_BLOOD_KILL || 0) === 1,
+          ...roleStats(s, {   // 🛡️ 서포터·탱커 지표(v0.1.44 숨은 영웅) — 키 이름은 실기 확인 전이라 후보 여러 개
+            taken: ['TOTAL_DAMAGE_TAKEN'], mitig: ['TOTAL_DAMAGE_SELF_MITIGATED'], heal: ['TOTAL_HEAL'],
+            healMates: ['TOTAL_HEAL_ON_TEAMMATES', 'TOTAL_HEALS_ON_TEAMMATES'], shieldMates: ['TOTAL_DAMAGE_SHIELDED_ON_TEAMMATES'],
+            cc: ['TIME_CCING_OTHERS', 'TIME_CC_OTHERS'], ccTotal: ['TOTAL_TIME_CROWD_CONTROL_DEALT'] }),
         });
       }
     }
 
     // 🎮 일반게임(비커스텀)은 투데이 내전 기록이 아님 → 저장하지 않음(사이트 normal_matches 에도 안 씀)
-    if (activeIsCustom === false) { eogSaved = true; if (currentGameId) lastSavedGameId = currentGameId; log('🎮 일반게임 — 기록 안 함'); emitEog('skip', currentGameId); return; }
+    if (activeIsCustom === false) {   // 내전 기록은 아님 → main이 「같이 한 일반 판」인지 판단(today/days/…/normals)
+      eogSaved = true; if (currentGameId) lastSavedGameId = currentGameId; log('🎮 일반게임 — 내전 기록 아님(같이 한 일반 판 확인)'); emitEog('skip', currentGameId);
+      try { _onNormal({ players, winSide, gameId: currentGameId, gameTime: eog.gameLength || 0, queueId: activeQueue && activeQueue.id, gameMode: activeQueue && activeQueue.mode, savedAt: Date.now(), source: 'eog' }); } catch (_) {}
+      return;
+    }
 
     // ⚡ LCU에서 받은 즉시 메모리에 확보 → 그다음 서버에 씀(정산 화면을 바로 나가도 이미 손에 있음)
     eogSaved = true; lastSavedGameId = currentGameId; stopEogWatch();
@@ -314,6 +324,78 @@ function scheduleHistoryBackfill(gameId) {
   };
   setTimeout(tick, 3000);
 }
+// 🎮 일반 게임 정산을 놓쳤을 때 — 전적에서 조용히(5초 간격 최대 2분, 화면 알림 없음)
+function scheduleNormalBackfill(gameId) {
+  if (!gameId || _histPending.has(String(gameId))) return;
+  _histPending.add(String(gameId));
+  const q = activeQueue; let tries = 0;
+  const tick = async () => {
+    if (++tries > 24 || !basePort) { _histPending.delete(String(gameId)); return; }
+    try {
+      const g = await lcu(`/lol-match-history/v1/games/${gameId}`);
+      if (g && Array.isArray(g.participants) && g.participants.length) {
+        _histPending.delete(String(gameId));
+        if (g.gameType === 'CUSTOM_GAME') return;
+        const e = await historyToEog(g);
+        try { _onNormal(Object.assign(e, { queueId: g.queueId != null ? g.queueId : q && q.id, gameMode: g.gameMode || (q && q.mode) || null, source: 'history' })); } catch (_) {}
+        return;
+      }
+    } catch (_) {}
+    setTimeout(tick, 5000);
+  };
+  setTimeout(tick, 3000);
+}
+// 🧭 타임라인 확인(v0.1.46 · 팟지/숨은 영웅 재료 조사) — 게임이 끝나면 **방장 앱만** 롤 클라의 경기 타임라인을 받아
+//   어떤 정보가 들어 있는지(1분 단위 딜량? 킬마다 누가 어떤 스킬로 얼마나 딜? 위치?) 요약 + 원본을 서버에 남김. 화면엔 아무것도 안 띄움
+// 기록: today/bridge/timelineProbe/{gameId} = { name, appVer, at, tries:[{t,status}], ok, sum:{…}, raw(JSON 문자열, 1.5MB 이하면) }
+//   → node tools/potg-report.cjs 로 확인 · 커스텀 게임에서도 나오는지 / 형식이 일반 게임(match-v5)과 같은지가 핵심
+const TL_PATHS = gid => [`/lol-match-history/v1/game-timelines/${gid}`];
+const _tlProbed = new Set();
+function summarizeTimeline(d) {
+  const frames = Array.isArray(d && d.frames) ? d.frames : (d && d.info && Array.isArray(d.info.frames) ? d.info.frames : []);
+  const sum = { keys: Object.keys(d || {}).slice(0, 30), frames: frames.length, interval: (d && (d.frameInterval || (d.info && d.info.frameInterval))) || null };
+  const f1 = frames[Math.min(1, frames.length - 1)] || {};
+  sum.frameKeys = Object.keys(f1).slice(0, 30);
+  const pf = f1.participantFrames ? Object.values(f1.participantFrames)[0] || {} : {};
+  sum.pfKeys = Object.keys(pf).slice(0, 40);
+  if (pf.damageStats) sum.damageKeys = Object.keys(pf.damageStats).slice(0, 40);
+  if (pf.championStats) sum.champStatKeys = Object.keys(pf.championStats).slice(0, 40);
+  const types = {}, sample = {};
+  for (const fr of frames) for (const e of fr.events || []) { const t = String(e.type || '?'); types[t] = (types[t] || 0) + 1; if (!sample[t]) sample[t] = JSON.stringify(e).slice(0, 4000); }
+  sum.eventTypes = types; sum.sample = sample;   // 종류마다 하나씩(원본 JSON 문자열 — 키에 서버 금지 문자가 있어도 안전)
+  const kill = sample.CHAMPION_KILL ? JSON.parse(sample.CHAMPION_KILL.length < 4000 ? sample.CHAMPION_KILL : '{}') : {};
+  sum.killKeys = Object.keys(kill);
+  sum.killDamage = !!(kill.victimDamageReceived || kill.victimDamageDealt);   // ★ 킬마다 누가 어떤 스킬로 얼마나 — 있으면 숨은 영웅 CC·딜 판정에 바로 씀
+  return sum;
+}
+function startTimelineProbe(gameId) {
+  if (!gameId || _tlProbed.has(String(gameId)) || !_isHost()) return;
+  _tlProbed.add(String(gameId));
+  const t0 = Date.now(), sec = () => Math.round((Date.now() - t0) / 1000);
+  const rec = { name: _getOpName() || '', appVer: _appVer, at: t0, tries: [], ok: false };
+  const key = `${BRIDGE_ROOT}/timelineProbe/${gameId}`;
+  let n = 0;
+  log(`🧭 게임 ${gameId} 타임라인 확인 시작`);
+  const tick = async () => {
+    n++;
+    for (const p of TL_PATHS(gameId)) {
+      const r = await lcuRaw('GET', p).catch(() => ({ status: 0, data: null }));
+      rec.tries.push({ t: sec(), path: p, status: r.status });
+      if (r.status === 200 && r.data && typeof r.data === 'object') {
+        rec.ok = true; rec.path = p;
+        try { rec.sum = summarizeTimeline(r.data); } catch (e) { rec.sumErr = String(e && e.message); }
+        const txt = JSON.stringify(r.data); rec.bytes = txt.length;
+        if (txt.length <= 1.5 * 1048576) rec.raw = txt;
+        log(`🧭 타임라인 받음 · ${(txt.length / 1024).toFixed(0)}KB · 프레임 ${rec.sum && rec.sum.frames} · 킬 딜 상세 ${rec.sum && rec.sum.killDamage}`);
+        await fbSet(key, rec).catch(() => {}); return;
+      }
+    }
+    if (n >= 24) { rec.done = sec(); log('🧭 타임라인 못 받음(6분)'); await fbSet(key, rec).catch(() => {}); return; }   // 15초 × 24 = 6분
+    if (n === 1) fbSet(key, rec).catch(() => {});
+    setTimeout(tick, 15000);
+  };
+  setTimeout(tick, 8000);
+}
 // 🎬 리플레이 확인(v0.1.29 · 팟지 준비) — 내전이 끝나면 「이 판 리플레이를 받아서 볼 수 있나」를 조용히 확인해 서버에 남김
 // 화면엔 아무것도 안 띄움. 모든 참가자 앱 = 리플레이 상태만 10초마다 기록 · 방장 앱만 실제로 한 번 받아 파일이 생기는지까지 확인
 // 기록: today/bridge/replayProbe/{gameId}/{PC id} = { name, appVer, host, cfg, config, steps:[{t,state}], create, download, file, result }
@@ -373,6 +455,14 @@ function startReplayProbe(gameId) {
   };
   setTimeout(tick, 5000);
 }
+// 🛡️ 정산 지표 고르기 — 후보 키 중 처음 있는 값 + 힐·보호막·피해·CC 관련 키 원본(xs, 실제 키 이름 확인용)
+function roleStats(s, want) {
+  const o = {};
+  for (const [k, keys] of Object.entries(want)) { const key = keys.find(x => typeof s[x] === 'number'); if (key) o[k] = s[key]; }
+  const xs = {}; for (const [k, v] of Object.entries(s)) if (typeof v === 'number' && v > 0 && /heal|shield|taken|mitigat|cc|crowd/i.test(k)) xs[k] = v;
+  if (Object.keys(xs).length) o.xs = xs;
+  return o;
+}
 async function historyToEog(g) {
   const names = await champNames();
   const who = {}; for (const pi of g.participantIdentities || []) who[pi.participantId] = pi.player || {};
@@ -388,6 +478,9 @@ async function historyToEog(g) {
       augments: [s.playerAugment1, s.playerAugment2, s.playerAugment3, s.playerAugment4, s.playerAugment5, s.playerAugment6].filter(i => i > 0),
       doubleKills: s.doubleKills || 0, tripleKills: s.tripleKills || 0, quadraKills: s.quadraKills || 0, pentaKills: s.pentaKills || 0,
       firstBlood: !!s.firstBloodKill,
+      ...roleStats(s, { taken: ['totalDamageTaken'], mitig: ['damageSelfMitigated'], heal: ['totalHeal'],
+        healMates: ['totalHealsOnTeammates', 'totalHealOnTeammates'], shieldMates: ['totalDamageShieldedOnTeammates'],
+        cc: ['timeCCingOthers'], ccTotal: ['totalTimeCrowdControlDealt'] }),
     };
   });
   const win = players.find(p => p.isWin) || (() => { const t = (g.teams || []).find(t => t.win === 'Win'); return t ? { teamId: t.teamId } : null; })();
@@ -426,7 +519,7 @@ async function poll() {
       log(`페이즈: ${lastPhase ?? '-'} → ${phase}`);
       lastPhase = phase;
       if (phase === 'GameStart' || phase === 'InProgress') _endedEmitted = false;
-      else if (gameInProgress && phase !== 'Reconnect' && !_endedEmitted) { _endedEmitted = true; emitEog('ended', activeGameId); if (activeIsCustom !== false) startReplayProbe(activeGameId); }   // 📼 게임 끝남 → 「기록 저장 중」 시작
+      else if (gameInProgress && phase !== 'Reconnect' && !_endedEmitted) { _endedEmitted = true; emitEog('ended', activeGameId); if (activeIsCustom !== false) { startReplayProbe(activeGameId); startTimelineProbe(activeGameId); } }   // 📼 게임 끝남 → 「기록 저장 중」 시작
       if (phase !== 'GameStart' && phase !== 'InProgress') { inGamePlayersFilled = false; fbSet(`${BRIDGE_ROOT}/inGame`, null); }
       switch (phase) {
         case 'ChampSelect':
@@ -438,6 +531,7 @@ async function poll() {
             const _sess = await lcu('/lol-gameflow/v1/session');
             if (_sess?.gameData?.gameId) activeGameId = _sess.gameData.gameId;
             if (_sess?.gameData) activeIsCustom = !!_sess.gameData.isCustomGame;
+            const _q = _sess?.gameData?.queue; activeQueue = _q ? { id: _q.id != null ? _q.id : null, mode: _q.gameMode || null } : null;
             _lastSess = _sess;
           } catch (_) {}
           await fbSet(`${BRIDGE_ROOT}/gamePhase`, 'InProgress');
@@ -464,10 +558,11 @@ async function poll() {
           if (gameInProgress && !eogSaved && (phase === 'None' || phase === 'Lobby')) {
             await handleEndOfGame(true);
             if (!eogSaved && activeGameId && activeIsCustom !== false) scheduleHistoryBackfill(activeGameId);   // 🛟 정산 화면을 바로 나감 → 전적에서
+            else if (!eogSaved && activeGameId && activeIsCustom === false) { eogSaved = true; scheduleNormalBackfill(activeGameId); }   // 🎮 일반 게임도
           }
           await fbSet(`${BRIDGE_ROOT}/gamePhase`, phase);
           await fbSet(`${BRIDGE_ROOT}/champSelect`, null);
-          if (['None', 'Lobby'].includes(phase)) { eogSaved = false; gameInProgress = false; activeGameId = null; activeIsCustom = null; stopEogWatch(); }
+          if (['None', 'Lobby'].includes(phase)) { eogSaved = false; gameInProgress = false; activeGameId = null; activeIsCustom = null; activeQueue = null; stopEogWatch(); }
           break;
       }
     }
@@ -531,6 +626,7 @@ async function start(opts) {
   _onAccount = (opts && opts.onAccount)       || (() => {});
   _fakeLcu   = (opts && opts.fakeLcu)         || null;
   _onEog     = (opts && opts.onEog)           || (() => {});
+  _onNormal  = (opts && opts.onNormal)        || (() => {});
   _isHost    = (opts && opts.isHost)          || (() => false);
   log('내장 브릿지 시작 — LCU 감지 대기');
   startHeartbeat();
@@ -550,5 +646,5 @@ function stop() {
   fbSet(`${BRIDGE_ROOT}/operators/${OPERATOR_ID}`, null);
 }
 
-module.exports = { start, stop, getGameId: () => activeGameId || lastSavedGameId || null,   // 🎬 팟지 수집이 어느 게임인지
+module.exports = { _summarizeTimeline: summarizeTimeline, start, stop, getGameId: () => activeGameId || lastSavedGameId || null,   // 🎬 팟지 수집이 어느 게임인지
   lcuRaw: (m, p, b) => basePort ? lcuRaw(m, p, b) : Promise.resolve({ status: 0, data: null }), lolDir: () => _lolDir };   // 🎬 팟지 리플레이 녹화(replayrec.js)   // 🎬 팟지 수집이 어느 게임인지

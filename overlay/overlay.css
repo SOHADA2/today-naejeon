@@ -405,3 +405,14 @@ header .phase, header .win-btn { flex-shrink:0; }
 .cn-crack path.lt { stroke:rgba(255,255,255,0.34); }   /* v0.1.26: 더 옅게(사장님: 아직 너무 잘 보임) */
 .cn-shard { position:absolute; width:11px; height:13px; background:linear-gradient(135deg, rgba(255,255,255,0.55) 0 10%, rgba(255,255,255,0.10) 30%, rgba(255,255,255,0.03) 70%, rgba(255,255,255,0.35)); clip-path:polygon(50% 0, 100% 78%, 0 100%); }   /* 투명 유리 조각(가장자리만 빛) */
 .cn-glint { position:absolute; width:14px; height:14px; background:radial-gradient(closest-side, rgba(255,255,255,0.95), transparent); clip-path:polygon(50% 0, 58% 42%, 100% 50%, 58% 58%, 50% 100%, 42% 58%, 0 50%, 42% 42%); }
+
+/* 🧩 직접 팀 짜기(v0.1.47) — 왼쪽 열 1팀 · 오른쪽 열 2팀 · 아래 「팀 미정」 칩에서 1팀/2팀 */
+.seat.side1 { box-shadow:inset 3px 0 0 var(--t1); }
+.seat.side2 { box-shadow:inset 3px 0 0 var(--t2); }
+.seat.side1 .seat-av { border-color:var(--t1); } .seat.side2 .seat-av { border-color:var(--t2); }
+.seat.empty.side1 { border-color:var(--t1-line); } .seat.empty.side2 { border-color:var(--t2-line); }
+.seat.empty.side1 .seat-main b { color:var(--t1); opacity:0.7; } .seat.empty.side2 .seat-main b { color:var(--t2); opacity:0.7; }
+.seat-btn.t1 { color:#fff; background:var(--t1); border-color:var(--t1); } .seat-btn.t2 { color:#fff; background:var(--t2); border-color:var(--t2); }
+.seat-btn.t1:hover, .seat-btn.t2:hover { color:#fff; filter:brightness(1.15); }
+.lb-mini + .lb-mini { margin-left:0; }
+.lb-mini.plain { color:var(--dim); background:transparent; border-color:var(--hair); }

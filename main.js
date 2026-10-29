@@ -489,6 +489,7 @@ async function pollGame() {
       name: (p.riotIdGameName || p.summonerName || (typeof p.riotId === 'string' ? p.riotId.split('#')[0] : '') || '').trim(),
       champ: p.championName || '',
       teamId: p.team === 'ORDER' ? 100 : p.team === 'CHAOS' ? 200 : 0,
+      skin: Number.isFinite(p.skinID) ? p.skinID : null,   // 🖼️ 낀 스킨 번호(팟지 소개 배경 일러스트)
     })).filter(p => p.name);
   }
   if (nowIn !== inGame) {              // 상태 전환
@@ -699,7 +700,8 @@ async function handHost(puuid) {
 }
 
 // ── 🚪 대기실 — 접속한 사람 모두가 같은 화면을 봄 ─────────────────────────────
-// today/lobby = { mode:'random'|'draft', captains:{teamA,teamB}, join:{ key:{name, st:'in'|'spec', at, day, guest?} } }
+// today/lobby = { mode:'random'|'draft'|'manual', captains:{teamA,teamB}, sides:{fbKey(이름): 'teamA'|'teamB'}, join:{ key:{name, st:'in'|'spec', at, day, guest?} } }
+// v0.1.47 🧩 직접(manual) = 방장이 한 명씩 1팀/2팀에 넣음 · sides는 판이 끝나도 남아서 「다음 판 그대로」가 됨
 // 각자 자기 참가/관전을 누름(key=puuid) · 방장은 남의 상태도 바꾸고 앱 없는 사람(key='g_'+이름)을 추가 · 방식·팀장은 방장만
 // 사람 목록 = 지금 접속 중(presence) + 방장이 추가한 사람. 참가 표시는 그날만 유효(새벽 6시 기준).
 // v0.1.16~: 접속 = 기본 참가(아무것도 안 눌러도 자리에 앉음) · 저장된 'spec'만 관전
@@ -717,7 +719,9 @@ function lobbyView() {
   members.sort((a, b) => (ord[a.st] - ord[b.st]) || (b.online - a.online) || a.name.localeCompare(b.name, 'ko'));
   const caps = L.captains || {};
   const inNames = members.filter(m => m.st === 'in').map(m => m.name);
-  return { members, mode: L.mode === 'draft' ? 'draft' : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
+  const sd = L.sides || {}, sides = {};
+  for (const n of inNames) { const t = sd[fbKeyOf(n)]; if (t === 'teamA' || t === 'teamB') sides[n] = t; }
+  return { members, sides, mode: ['draft', 'manual'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
     hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost };
 }
 function lobbyLocal(mut) {   // ⚡ 내 화면 먼저(서버 왕복 ~0.1~0.3초 안 기다림)
@@ -763,7 +767,7 @@ async function lobbyRemoveGuest(key) {
 }
 async function lobbySetMode(mode) {
   if (!config.isHost) return { ok: false, err: '방장만 방식을 정할 수 있어요' };
-  const m = mode === 'draft' ? 'draft' : 'random';
+  const m = ['draft', 'manual'].includes(mode) ? mode : 'random';
   lobbyLocal(L => { L.mode = m; });
   return lobbyWrite(fbUpdate(`${T}/lobby`, { mode: m }));
 }
@@ -782,6 +786,35 @@ async function lobbyCaptain(name, rand) {   // 🎯 팀장 지정/해제(누르�
   lobbyLocal(L => { L.captains = caps; });
   return lobbyWrite(fbSet(`${T}/lobby/captains`, caps));
 }
+// 🧩 직접 팀 짜기(v0.1.47) — 방장이 한 명씩 1팀/2팀/빼기(team=null) · 한 팀 5명까지
+async function lobbySide(name, team) {
+  if (!config.isHost) return { ok: false, err: '방장만 팀을 정할 수 있어요' };
+  const n = normName(name || ''), v = lobbyView();
+  if (!v.members.some(m => m.st === 'in' && m.name === n)) return { ok: false, err: '참가자 중에서 골라주세요' };
+  const t = team === 'teamA' || team === 'teamB' ? team : null;
+  if (t && v.sides[n] !== t && Object.values(v.sides).filter(x => x === t).length >= 5) return { ok: false, err: `${t === 'teamA' ? '1' : '2'}팀은 5명까지예요` };
+  const k = fbKeyOf(n);
+  lobbyLocal(L => { L.sides = L.sides || {}; if (t) L.sides[k] = t; else delete L.sides[k]; });
+  return lobbyWrite(fbSet(`${T}/lobby/sides/${k}`, t));
+}
+async function lobbySidesPrev() {   // 지난 판 팀 그대로(지금 판 → 없으면 오늘 마지막 경기 기록)
+  if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
+  let A = sessionData && sessionData.teamA, B = sessionData && sessionData.teamB;
+  if (!(A && A.length && B && B.length)) {
+    const ms = await getJson(`${FIREBASE_DB}/${T}/days/${dayKey()}/matches.json`);
+    const last = Object.values(ms || {}).filter(m => m && m.teamA && m.teamB).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+    if (last) { A = last.teamA; B = last.teamB; }
+  }
+  if (!(A && A.length && B && B.length)) return { ok: false, err: '오늘 지난 판 팀이 없어요' };
+  const sides = {}; for (const n of A) sides[fbKeyOf(n)] = 'teamA'; for (const n of B) sides[fbKeyOf(n)] = 'teamB';
+  lobbyLocal(L => { L.sides = sides; L.mode = 'manual'; });
+  return lobbyWrite(fbUpdate(`${T}/lobby`, { sides, mode: 'manual' }));
+}
+async function lobbySidesClear() {
+  if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
+  lobbyLocal(L => { L.sides = null; });
+  return lobbyWrite(fbSet(`${T}/lobby/sides`, null));
+}
 async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(대기실에서 정한 방식)
   if (!config.isHost) return { ok: false, err: '방장만 시작할 수 있어요' };
   const [L, P] = await Promise.all([fetchLobby(), fetchPresence()]);
@@ -791,6 +824,12 @@ async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(�
   if (v.mode === 'draft') {
     if (!v.captains.teamA || !v.captains.teamB) return { ok: false, err: '팀장 2명을 정해주세요' };
     return startDraft(names, [v.captains.teamA, v.captains.teamB]);
+  }
+  if (v.mode === 'manual') {
+    const A = names.filter(n => v.sides[n] === 'teamA'), B = names.filter(n => v.sides[n] === 'teamB'), none = names.length - A.length - B.length;
+    if (none) return { ok: false, err: `아직 팀을 안 정한 사람이 ${none}명 있어요` };
+    if (!A.length || !B.length) return { ok: false, err: '두 팀에 한 명 이상씩 넣어주세요' };
+    return writeTeams(A, B, [], 'manual');
   }
   return startTeamBuild(names, 'random');
 }
@@ -823,7 +862,8 @@ async function fbPutIfAbsent(pathStr, value) {
 
 // ── 🧩 세션 폴링 — 팀 배정·투표·결과를 오버레이/패널로 ──────────────────────
 async function pollSession() {
-  const [s, lob, h, pres] = await Promise.all([fetchSession(), fetchLobby(), fetchHost(), fetchPresence()]);
+  const [s, lob, h, pres, np] = await Promise.all([fetchSession(), fetchLobby(), fetchHost(), fetchPresence(), getJson(`${FIREBASE_DB}/${T}/normalLive.json`)]);
+  normalLive = np || null;
   sessionData = s || null;
   lobbyRaw = lob || null; presenceRaw = pres || null;
   onHostRec(h);
@@ -841,11 +881,13 @@ async function pollSession() {
   recTick(s).catch(() => {});
   const P = s && s.potg;   // 🎬 팟지 = 모두 같은 시각에 가운데 창(늦게 켠 앱은 20초 지나면 건너뜀 · 결과 화면 「팟지 다시 보기」로 볼 수 있음)
   if (P && P.showAt && !P.none && !inGame && _potgSeen !== P.gameId && Date.now() - P.showAt < 20000) { _potgSeen = P.gameId; openPotg(P, false); }
+  const NP = normalLive;   // 🎮 같이 한 일반 판 팟지 = 그 판에 있던 사람만
+  if (NP && NP.showAt && NP.normal && !inGame && _potgSeen !== NP.gameId && Date.now() - NP.showAt < 20000 && (NP.normal.us || []).some(n => norm(n) === norm(config.myName))) { _potgSeen = NP.gameId; openPotg(NP, false); }
   if (config.isHost) runHost();
 }
 
 // ── 🎬 팟지 창 — 롤 클라 가운데(클라 없으면 화면 가운데) · 영상 재생이라 투명 창 아님 ─────────
-let potgWin = null, _potgSeen = null;
+let potgWin = null, _potgSeen = null, normalLive = null;
 function potgBounds() {
   let cx, cy, cw, ch;
   if (_lastRect && !_floating) { const sf = screen.getPrimaryDisplay().scaleFactor || 1; cx = _lastRect[0] / sf; cy = _lastRect[1] / sf; cw = (_lastRect[2] - _lastRect[0]) / sf; ch = (_lastRect[3] - _lastRect[1]) / sf; }
@@ -889,7 +931,7 @@ async function hostTick() {
     return;
   }
   if ((s.phase === 'vote' || s.phase === 'result') && s.game && (!s.potg || s.potg.gameId !== String(s.game.id))) hostPotg(s).catch(() => {});   // 🎬
-  if (s.potg && s.potg.pending && !replayBusy && Date.now() - (s.potg.pendingAt || 0) > 260000) {   // 🎬 녹화하던 방장 앱이 꺼졌거나 넘겨받음 → 카드로라도 보여줌
+  if (s.potg && s.potg.pending && !replayBusy && Date.now() - (s.potg.pendingAt || 0) > (s.potg.hero ? 340000 : 260000)) {   // 🎬 녹화하던 방장 앱이 꺼졌거나 넘겨받음 → 카드로라도 보여줌
     const c = Object.assign({}, s.potg, { pending: null, pendingAt: null, showAt: Date.now() + 1500 });
     await fbUpdate(`${T}/session`, { potg: c }); if (s.game) await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: c });
   }
@@ -914,6 +956,11 @@ async function hostPotg(s) {
     const card = n ? potg.pickPotg(raws, s, rec && rec.stats) : null;
     if (!card) { await fbUpdate(`${T}/session`, { potg: { none: true, gameId: String(s.game.id) } }); return; }
     card.gameId = String(s.game.id);
+    try { card.splash = await potg.splashFor(card.championId, card.skin); } catch (_) {}   // 🖼️ 소개 배경 = 그 사람이 낀 스킨 일러스트
+    try {   // 🛡️ 숨은 영웅(v0.1.44) — 팟지 주인공 말고, 킬 아닌 장면(광역 이니시·버티기·세이브·한타 설계) 하나 더
+      const hero = potg.pickHero(raws, s, rec && rec.stats, card.name);
+      if (hero) { try { hero.splash = await potg.splashFor(hero.championId, hero.skin); } catch (_) {} card.hero = hero; }
+    } catch (e) { console.log('[potg] 숨은 영웅 고르기 오류', e && e.message); }
     const publish = async () => {   // 모두에게 보여주기(showAt = 다 같이 시작할 시각)
       card.pending = null; card.pendingAt = null; card.showAt = Date.now() + 1500;
       await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: card });
@@ -922,36 +969,127 @@ async function hostPotg(s) {
     };
     if (!app.isPackaged && process.env.TN_FAKE_CLIP) {   // 🧪 개발용: 리플레이 녹화 대신 이 파일을 영상으로 올림
       try { card.clip = await potg.uploadClip(s.game.id, fs.readFileSync(process.env.TN_FAKE_CLIP), /\.mp4$/i.test(process.env.TN_FAKE_CLIP) ? 'video/mp4' : 'video/webm'); } catch (_) {}
+      if (card.hero && process.env.TN_FAKE_CLIP2) try { card.hero.clip = await potg.uploadClip(s.game.id + 'h', fs.readFileSync(process.env.TN_FAKE_CLIP2), /\.mp4$/i.test(process.env.TN_FAKE_CLIP2) ? 'video/mp4' : 'video/webm'); } catch (_) {}
       return publish();
     }
     if (!replayRec || process.platform !== 'win32') return publish();
     // 🎬 리플레이 녹화(방장 PC) — 그동안은 「준비 중」(showAt 없음 → 아무 창도 안 뜸) · 3분 넘거나 실패하면 카드로
     await fbUpdate(`${T}/session`, { potg: Object.assign({}, card, { pending: true, pendingAt: Date.now() }) });
-    recordPotgClip(card, s).then(clip => { if (clip) card.clip = clip; }).catch(() => {}).finally(() => publish().catch(() => {}));
+    recordPotgClip(card, { id: s.game.id, path: `${T}/days/${s.game.day}/matches/${s.game.id}` }).then(([clip, hclip]) => { if (clip) card.clip = clip; if (hclip && card.hero) card.hero.clip = hclip; }).catch(() => {}).finally(() => publish().catch(() => {}));
   } finally { _potgBusy = false; }
+}
+// ── 🎮 같이 한 일반 판(v0.1.48) — 내전이 아닌 일반 게임(칼바람 등)에 앱 켠 친구가 2명+ 같은 팀이면 ──────────────
+//   기록 = today/days/{day}/normals/{gameId}(내전 순위와 따로 · 조건부 PUT으로 1번만) · 저장에 성공한 앱이 팟지·숨은 영웅을 맡음(우리 팀만 주인공 후보)
+//   보기 = today/normalLive(가장 최근 일반 판 팟지 카드) → 그 판에 있던 사람 앱만 가운데 창을 띄움 · 「오늘」 탭에서 다시 보기
+const NORMAL_MIN = 2;
+const QUEUE_NAME = { 400: '일반', 430: '일반', 490: '빠른 대전', 420: '솔로 랭크', 440: '자유 랭크', 450: '칼바람', 2400: '칼바람 대혼란', 900: 'URF', 1900: 'URF', 1700: '아레나', 1710: '아레나' };
+const MODE_NAME = { ARAM: '칼바람', CLASSIC: '소환사의 협곡', CHERRY: '아레나', URF: 'URF', KIWI: '칼바람 대혼란' };
+const queueName = (id, mode) => QUEUE_NAME[id] || MODE_NAME[String(mode || '').toUpperCase()] || '일반 게임';
+const _normDone = new Set();
+async function recordNormal(e) {
+  if (!e || !e.gameId || !Array.isArray(e.players) || _normDone.has(String(e.gameId))) return;
+  _normDone.add(String(e.gameId));
+  const acc = (await fetchAccounts()) || {};
+  const byTeam = {};
+  for (const p of e.players) if (p.puuid && acc[p.puuid] && p.summonerName) (byTeam[p.teamId] = byTeam[p.teamId] || []).push(p);
+  const side = Object.keys(byTeam).sort((a, b) => byTeam[b].length - byTeam[a].length)[0];
+  const us = side ? byTeam[side] : [];
+  if (us.length < NORMAL_MIN) { console.log(`[normal] 앱 켠 친구 ${us.length}명 — 같이 한 판 아님`); return; }
+  const gid = String(e.gameId), day = dayKey(), win = us[0].isWin != null ? !!us[0].isWin : (e.winSide === 'blue') === (Number(side) === 100);
+  const ids = {}; for (const p of us) ids[fbKeyOf(p.summonerName)] = p.puuid;
+  const rec = { gameId: gid, day, ts: Date.now(), source: e.source || 'eog', queueId: e.queueId == null ? null : e.queueId, gameMode: e.gameMode || null, queue: queueName(e.queueId, e.gameMode),
+    side: Number(side), win, us: us.map(p => p.summonerName), ids, gameTime: e.gameTime || 0, stats: e.players, by: config.myName || '' };
+  const w = await fbPutIfAbsent(`${T}/days/${day}/normals/${gid}`, rec);
+  if (w.ok) { console.log(`[normal] 같이 한 판 저장 ${rec.queue} ${win ? '승' : '패'} · ${rec.us.join(', ')}`); _profIdx = null; }
+  else console.log('[normal] ' + (w.conflict ? '다른 친구 앱이 먼저 저장' : w.err));
+  // 🎬 팟지 담당 = 내전처럼 **방장 PC**(그 판에 방장이 있으면) · 방장이 그 판에 없거나 방장이 없으면 기록을 먼저 저장한 앱
+  const hostIn = !!(hostRec && hostAlive(hostRec) && Object.values(ids).includes(hostRec.puuid));
+  const mine = hostIn ? !!(config.isHost && account && hostRec.puuid === account.puuid) : w.ok;
+  if (!mine) return;
+  let use = rec;
+  if (!w.ok) { const cur = await getJson(`${FIREBASE_DB}/${T}/days/${day}/normals/${gid}.json`); if (!cur || !Array.isArray(cur.us)) return; if (cur.potg) return; use = cur; }   // 다른 앱이 저장한 기록으로(같은 판)
+  console.log(`[normal] 팟지 담당 = 이 앱(${hostIn ? '방장' : '먼저 저장'})`);
+  normalPotg(use).catch(err => console.log('[normal] 팟지 오류', err && err.message));
+}
+async function normalPotg(rec) {
+  if (!potg) return;
+  const path = `${T}/days/${rec.day}/normals/${rec.gameId}`, t0 = Date.now();
+  let raws = null, n = 0;
+  for (;;) {   // 우리 팀 각자 수집이 다 모일 때까지(최대 25초 · 하나도 없으면 60초)
+    raws = await potg.readRaws(rec.gameId); n = raws ? Object.keys(raws).length : 0;
+    const age = Date.now() - t0;
+    if (n >= rec.us.length || (n > 0 && age > 25000) || age > 60000) break;
+    await new Promise(r => setTimeout(r, 4000));
+  }
+  const s = { teamA: rec.us, teamB: [] }, opt = { only: rec.us };
+  const card = n ? potg.pickPotg(raws, s, rec.stats, opt) : null;
+  if (!card) { await fbUpdate(path, { potg: { none: true, gameId: rec.gameId } }); return; }
+  card.gameId = rec.gameId; card.normal = { queue: rec.queue, win: rec.win, us: rec.us, day: rec.day };
+  try { card.splash = await potg.splashFor(card.championId, card.skin); } catch (_) {}
+  try {
+    const hero = potg.pickHero(raws, s, rec.stats, card.name, opt);
+    if (hero) { hero.normal = card.normal; try { hero.splash = await potg.splashFor(hero.championId, hero.skin); } catch (_) {} card.hero = hero; }
+  } catch (err) { console.log('[normal] 숨은 영웅 고르기 오류', err && err.message); }
+  const publish = async () => {
+    card.pending = null; card.pendingAt = null; card.showAt = Date.now() + 1500;
+    await fbUpdate(path, { potg: card });
+    await fbSet(`${T}/normalLive`, card);
+  };
+  if (!app.isPackaged && process.env.TN_FAKE_CLIP) {
+    try { card.clip = await potg.uploadClip(rec.gameId, fs.readFileSync(process.env.TN_FAKE_CLIP), /\.mp4$/i.test(process.env.TN_FAKE_CLIP) ? 'video/mp4' : 'video/webm'); } catch (_) {}
+    return publish();
+  }
+  if (!replayRec || process.platform !== 'win32' || replayBusy) return publish();
+  const [clip, hclip] = await recordPotgClip(card, { id: rec.gameId, path }).catch(() => [null, null]);
+  if (clip) card.clip = clip; if (hclip && card.hero) card.hero.clip = hclip;
+  await publish();
+}
+function normalFun(m) {   // 🎉 우리 팀 안 재미 지표 한 줄(캐리·버스·최다 데스·탱커·힐러·멀티킬)
+  const us = (m.stats || []).filter(p => (m.us || []).some(n => norm(n) === norm(p.summonerName)));
+  if (us.length < 2) return [];
+  const all = (m.stats || []).slice().sort((a, b) => (b.damage || 0) - (a.damage || 0));
+  const top = (f, min) => { const xs = us.filter(p => f(p) > (min || 0)).sort((a, b) => f(b) - f(a)); return xs[0] && (!xs[1] || f(xs[0]) > f(xs[1])) ? xs[0] : null; };
+  const out = [], nm = p => p.summonerName;
+  const carry = top(p => p.damage || 0);
+  if (carry) out.push({ k: 'carry', label: '캐리', name: nm(carry), champId: carry.championId, v: `딜 ${Math.round(carry.damage).toLocaleString('en-US')}${all.indexOf(carry) === 0 ? ' · 전체 1위' : ''}` });
+  const multi = us.map(p => ({ p, n: p.pentaKills ? 5 : p.quadraKills ? 4 : p.tripleKills ? 3 : 0 })).filter(x => x.n).sort((a, b) => b.n - a.n)[0];
+  if (multi) out.push({ k: 'multi', label: ({ 3: '트리플킬', 4: '쿼드라킬', 5: '펜타킬' })[multi.n], name: nm(multi.p), champId: multi.p.championId, v: '' });
+  const tank = top(p => (p.taken || 0) + (p.mitig || 0));
+  if (tank && tank !== carry) out.push({ k: 'tank', label: '탱커', name: nm(tank), champId: tank.championId, v: `받은 피해 ${Math.round((tank.taken || 0) + (tank.mitig || 0)).toLocaleString('en-US')}` });
+  const heal = top(p => (p.healMates || 0) + (p.shieldMates || 0), 2000);
+  if (heal) out.push({ k: 'heal', label: '힐러', name: nm(heal), champId: heal.championId, v: `힐·보호막 ${Math.round((heal.healMates || 0) + (heal.shieldMates || 0)).toLocaleString('en-US')}` });
+  const bus = us.slice().sort((a, b) => (a.damage || 0) - (b.damage || 0))[0];
+  if (m.win && bus && bus !== carry && bus !== tank && bus !== heal) out.push({ k: 'bus', label: '버스 탑승', name: nm(bus), champId: bus.championId, v: `딜 ${Math.round(bus.damage || 0).toLocaleString('en-US')}` });
+  const dead = top(p => p.deaths || 0, 4);
+  if (dead) out.push({ k: 'dead', label: '최다 데스', name: nm(dead), champId: dead.championId, v: `${dead.deaths}데스` });
+  return out;
 }
 const CLIP_MAX = 12 * 1048576;   // 이보다 크면 안 올림(서버 용량·팀원 내려받기) → 카드
 let _recLog = [];   // 🎬 녹화 기록(경기 기록 potgRec에 남김 → tools/potg-report.cjs로 어디서 멈췄는지 확인)
-async function recordPotgClip(card, s) {
+async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹화 기록 남길 경기 기록 경로 } → [팟지 영상 meta, 숨은 영웅 영상 meta] (실패한 쪽은 null)
   replayBusy = true; _recLog = [];
-  const t0 = Date.now(), recP = replayRec.record({ gameId: s.game.id, from: card.clipFrom, to: card.clipTo, focus: card.name, champ: card.champ });
+  const H = card.hero;   // v0.1.44: 숨은 영웅이 있으면 리플레이 한 번 열어 두 장면을 이어서 녹화
+  const parts = [{ from: card.clipFrom, to: card.clipTo, focus: card.name, champ: card.champ }].concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: H.champ }] : []);
+  const t0 = Date.now(), recP = replayRec.record({ gameId: g.id, parts });
   recP.catch(() => {}).finally(() => setTimeout(() => { replayBusy = false; }, 6000));   // 리플레이가 실제로 끝나고(닫히고) 조금 더 지나야 풀림(시간 초과로 먼저 카드를 보여줘도)
-  let meta = null, why = '';
+  const metas = [null, null], whys = [], LIMIT = H ? 260000 : 180000;
   try {
-    const file = await Promise.race([recP, new Promise(r => setTimeout(() => r(null), 180000))]);
-    if (!file) why = Date.now() - t0 >= 179000 ? '3분 초과' : '녹화 안 됨';
-    else {
+    const files = await Promise.race([recP, new Promise(r => setTimeout(() => r(null), LIMIT))]);
+    if (!files) whys.push(Date.now() - t0 >= LIMIT - 1000 ? `${LIMIT / 60000}분 초과` : '녹화 안 됨');
+    for (let i = 0; files && i < parts.length; i++) {
+      const file = files[i], tag = i ? '숨은 영웅' : '팟지';
+      if (!file) { whys.push(tag + ' 녹화 안 됨'); continue; }
       let buf = fs.readFileSync(file);
-      const small = await shrinkClip(file).catch(e => { _recLog.push('줄이기 실패 ' + (e && e.message)); return null; });   // 롤이 모니터 크기(예: 3440×1440)로 저장 → 가운데 16:9를 1.15배로 잘라 1280×720
-      if (small && small.length > 100000 && small.length < buf.length) { _recLog.push(`줄임 ${(buf.length / 1048576).toFixed(1)}→${(small.length / 1048576).toFixed(1)}MB`); buf = small; }
-      if (buf.length > CLIP_MAX) why = `너무 큼 ${(buf.length / 1048576).toFixed(1)}MB`;
-      else { meta = await potg.uploadClip(s.game.id, buf, 'video/webm'); if (!meta) why = '올리기 실패'; }
+      const small = await shrinkClip(file).catch(e => { _recLog.push(tag + ' 줄이기 실패 ' + (e && e.message)); return null; });   // 롤이 모니터 크기(예: 3440×1440)로 저장 → 가운데 16:9를 1.15배로 잘라 1280×720
+      if (small && small.length > 100000 && small.length < buf.length) { _recLog.push(`${tag} 줄임 ${(buf.length / 1048576).toFixed(1)}→${(small.length / 1048576).toFixed(1)}MB`); buf = small; }
+      if (buf.length > CLIP_MAX) whys.push(`${tag} 너무 큼 ${(buf.length / 1048576).toFixed(1)}MB`);
+      else { metas[i] = await potg.uploadClip(i ? g.id + 'h' : g.id, buf, 'video/webm'); if (!metas[i]) whys.push(tag + ' 올리기 실패'); }
       try { fs.unlinkSync(file); } catch (_) {}
     }
-  } catch (e) { why = '오류 ' + (e && e.message); }
-  const sec = Math.round((Date.now() - t0) / 1000);
-  fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potgRec: { ok: !!meta, why: why || null, sec, mb: meta ? +(meta.size / 1048576).toFixed(1) : null, lines: _recLog.slice(-40), at: Date.now() } }).catch(() => {});
-  return meta;
+  } catch (e) { whys.push('오류 ' + (e && e.message)); }
+  const sec = Math.round((Date.now() - t0) / 1000), mb = m => m ? +(m.size / 1048576).toFixed(1) : null;
+  fbUpdate(g.path, { potgRec: { ok: !!metas[0], hero: H ? !!metas[1] : null, why: whys.join(' · ') || null, sec, mb: mb(metas[0]), mbHero: mb(metas[1]), lines: _recLog.slice(-40), at: Date.now() } }).catch(() => {});
+  return metas;
 }
 // 🎬 녹화 영상 줄이기(v0.1.34~35) — 숨은 창에서 다시 재생하며 가운데 16:9를 1.15배로 잘라 1280×720·3.5Mbps로 다시 녹화(소리 포함) · 영상 길이만큼 걸림
 async function shrinkClip(file) {
@@ -1220,8 +1358,11 @@ function computeToday(matchesObj) {
 }
 async function getToday(day) {
   const d = day || dayKey();
-  const raw = await fetchDay(d);
-  return Object.assign({ ok: true, day: d, today: dayKey() }, computeToday(raw));
+  const [raw, nraw] = await Promise.all([fetchDay(d), getJson(`${FIREBASE_DB}/${T}/days/${d}/normals.json`)]);
+  const normals = Object.values(nraw || {}).filter(m => m && Array.isArray(m.us)).sort((a, b) => (b.ts || 0) - (a.ts || 0)).map(m => Object.assign({}, m, {
+    fun: normalFun(m), players: (m.stats || []).filter(p => m.us.some(n => norm(n) === norm(p.summonerName))).map(p => ({ name: p.summonerName, champId: p.championId, champ: p.championName, k: p.kills, d: p.deaths, a: p.assists, damage: p.damage })),
+    stats: undefined, potg: m.potg && !m.potg.none ? m.potg : null }));
+  return Object.assign({ ok: true, day: d, today: dayKey(), normals }, computeToday(raw));
 }
 
 // ── 🧩 증강 정보 — CommunityDragon latest(사이트와 같은 출처)를 받아 12시간 캐시 + 디스크 보관(오프라인·CDN 장애 대비) ──
@@ -1441,6 +1582,9 @@ ipcMain.handle('lobby-guest-rm', (_e, { key }) => lobbyRemoveGuest(key));
 ipcMain.handle('lobby-mode', (_e, { mode }) => lobbySetMode(mode));
 ipcMain.handle('lobby-captain', (_e, { name, rand }) => lobbyCaptain(name, rand));
 ipcMain.handle('lobby-start', () => lobbyStart());
+ipcMain.handle('lobby-side', (_e, { name, team }) => lobbySide(name, team));
+ipcMain.handle('lobby-sides-prev', () => lobbySidesPrev());
+ipcMain.handle('lobby-sides-clear', () => lobbySidesClear());
 ipcMain.handle('lobby-reopen', () => lobbyReopen());
 ipcMain.on('overlay-show', () => { userHid = false; showOverlay(); });
 ipcMain.handle('get-players', async () => ({ account, myName: config.myName || '', isHost: !!config.isHost, appVer: app.getVersion(), session: sessionData }));
@@ -1486,15 +1630,16 @@ ipcMain.handle('today-data', async (_e, arg) => getToday(arg && arg.day));
 ipcMain.handle('profile', (_e, arg) => getProfile(arg || { me: true }));
 ipcMain.handle('augments', () => getAugments());   // 🧩 증강 번호 → {name, icon, rarity}
 ipcMain.handle('potg-clip', async (_e, meta) => { const p = potg && await potg.getClip(meta); return p ? { url: pathToFileURL(p).href } : null; });   // 🎬 영상 → 내 PC 임시 파일
-ipcMain.handle('potg-save', async (_e, { meta, name }) => {   // 🎬 「내 컴퓨터에 저장」
+ipcMain.handle('potg-save', async (_e, { meta, name, hero }) => {   // 🎬 「내 컴퓨터에 저장」
   const p = potg && await potg.getClip(meta); if (!p) return { ok: false };
   const safe = String(name || '팟지').replace(/[\\/:*?"<>|]/g, '_');
   const ext = potg.extOf(meta.mime);
-  const r = await dialog.showSaveDialog(potgWin && !potgWin.isDestroyed() ? potgWin : undefined, { title: '팟지 영상 저장', defaultPath: path.join(app.getPath('videos'), `투데이내전_팟지_${meta.day}_${safe}.${ext}`), filters: [{ name: '영상', extensions: [ext] }] });
+  const r = await dialog.showSaveDialog(potgWin && !potgWin.isDestroyed() ? potgWin : undefined, { title: '팟지 영상 저장', defaultPath: path.join(app.getPath('videos'), `투데이내전_${hero ? '숨은영웅' : '팟지'}_${meta.day}_${safe}.${ext}`), filters: [{ name: '영상', extensions: [ext] }] });
   if (r.canceled || !r.filePath) return { ok: false, canceled: true };
   try { fs.copyFileSync(p, r.filePath); return { ok: true, path: r.filePath }; } catch (_) { return { ok: false }; }
 });
 ipcMain.on('potg-close', () => closePotg());
+ipcMain.on('potg-open', (_e, card) => { if (card && !card.none) openPotg(card, true); });   // 「오늘」 탭 일반 판 「팟지」
 ipcMain.on('potg-replay', () => { const P = sessionData && sessionData.potg; if (P && !P.none) openPotg(P, true); });   // 결과 화면 「팟지 다시 보기」
 ipcMain.handle('rec-state', () => recState);   // 📼 기록 저장 진행 상태   // 👤 개인 내전 프로필
 ipcMain.on('open-profile', (_e, arg) => {   // 왼쪽 대기실에서 이름 누름 → 오른쪽 창 프로필 탭
@@ -1546,7 +1691,7 @@ else {
     try { replayRec.restorePending(); } catch (_) {}   // 지난번에 녹화하다 앱이 꺼졌으면 game.cfg 창 설정 되돌림
     potg = makePotg({ T, FIREBASE_DB, fbSet, fbDelete, getJson, dayKey, normName, userData: app.getPath('userData'), getPlayers: () => latestPlayers, log: (m) => { try { console.log(m); } catch (_) {} } });
     setTimeout(() => potg.cleanup().catch(() => {}), 8000); setInterval(() => potg.cleanup().catch(() => {}), 30 * 60 * 1000);   // 🎬 3일 지난 영상·수집 지우기
-    bridge.start({ getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
+    bridge.start({ getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, onNormal: (e) => recordNormal(e).catch(err => console.log('[normal] 오류', err && err.message)), fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
     // 🧪 개발용: 롤 없이 테스트 — TN_FAKE_ACCOUNT="이름#태그" (배포본에선 안 씀) · TN_FAKE_DELAY=ms(기본 1500 · 50이면 창 로딩 도중 계정이 잡히는 경우 재현)
     if (!app.isPackaged && process.env.TN_FAKE_ACCOUNT) { const [g, t] = process.env.TN_FAKE_ACCOUNT.split('#'); setTimeout(() => setAccount({ puuid: 'fake-' + g, gameName: g, tagLine: t || 'KR1', iconId: 29 }), +(process.env.TN_FAKE_DELAY || 1500)); }
   });
