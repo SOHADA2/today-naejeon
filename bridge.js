@@ -240,6 +240,10 @@ async function handleEndOfGame(abnormal = false) {
           doubleKills: s.DOUBLE_KILLS || 0, tripleKills: s.TRIPLE_KILLS || 0,
           quadraKills: s.QUADRA_KILLS || 0, pentaKills: s.PENTA_KILLS || 0,
           firstBlood: (s.FIRST_BLOOD_KILL || 0) === 1,
+          ...roleStats(s, {   // 🛡️ 서포터·탱커 지표(v0.1.44 숨은 영웅) — 키 이름은 실기 확인 전이라 후보 여러 개
+            taken: ['TOTAL_DAMAGE_TAKEN'], mitig: ['TOTAL_DAMAGE_SELF_MITIGATED'], heal: ['TOTAL_HEAL'],
+            healMates: ['TOTAL_HEAL_ON_TEAMMATES', 'TOTAL_HEALS_ON_TEAMMATES'], shieldMates: ['TOTAL_DAMAGE_SHIELDED_ON_TEAMMATES'],
+            cc: ['TIME_CCING_OTHERS', 'TIME_CC_OTHERS'], ccTotal: ['TOTAL_TIME_CROWD_CONTROL_DEALT'] }),
         });
       }
     }
@@ -373,6 +377,14 @@ function startReplayProbe(gameId) {
   };
   setTimeout(tick, 5000);
 }
+// 🛡️ 정산 지표 고르기 — 후보 키 중 처음 있는 값 + 힐·보호막·피해·CC 관련 키 원본(xs, 실제 키 이름 확인용)
+function roleStats(s, want) {
+  const o = {};
+  for (const [k, keys] of Object.entries(want)) { const key = keys.find(x => typeof s[x] === 'number'); if (key) o[k] = s[key]; }
+  const xs = {}; for (const [k, v] of Object.entries(s)) if (typeof v === 'number' && v > 0 && /heal|shield|taken|mitigat|cc|crowd/i.test(k)) xs[k] = v;
+  if (Object.keys(xs).length) o.xs = xs;
+  return o;
+}
 async function historyToEog(g) {
   const names = await champNames();
   const who = {}; for (const pi of g.participantIdentities || []) who[pi.participantId] = pi.player || {};
@@ -388,6 +400,9 @@ async function historyToEog(g) {
       augments: [s.playerAugment1, s.playerAugment2, s.playerAugment3, s.playerAugment4, s.playerAugment5, s.playerAugment6].filter(i => i > 0),
       doubleKills: s.doubleKills || 0, tripleKills: s.tripleKills || 0, quadraKills: s.quadraKills || 0, pentaKills: s.pentaKills || 0,
       firstBlood: !!s.firstBloodKill,
+      ...roleStats(s, { taken: ['totalDamageTaken'], mitig: ['damageSelfMitigated'], heal: ['totalHeal'],
+        healMates: ['totalHealsOnTeammates', 'totalHealOnTeammates'], shieldMates: ['totalDamageShieldedOnTeammates'],
+        cc: ['timeCCingOthers'], ccTotal: ['totalTimeCrowdControlDealt'] }),
     };
   });
   const win = players.find(p => p.isWin) || (() => { const t = (g.teams || []).find(t => t.win === 'Win'); return t ? { teamId: t.teamId } : null; })();

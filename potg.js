@@ -36,7 +36,7 @@ module.exports = function makePotg(d) {
   let col = null;   // { gameId, me, hp:[[t,pct]], events, players, timers }
   function startCollect(gameId) {
     if (col) return;
-    col = { gameId: gameId || null, me: '', hp: [], events: [], players: [], lastHpAt: -99, busy: false };
+    col = { gameId: gameId || null, me: '', hp: [], ms: [], events: [], players: [], lastHpAt: -99, busy: false };
     const hpTick = async () => {
       if (!col || col.busy) return; col.busy = true;
       try {
@@ -46,6 +46,8 @@ module.exports = function makePotg(d) {
           const cs = a.championStats || {}, pct = cs.maxHealth > 0 ? Math.max(0, Math.round(cs.currentHealth / cs.maxHealth * 100)) : null;
           const t = Math.round(g.gameTime * 2) / 2, last = col.hp[col.hp.length - 1];
           if (pct != null && (!last || Math.abs(last[1] - pct) >= 2 || t - col.lastHpAt >= 5)) { col.hp.push([t, pct]); col.lastHpAt = t; }   // 바뀔 때만(용량)
+          const sp = Math.round(cs.moveSpeed || 0), lm = col.ms[col.ms.length - 1];   // 🐢 이동 속도(v0.1.44) — 여러 명이 한꺼번에 느려지면 광역 둔화 신호
+          if (sp > 0 && (!lm || Math.abs(lm[1] - sp) / lm[1] >= 0.15)) col.ms.push([t, sp]);
         }
       } finally { if (col) col.busy = false; }
     };
@@ -70,7 +72,7 @@ module.exports = function makePotg(d) {
       if (e.Recipient) o.k = String(e.Recipient); if (e.Stolen === 'True' || e.Stolen === true) o.stolen = 1; if (e.DragonType) o.dt = e.DragonType;
       return o;
     });
-    const rec = { name: c.me, at: Date.now(), events, hp: c.hp, players: c.players.map(p => ({ name: p.name, champ: p.champ, teamId: p.teamId, skin: p.skin == null ? null : p.skin })) };
+    const rec = { name: c.me, at: Date.now(), events, hp: c.hp, ms: c.ms, players: c.players.map(p => ({ name: p.name, champ: p.champ, teamId: p.teamId, skin: p.skin == null ? null : p.skin })) };
     const r = await d.fbSet(`${d.T}/potg/raw/${d.dayKey()}/${gid}/${fbKey(c.me)}`, rec);
     log(`수집 올림 ${r.ok ? '✅' : '❌'} 사건 ${events.length} · 체력 ${c.hp.length}`);
   }
@@ -128,6 +130,157 @@ module.exports = function makePotg(d) {
       kills: c.ks.map(k => { const v = players[norm(k.v)] || {}; return { t: k.t, victim: String(k.v).split('#')[0], champ: v.champ || '', championId: champId(k.v), solo: !k.a || !k.a.length }; }),
       obj: c.obj ? { n: c.obj.n, t: c.obj.t } : null,
       apps: list.length,
+    };
+  }
+  // ── ②-2 숨은 영웅(v0.1.44 · 방장) — 킬이 아닌 서포터·탱커 장면 하나 ─────────────────────
+  //  게임 중 시각이 있는 재료 = 킬 기록(어시스트 포함) · 10명 각자의 체력(1초) · 이동 속도 / 시각 없는 재료 = 정산 합계(힐·보호막·받은 피해·CC 시간)
+  //  ① 한타 = 이어진 킬(10초 안) + 그 앞으로 이어진 체력 깎임(3초 안 간격) · 우리 팀 킬 ≥ 우리 팀 죽음인 한타만
+  //  ② 장면 종류: 광역 이니시(적 여러 명이 1.5초 안에 한꺼번에 깎임 + 그 팀 CC 시간 1위) · 버티기(체력 크게 받아내고 생존)
+  //     · 세이브(아군이 25% 아래로 떨어졌다 크게 회복 + 그 팀 힐·보호막 1위) · 한타 설계(어시스트 3+ · 킬 1 이하)
+  //  ③ 정산 합계가 압도적(2위의 1.5배+)이면 큰 보너스·낮은 문턱 · 팟지 주인공은 빼고 고름
+  const HERO_MIN = 260, HERO_MIN_DOM = 180;
+  const HERO_LABEL = { engage: ['광역 이니시', 'BIG ENGAGE'], tank: ['버티기', 'UNKILLABLE'], save: ['세이브', 'CLUTCH SAVE'], heal: ['생명줄', 'LIFELINE'], play: ['한타 설계', 'PLAYMAKER'] };
+  const fmt = n => Math.round(n).toLocaleString('en-US');
+  function steps(series) {   // 체력 기록 → 깎임/회복 조각 [{t, d}] (부활로 차오른 건 뺌)
+    const out = [];
+    for (let i = 1; i < (series || []).length; i++) {
+      const [, p0] = series[i - 1], [t1, p1] = series[i];
+      if (p1 === p0) continue;
+      if (p1 > p0 && p0 <= 3 && p1 - p0 >= 50) continue;   // 부활
+      out.push({ t: t1, d: p1 - p0 });
+    }
+    return out;
+  }
+  function heroStats(eog) {   // 정산 합계 → 사람별 {sup, tank, cc} 값·전체 순위·팀 순위·2위 대비 배율(1위만)
+    const rows = (eog || []).filter(p => p && p.summonerName);
+    const val = { sup: p => (p.healMates || 0) + (p.shieldMates || 0), tank: p => (p.taken || 0) + (p.mitig || 0), cc: p => p.cc || 0 };
+    const out = {};
+    for (const [k, f] of Object.entries(val)) {
+      const sorted = rows.map(p => ({ n: norm(p.summonerName), v: f(p), team: p.teamId })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+      sorted.forEach((x, i) => {
+        const teamRank = sorted.filter(y => y.team === x.team).indexOf(x) + 1;
+        (out[x.n] = out[x.n] || {})[k] = { v: x.v, rank: i + 1, teamRank, ratio: i === 0 && sorted[1] ? x.v / sorted[1].v : null };
+      });
+    }
+    return out;
+  }
+  function pickHero(raws, s, eog, potgName) {
+    const list = Object.values(raws || {}).filter(Boolean);
+    if (!list.length) return null;
+    const src = list.slice().sort((a, b) => (b.events || []).length - (a.events || []).length)[0];
+    const players = {}; for (const r of list) for (const p of r.players || []) if (p && p.name) players[norm(p.name)] = p;
+    const side = n => (players[n] || {}).teamId || 0;
+    const hpOf = {}, msOf = {}; for (const r of list) { hpOf[norm(r.name)] = r.hp || []; msOf[norm(r.name)] = r.ms || []; }
+    const ev = (src.events || []).slice().sort((a, b) => a.t - b.t);
+    const kills = ev.filter(e => e.n === 'ChampionKill' && players[norm(e.k)] && players[norm(e.v)]);
+    if (!kills.length) return null;
+    const st = heroStats(eog);
+    const dmgRank = {}; (eog || []).slice().sort((a, b) => (b.damage || 0) - (a.damage || 0)).forEach((p, i) => { if (p.damage) dmgRank[norm(p.summonerName)] = i + 1; });
+    const champId = n => { const p = (eog || []).find(x => norm(x.summonerName) === norm(n)); return p ? p.championId : null; };
+    const dmg = []; for (const [n, h] of Object.entries(hpOf)) for (const x of steps(h)) if (x.d < 0) dmg.push(Object.assign({ n }, x));
+    dmg.sort((a, b) => a.t - b.t);
+    // ① 한타 나누기
+    const fights = []; let cur = [];
+    for (const k of kills) { if (cur.length && k.t - cur[cur.length - 1].t > MULTI_GAP) { fights.push(cur); cur = []; } cur.push(k); }
+    if (cur.length) fights.push(cur);
+    const cands = [];
+    for (const ks of fights) {
+      const k0 = ks[0].t, kN = ks[ks.length - 1].t;
+      let start = k0;   // 첫 킬 앞으로 3초 안 간격으로 이어진 체력 깎임까지(최대 10초)
+      for (let i = dmg.length - 1; i >= 0; i--) { const x = dmg[i]; if (x.t > k0) continue; if (x.t < k0 - 12) break; if (start - x.t <= 3) start = x.t; }
+      start = Math.max(start, k0 - 10); const end = kN + 2;
+      const deadAt = {}; for (const k of ks) if (deadAt[norm(k.v)] == null) deadAt[norm(k.v)] = k.t;
+      const inFight = (n, t) => t >= start - 0.5 && t <= end && (deadAt[n] == null || t <= deadAt[n] + 0.5);
+      const per = {};
+      for (const n of Object.keys(players)) {
+        const xs = steps(hpOf[n]).filter(x => inFight(n, x.t));
+        let minHp = null, minAt = null;
+        for (const [t, p] of hpOf[n] || []) if (inFight(n, t) && (minHp == null || p < minHp)) { minHp = p; minAt = t; }
+        per[n] = { taken: -xs.filter(x => x.d < 0).reduce((a, x) => a + x.d, 0), healed: xs.filter(x => x.d > 0).reduce((a, x) => a + x.d, 0),
+          minHp, minAt, firstHit: (xs.find(x => x.d < 0) || {}).t, rises: xs.filter(x => x.d > 0),
+          kills: ks.filter(k => norm(k.k) === n).length, assists: ks.filter(k => (k.a || []).some(a => norm(a) === n)).length, dead: deadAt[n] != null };
+      }
+      for (const X of [100, 200]) {
+        const mates = Object.keys(players).filter(n => side(n) === X), foes = Object.keys(players).filter(n => side(n) && side(n) !== X);
+        const teamK = ks.filter(k => side(norm(k.k)) === X).length, teamD = ks.filter(k => side(norm(k.v)) === X).length;
+        if (!teamK || teamK < teamD) continue;   // 이긴(또는 비긴) 한타만
+        const ace = ev.some(e => e.n === 'Ace' && e.t >= start && e.t <= end + 3 && side(norm(e.k)) === X);
+        // 광역: 적이 1.5초 안에 몇 명이나 한꺼번에 깎였나(6%+) · 그때 이동 속도가 한꺼번에 25%+ 떨어진 적 수
+        let hits = 0, hitAt = null, hitWho = [];
+        const fd = dmg.filter(x => foes.includes(x.n) && x.d <= -6 && x.t >= start - 0.5 && x.t <= end);
+        for (const a of fd) { const who = [...new Set(fd.filter(b => b.t >= a.t && b.t <= a.t + 1.5).map(b => b.n))]; if (who.length > hits) { hits = who.length; hitAt = a.t; hitWho = who; } }
+        let slows = 0;
+        if (hitAt != null) slows = foes.filter(n => { const m = msOf[n] || []; for (let i = 1; i < m.length; i++) if (m[i][0] >= hitAt - 1 && m[i][0] <= hitAt + 2 && m[i][1] <= m[i - 1][1] * 0.75) return true; return false; }).length;
+        const firstMate = mates.filter(n => per[n].firstHit != null).sort((a, b) => per[a].firstHit - per[b].firstHit)[0];
+        for (const n of mates) {
+          if (potgName && n === norm(potgName)) continue;
+          const P = per[n], S = st[n] || {}, involved = P.kills + P.assists;
+          const base = { n, start, end, teamK, P };
+          // 광역 이니시 — 누가 걸었는지는 롤이 안 알려줌 → 그 팀 CC 시간 1위(정산 없으면 우리 팀에서 제일 먼저 맞은 사람)
+          if (hits >= 3 && involved >= 1 && (S.cc ? S.cc.teamRank === 1 : n === firstMate)) {
+            const dom = !!(S.cc && S.cc.ratio >= 1.5);
+            const score = 75 * hits + (hits >= 5 ? 100 : 0) + 45 * teamK + 15 * slows + (dom ? 110 : S.cc && S.cc.rank === 1 ? 50 : 20) + (P.dead ? 0 : 30);
+            const tags = [`적 ${hits}명 동시 적중`]; if (slows >= 2) tags.push(`${slows}명 둔화`);
+            if (S.cc) tags.push(`${S.cc.rank === 1 ? 'CC 1위' : '팀 CC 1위'} ${Math.round(S.cc.v)}초`);
+            tags.push(`한타 ${teamK}킬`);
+            cands.push(Object.assign({}, base, { kind: 'engage', score, peak: hitAt, tags, hitWho, dom }));
+          }
+          // 버티기 — 한타 동안 깎인 체력 합(%)이 크고 살아남음
+          if (!P.dead && P.taken >= 70 && (teamK >= 2 || (P.minHp != null && P.minHp <= 15))) {
+            const dom = !!(S.tank && S.tank.ratio >= 1.4);
+            const score = 1.3 * Math.min(P.taken, 300) + (P.minHp <= 15 ? 90 : P.minHp <= 30 ? 45 : 0) + 45 * teamK + (dom ? 100 : S.tank && S.tank.rank === 1 ? 40 : 0) + (n === firstMate ? 35 : 0) + 0.4 * Math.min(P.healed, 150);
+            const tags = [`받아낸 피해 체력의 ${Math.round(P.taken)}%`]; if (P.minHp != null && P.minHp <= 30) tags.push(`최저 체력 ${P.minHp}%`);
+            if (S.tank && S.tank.rank === 1) tags.push(`받은 피해 1위 ${fmt(S.tank.v)}`); tags.push(`한타 ${teamK}킬`);
+            cands.push(Object.assign({}, base, { kind: 'tank', score, peak: P.minAt, tags, dom }));
+          }
+          // 세이브·생명줄 — 누가 살렸는지는 롤이 안 알려줌 → 그 팀 힐·보호막 1위(정산 없으면 어시스트 2+·킬 1 이하)를 살린 사람으로 봄
+          if (S.sup ? S.sup.teamRank === 1 : (P.assists >= 2 && P.kills <= 1)) {
+            const saved = []; let allyHeal = 0, bestRise = null;
+            for (const m of mates) {
+              if (m === n) continue; const Q = per[m]; allyHeal += Q.healed;
+              const low = (hpOf[m] || []).find(([t, p]) => inFight(m, t) && p <= 25);
+              if (low && !Q.dead) { const rs = Q.rises.filter(r => r.t > low[0] && r.t <= low[0] + 5), up = rs.reduce((a, r) => a + r.d, 0); if (up >= 20) saved.push({ n: m, low: low[1], up, t: low[0], at: rs.slice().sort((a, b) => b.d - a.d)[0].t }); }   // at = 가장 크게 차오른 순간(정지 화면)
+              for (const r of Q.rises) if (!bestRise || r.d > bestRise.d) bestRise = r;
+            }
+            if (saved.length || allyHeal >= 60) {
+              const dom = !!(S.sup && S.sup.ratio >= 1.5);
+              const score = 90 * saved.length + 0.9 * Math.min(allyHeal, 300) + 40 * teamK - 40 * (ks.filter(k => side(norm(k.v)) === X).length) + (dom ? 120 : S.sup && S.sup.rank === 1 ? 50 : 0) + (P.dead ? 0 : 20);
+              const tags = []; if (saved.length) tags.push(`아군 ${saved.length}명 구함`); tags.push(`아군 회복 +${Math.round(allyHeal)}%`);
+              if (S.sup) tags.push(`힐·보호막 ${S.sup.rank === 1 ? '1위' : '팀 1위'} ${fmt(S.sup.v)}`);
+              const sv = saved.sort((a, b) => b.up - a.up)[0];
+              cands.push(Object.assign({}, base, { kind: sv ? 'save' : 'heal', score, peak: sv ? sv.at : bestRise ? bestRise.t : P.minAt, tags, ally: sv || null, dom }));
+            }
+          }
+          // 한타 설계 — 킬은 안 먹고 어시스트로 판을 만듦 · 칼바람은 한타가 잦아 어시스트 3개가 흔함 → 점수 낮게, 그 판 딜량 1·2위(딜러)는 깎음
+          if (P.assists >= 3 && P.kills <= 1) {
+            const score = 60 * P.assists + 35 * teamK + (ace ? 70 : 0) + (P.dead ? 0 : 20) - ((dmgRank[n] || 9) <= 2 ? 120 : 0);
+            const myKs = ks.filter(k => (k.a || []).some(a => norm(a) === n) || norm(k.k) === n);
+            cands.push(Object.assign({}, base, { kind: 'play', score, peak: myKs[myKs.length - 1].t, tags: [`어시스트 ${P.assists}`, `한타 ${teamK}킬`].concat(ace ? ['에이스'] : []), myKs }));
+          }
+        }
+      }
+    }
+    for (const c of cands) { if (c.peak == null) c.peak = c.start; c.score += Math.min(40, c.peak / 45); }   // 같은 점수면 승부처(뒤쪽)
+    cands.sort((a, b) => b.score - a.score);
+    const c = cands.find(x => x.score >= (x.dom ? HERO_MIN_DOM : HERO_MIN));
+    if (!c) return null;
+    const p = players[c.n] || {}, S = st[c.n] || {};
+    const name = (s.teamA || []).concat(s.teamB || []).find(x => norm(x) === c.n) || String(p.name || c.n).split('#')[0];
+    const team = (s.teamA || []).some(x => norm(x) === c.n) ? 'teamA' : (s.teamB || []).some(x => norm(x) === c.n) ? 'teamB' : null;
+    const clipFrom = Math.max(0, Math.floor(Math.max(c.start - 2, c.peak - 8))), clipTo = Math.ceil(Math.max(c.peak + 2.5, Math.min(c.end + 1, clipFrom + 12)));
+    const trim = h => (h || []).filter(([t]) => t >= clipFrom - 3 && t <= clipTo + 1);
+    const who = n => { const v = players[n] || {}; return { name: String(v.name || n).split('#')[0], champ: v.champ || '', championId: champId(n) }; };
+    const stats = [];   // 끝 화면 판 전체 지표(정산) — 그 사람이 1위·팀 1위인 것만
+    const statRow = (k, label, unit) => { const x = S[k]; if (x && x.teamRank === 1) stats.push({ label, v: Math.round(x.v), unit: unit || '', rank: x.rank, ratio: x.ratio ? +x.ratio.toFixed(1) : null }); };
+    statRow('sup', '아군 힐·보호막'); statRow('tank', '받아낸 피해'); statRow('cc', 'CC 건 시간', '초');
+    return {
+      kind: c.kind, name, champ: p.champ || '', championId: champId(c.n), team, skin: p.skin == null ? null : p.skin,
+      label: HERO_LABEL[c.kind][0], en: HERO_LABEL[c.kind][1], tags: c.tags, score: Math.round(c.score),
+      t0: c.start, t1: c.end, peak: c.peak, clipFrom, clipTo, stats,
+      hp: trim(hpOf[c.n]), taken: Math.round(c.P.taken), minHp: c.P.minHp,
+      hits: c.kind === 'engage' ? c.hitWho.map(who) : null,
+      ally: c.ally ? Object.assign(who(c.ally.n), { hp: trim(hpOf[c.ally.n]), low: c.ally.low, up: Math.round(c.ally.up), t: c.ally.t }) : null,
+      assists: c.kind === 'play' ? c.myKs.map(k => Object.assign(who(norm(k.v)), { t: k.t, mine: norm(k.k) === c.n })) : null,
     };
   }
   async function readRaws(gameId) {
@@ -190,5 +343,5 @@ module.exports = function makePotg(d) {
     return cdPath(s.splashPath || s.uncenteredSplashPath);
   }
 
-  return { splashFor, startCollect, stopCollect, pickPotg, readRaws, uploadClip, getClip, cleanup, extOf, _pick: pickPotg };
+  return { splashFor, startCollect, stopCollect, pickPotg, pickHero, heroStats, readRaws, uploadClip, getClip, cleanup, extOf, _pick: pickPotg };
 };

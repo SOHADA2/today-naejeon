@@ -10,7 +10,7 @@ const body = req => new Promise(r => { let s = ''; req.on('data', c => s += c); 
 
 async function run(name, opt) {
   const GID = 8436539295, calls = [];
-  const st = { phase: opt.phase || 'EndOfGame', meta: 'download', api: false, rec: null, render: {}, killed: 0, t: 0, paused: false, wall: Date.now(), seekUntil: 0, seeks: [], hidden: false, hides: 0, shown: 0, cfgDuring: null };
+  const st = { phase: opt.phase || 'EndOfGame', meta: 'download', api: false, rec: null, render: {}, killed: 0, t: 0, paused: false, wall: Date.now(), seekUntil: 0, seeks: [], recs: [], hidden: false, hides: 0, shown: 0, cfgDuring: null };
   const lolDir = path.join(TMP, name, 'lol'), outDir = path.join(TMP, name, 'out'), docsDir = path.join(TMP, name, 'docs');
   fs.mkdirSync(path.join(lolDir, 'Config'), { recursive: true }); fs.mkdirSync(docsDir, { recursive: true });
   fs.writeFileSync(path.join(lolDir, 'Config', 'game.cfg'), '[General]\r\nWindowMode=2\r\n[Performance]\r\nFrameCapType=4\r\n');
@@ -31,7 +31,7 @@ async function run(name, opt) {
     if (!frozen && st.frozeAt) { st.frozeAt = 0; st.wall = Date.now(); }
     const now = () => st.paused || frozen || Date.now() < st.seekUntil ? st.t : st.t + (Date.now() - st.wall) / 1000;
     const finish = () => { if (st.rec && st.rec.recording && now() >= st.rec.endTime) {   // 리플레이 시간이 endTime 지나면 파일 생김
-      const dir = opt.toDocs ? docsDir : st.rec.path; fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'clip.webm'), Buffer.alloc(2.5 * 1048576, 1)); st.rec.recording = false; } };
+      const dir = opt.toDocs ? docsDir : st.rec.path; fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, st.nClip ? `clip${st.nClip + 1}.webm` : 'clip.webm'), Buffer.alloc(2.5 * 1048576, 1)); st.nClip = (st.nClip || 0) + 1; st.recs.push(Object.assign({}, st.rec)); st.rec.recording = false; } };
     if (req.url === '/replay/playback') {
       if (b) { const t = now(); if (b.time != null) { st.t = b.time; st.seekUntil = Date.now() + 2000; st.seeks.push(b.time); } else st.t = t; if (b.paused != null) st.paused = b.paused; st.wall = Math.max(Date.now(), st.seekUntil); }
       finish(); return send(200, { length: 771, time: now(), paused: st.paused, seeking: Date.now() < st.seekUntil, speed: 1 });
@@ -46,7 +46,7 @@ async function run(name, opt) {
   const rr = makeReplayRec({ lcuRaw, lolDir: () => lolDir, log: m => opt.v && console.log('   ', m), kill: async () => { st.killed++; st.api = false; st.phase = 'EndOfGame'; }, liveBase: 'https://127.0.0.1:29990', docsDir, outDir, loadWaitSec: 6, restoreFile: path.join(TMP, name, 'restore.json'),
     hideWindow: () => { st.hidden = true; st.hides++; return { stop: () => { st.hidden = false; return 3; }, show: () => { st.hidden = false; st.shown++; } }; } });
   const t = Date.now();
-  const out = await rr.record({ gameId: GID, from: 644, to: 650, focus: 'ap렉사이서폿', champ: opt.champ || '볼리베어' });
+  const out = await rr.record(opt.parts ? { gameId: GID, parts: opt.parts } : { gameId: GID, from: 644, to: 650, focus: 'ap렉사이서폿', champ: opt.champ || '볼리베어' });
   srv.close();
   const cfg = fs.readFileSync(path.join(lolDir, 'Config', 'game.cfg'), 'utf8');
   return { out, st, calls, cfg, sec: ((Date.now() - t) / 1000).toFixed(1), restoreLeft: fs.existsSync(path.join(TMP, name, 'restore.json')) };
@@ -78,6 +78,9 @@ async function run(name, opt) {
   ok(r.st.render.selectionName === '볼리베어' && r.out, '챔피언 이름으로 다시 지정해 녹화');
   console.log('■ noapi — 리플레이 창구가 안 열림'); r = await run('noapi', { noapi: true });
   ok(r.out === null && r.st.killed === 1, `null 돌려주고 리플레이 창 닫음 (${r.sec}초)`);
+  console.log('■ two — 팟지 + 숨은 영웅 두 장면을 리플레이 한 번에'); r = await run('two', { parts: [{ from: 644, to: 650, focus: 'ap렉사이서폿', champ: '볼리베어' }, { from: 600, to: 606, focus: '탱커왕', champ: '말파이트' }] });
+  ok(Array.isArray(r.out) && r.out.length === 2 && r.out[0] && r.out[1] && r.out[0] !== r.out[1], `영상 2개 ${(r.out || []).map(p => p && path.basename(p)).join(', ')} (${r.sec}초)`);
+  ok(r.st.recs.length === 2 && r.st.recs[1].startTime === 600 && r.st.render.selectionName === '탱커왕' && r.st.killed === 1 && r.calls.filter(c => c.endsWith('/watch')).length === 1, '리플레이는 한 번만 열고 닫음 · 둘째 장면은 그 사람 카메라');
   console.log('■ ingame — 실제 게임 중'); r = await run('ingame', { phase: 'InProgress' });
   ok(r.out === null && !r.calls.some(c => c.endsWith('/watch')) && r.st.killed === 0, '아무것도 안 열고 아무것도 안 닫음');
   console.log(fail ? `\n❌ ${fail}건 실패` : '\n✅ 전부 통과');

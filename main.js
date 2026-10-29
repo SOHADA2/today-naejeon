@@ -890,7 +890,7 @@ async function hostTick() {
     return;
   }
   if ((s.phase === 'vote' || s.phase === 'result') && s.game && (!s.potg || s.potg.gameId !== String(s.game.id))) hostPotg(s).catch(() => {});   // 🎬
-  if (s.potg && s.potg.pending && !replayBusy && Date.now() - (s.potg.pendingAt || 0) > 260000) {   // 🎬 녹화하던 방장 앱이 꺼졌거나 넘겨받음 → 카드로라도 보여줌
+  if (s.potg && s.potg.pending && !replayBusy && Date.now() - (s.potg.pendingAt || 0) > (s.potg.hero ? 340000 : 260000)) {   // 🎬 녹화하던 방장 앱이 꺼졌거나 넘겨받음 → 카드로라도 보여줌
     const c = Object.assign({}, s.potg, { pending: null, pendingAt: null, showAt: Date.now() + 1500 });
     await fbUpdate(`${T}/session`, { potg: c }); if (s.game) await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: c });
   }
@@ -916,6 +916,10 @@ async function hostPotg(s) {
     if (!card) { await fbUpdate(`${T}/session`, { potg: { none: true, gameId: String(s.game.id) } }); return; }
     card.gameId = String(s.game.id);
     try { card.splash = await potg.splashFor(card.championId, card.skin); } catch (_) {}   // 🖼️ 소개 배경 = 그 사람이 낀 스킨 일러스트
+    try {   // 🛡️ 숨은 영웅(v0.1.44) — 팟지 주인공 말고, 킬 아닌 장면(광역 이니시·버티기·세이브·한타 설계) 하나 더
+      const hero = potg.pickHero(raws, s, rec && rec.stats, card.name);
+      if (hero) { try { hero.splash = await potg.splashFor(hero.championId, hero.skin); } catch (_) {} card.hero = hero; }
+    } catch (e) { console.log('[potg] 숨은 영웅 고르기 오류', e && e.message); }
     const publish = async () => {   // 모두에게 보여주기(showAt = 다 같이 시작할 시각)
       card.pending = null; card.pendingAt = null; card.showAt = Date.now() + 1500;
       await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: card });
@@ -924,36 +928,41 @@ async function hostPotg(s) {
     };
     if (!app.isPackaged && process.env.TN_FAKE_CLIP) {   // 🧪 개발용: 리플레이 녹화 대신 이 파일을 영상으로 올림
       try { card.clip = await potg.uploadClip(s.game.id, fs.readFileSync(process.env.TN_FAKE_CLIP), /\.mp4$/i.test(process.env.TN_FAKE_CLIP) ? 'video/mp4' : 'video/webm'); } catch (_) {}
+      if (card.hero && process.env.TN_FAKE_CLIP2) try { card.hero.clip = await potg.uploadClip(s.game.id + 'h', fs.readFileSync(process.env.TN_FAKE_CLIP2), /\.mp4$/i.test(process.env.TN_FAKE_CLIP2) ? 'video/mp4' : 'video/webm'); } catch (_) {}
       return publish();
     }
     if (!replayRec || process.platform !== 'win32') return publish();
     // 🎬 리플레이 녹화(방장 PC) — 그동안은 「준비 중」(showAt 없음 → 아무 창도 안 뜸) · 3분 넘거나 실패하면 카드로
     await fbUpdate(`${T}/session`, { potg: Object.assign({}, card, { pending: true, pendingAt: Date.now() }) });
-    recordPotgClip(card, s).then(clip => { if (clip) card.clip = clip; }).catch(() => {}).finally(() => publish().catch(() => {}));
+    recordPotgClip(card, s).then(([clip, hclip]) => { if (clip) card.clip = clip; if (hclip && card.hero) card.hero.clip = hclip; }).catch(() => {}).finally(() => publish().catch(() => {}));
   } finally { _potgBusy = false; }
 }
 const CLIP_MAX = 12 * 1048576;   // 이보다 크면 안 올림(서버 용량·팀원 내려받기) → 카드
 let _recLog = [];   // 🎬 녹화 기록(경기 기록 potgRec에 남김 → tools/potg-report.cjs로 어디서 멈췄는지 확인)
-async function recordPotgClip(card, s) {
+async function recordPotgClip(card, s) {   // → [팟지 영상 meta, 숨은 영웅 영상 meta] (실패한 쪽은 null)
   replayBusy = true; _recLog = [];
-  const t0 = Date.now(), recP = replayRec.record({ gameId: s.game.id, from: card.clipFrom, to: card.clipTo, focus: card.name, champ: card.champ });
+  const H = card.hero;   // v0.1.44: 숨은 영웅이 있으면 리플레이 한 번 열어 두 장면을 이어서 녹화
+  const parts = [{ from: card.clipFrom, to: card.clipTo, focus: card.name, champ: card.champ }].concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: H.champ }] : []);
+  const t0 = Date.now(), recP = replayRec.record({ gameId: s.game.id, parts });
   recP.catch(() => {}).finally(() => setTimeout(() => { replayBusy = false; }, 6000));   // 리플레이가 실제로 끝나고(닫히고) 조금 더 지나야 풀림(시간 초과로 먼저 카드를 보여줘도)
-  let meta = null, why = '';
+  const metas = [null, null], whys = [], LIMIT = H ? 260000 : 180000;
   try {
-    const file = await Promise.race([recP, new Promise(r => setTimeout(() => r(null), 180000))]);
-    if (!file) why = Date.now() - t0 >= 179000 ? '3분 초과' : '녹화 안 됨';
-    else {
+    const files = await Promise.race([recP, new Promise(r => setTimeout(() => r(null), LIMIT))]);
+    if (!files) whys.push(Date.now() - t0 >= LIMIT - 1000 ? `${LIMIT / 60000}분 초과` : '녹화 안 됨');
+    for (let i = 0; files && i < parts.length; i++) {
+      const file = files[i], tag = i ? '숨은 영웅' : '팟지';
+      if (!file) { whys.push(tag + ' 녹화 안 됨'); continue; }
       let buf = fs.readFileSync(file);
-      const small = await shrinkClip(file).catch(e => { _recLog.push('줄이기 실패 ' + (e && e.message)); return null; });   // 롤이 모니터 크기(예: 3440×1440)로 저장 → 가운데 16:9를 1.15배로 잘라 1280×720
-      if (small && small.length > 100000 && small.length < buf.length) { _recLog.push(`줄임 ${(buf.length / 1048576).toFixed(1)}→${(small.length / 1048576).toFixed(1)}MB`); buf = small; }
-      if (buf.length > CLIP_MAX) why = `너무 큼 ${(buf.length / 1048576).toFixed(1)}MB`;
-      else { meta = await potg.uploadClip(s.game.id, buf, 'video/webm'); if (!meta) why = '올리기 실패'; }
+      const small = await shrinkClip(file).catch(e => { _recLog.push(tag + ' 줄이기 실패 ' + (e && e.message)); return null; });   // 롤이 모니터 크기(예: 3440×1440)로 저장 → 가운데 16:9를 1.15배로 잘라 1280×720
+      if (small && small.length > 100000 && small.length < buf.length) { _recLog.push(`${tag} 줄임 ${(buf.length / 1048576).toFixed(1)}→${(small.length / 1048576).toFixed(1)}MB`); buf = small; }
+      if (buf.length > CLIP_MAX) whys.push(`${tag} 너무 큼 ${(buf.length / 1048576).toFixed(1)}MB`);
+      else { metas[i] = await potg.uploadClip(i ? s.game.id + 'h' : s.game.id, buf, 'video/webm'); if (!metas[i]) whys.push(tag + ' 올리기 실패'); }
       try { fs.unlinkSync(file); } catch (_) {}
     }
-  } catch (e) { why = '오류 ' + (e && e.message); }
-  const sec = Math.round((Date.now() - t0) / 1000);
-  fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potgRec: { ok: !!meta, why: why || null, sec, mb: meta ? +(meta.size / 1048576).toFixed(1) : null, lines: _recLog.slice(-40), at: Date.now() } }).catch(() => {});
-  return meta;
+  } catch (e) { whys.push('오류 ' + (e && e.message)); }
+  const sec = Math.round((Date.now() - t0) / 1000), mb = m => m ? +(m.size / 1048576).toFixed(1) : null;
+  fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potgRec: { ok: !!metas[0], hero: H ? !!metas[1] : null, why: whys.join(' · ') || null, sec, mb: mb(metas[0]), mbHero: mb(metas[1]), lines: _recLog.slice(-40), at: Date.now() } }).catch(() => {});
+  return metas;
 }
 // 🎬 녹화 영상 줄이기(v0.1.34~35) — 숨은 창에서 다시 재생하며 가운데 16:9를 1.15배로 잘라 1280×720·3.5Mbps로 다시 녹화(소리 포함) · 영상 길이만큼 걸림
 async function shrinkClip(file) {
@@ -1488,11 +1497,11 @@ ipcMain.handle('today-data', async (_e, arg) => getToday(arg && arg.day));
 ipcMain.handle('profile', (_e, arg) => getProfile(arg || { me: true }));
 ipcMain.handle('augments', () => getAugments());   // 🧩 증강 번호 → {name, icon, rarity}
 ipcMain.handle('potg-clip', async (_e, meta) => { const p = potg && await potg.getClip(meta); return p ? { url: pathToFileURL(p).href } : null; });   // 🎬 영상 → 내 PC 임시 파일
-ipcMain.handle('potg-save', async (_e, { meta, name }) => {   // 🎬 「내 컴퓨터에 저장」
+ipcMain.handle('potg-save', async (_e, { meta, name, hero }) => {   // 🎬 「내 컴퓨터에 저장」
   const p = potg && await potg.getClip(meta); if (!p) return { ok: false };
   const safe = String(name || '팟지').replace(/[\\/:*?"<>|]/g, '_');
   const ext = potg.extOf(meta.mime);
-  const r = await dialog.showSaveDialog(potgWin && !potgWin.isDestroyed() ? potgWin : undefined, { title: '팟지 영상 저장', defaultPath: path.join(app.getPath('videos'), `투데이내전_팟지_${meta.day}_${safe}.${ext}`), filters: [{ name: '영상', extensions: [ext] }] });
+  const r = await dialog.showSaveDialog(potgWin && !potgWin.isDestroyed() ? potgWin : undefined, { title: '팟지 영상 저장', defaultPath: path.join(app.getPath('videos'), `투데이내전_${hero ? '숨은영웅' : '팟지'}_${meta.day}_${safe}.${ext}`), filters: [{ name: '영상', extensions: [ext] }] });
   if (r.canceled || !r.filePath) return { ok: false, canceled: true };
   try { fs.copyFileSync(p, r.filePath); return { ok: true, path: r.filePath }; } catch (_) { return { ok: false }; }
 });
