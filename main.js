@@ -541,7 +541,7 @@ async function pollGame() {
     // 게임 중(전체화면)만 위로, 로비/클라에선 같은 층위(클라 활성 시에만 evalRaise가 올림)
     try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setAlwaysOnTop(inGame, inGame ? 'screen-saver' : 'normal'); } catch (_) {}
     if (inGame) { hideOverlay(); hideLeftPanel(); _slotDoneFormed = lastFormed; hideSlotMarker(); closePotg(); if (potg) potg.startCollect(bridge.getGameId()); }   // 🎬 팟지 수집 시작   // 게임 시작 → 양쪽 패널 완전히 숨김(전투 중 정보 미노출, 새 폼 재설계 예정) · 좌측 내 정보 패널도 숨김(클라 창 사라지며 floatPanels가 잠깐 띄우는 레이스 차단) · applyRaise/floatPanels가 inGame return이라 재등장 없음
-    else { hideOverlay(); userHid = false; latestPlayers = []; _lastRaise = null; evalRaise(); recGameEnded(); if (potg) potg.stopCollect(bridge.getGameId()).catch(() => {}); }   // 🎬 수집 올림   // 게임 종료 → 로비 층위 재적용 · 📼 「기록 저장 중」 시작
+    else { setTimeout(tryInstallUpdate, 90000); hideOverlay(); userHid = false; latestPlayers = []; _lastRaise = null; evalRaise(); recGameEnded(); if (potg) potg.stopCollect(bridge.getGameId()).catch(() => {}); }   // 🎬 수집 올림   // 게임 종료 → 로비 층위 재적용 · 📼 「기록 저장 중」 시작
     broadcast('state', { inGame, label: inGame ? '게임 중' : '대기' });
   }
   broadcast('players', { players: latestPlayers });
@@ -756,7 +756,7 @@ function lobbyView() {
   const members = [];
   for (const [puuid, p] of Object.entries(presenceRaw || {})) {
     if (!p || !p.name || now - (p.at || 0) >= ONLINE_MS) continue;
-    members.push({ key: puuid, name: normName(p.name), tag: p.tag || '', icon: p.icon || null, online: true, host: !!(hostRec && hostRec.puuid === puuid && hostAlive(hostRec)), me: !!(account && account.puuid === puuid), st: stOf(puuid) || 'in' });   // 접속하면 바로 자리에(고르는 중 없음) · 관전은 본인/방장이 바꿈
+    members.push({ key: puuid, name: normName(p.name), tag: p.tag || '', icon: p.icon || null, ver: p.app || null, online: true, host: !!(hostRec && hostRec.puuid === puuid && hostAlive(hostRec)), me: !!(account && account.puuid === puuid), st: stOf(puuid) || 'in' });   // 접속하면 바로 자리에(고르는 중 없음) · 관전은 본인/방장이 바꿈
   }
   for (const [k, j] of Object.entries(join)) if (j && j.guest && j.day === today && !members.some(m => m.name === normName(j.name))) members.push({ key: k, name: normName(j.name), guest: true, online: false, st: stOf(k) });
   const ord = { in: 0, null: 1, spec: 2 };
@@ -766,7 +766,15 @@ function lobbyView() {
   const sd = L.sides || {}, sides = {};
   for (const n of inNames) { const t = sd[fbKeyOf(n)]; if (t === 'teamA' || t === 'teamB') sides[n] = t; }
   return { members, sides, mode: ['draft', 'manual'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
-    hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost };
+    hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members) };
+}
+// 🔄 버전 비교(v0.1.56) — 대기실 「업데이트 필요」 표시·방장 「업데이트 시키기」용
+const verCmp = (a, b) => { const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return 0; };
+function latestVer(members) {   // 내 앱 · 받는 중/받은 새 버전 · 접속한 사람들 앱 중 가장 높은 것
+  let v = app.getVersion();
+  if (upd.version && (upd.state === 'ready' || upd.state === 'downloading')) v = verCmp(upd.version, v) > 0 ? upd.version : v;
+  for (const m of members || []) if (m.ver && verCmp(m.ver, v) > 0) v = m.ver;
+  return v;
 }
 function lobbyLocal(mut) {   // ⚡ 내 화면 먼저(서버 왕복 ~0.1~0.3초 안 기다림)
   lobbyRaw = JSON.parse(JSON.stringify(lobbyRaw || {}));
@@ -786,7 +794,7 @@ function lobbyJoin(key, st, extra) {
   return lobbyWrite(fbSet(`${T}/lobby/join/${k}`, val));
 }
 // ⚡ 대기실 스트림 → 바뀐 노드만 다시 읽음(세션·방장까지 4개 다 읽던 것 대신)
-const refreshLobby = coalesce(async () => { const L = await fetchLobby(); if (L !== undefined) { lobbyRaw = L || null; broadcast('lobby', lobbyView()); } });
+const refreshLobby = coalesce(async () => { const L = await fetchLobby(); if (L !== undefined) { lobbyRaw = L || null; broadcast('lobby', lobbyView()); checkUpdateReq(); } });
 const refreshPresence = coalesce(async () => { const P = await fetchPresence(); if (P !== undefined) { presenceRaw = P || null; broadcast('lobby', lobbyView()); } });
 async function lobbySetMine(st) {
   if (!account) return { ok: false, err: '롤에 로그인하면 참가할 수 있어요' };
@@ -909,7 +917,7 @@ async function pollSession() {
   const [s, lob, h, pres, np] = await Promise.all([fetchSession(), fetchLobby(), fetchHost(), fetchPresence(), getJson(`${FIREBASE_DB}/${T}/normalLive.json`)]);
   normalLive = np || null;
   sessionData = s || null;
-  lobbyRaw = lob || null; presenceRaw = pres || null;
+  lobbyRaw = lob || null; presenceRaw = pres || null; checkUpdateReq();
   onHostRec(h);
   const formed = (s && s.teamsFormedAt) || 0;
   if (formed && formed !== lastFormed) {          // 새 팀 배정 → 오버레이 자동 표시
@@ -1110,9 +1118,42 @@ function normalFun(m) {   // 🎉 우리 팀 안 재미 지표 한 줄(캐리·�
 }
 const CLIP_MAX = 12 * 1048576;   // 이보다 크면 안 올림(서버 용량·팀원 내려받기) → 카드
 let _recLog = [];   // 🎬 녹화 기록(경기 기록 potgRec에 남김 → tools/potg-report.cjs로 어디서 멈췄는지 확인)
+// 🎬 팟지 녹화 중 안내(v0.1.56 · 방장 PC) — 리플레이 창을 화면 밖에 숨기고 녹화해서 소리만 남(사장님: 방장이 녹화 중인 걸 알아야 함)
+//   → 롤 클라 위쪽 가운데(클라 없으면 화면 위쪽 가운데)에 작은 창 · 클릭 통과 · 녹화 로그(onRecLog)에 맞춰 단계 글만 바뀜
+let recToastWin = null, _recToastMsg = { title: '팟지 녹화 중', sub: '리플레이 준비 중…' }, _recParts = 1, _recCur = 1;
+function recToastBounds() {
+  const W = 400, H = 66, sf = (screen.getPrimaryDisplay().scaleFactor) || 1;
+  if (_lastRect && !_floating) { const cx = _lastRect[0] / sf, cy = _lastRect[1] / sf, cw = (_lastRect[2] - _lastRect[0]) / sf; return { x: Math.round(cx + (cw - W) / 2), y: Math.round(cy + 14), width: W, height: H }; }
+  const wa = screen.getPrimaryDisplay().workArea;
+  return { x: Math.round(wa.x + (wa.width - W) / 2), y: wa.y + 16, width: W, height: H };
+}
+function showRecToast(sub) {
+  if (sub != null) _recToastMsg = { title: '팟지 녹화 중', sub };
+  if (recToastWin && !recToastWin.isDestroyed()) { try { recToastWin.webContents.send('rec-toast', _recToastMsg); } catch (_) {} return; }
+  recToastWin = new BrowserWindow(Object.assign(recToastBounds(), {
+    frame: false, transparent: true, resizable: false, movable: false, focusable: false, skipTaskbar: true, alwaysOnTop: true, show: false, hasShadow: false, roundedCorners: false,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+  }));
+  recToastWin.setAlwaysOnTop(true, 'screen-saver'); recToastWin.setIgnoreMouseEvents(true);
+  recToastWin.webContents.on('did-finish-load', () => { if (recToastWin && !recToastWin.isDestroyed()) { recToastWin.webContents.send('rec-toast', _recToastMsg); recToastWin.showInactive(); } });
+  recToastWin.on('closed', () => { recToastWin = null; });
+  recToastWin.loadFile('desktop/rec.html');
+}
+function hideRecToast() { if (recToastWin && !recToastWin.isDestroyed()) { try { recToastWin.destroy(); } catch (_) {} } recToastWin = null; }
+function onRecLog(m) {   // replayrec 로그 → 안내 글
+  if (!recToastWin) return;
+  const sc = () => _recParts > 1 ? `장면 ${_recCur}/${_recParts}` : '장면';
+  const mm = /── 장면 (\d+)/.exec(m); if (mm) _recCur = +mm[1];
+  if (m.includes('리플레이 받기')) showRecToast('리플레이 받는 중…');
+  else if (m.includes('리플레이 준비됨')) showRecToast('리플레이 여는 중… (소리가 잠깐 나요)');
+  else if (m.includes('되감기')) showRecToast(`${sc()} 준비 중…`);
+  else if (m.includes('녹화 중')) showRecToast(`${sc()} 녹화 중 · 들리는 소리는 리플레이예요`);
+  else if (m.includes('리플레이 닫음')) showRecToast('영상 정리하고 올리는 중… (곧 끝나요)');
+}
 async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹화 기록 남길 경기 기록 경로 } → [팟지 영상 meta, 숨은 영웅 영상 meta] (실패한 쪽은 null)
   replayBusy = true; _recLog = [];
   const H = card.hero;   // v0.1.44: 숨은 영웅이 있으면 리플레이 한 번 열어 두 장면을 이어서 녹화
+  _recParts = H ? 2 : 1; _recCur = 1; showRecToast('리플레이 준비 중…');   // 🎬 방장에게 녹화 중 안내
   const parts = [{ from: card.clipFrom, to: card.clipTo, focus: card.name, champ: card.champ }].concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: H.champ }] : []);
   const t0 = Date.now(), recP = replayRec.record({ gameId: g.id, parts });
   recP.catch(() => {}).finally(() => setTimeout(() => { replayBusy = false; }, 6000));   // 리플레이가 실제로 끝나고(닫히고) 조금 더 지나야 풀림(시간 초과로 먼저 카드를 보여줘도)
@@ -1132,6 +1173,7 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
     }
   } catch (e) { whys.push('오류 ' + (e && e.message)); }
   const sec = Math.round((Date.now() - t0) / 1000), mb = m => m ? +(m.size / 1048576).toFixed(1) : null;
+  hideRecToast(); setTimeout(tryInstallUpdate, 8000);   // 녹화 끝 → 안내 닫기 · 업데이트 기다리던 중이면 이제 설치
   fbUpdate(g.path, { potgRec: { ok: !!metas[0], hero: H ? !!metas[1] : null, why: whys.join(' · ') || null, sec, mb: mb(metas[0]), mbHero: mb(metas[1]), lines: _recLog.slice(-40), at: Date.now() } }).catch(() => {});
   return metas;
 }
@@ -1632,6 +1674,7 @@ ipcMain.handle('lobby-side', (_e, { name, team }) => lobbySide(name, team));
 ipcMain.handle('lobby-sides-prev', () => lobbySidesPrev());
 ipcMain.handle('lobby-sides-clear', () => lobbySidesClear());
 ipcMain.handle('lobby-reopen', () => lobbyReopen());
+ipcMain.handle('lobby-update-req', () => requestUpdateAll());
 ipcMain.on('overlay-show', () => { userHid = false; showOverlay(); });
 ipcMain.handle('get-players', async () => ({ account, myName: config.myName || '', isHost: !!config.isHost, appVer: app.getVersion(), session: sessionData }));
 ipcMain.handle('roster-data', () => getRoster());
@@ -1731,7 +1774,7 @@ else {
     replayRec = makeReplayRec(Object.assign(makeReplayRec.defaults(), {   // 🎬 방장 PC가 팟지 장면을 리플레이로 녹화
       lcuRaw: bridge.lcuRaw, lolDir: bridge.lolDir, outDir: path.join(app.getPath('userData'), 'replay-rec'),
       kill: () => new Promise(r => require('child_process').execFile('taskkill', ['/IM', 'League of Legends.exe', '/F'], () => r())),
-      log: (m) => { _recLog.push(`${new Date().toTimeString().slice(0, 8)} ${m}`); try { console.log(m); } catch (_) {} },
+      log: (m) => { _recLog.push(`${new Date().toTimeString().slice(0, 8)} ${m}`); try { onRecLog(m); } catch (_) {} try { console.log(m); } catch (_) {} },
       restoreFile: path.join(app.getPath('userData'), 'replay-cfg-restore.json'),
       hideWindow: process.platform === 'win32' ? hideReplayWindow : null,
     }));
@@ -1755,6 +1798,27 @@ function checkUpdate() {
   setUpd({ state: 'checking' });
   autoUpdater.checkForUpdates().catch(() => setUpd({ state: 'error' }));
 }
+// 🔄 업데이트 바로 설치(v0.1.56) — 팀원이 알림 줄을 못 찾아 옛 버전으로 남던 것(사장님)
+//   _wantInstall = 켠 직후 받음 · 방장이 「업데이트 시키기」(today/lobby/updateReq) → 받아 두었으면 게임·녹화 중이 아닐 때 바로 재시작 설치
+//   게임 중이면 게임 끝나고 1분 30초 뒤(정산 수집 올린 뒤), 녹화 중이면 녹화 끝난 뒤 다시 시도
+let _wantInstall = false, _updReqSeen = 0;
+function tryInstallUpdate() {
+  if (!_wantInstall || upd.state !== 'ready' || inGame || replayBusy || !app.isPackaged) return;
+  app._quitting = true;
+  try { autoUpdater.quitAndInstall(true, true); } catch (_) { app.quit(); }   // 조용히 설치 + 설치 뒤 다시 켜기
+}
+function checkUpdateReq() {
+  const r = lobbyRaw && lobbyRaw.updateReq;
+  if (!r || !r.at || r.at <= _updReqSeen) return;
+  _updReqSeen = r.at;
+  if (Date.now() - r.at > 10 * 60000 || !r.ver || verCmp(app.getVersion(), r.ver) >= 0) return;   // 오래된 요청·이미 최신이면 무시
+  _wantInstall = true;
+  if (upd.state === 'ready') tryInstallUpdate(); else checkUpdate();   // 아직 못 받았으면 받는 대로(update-downloaded) 설치
+}
+async function requestUpdateAll() {   // 👑 방장: 옛 버전 앱들에게 업데이트 요청
+  if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
+  return fbSet(`${T}/lobby/updateReq`, { at: Date.now(), ver: latestVer(lobbyView().members), by: config.myName || null });
+}
 function setupAutoUpdate() {
   if (!app.isPackaged) { upd.state = 'dev'; return; }
   autoUpdater.autoDownload = true;
@@ -1762,7 +1826,11 @@ function setupAutoUpdate() {
   autoUpdater.on('update-available', (info) => setUpd({ state: 'downloading', version: info && info.version, pct: 0 }));
   autoUpdater.on('download-progress', (p) => { const pct = Math.round((p && p.percent) || 0); if (pct !== upd.pct) setUpd({ pct }); });
   autoUpdater.on('update-not-available', () => setUpd({ state: 'latest' }));
-  autoUpdater.on('update-downloaded', (info) => { setUpd({ state: 'ready', version: info && info.version, pct: 100 }); refreshTrayMenu(true); });
+  autoUpdater.on('update-downloaded', (info) => {
+    setUpd({ state: 'ready', version: info && info.version, pct: 100 }); refreshTrayMenu(true);
+    if (Date.now() - _startTs < 3 * 60000) _wantInstall = true;   // 🔄 켠 지 3분 안에 받음 = 막 켠 참 → 바로 설치하고 다시 켜짐(옛 버전 팀원이 알림을 못 찾던 것 · v0.1.56)
+    tryInstallUpdate();
+  });
   autoUpdater.on('error', () => { if (upd.state !== 'ready') setUpd({ state: 'error' }); });
   checkUpdate();
   setInterval(checkUpdate, 30 * 60 * 1000);

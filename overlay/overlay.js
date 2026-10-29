@@ -592,6 +592,7 @@ function avatar(m, cls) {
   const ini = esc(String(m.name || '?').trim().charAt(0) || '?');
   return `<span class="${cls}">${m.icon ? `<img src="${iconUrl(m.icon)}" alt="" onerror="this.remove()">` : ''}<i>${ini}</i></span>`;
 }
+const verLt = (a, b) => { const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0; } return false; };   // 🔄 a가 b보다 옛 버전(v0.1.56)
 function renderLobby() {
   const L = lobbyData || { members: [], mode: 'random', captains: {} };
   const M = L.members || [], caps = L.captains || {}, draft = L.mode === 'draft', manual = L.mode === 'manual', sides = L.sides || {};
@@ -649,12 +650,21 @@ function renderLobby() {
       + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="${m.guest ? '목록에서 빼기' : '관전으로 보내기'}">${m.guest ? '✕' : '↓'}</button>` : '')) : '';
     return `<div class="seat filled${m.me ? ' me' : ''}${cap ? ' cap' + cap : ''}${sn ? ' side' + sn : ''}">`
       + `<span class="seat-no">${no}</span>${avatar(m, 'seat-av')}`
-      + `<span class="seat-main"><b class="lb-nm" data-pk="${esc(m.key)}" title="프로필 보기">${esc(m.name)}</b><small>${tags}${m.guest ? '<span>앱 없음</span>' : m.online ? '' : '<span>오프라인</span>'}${st ? `<span><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : ''}</small></span>`
+      + `<span class="seat-main"><b class="lb-nm" data-pk="${esc(m.key)}" title="프로필 보기">${esc(m.name)}</b><small>${tags}${m.ver && verLt(m.ver, L.latest) ? `<span class="seat-old" title="지금 v${esc(m.ver)} · 최신 v${esc(L.latest)}">업데이트 필요</span>` : ''}${m.guest ? '<span>앱 없음</span>' : m.online ? '' : '<span>오프라인</span>'}${st ? `<span><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : ''}</small></span>`
       + (ctl ? `<span class="seat-ctl">${ctl}</span>` : '') + '</div>';
   };
   el('lb-seats').innerHTML = manual ? Array.from({ length: 5 }, (_, i) => seat(sA[i], i, 'teamA') + seat(sB[i], i, 'teamB')).join('')   // 🧩 직접: 왼쪽 열 1팀 · 오른쪽 열 2팀
     : Array.from({ length: SEATS }, (_, i) => seat(ins[i], i)).join('');
   el('lb-me').style.display = myName ? '' : 'none';
+  { // 🔄 방장: 옛 버전 앱이 있으면 「업데이트 시키기」(v0.1.56 이상 앱만 알아들음 — 그 전 버전은 직접 다시 켜야 함)
+    const old = M.filter(m => m.online && m.ver && verLt(m.ver, L.latest)), ub = el('lb-upd');
+    ub.style.display = myIsHost && old.length ? '' : 'none';
+    if (myIsHost && old.length) {
+      ub.innerHTML = `<span>옛 버전 <b class="num">${old.length}</b>명 · 최신 v${esc(L.latest)}</span><button id="lb-upd-go" class="lb-mini" title="그 사람들 앱이 잠깐 꺼졌다가 새 버전으로 다시 켜져요(게임 중이면 끝난 뒤).
+v0.1.56 전 버전은 이 요청을 못 알아들어서 직접 트레이에서 종료 후 다시 켜야 해요.">업데이트 시키기</button>`;
+      el('lb-upd-go').onclick = () => lbAct(async () => { const r = await window.api.lobbyUpdateReq(); if (r && r.ok) { const b = el('lb-upd-go'); if (b) { b.textContent = '요청 보냄'; b.disabled = true; } } return r; });
+    }
+  }
   { // 접속하면 바로 자리에 앉음 → 버튼은 하나: 앉아 있으면 「관전으로 빠지기」, 관전 중이면 「다시 참가하기」
     const b = el('lb-mebtn'), spec = !!(me && me.st === 'spec');
     b.className = 'lb-mebtn ' + (spec ? 'rejoin' : 'leave');

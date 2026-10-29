@@ -4,7 +4,9 @@
 //  ② 리플레이 파일 준비: /lol-replays/v1/metadata/{gameId} 가 watch 될 때까지(download면 받기 요청)
 //  ③ 리플레이 열기: POST /lol-replays/v1/rofls/{gameId}/watch → 리플레이 게임 창이 뜸(방장 화면에 잠깐 보임)
 //  ④ 리플레이 창구(127.0.0.1:2999/replay/*) 열릴 때까지 기다림 → 카메라 = 팟지 주인공 따라가기 · 점수판/채팅/타임라인 숨김
-//  ⑤ /replay/recording 으로 clipFrom~clipTo 녹화(롤이 직접 webm으로 저장 · 프레임 고정이라 느린 PC에서도 끊김 없음)
+//  ⑤ /replay/recording 으로 clipFrom~clipTo 녹화(롤이 직접 webm으로 저장 · 1배속 실제 시간으로)
+//     ⚠️ v0.1.56: enforceFrameRate:true면 롤이 그리는 속도대로 게임 시간을 흘려(실측 ~2.6배속) 영상이 구간의 40~50% 길이 빨리감기가 됨
+//        (10/28 내전 19초→9.5초·14초→7초, 10/29 일반 판 17초→6.9초) → 팟지 연출(킬 자막·슬로)이 게임 시간 기준이라 다 어긋났음 → false
 //  ⑥ 리플레이 닫기(롤 상태가 리플레이 보는 중일 때만 게임 창 종료 — 실제 게임은 절대 안 건드림) → 파일 경로 돌려줌
 // ⚠️ 실기 미확인: 녹화 파일이 path 폴더에 생기는지(아니면 문서/League of Legends/Highlights) · selectionName이 게임 이름인지 → 둘 다 찾음/시도
 const fs = require('fs');
@@ -158,7 +160,7 @@ function makeReplayRec(d) {
           await sleep(1500);   // 장면 불러오기
           const outDir = d.outDir; fs.mkdirSync(outDir, { recursive: true });
           const since = Date.now();
-          const rr = await live('POST', '/replay/recording', { recording: true, startTime: from, endTime: to, framesPerSecond: FPS, enforceFrameRate: true, codec: 'webm', lossless: false, width: W, height: H, path: outDir, replaySpeed: 1 });
+          const rr = await live('POST', '/replay/recording', { recording: true, startTime: from, endTime: to, framesPerSecond: FPS, enforceFrameRate: false, codec: 'webm', lossless: false, width: W, height: H, path: outDir, replaySpeed: 1 });
           if (!(rr.status >= 200 && rr.status < 300)) { log('녹화 시작 실패 HTTP ' + rr.status); return null; }
           await live('POST', '/replay/playback', { time: startAt, paused: false, speed: 1 });
           // ⑤ 끝 = 리플레이 시간이 to를 지나고 녹화가 멈춤(녹화 쪽 값만 믿지 않음 — 리플레이 시간 기준) · 최대 (구간+앞부분)×4 + 30초

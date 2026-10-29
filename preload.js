@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('api', {
   onMyName: (cb) => ipcRenderer.on('myname', (_e, n) => cb(n)),
   onDocked: (cb) => ipcRenderer.on('docked', (_e, v) => cb(v)),         // 🖥️ 클라 도킹 중이면 각진 모서리
   onSlotTeam: (cb) => ipcRenderer.on('slot-team', (_e, t) => cb(t)),    // 📍 클라 위 내 팀 마커(1/2)
+  onRecToast: (cb) => ipcRenderer.on('rec-toast', (_e, d) => cb(d)),    // 🎬 팟지 녹화 중 안내(방장 PC)
   onTeamBuild: (cb) => ipcRenderer.on('teambuild', (_e, d) => cb(d)),
   // 🪟 창
   sideClose: () => ipcRenderer.send('side-hide'),
@@ -54,6 +55,7 @@ contextBridge.exposeInMainWorld('api', {
   lobbySidesPrev: () => ipcRenderer.invoke('lobby-sides-prev'),               // 🧩 지난 판 팀 그대로
   lobbySidesClear: () => ipcRenderer.invoke('lobby-sides-clear'),
   lobbyReopen: () => ipcRenderer.invoke('lobby-reopen'),                    // 👑 지금 판 접고 대기실로
+  lobbyUpdateReq: () => ipcRenderer.invoke('lobby-update-req'),             // 👑 옛 버전 앱들 업데이트 시키기
   showOverlay: () => ipcRenderer.send('overlay-show'),
   hostResult: (winner) => ipcRenderer.invoke('host-result', { winner }),   // 🏁 승리팀 직접 기록
   // 🗳️ 투표

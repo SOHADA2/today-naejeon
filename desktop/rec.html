@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="../shared.css">
+  <style>
+    * { margin:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; background:transparent; overflow:hidden; -webkit-user-select:none; }
+    /* 🎬 팟지 녹화 중 안내(v0.1.56 · 방장 PC) — 리플레이 창은 화면 밖이라 소리만 나서 방장이 영문을 모름 → 클라 위쪽 가운데에 띄움(클릭 통과)
+       main showRecToast → 'rec-toast' {title, sub} · 무한 애니메이션 금지(투명 창) — 점 깜빡임 대신 글만 바뀜 */
+    #box { position:absolute; inset:4px; display:flex; align-items:center; gap:12px; padding:0 16px 0 14px;
+      background:linear-gradient(158deg, rgba(12,24,40,0.96), rgba(3,11,20,0.97)); border:1px solid var(--gold-line);
+      clip-path:polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+      animation:in .25s ease-out both; }
+    .ic { flex:none; width:12px; height:12px; border-radius:50%; background:#FF4655; box-shadow:0 0 8px rgba(255,70,85,0.8); }
+    .tx { min-width:0; display:flex; flex-direction:column; gap:3px; }
+    #t { font-family:var(--f-body); font-size:14px; font-weight:800; color:var(--gold-hi); white-space:nowrap; }
+    #s { font-family:var(--f-body); font-size:11.5px; font-weight:600; color:#B9C3CF; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    @keyframes in { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+  </style>
+</head>
+<body>
+  <div id="box"><span class="ic"></span><div class="tx"><div id="t">팟지 녹화 중</div><div id="s">리플레이 준비 중…</div></div></div>
+  <script>
+    const set = d => { if (!d) return; if (d.title) document.getElementById('t').textContent = d.title; if (d.sub != null) document.getElementById('s').textContent = d.sub; };
+    if (window.api && window.api.onRecToast) window.api.onRecToast(set);
+  </script>
+</body>
+</html>

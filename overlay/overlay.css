@@ -91,6 +91,9 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .seat-tag.me { color:#1a1206; background:var(--gold-hi); }
 .seat-tag.host { color:#1a1206; background:var(--gold); }
 .seat-tag.c1 { color:#fff; background:var(--t1); } .seat-tag.c2 { color:#fff; background:var(--t2); }
+.seat-old { flex-shrink:0; font-size:9.5px; font-weight:800; padding:0 4px; line-height:14px; color:var(--gold-hi); border:1px solid var(--gold-line); }   /* 🔄 옛 버전 앱 */
+.lb-upd { display:flex; align-items:center; gap:8px; margin:6px 0 2px; padding:7px 10px; font-size:11.5px; color:var(--ink-soft); background:var(--gold-soft); border:1px solid var(--gold-line); clip-path:var(--cut-sm); }
+.lb-upd b { color:var(--gold-hi); }
 .seat-ctl { display:none; gap:3px; flex-shrink:0; align-self:flex-end; margin-bottom:6px; }
 .seat:hover .seat-ctl { display:flex; }   /* 방장 조작 버튼은 마우스 올렸을 때만(이름 공간 확보) */
 .seat-btn { -webkit-app-region:no-drag; min-width:22px; height:20px; padding:0 5px; font-size:10.5px; font-weight:700; cursor:pointer; color:var(--ink-soft); background:var(--bg-3); border:1px solid var(--hair); }
