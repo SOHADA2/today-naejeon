@@ -700,7 +700,8 @@ async function handHost(puuid) {
 }
 
 // ── 🚪 대기실 — 접속한 사람 모두가 같은 화면을 봄 ─────────────────────────────
-// today/lobby = { mode:'random'|'draft', captains:{teamA,teamB}, join:{ key:{name, st:'in'|'spec', at, day, guest?} } }
+// today/lobby = { mode:'random'|'draft'|'manual', captains:{teamA,teamB}, sides:{fbKey(이름): 'teamA'|'teamB'}, join:{ key:{name, st:'in'|'spec', at, day, guest?} } }
+// v0.1.47 🧩 직접(manual) = 방장이 한 명씩 1팀/2팀에 넣음 · sides는 판이 끝나도 남아서 「다음 판 그대로」가 됨
 // 각자 자기 참가/관전을 누름(key=puuid) · 방장은 남의 상태도 바꾸고 앱 없는 사람(key='g_'+이름)을 추가 · 방식·팀장은 방장만
 // 사람 목록 = 지금 접속 중(presence) + 방장이 추가한 사람. 참가 표시는 그날만 유효(새벽 6시 기준).
 // v0.1.16~: 접속 = 기본 참가(아무것도 안 눌러도 자리에 앉음) · 저장된 'spec'만 관전
@@ -718,7 +719,9 @@ function lobbyView() {
   members.sort((a, b) => (ord[a.st] - ord[b.st]) || (b.online - a.online) || a.name.localeCompare(b.name, 'ko'));
   const caps = L.captains || {};
   const inNames = members.filter(m => m.st === 'in').map(m => m.name);
-  return { members, mode: L.mode === 'draft' ? 'draft' : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
+  const sd = L.sides || {}, sides = {};
+  for (const n of inNames) { const t = sd[fbKeyOf(n)]; if (t === 'teamA' || t === 'teamB') sides[n] = t; }
+  return { members, sides, mode: ['draft', 'manual'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
     hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost };
 }
 function lobbyLocal(mut) {   // ⚡ 내 화면 먼저(서버 왕복 ~0.1~0.3초 안 기다림)
@@ -764,7 +767,7 @@ async function lobbyRemoveGuest(key) {
 }
 async function lobbySetMode(mode) {
   if (!config.isHost) return { ok: false, err: '방장만 방식을 정할 수 있어요' };
-  const m = mode === 'draft' ? 'draft' : 'random';
+  const m = ['draft', 'manual'].includes(mode) ? mode : 'random';
   lobbyLocal(L => { L.mode = m; });
   return lobbyWrite(fbUpdate(`${T}/lobby`, { mode: m }));
 }
@@ -783,6 +786,35 @@ async function lobbyCaptain(name, rand) {   // 🎯 팀장 지정/해제(누르�
   lobbyLocal(L => { L.captains = caps; });
   return lobbyWrite(fbSet(`${T}/lobby/captains`, caps));
 }
+// 🧩 직접 팀 짜기(v0.1.47) — 방장이 한 명씩 1팀/2팀/빼기(team=null) · 한 팀 5명까지
+async function lobbySide(name, team) {
+  if (!config.isHost) return { ok: false, err: '방장만 팀을 정할 수 있어요' };
+  const n = normName(name || ''), v = lobbyView();
+  if (!v.members.some(m => m.st === 'in' && m.name === n)) return { ok: false, err: '참가자 중에서 골라주세요' };
+  const t = team === 'teamA' || team === 'teamB' ? team : null;
+  if (t && v.sides[n] !== t && Object.values(v.sides).filter(x => x === t).length >= 5) return { ok: false, err: `${t === 'teamA' ? '1' : '2'}팀은 5명까지예요` };
+  const k = fbKeyOf(n);
+  lobbyLocal(L => { L.sides = L.sides || {}; if (t) L.sides[k] = t; else delete L.sides[k]; });
+  return lobbyWrite(fbSet(`${T}/lobby/sides/${k}`, t));
+}
+async function lobbySidesPrev() {   // 지난 판 팀 그대로(지금 판 → 없으면 오늘 마지막 경기 기록)
+  if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
+  let A = sessionData && sessionData.teamA, B = sessionData && sessionData.teamB;
+  if (!(A && A.length && B && B.length)) {
+    const ms = await getJson(`${FIREBASE_DB}/${T}/days/${dayKey()}/matches.json`);
+    const last = Object.values(ms || {}).filter(m => m && m.teamA && m.teamB).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+    if (last) { A = last.teamA; B = last.teamB; }
+  }
+  if (!(A && A.length && B && B.length)) return { ok: false, err: '오늘 지난 판 팀이 없어요' };
+  const sides = {}; for (const n of A) sides[fbKeyOf(n)] = 'teamA'; for (const n of B) sides[fbKeyOf(n)] = 'teamB';
+  lobbyLocal(L => { L.sides = sides; L.mode = 'manual'; });
+  return lobbyWrite(fbUpdate(`${T}/lobby`, { sides, mode: 'manual' }));
+}
+async function lobbySidesClear() {
+  if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
+  lobbyLocal(L => { L.sides = null; });
+  return lobbyWrite(fbSet(`${T}/lobby/sides`, null));
+}
 async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(대기실에서 정한 방식)
   if (!config.isHost) return { ok: false, err: '방장만 시작할 수 있어요' };
   const [L, P] = await Promise.all([fetchLobby(), fetchPresence()]);
@@ -792,6 +824,12 @@ async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(�
   if (v.mode === 'draft') {
     if (!v.captains.teamA || !v.captains.teamB) return { ok: false, err: '팀장 2명을 정해주세요' };
     return startDraft(names, [v.captains.teamA, v.captains.teamB]);
+  }
+  if (v.mode === 'manual') {
+    const A = names.filter(n => v.sides[n] === 'teamA'), B = names.filter(n => v.sides[n] === 'teamB'), none = names.length - A.length - B.length;
+    if (none) return { ok: false, err: `아직 팀을 안 정한 사람이 ${none}명 있어요` };
+    if (!A.length || !B.length) return { ok: false, err: '두 팀에 한 명 이상씩 넣어주세요' };
+    return writeTeams(A, B, [], 'manual');
   }
   return startTeamBuild(names, 'random');
 }
@@ -1452,6 +1490,9 @@ ipcMain.handle('lobby-guest-rm', (_e, { key }) => lobbyRemoveGuest(key));
 ipcMain.handle('lobby-mode', (_e, { mode }) => lobbySetMode(mode));
 ipcMain.handle('lobby-captain', (_e, { name, rand }) => lobbyCaptain(name, rand));
 ipcMain.handle('lobby-start', () => lobbyStart());
+ipcMain.handle('lobby-side', (_e, { name, team }) => lobbySide(name, team));
+ipcMain.handle('lobby-sides-prev', () => lobbySidesPrev());
+ipcMain.handle('lobby-sides-clear', () => lobbySidesClear());
 ipcMain.handle('lobby-reopen', () => lobbyReopen());
 ipcMain.on('overlay-show', () => { userHid = false; showOverlay(); });
 ipcMain.handle('get-players', async () => ({ account, myName: config.myName || '', isHost: !!config.isHost, appVer: app.getVersion(), session: sessionData }));

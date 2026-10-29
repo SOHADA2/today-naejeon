@@ -50,6 +50,9 @@ contextBridge.exposeInMainWorld('api', {
   lobbyMode: (mode) => ipcRenderer.invoke('lobby-mode', { mode }),         // 👑 랜덤/드래프트
   lobbyCaptain: (name, rand) => ipcRenderer.invoke('lobby-captain', { name, rand }),   // 👑 팀장 지정
   lobbyStart: () => ipcRenderer.invoke('lobby-start'),                      // 👑 시작
+  lobbySide: (name, team) => ipcRenderer.invoke('lobby-side', { name, team }),   // 🧩 직접: 1팀/2팀/빼기(null)
+  lobbySidesPrev: () => ipcRenderer.invoke('lobby-sides-prev'),               // 🧩 지난 판 팀 그대로
+  lobbySidesClear: () => ipcRenderer.invoke('lobby-sides-clear'),
   lobbyReopen: () => ipcRenderer.invoke('lobby-reopen'),                    // 👑 지금 판 접고 대기실로
   showOverlay: () => ipcRenderer.send('overlay-show'),
   hostResult: (winner) => ipcRenderer.invoke('host-result', { winner }),   // 🏁 승리팀 직접 기록
