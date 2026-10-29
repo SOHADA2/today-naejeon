@@ -12,20 +12,34 @@ html, body { height:100%; background:var(--bg-0); color:var(--ink); overflow:hid
 .pg-x { -webkit-app-region:no-drag; width:26px; height:26px; border:none; background:transparent; color:var(--dim); font-size:14px; cursor:pointer; }
 .pg-x:hover { color:var(--ink); }
 
-/* 소개 */
-.pg-intro { position:absolute; inset:34px 0 0 0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; z-index:3;
-  background:linear-gradient(180deg, rgba(6,11,16,0.0), rgba(6,11,16,0.0)); pointer-events:none; }
-.pg-intro-en { font-family:var(--f-num); font-weight:700; font-size:clamp(30px, 6.4vw, 64px); letter-spacing:0.08em; line-height:1;
-  color:var(--ink); text-shadow:0 2px 24px rgba(0,0,0,0.6); opacity:0; }
-.pg-hero { display:flex; align-items:center; gap:16px; padding:14px 26px 14px 14px; min-width:0; max-width:86%; opacity:0;
-  background:linear-gradient(90deg, var(--tc-soft), rgba(6,11,16,0.85)); border-left:4px solid var(--tc); clip-path:var(--cut); }
+/* 소개(v0.1.43) — 그 사람이 낀 스킨 일러스트 전체 배경 + 아래 그늘 + 팀 색 사선 띠 + 왼쪽 아래 글자 */
+.pg-intro { position:absolute; inset:34px 0 0 0; z-index:3; overflow:hidden; pointer-events:none; background:var(--bg-0); }
+.pg-splash { position:absolute; inset:0; }
+.pg-splash img { width:100%; height:100%; object-fit:cover; object-position:50% 22%; display:block; opacity:0; transform-origin:58% 35%; }
+.pg-shade { position:absolute; inset:0; background:
+  linear-gradient(180deg, rgba(6,11,16,0.35) 0%, rgba(6,11,16,0) 26%, rgba(6,11,16,0) 42%, rgba(6,11,16,0.78) 72%, rgba(6,11,16,0.96) 100%),
+  linear-gradient(90deg, rgba(6,11,16,0.7) 0%, rgba(6,11,16,0) 60%); }
+.pg-slash { position:absolute; left:-10%; bottom:9%; width:78%; height:46%; background:linear-gradient(90deg, var(--tc-soft), transparent 85%);
+  transform:skewX(-18deg); transform-origin:left bottom; opacity:0; }
+.pg-ibody { position:absolute; left:6%; right:6%; bottom:9%; display:flex; flex-direction:column; align-items:flex-start; gap:10px; min-width:0; }
+.pg-intro-en { display:flex; align-items:center; gap:10px; font-family:var(--f-num); font-weight:700; font-size:clamp(13px, 1.7vw, 17px); letter-spacing:0.32em; color:var(--gold-hi); opacity:0; }
+.pg-intro-en i { width:34px; height:2px; background:var(--gold); }
+.pg-hero { display:flex; align-items:center; gap:14px; min-width:0; max-width:100%; opacity:0; }
 .pg-av { flex:none; width:64px; height:64px; border:2px solid var(--tc); background:var(--bg-2); overflow:hidden; }
 .pg-av img { width:100%; height:100%; object-fit:cover; display:block; }
-.pg-who { min-width:0; display:flex; flex-direction:column; gap:4px; }
-.pg-name { font-size:clamp(22px, 3.6vw, 34px); font-weight:800; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pg-sub { font-size:13px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pg-label { font-family:var(--f-title); font-size:clamp(18px, 2.6vw, 24px); font-weight:800; color:var(--tc); letter-spacing:0.02em; opacity:0; text-align:center; }
-.pg-label .tg { display:inline-block; margin:6px 3px 0; padding:3px 9px; font-size:12px; font-weight:700; color:var(--ink-soft); border:1px solid var(--line-2); clip-path:var(--cut-sm); }
+.pg-hero .pg-av { width:clamp(46px, 7vw, 66px); height:clamp(46px, 7vw, 66px); box-shadow:0 0 0 3px rgba(6,11,16,0.6); }
+.pg-who { min-width:0; display:flex; flex-direction:column; gap:2px; }
+.pg-name { font-size:clamp(28px, 5.4vw, 54px); font-weight:900; line-height:1.05; letter-spacing:-0.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  text-shadow:0 2px 0 rgba(0,0,0,0.5), 0 0 24px rgba(0,0,0,0.6); }
+.pg-sub { font-size:clamp(12px, 1.5vw, 15px); font-weight:700; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 6px rgba(0,0,0,0.8); }
+.pg-sub .tm { color:var(--tc); }
+.pg-label { display:flex; flex-direction:column; align-items:flex-start; gap:6px; opacity:0; max-width:100%; }
+.pg-label .en { font-family:var(--f-num); font-weight:700; font-size:clamp(34px, 7.2vw, 74px); line-height:0.9; letter-spacing:0.01em; color:#fff; white-space:nowrap;
+  transform:skewX(-10deg); transform-origin:left; text-shadow:0 3px 0 rgba(0,0,0,0.55), 0 0 26px rgba(0,0,0,0.55); }
+.pg-label .ko { display:flex; flex-wrap:wrap; align-items:center; gap:0; max-width:100%; transform:skewX(-10deg); transform-origin:left; }
+.pg-label .ko b { padding:3px 14px; font-size:clamp(13px, 1.6vw, 16px); font-weight:900; letter-spacing:0.06em; color:#fff; background:var(--tc); white-space:nowrap; }
+.pg-label .ko span { padding:3px 12px; font-size:clamp(12px, 1.5vw, 14px); font-weight:800; color:var(--ink); background:rgba(6,11,16,0.78); border-left:1px solid rgba(255,255,255,0.18); white-space:nowrap; }
+.pg-iflash { position:absolute; inset:0; background:#fff; opacity:0; mix-blend-mode:screen; }
 
 /* 장면 */
 .pg-stage { position:relative; flex:1; min-height:0; display:flex; align-items:center; justify-content:center; background:#000; }
@@ -38,17 +52,30 @@ html, body { height:100%; background:var(--bg-0); color:var(--ink); overflow:hid
 .pg-vig { position:absolute; inset:0; background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%); opacity:0; }
 .pg-flash { position:absolute; inset:0; background:#fff; opacity:0; mix-blend-mode:screen; }
 .pg-feed { position:absolute; top:calc(7% + 10px); right:12px; display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
-.pg-fk { display:flex; align-items:center; gap:7px; padding:4px 10px 4px 4px; background:rgba(6,11,16,0.82); border-right:3px solid var(--tc); clip-path:var(--cut-sm); }
+/* 킬 피드(v0.1.43) — 팀 색 사선 · 잡힌 상대는 흑백+취소선 */
+.pg-fk { display:flex; align-items:center; gap:7px; padding:3px 12px 3px 3px; background:linear-gradient(90deg, rgba(4,8,12,0.9), rgba(4,8,12,0.72)); border-right:3px solid var(--tc); }
 .pg-fk .pg-av { width:30px; height:30px; border-width:1px; }
-.pg-fk .vic { filter:grayscale(0.9) brightness(0.75); border-color:var(--line-2); }
-.pg-fk .sw { font-size:13px; color:var(--tc); font-weight:800; }
-.pg-fk span { max-width:120px; font-size:12px; font-weight:700; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pg-kb { position:absolute; left:0; right:0; top:58%; display:flex; justify-content:center; }
-.pg-kbt { font-family:var(--f-title); font-weight:900; font-size:clamp(28px, 6vw, 58px); letter-spacing:0.04em; color:#fff; white-space:nowrap;
-  text-shadow:0 0 18px var(--tc), 0 3px 0 rgba(0,0,0,0.6); }
-.pg-kbt.final { font-size:clamp(34px, 7.4vw, 72px); color:var(--tc); text-shadow:0 0 24px rgba(0,0,0,0.9), 0 3px 0 rgba(0,0,0,0.7); }
-.pg-kbf { display:flex; flex-direction:column; align-items:center; gap:4px; }
-.pg-kbs { font-size:15px; font-weight:800; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,0.9); white-space:nowrap; }
+.pg-fk .vic { filter:grayscale(1) brightness(0.7); border-color:rgba(255,255,255,0.25); }
+.pg-fk .sw { width:16px; height:3px; background:var(--tc); transform:skewX(-30deg); }
+.pg-fk span { max-width:130px; font-size:12px; font-weight:700; color:rgba(255,255,255,0.85); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  text-decoration:line-through; text-decoration-color:rgba(255,255,255,0.4); }
+/* 킬 자막(v0.1.43) — 큰 영문(Barlow·기울임) + 한글 팀 색 띠 · 들어올 때만 색이 한 번 갈라짐(RGB) */
+.pg-kb { position:absolute; left:0; right:0; top:60%; display:flex; justify-content:center; }
+.pg-kb.final { top:50%; transform:translateY(-50%); }
+.pg-kbt { display:flex; flex-direction:column; align-items:center; gap:4px; max-width:92%; }
+.pg-kbt .en { font-family:var(--f-num); font-weight:700; font-size:clamp(32px, 6.4vw, 62px); line-height:0.92; letter-spacing:0.02em; color:#fff; white-space:nowrap;
+  transform:skewX(-10deg); text-shadow:0 3px 0 rgba(0,0,0,0.55), 0 0 18px rgba(0,0,0,0.5); }
+.pg-kbt .ko { display:flex; align-items:center; max-width:100%; transform:skewX(-10deg); }
+.pg-kbt .ko b { padding:2px 12px; font-size:13px; font-weight:900; letter-spacing:0.06em; color:#fff; background:var(--tc); white-space:nowrap; }
+.pg-kbt .ko span { min-width:0; display:flex; align-items:center; gap:6px; padding:2px 10px 2px 4px; font-size:12px; font-weight:800; color:#fff; background:rgba(4,8,12,0.82); white-space:nowrap; overflow:hidden; }
+.pg-kbt .ko span em { min-width:0; overflow:hidden; text-overflow:ellipsis; font-style:normal; }
+.pg-kbt .ko .pg-av { width:20px; height:20px; border-width:1px; filter:grayscale(1) brightness(0.8); }
+.pg-kbt.final .en { font-size:clamp(46px, 10.5vw, 110px); }
+.pg-kbt.final .ko b { font-size:15px; padding:3px 16px; }
+.pg-kbt.final .ko span { font-size:14px; padding:3px 12px; }
+.pg-pips { display:flex; gap:4px; margin-top:3px; }
+.pg-pips i { width:16px; height:5px; background:rgba(255,255,255,0.18); transform:skewX(-20deg); }
+.pg-pips i.on { background:var(--tc); }
 .pg-tag { position:absolute; left:14px; bottom:calc(7% + 12px); display:flex; align-items:center; gap:10px; max-width:70%; padding:6px 16px 6px 6px;
   background:linear-gradient(90deg, rgba(6,11,16,0.9), rgba(6,11,16,0.55)); border-left:3px solid var(--tc); clip-path:var(--cut-sm); opacity:0; }
 .pg-tag .pg-av { width:38px; height:38px; }
@@ -58,6 +85,7 @@ html, body { height:100%; background:var(--bg-0); color:var(--ink); overflow:hid
 .pg-wait { position:absolute; font-size:14px; color:var(--dim); }
 .pg-card { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:20px;
   background:radial-gradient(90% 70% at 50% 40%, #0f1d28 0%, var(--bg-0) 75%); }
+.pg-card.has-sp { background:linear-gradient(180deg, rgba(6,11,16,0.72), rgba(6,11,16,0.9)), var(--sp) center 25% / cover no-repeat, var(--bg-0); }   /* 영상 없을 때도 스킨 일러스트를 어둡게 깔아 줌 */
 .pg-time { font-family:var(--f-num); font-weight:700; font-size:15px; letter-spacing:0.1em; color:var(--dim); }
 .pg-killer { display:flex; align-items:center; gap:12px; }
 .pg-killer .pg-av { width:72px; height:72px; }

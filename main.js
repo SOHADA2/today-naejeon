@@ -489,6 +489,7 @@ async function pollGame() {
       name: (p.riotIdGameName || p.summonerName || (typeof p.riotId === 'string' ? p.riotId.split('#')[0] : '') || '').trim(),
       champ: p.championName || '',
       teamId: p.team === 'ORDER' ? 100 : p.team === 'CHAOS' ? 200 : 0,
+      skin: Number.isFinite(p.skinID) ? p.skinID : null,   // 🖼️ 낀 스킨 번호(팟지 소개 배경 일러스트)
     })).filter(p => p.name);
   }
   if (nowIn !== inGame) {              // 상태 전환
@@ -914,6 +915,7 @@ async function hostPotg(s) {
     const card = n ? potg.pickPotg(raws, s, rec && rec.stats) : null;
     if (!card) { await fbUpdate(`${T}/session`, { potg: { none: true, gameId: String(s.game.id) } }); return; }
     card.gameId = String(s.game.id);
+    try { card.splash = await potg.splashFor(card.championId, card.skin); } catch (_) {}   // 🖼️ 소개 배경 = 그 사람이 낀 스킨 일러스트
     const publish = async () => {   // 모두에게 보여주기(showAt = 다 같이 시작할 시각)
       card.pending = null; card.pendingAt = null; card.showAt = Date.now() + 1500;
       await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: card });

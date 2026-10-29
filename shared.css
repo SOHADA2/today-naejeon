@@ -105,7 +105,7 @@ body { -webkit-font-smoothing:antialiased; font-feature-settings:'tnum' 0; lette
 .tn-up-go { flex:none; padding:6px 10px; font-size:12px; font-weight:800; color:#1a1408; background:linear-gradient(180deg, var(--gold-hi), var(--gold)); border:none; cursor:pointer; white-space:nowrap; clip-path:var(--cut-sm); }
 .tn-up-x { flex:none; width:20px; height:20px; border:none; background:none; color:var(--dim); cursor:pointer; font-size:11px; padding:0; }
 .tn-up-x:hover { color:var(--ink); }
-.tn-set { position:fixed; left:0; right:0; bottom:0; z-index:50; display:flex; flex-direction:column; background:linear-gradient(180deg, #0b1620, var(--bg-0)); border-top:1px solid var(--gold-line); }
+.tn-set { position:fixed; left:0; right:0; bottom:0; z-index:50; display:flex; flex-direction:column; color:var(--ink); /* v0.1.43: 글자색 없어서 왼쪽 창에선 검은 글자로 안 보였음 */ background:linear-gradient(180deg, #0b1620, var(--bg-0)); border-top:1px solid var(--gold-line); }
 .tn-set-hd { flex:none; display:flex; align-items:center; gap:8px; padding:12px 12px 10px 14px; border-bottom:1px solid var(--line); }
 .tn-set-hd b { font-size:16px; font-weight:800; }
 .tn-set-en { font-family:var(--f-num); font-weight:700; font-size:11px; letter-spacing:0.18em; color:var(--gold); }

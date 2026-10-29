@@ -70,7 +70,7 @@ module.exports = function makePotg(d) {
       if (e.Recipient) o.k = String(e.Recipient); if (e.Stolen === 'True' || e.Stolen === true) o.stolen = 1; if (e.DragonType) o.dt = e.DragonType;
       return o;
     });
-    const rec = { name: c.me, at: Date.now(), events, hp: c.hp, players: c.players.map(p => ({ name: p.name, champ: p.champ, teamId: p.teamId })) };
+    const rec = { name: c.me, at: Date.now(), events, hp: c.hp, players: c.players.map(p => ({ name: p.name, champ: p.champ, teamId: p.teamId, skin: p.skin == null ? null : p.skin })) };
     const r = await d.fbSet(`${d.T}/potg/raw/${d.dayKey()}/${gid}/${fbKey(c.me)}`, rec);
     log(`수집 올림 ${r.ok ? '✅' : '❌'} 사건 ${events.length} · 체력 ${c.hp.length}`);
   }
@@ -122,7 +122,7 @@ module.exports = function makePotg(d) {
     const label = c.kind === 'steal' ? c.tags[0] : (c.n === 1 && c.tags.includes('솔로킬') ? '솔로킬' : MULTI_LABEL[c.n]);
     const name = (s.teamA || []).concat(s.teamB || []).find(x => norm(x) === norm(c.killer)) || String(c.killer).split('#')[0];
     return {
-      name, champ: p.champ || '', championId: champId(c.killer), team: teamOfName(c.killer),
+      name, champ: p.champ || '', championId: champId(c.killer), team: teamOfName(c.killer), skin: p.skin == null ? null : p.skin,
       label, tags: c.tags.filter(t => t !== label), score: Math.round(c.score),
       t0: c.t0, t1: c.t1, clipFrom: Math.max(0, Math.floor(c.t0 - 5)), clipTo: Math.ceil(c.t1 + 3),   // 팟지 공식: 킬 5초 전부터(빌드업) — v0.1.35 8→5초
       kills: c.ks.map(k => { const v = players[norm(k.v)] || {}; return { t: k.t, victim: String(k.v).split('#')[0], champ: v.champ || '', championId: champId(k.v), solo: !k.a || !k.a.length }; }),
@@ -178,5 +178,17 @@ module.exports = function makePotg(d) {
     try { for (const f of fs.readdirSync(clipDir())) { const p = path.join(clipDir(), f); if (Date.now() - fs.statSync(p).mtimeMs > KEEP_DAYS * 86400000) fs.unlinkSync(p); } } catch (_) {}
   }
 
-  return { startCollect, stopCollect, pickPotg, readRaws, uploadClip, getClip, cleanup, extOf, _pick: pickPotg };
+  // 🖼️ 스킨 일러스트 주소(v0.1.43) — CommunityDragon 챔피언 정보에서 그 스킨(크로마면 원래 스킨)의 가운데 맞춘 일러스트 1280×720 · 못 찾으면 기본 스킨
+  const CD = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default';
+  const cdPath = p => p ? CD + '/' + String(p).replace(/^\/lol-game-data\/assets\//i, '').toLowerCase() : null;
+  async function splashFor(championId, skin) {
+    if (!championId) return null;
+    const j = await d.getJson(`${CD}/v1/champions/${Number(championId)}.json`);
+    const skins = (j && j.skins) || []; if (!skins.length) return null;
+    const want = Number(championId) * 1000 + (Number(skin) || 0);
+    const s = skins.find(x => x.id === want) || skins.find(x => (x.chromas || []).some(cr => cr.id === want)) || skins.find(x => x.isBase) || skins[0];
+    return cdPath(s.splashPath || s.uncenteredSplashPath);
+  }
+
+  return { splashFor, startCollect, stopCollect, pickPotg, readRaws, uploadClip, getClip, cleanup, extOf, _pick: pickPotg };
 };

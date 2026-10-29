@@ -71,20 +71,27 @@ async function play() {
   const intro = el('pg-intro'); intro.style.display = ''; intro.getAnimations().forEach(a => a.cancel()); intro.style.opacity = '1';
   el('pg-av').outerHTML = av(c.championId).replace('class="pg-av"', 'id="pg-av" class="pg-av"');
   el('pg-name').textContent = c.name;
-  el('pg-sub').textContent = [c.team === 'teamA' ? '1팀' : c.team === 'teamB' ? '2팀' : '', c.champ].filter(Boolean).join(' · ');
-  el('pg-label').innerHTML = esc(c.label) + (c.tags && c.tags.length ? '<br>' + c.tags.map(t => `<span class="tg">${esc(t)}</span>`).join('') : '');
-  const en = intro.querySelector('.pg-intro-en'), hero = intro.querySelector('.pg-hero'), lab = el('pg-label');
-  [en, hero, lab].forEach(n => n.getAnimations().forEach(a => a.cancel()));
-  go(en, [{ opacity: 0, transform: 'scale(1.25)', filter: 'blur(6px)' }, { opacity: 1, transform: 'scale(1)', filter: 'blur(0)' }], { duration: 520 });
-  go(hero, [{ opacity: 0, transform: 'translateX(-40px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 420, delay: 650 });
-  go(lab, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 380, delay: 1150 });
-  playSfx('intro');   // 「PLAY OF THE GAME」 글자가 커지며 들어올 때 「쿵」(파일 0.17초)
+  const team = c.team === 'teamA' ? '1팀' : c.team === 'teamB' ? '2팀' : '';
+  el('pg-sub').innerHTML = [team ? `<span class="tm">${team}</span>` : '', esc(c.champ || '')].filter(Boolean).join(' · ');
+  el('pg-label').innerHTML = `<i class="en">${esc(enLabel(c.label))}</i><div class="ko"><b>${esc(c.label)}</b>${(c.tags || []).map(t => `<span>${esc(t)}</span>`).join('')}</div>`;
+  // 🖼️ v0.1.43: 그 사람이 낀 스킨 일러스트(card.splash · 방장 앱이 CommunityDragon에서 찾아 줌) — 없거나 못 받으면 어두운 바탕 그대로
+  const sp = el('pg-splash'); sp.getAnimations().forEach(a => a.cancel()); sp.style.opacity = '0';
+  if (c.splash) { if (sp.getAttribute('src') !== c.splash) sp.src = c.splash; } else sp.removeAttribute('src');
+  const en = intro.querySelector('.pg-intro-en'), hero = intro.querySelector('.pg-hero'), lab = el('pg-label'), slash = intro.querySelector('.pg-slash');
+  [en, hero, lab, slash, el('pg-iflash')].forEach(n => n.getAnimations().forEach(a => a.cancel()));
+  if (c.splash) go(sp, [{ opacity: 0, transform: 'scale(1.14)', filter: 'brightness(1.6) blur(3px)' }, { opacity: 1, transform: 'scale(1.06)', filter: 'brightness(1) blur(0)', offset: 0.18 }, { opacity: 1, transform: 'scale(1)', filter: 'brightness(1) blur(0)' }], { duration: 3500, easing: 'cubic-bezier(.2,.7,.3,1)' });   // 천천히 다가오는 줌(한 번만)
+  go(slash, [{ opacity: 0, transform: 'skewX(-18deg) translateX(-60%)' }, { opacity: 1, transform: 'skewX(-18deg) translateX(0)' }], { duration: 520, delay: 80, easing: 'cubic-bezier(.15,.9,.25,1)' });
+  go(en, [{ opacity: 0, clipPath: 'inset(0 100% 0 0)' }, { opacity: 1, clipPath: 'inset(0 0 0 0)' }], { duration: 420, delay: 120 });   // 「쿵」(효과음 0.17초)에 맞춰
+  go(hero, [{ opacity: 0, transform: 'translateY(18px)', filter: 'blur(6px)' }, { opacity: 1, transform: 'translateY(0)', filter: 'blur(0)' }], { duration: 420, delay: 480, easing: 'cubic-bezier(.2,1.2,.4,1)' });
+  go(lab, rgbIn('translateX(-30px)'), { duration: 460, delay: 950, easing: 'cubic-bezier(.15,.9,.3,1)' });
+  playSfx('intro');   // 「PLAY OF THE GAME」 글자가 들어올 때 「쿵」(파일 0.17초)
   bgmStart(3.2 + (c.clip ? 0.25 + realToFreeze(c) : cardDropAt(c)));   // 영상이면 정지 화면, 카드면 마지막 킬 칸에서 「터짐」
   await sleep(3200); if (my !== run) return;
-  // ② 장면
+  // ② 장면 — 일러스트가 살짝 더 다가오며 섬광과 함께 빠짐
   el('pg-stage').style.display = '';
-  go(intro, [{ opacity: 1 }, { opacity: 0 }], { duration: 300 });
-  setTimeout(() => { if (my === run) intro.style.display = 'none'; }, 300);
+  go(el('pg-iflash'), [{ opacity: 0 }, { opacity: 0.55, offset: 0.25 }, { opacity: 0 }], { duration: 360, easing: 'ease-out' });
+  go(intro, [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.05)' }], { duration: 360, easing: 'ease-in' });
+  setTimeout(() => { if (my === run) { intro.style.display = 'none'; intro.getAnimations().forEach(a => a.cancel()); } }, 360);
   if (c.clip) {
     if (!clipPath) { el('pg-wait').style.display = ''; await Promise.race([clipP, sleep(20000)]); if (my !== run) return; el('pg-wait').style.display = 'none'; }
     if (clipPath && await playVideo(my)) return end(my);
@@ -96,6 +103,14 @@ async function play() {
 // 🎬 팟지 편집(v0.1.35) — 오버워치 팟지 공식: 시네마 띠+이름표로 시작 → 킬 직전 확대(줌 인)·슬로모션 → 킬 순간 섬광·흔들림·킬 피드·「더블킬」
 //   → 마지막 킬은 더 느리게 + 0.45초 뒤 정지 화면(1.5초, 큰 글자) → 다시 재생하며 줌 아웃 → 끝. 시각은 전부 영상 기준(킬 시각 - clipFrom)
 const MULTI = ['처치', '더블킬', '트리플킬', '쿼드라킬', '펜타킬'];
+// 큰 영문 자막(v0.1.43) — e스포츠 하이라이트식 · 한글은 아래 팀 색 띠
+const EN = { 처치: 'KILL', 킬: 'KILL', 솔로킬: 'SOLO KILL', 더블킬: 'DOUBLE KILL', 트리플킬: 'TRIPLE KILL', 쿼드라킬: 'QUADRA KILL', 펜타킬: 'PENTA KILL',
+  '바론 스틸': 'BARON STEAL', '드래곤 스틸': 'DRAGON STEAL', '전령 스틸': 'HERALD STEAL', '공허 유충 스틸': 'VOIDGRUB STEAL', '아타칸 스틸': 'ATAKHAN STEAL' };
+const enLabel = ko => EN[ko] || 'PLAY OF THE GAME';
+const rgbIn = from => [   // 들어올 때만 빨강·청록으로 한 번 갈라졌다 붙음
+  { opacity: 0, transform: from, textShadow: '-7px 0 rgba(255,40,80,0.9), 7px 0 rgba(0,230,255,0.9)' },
+  { opacity: 1, transform: 'none', textShadow: '-3px 0 rgba(255,40,80,0.6), 3px 0 rgba(0,230,255,0.6)', offset: 0.45 },
+  { opacity: 1, transform: 'none', textShadow: '0 0 transparent, 0 0 transparent' }];
 const smooth = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
 const killsAt = c => (c.kills && c.kills.length ? c.kills.map(k => k.t) : [c.obj ? c.obj.t : c.t1]).map(t => t - c.clipFrom);   // 영상 기준 킬 시각
 const rateFor = ms => { const last = ms[ms.length - 1]; return t => { for (const m of ms) { if (m === last ? t >= m - 0.7 && t <= m + 0.45 : t >= m - 0.45 && t <= m + 0.3) return m === last ? 0.3 : 0.4; } return 1; }; };
@@ -110,7 +125,8 @@ function playVideo(my) {
     let frozen = 0, raf = 0, rate = 1, done = false, slowFired = false;
     resetFx();
     fx.style.display = '';
-    el('pg-tag').innerHTML = `${av(c.championId)}<div><small>PLAY OF THE GAME</small><b>${esc(c.name)}${c.champ ? ' · ' + esc(c.champ) : ''}</b></div>`;
+    el('pg-tag').innerHTML = `${av(c.championId)}<div><small>PLAY OF THE GAME</small><b>${esc(c.name)}${c.champ ? ' · ' + esc(c.champ) : ''}</b>`
+      + `<span class="pg-pips">${ms.map(() => '<i></i>').join('')}</span></div>`;   // 킬 칸 — 킬마다 하나씩 팀 색으로
     fx.querySelectorAll('.pg-bar').forEach(b => go(b, [{ transform: 'scaleY(0)' }, { transform: 'scaleY(1)' }], { duration: 450 }));
     go(fx.querySelector('.pg-vig'), [{ opacity: 0 }, { opacity: 1 }], { duration: 600 });
     go(el('pg-tag'), [{ opacity: 0, transform: 'translateX(-30px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 420, delay: 300 });
@@ -142,8 +158,10 @@ function playVideo(my) {
         playSfx('slam'); bgmDropNow();
         v.animate([{ filter: 'none' }, { filter: 'saturate(1.5) contrast(1.15) brightness(1.08)' }], { duration: 200, fill: 'forwards' });
         const lab = c.label || MULTI[Math.min(ms.length, 5) - 1];
-        el('pg-kb').innerHTML = `<div class="pg-kbf"><div class="pg-kbt final">${esc(lab)}</div>${c.tags && c.tags.length ? `<div class="pg-kbs">${c.tags.map(esc).join(' · ')}</div>` : ''}</div>`;
-        go(el('pg-kb').firstChild, [{ opacity: 0, transform: 'scale(1.8)', filter: 'blur(8px)' }, { opacity: 1, transform: 'scale(1)', filter: 'blur(0)' }], { duration: 320, easing: 'cubic-bezier(.2,1.3,.4,1)' });
+        el('pg-kb').className = 'pg-kb final';
+        el('pg-kb').innerHTML = `<div class="pg-kbt final"><i class="en">${esc(enLabel(lab))}</i><div class="ko"><b>${esc(lab)}</b>${(c.tags || []).map(t => `<span>${esc(t)}</span>`).join('')}</div></div>`;
+        go(el('pg-kb').firstChild, [{ opacity: 0, transform: 'scale(1.6)', filter: 'blur(8px)' }, { opacity: 1, transform: 'scale(1)', filter: 'blur(0)' }], { duration: 320, easing: 'cubic-bezier(.2,1.3,.4,1)' });
+        go(el('pg-kb').querySelector('.en'), rgbIn('none'), { duration: 420 });
         setTimeout(() => {
           if (my !== run) return;
           frozen = 2; rate = 1; v.playbackRate = 1;
@@ -160,14 +178,21 @@ function playVideo(my) {
       go(wrap, [{ transform: 'translate(0,0)' }, { transform: 'translate(-6px,4px)' }, { transform: 'translate(5px,-3px)' }, { transform: 'translate(-2px,2px)' }, { transform: 'translate(0,0)' }], { duration: 260, easing: 'linear' });
       if (k) {
         const row = document.createElement('div'); row.className = 'pg-fk';
-        row.innerHTML = `${av(c.championId)}<i class="sw">⚔</i>${av(k.championId, 'pg-av vic')}<span>${esc(k.victim)}</span>`;
+        row.innerHTML = `${av(c.championId)}<i class="sw"></i>${av(k.championId, 'pg-av vic')}<span>${esc(k.victim)}</span>`;
         el('pg-feed').appendChild(row);
         go(row, [{ opacity: 0, transform: 'translateX(40px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 260 });
       }
+      const pip = el('pg-tag').querySelectorAll('.pg-pips i')[i];   // 이름표 킬 칸 채움
+      if (pip) { pip.classList.add('on'); go(pip, [{ transform: 'skewX(-20deg) scaleY(2.4)' }, { transform: 'skewX(-20deg) scaleY(1)' }], { duration: 300 }); }
       if (i !== ms.length - 1) playSfx('hit');   // 중간 킬 「쾅」(마지막 킬은 「느려지는 떨림」의 타격 → 정지 화면 「쾅」)
-      if (i !== ms.length - 1 && ms.length > 1) {   // 중간 킬 = 「처치」「더블킬」… (마지막은 정지 화면에서 크게)
-        el('pg-kb').innerHTML = `<div class="pg-kbt">${MULTI[Math.min(i, 4)]}</div>`;
-        go(el('pg-kb').firstChild, [{ opacity: 0, transform: 'scale(1.6)' }, { opacity: 1, transform: 'scale(1)', offset: 0.25 }, { opacity: 1, offset: 0.75 }, { opacity: 0, transform: 'scale(0.96)' }], { duration: 1400, easing: 'ease-out' });
+      if (i !== ms.length - 1 && ms.length > 1) {   // 중간 킬 = 큰 영문 「KILL」「DOUBLE KILL」… + 한글 띠(잡힌 상대) · 마지막은 정지 화면에서 크게
+        const ko = MULTI[Math.min(i, 4)];
+        el('pg-kb').className = 'pg-kb';
+        el('pg-kb').innerHTML = `<div class="pg-kbt"><i class="en">${esc(enLabel(ko))}</i><div class="ko"><b>${esc(ko)}</b>${k ? `<span>${av(k.championId)}<em>${esc(k.victim)}</em></span>` : ''}</div></div>`;
+        const box = el('pg-kb').firstChild;
+        go(box, [{ opacity: 0, transform: 'translateX(-40px)', clipPath: 'inset(0 100% 0 0)' }, { opacity: 1, transform: 'translateX(0)', clipPath: 'inset(0 0 0 0)', offset: 0.16 },
+          { opacity: 1, transform: 'translateX(6px)', clipPath: 'inset(0 0 0 0)', offset: 0.8 }, { opacity: 0, transform: 'translateX(30px)', clipPath: 'inset(0 0 0 0)' }], { duration: 1400, easing: 'linear' });
+        go(box.querySelector('.en'), rgbIn('none'), { duration: 380 });
       }
     }
     v.preservesPitch = false;   // 슬로모션 때 소리도 낮고 무겁게
@@ -182,7 +207,7 @@ function resetFx() {
   const fx = el('pg-fx'), v = el('pg-video');
   fx.style.display = 'none';
   fx.querySelectorAll('*').forEach(n => n.getAnimations().forEach(a => a.cancel()));
-  el('pg-feed').innerHTML = ''; el('pg-kb').innerHTML = '';
+  el('pg-feed').innerHTML = ''; el('pg-kb').innerHTML = ''; el('pg-kb').className = 'pg-kb';
   v.getAnimations().forEach(a => a.cancel()); v.style.transform = ''; v.playbackRate = 1;
   el('pg-vwrap').getAnimations().forEach(a => a.cancel());
 }
@@ -194,6 +219,7 @@ async function showCard(my) {   // 영상 없을 때: 킬 타임라인
     + `<div class="pg-killer">${av(c.championId)}<b>${esc(c.name)}</b></div>`
     + (c.kills && c.kills.length ? `<div class="pg-row">${c.kills.map(k => `<div class="pg-kill">${av(k.championId)}<span>${esc(k.victim)}</span><small class="num">${mmss(k.t)}</small></div>`).join('')}</div>` : '')
     + `<div class="pg-card-note">영상 없음 · 킬 기록으로 다시 그린 장면</div>`;
+  box.classList.toggle('has-sp', !!c.splash); box.style.setProperty('--sp', c.splash ? `url("${c.splash}")` : 'none');   // 스킨 일러스트를 어둡게 깔아 줌
   box.style.display = '';
   const ks = [...box.querySelectorAll('.pg-kill')];
   ks.forEach((k, i) => go(k, [{ opacity: 0, transform: 'scale(1.6)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 260, delay: 400 + i * 380, easing: 'cubic-bezier(.3,1.4,.5,1)' }));
