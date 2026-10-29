@@ -147,7 +147,7 @@ function createSlotWin() {
   slotWin.setIgnoreMouseEvents(true, { forward: true });   // 클릭 통과 → 클라 조작 방해 X
   slotWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   _slotReady = false;
-  slotWin.webContents.on('did-finish-load', () => { _slotReady = true; _slotMsg = ''; });   // 내용은 처음 보일 때 updateSlotMarker가 보냄
+  slotWin.webContents.on('did-finish-load', () => { _slotReady = true; _slotMsg = ''; _slotSig = ''; });   // _slotSig 비움 → 다음 updateSlotMarker가 크기·zoom 다시 맞춤   // 내용은 처음 보일 때 updateSlotMarker가 보냄
   slotWin.loadFile('slot/slot.html');
   slotWin.on('closed', () => { slotWin = null; _slotReady = false; });
 }
@@ -174,13 +174,17 @@ function updateSlotMarker(p) {   // p=[L,T,R,B] 원시 px(클라 감지됨)
   const cx = p[0] / sf, cy = p[1] / sf, cw = (p[2] - p[0]) / sf, ch = (p[3] - p[1]) / sf;
   // 상태: go=로비 자리 모름(아직 대기방 아님) · ok=맞는 쪽에 앉음 · move=반대 팀에 앉음 · spec=관전석
   const state = lobbySeat == null ? 'go' : lobbySeat === side ? 'ok' : lobbySeat === 'spec' ? 'spec' : 'move';
-  // 마커 = 앉아야 할 팀 컬럼 우상단(친구목록 펼침 기준). 1팀=왼쪽 컬럼 / 2팀=가운데 컬럼 · 아래 화살표가 그 팀 자리를 가리킴
-  const bw = 184, bh = 74;
-  const colRight = side === 1 ? cx + cw * 0.39 : cx + cw * 0.79;
-  const x = Math.round(colRight - bw - 2);
-  const y = Math.round(cy + ch * 0.235 - 6);   // 클라 상단에서 아래로 내린 위치(팀 컬럼 헤더에 맞춤) — 더 내리려면 0.235를 키우세요
-  const sig = `${x},${y}`;
-  if (sig !== _slotSig) { _slotSig = sig; slotWin.setBounds({ x, y, width: bw, height: bh }); }
+  // 마커 위치 = 롤 클라 화면 파일(rcp-fe-lol-parties 16.21 CSS, CommunityDragon)로 계산한 사용자 설정 게임 방 배치 — 클라는 1280×720 기준을 통째로 늘림
+  //   팀 칸: 1팀 x 35~523 · 2팀 x 531~1019(.parties-lower-section 좌우 35 + .custom-game-team 488 + 사이 16) · 「TEAM 1」 글자 y 197 · 자리 y 218부터 48px씩
+  //   그 위 y 151~197은 빈 칸(.empty-header-spacer 72 + .custom-root 위 10 + .custom-game-teams top 36) → 칩을 여기, 화살표가 팀 글자 줄 오른쪽(비어 있음)을 지나 첫 자리를 가리킴
+  //   친구 목록은 오른쪽 사이드바라 펼침/접힘과 무관 · 창 크기만큼 마커도 같이 커짐(zoom)
+  const k = Math.max(0.75, Math.min(1.6, cw / 1280));
+  const bw = Math.round(184 * k), bh = Math.round(74 * k);
+  const colRight = cx + cw * ((side === 1 ? 523 : 1019) / 1280);
+  const x = Math.round(colRight - bw - 4 * k);
+  const y = Math.round(cy + ch * (150 / 720) - 3 * k);
+  const sig = `${x},${y},${bw}`;
+  if (sig !== _slotSig) { _slotSig = sig; slotWin.setBounds({ x, y, width: bw, height: bh }); try { slotWin.webContents.setZoomFactor(k); } catch (_) {} }
   if (!_slotReady) return;                               // 콘텐츠 로드 후에 표시(흰 박스 방지)
   const msg = side + '|' + state;
   const appear = !slotWin.isVisible();
