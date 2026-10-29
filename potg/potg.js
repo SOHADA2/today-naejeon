@@ -175,7 +175,7 @@ function playHeroVideo(my) {
       if (my !== run) return finish(false);
       const t = v.currentTime, g = t + h.clipFrom;
       if (!frozen) { const r = rateAt(t); if (r !== rate) { rate = r; v.playbackRate = r; } }
-      { const gv = frozen === 1 ? 0 : rate < 1 ? 0.15 : 0.6; v.volume += (gv - v.volume) * 0.25; }
+      { const gv = frozen === 1 ? 0 : rate < 1 ? 0.03 : 0.6; v.volume += (gv - v.volume) * 0.25; }
       v.style.transform = `scale(${zoomAt(t).toFixed(4)})`;
       if (showMeter) {   // 실제 체력 기록으로 막대를 움직임(1초 간격 기록 · 사이는 선형)
         const hp = hpAt(series, g);
@@ -215,7 +215,7 @@ function playHeroVideo(my) {
     }
     function assistRow(a) {   // 한타 설계: 어시스트(또는 내 킬) 피드
       const row = document.createElement('div'); row.className = 'pg-fk';
-      row.innerHTML = `${av(h.championId)}<b class="as">${a.mine ? 'KILL' : 'ASSIST'}</b>${av(a.championId, 'pg-av vic')}<span>${esc(a.name)}</span>`;
+      row.innerHTML = feedRow(a.championId, a.champ, a.name, a.mine ? '킬' : '어시스트', a.mine ? '' : 'as');
       el('pg-feed').appendChild(row);
       go(row, [{ opacity: 0, transform: 'translateX(40px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 260 });
       go(wrap, [{ transform: 'translate(0,0)' }, { transform: 'translate(-4px,3px)' }, { transform: 'translate(3px,-2px)' }, { transform: 'translate(0,0)' }], { duration: 220, easing: 'linear' });
@@ -258,6 +258,9 @@ async function showHeroCard(my) {   // 숨은 영웅 영상이 없을 때: 지�
 // 🎬 팟지 편집(v0.1.35) — 오버워치 팟지 공식: 시네마 띠+이름표로 시작 → 킬 직전 확대(줌 인)·슬로모션 → 킬 순간 섬광·흔들림·킬 피드·「더블킬」
 //   → 마지막 킬은 더 느리게 + 0.45초 뒤 정지 화면(1.5초, 큰 글자) → 다시 재생하며 줌 아웃 → 끝. 시각은 전부 영상 기준(킬 시각 - clipFrom)
 const MULTI = ['처치', '더블킬', '트리플킬', '쿼드라킬', '펜타킬'];
+// 오른쪽 킬 피드 한 줄(v0.1.61 · 사장님: 직관적이지 않다) — 주인공 아이콘 반복·「—」 빼고: [번호] 쓰러진 상대(흑백+✕) · 챔피언 이름(크게)/소환사(작게) · 처치·더블킬…(가운데 자막과 같은 말)
+const feedRow = (id, champ, name, label, cls, no) => `${no ? `<b class="no num">${no}</b>` : ''}<span class="dead">${av(id, 'pg-av vic')}<i class="x"></i></span>`
+  + `<span class="tx"><em>${esc(champ || name)}</em>${champ && name ? `<small>${esc(name)}</small>` : ''}</span><b class="lb ${cls || ''}">${esc(label)}</b>`;
 // 큰 영문 자막(v0.1.43) — e스포츠 하이라이트식 · 한글은 아래 팀 색 띠
 const EN = { 처치: 'KILL', 킬: 'KILL', 솔로킬: 'SOLO KILL', 더블킬: 'DOUBLE KILL', 트리플킬: 'TRIPLE KILL', 쿼드라킬: 'QUADRA KILL', 펜타킬: 'PENTA KILL',
   '바론 스틸': 'BARON STEAL', '드래곤 스틸': 'DRAGON STEAL', '전령 스틸': 'HERALD STEAL', '공허 유충 스틸': 'VOIDGRUB STEAL', '아타칸 스틸': 'ATAKHAN STEAL' };
@@ -301,7 +304,7 @@ function playVideo(my) {
       if (my !== run) return finish(false);
       const t = v.currentTime;
       if (!frozen) { const r = rateAt(t); if (r !== rate) { rate = r; v.playbackRate = r; } }
-      { const gv = frozen === 1 ? 0 : rate < 1 ? 0.15 : 0.6; v.volume += (gv - v.volume) * 0.25; }   // 🎵 슬로모션 땐 게임 소리를 확 줄임(느리고 낮아진 게임 소리가 이상한 음악처럼 들렸음) — BGM·효과음이 이끔
+      { const gv = frozen === 1 ? 0 : rate < 1 ? 0.03 : 0.6; v.volume += (gv - v.volume) * 0.25; }   // 🎵 슬로모션 땐 게임 소리를 확 줄임(느리고 낮아진 게임 소리가 이상한 음악처럼 들렸음) — BGM·효과음이 이끔 · v0.1.61: 0.15도 웅웅거려서(사장님 「후반 소리가 왜 이래」) 거의 끔(0.03)
       v.style.transform = `scale(${zoomAt(t).toFixed(4)})`;
       ms.forEach((m, i) => { if (!fired.has(i) && t >= m) { fired.add(i); onKill(i); } });
       if (!frozen) {   // 🎵 BGM 「터짐」을 정지 화면에 맞추고, 「느려지는 떨림」의 타격을 마지막 킬에 맞춤
@@ -333,7 +336,7 @@ function playVideo(my) {
       go(wrap, [{ transform: 'translate(0,0)' }, { transform: 'translate(-6px,4px)' }, { transform: 'translate(5px,-3px)' }, { transform: 'translate(-2px,2px)' }, { transform: 'translate(0,0)' }], { duration: 260, easing: 'linear' });
       if (k) {
         const row = document.createElement('div'); row.className = 'pg-fk';
-        row.innerHTML = `${av(c.championId)}<i class="sw"></i>${av(k.championId, 'pg-av vic')}<span>${esc(k.victim)}</span>`;
+        row.innerHTML = feedRow(k.championId, k.champ, k.victim, MULTI[Math.min(i, 4)], '', i + 1);
         el('pg-feed').appendChild(row);
         go(row, [{ opacity: 0, transform: 'translateX(40px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 260 });
       }
