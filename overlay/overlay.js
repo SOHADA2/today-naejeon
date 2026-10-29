@@ -598,7 +598,20 @@ function renderLobby() {
   const me = M.find(m => m.me);
   el('lb-head').innerHTML = !myName ? '<span class="lb-wait"><span class="lobby-pulse"></span>롤 클라이언트에 로그인하면 자동으로 입장돼요</span>'
     : `<span class="lb-title"><span class="lb-en">LOBBY</span><b>대기실</b></span>`
-      + `<span class="lb-host">${L.hostName ? `<em>방장</em><span class="lb-hn">${esc(L.hostName)}</span>` : '<em class="no">방장 없음</em>'}</span>`;
+      + (myIsHost ? '<button id="lb-hostme" class="lb-hostme" title="방장 넘겨주기·그만하기">👑 내가 방장 <i>▾</i></button>'
+        : `<span class="lb-host">${L.hostName ? `<em>방장</em><span class="lb-hn">${esc(L.hostName)}</span>` : '<em class="no">방장 없음</em>'}</span>`);
+  { // 👑 방장 자리 — 아무도 없으면(또는 응답 없으면) 대기실 맨 위에 큰 버튼
+    const cta = el('lb-hostcta'), need = myName && !myIsHost && !L.hostName;
+    cta.style.display = need ? '' : 'none';
+    if (need) {
+      cta.innerHTML = `<div class="lb-hc-txt"><b>${L.hostStale ? `방장 ${esc(L.hostStale)}님이 응답이 없어요` : '아직 방장이 없어요'}</b>`
+        + `<small>방장이 방식을 고르고 「시작」을 눌러 팀을 짜요</small></div>`
+        + `<button id="lb-hc-go" class="ui-btn-gold lb-hc-go">👑 ${L.hostStale ? '방장 이어받기' : '내가 방장 할게요'}</button>`;
+      el('lb-hc-go').onclick = () => lbAct(() => window.api.setHost(true));
+    }
+    const hm = el('lb-hostme'); if (hm) hm.onclick = e => { e.stopPropagation(); toggleHostMenu(L); };
+    if (!myIsHost) el('lb-hostmenu').style.display = 'none';
+  }
   document.querySelectorAll('.lb-seg').forEach(b => {
     b.classList.toggle('on', b.dataset.mode === L.mode);
     b.disabled = !myIsHost;
@@ -663,7 +676,7 @@ function renderLobby() {
   go.disabled = n < 4 || !capsOk;
   go.textContent = n < 4 ? `4명부터 시작할 수 있어요 · 지금 ${n}명` : !capsOk ? '팀장 2명을 정해주세요' : draft ? `드래프트 시작 · ${n}명` : `랜덤으로 팀 짜기 · ${n}명`;
   el('lb-foot').innerHTML = myIsHost ? (n > 10 || n % 2 ? '<span>11명 이상이거나 홀수면 남는 사람은 관전으로 빠져요</span>' : '')
-    : !myName ? '' : L.hostName ? `<span class="lobby-pulse"></span>${esc(L.hostName)}님이 시작하면 바로 팀이 떠요` : '방장이 없어요 · 오른쪽 창 위 「방장 하기」로 맡을 수 있어요';
+    : !myName ? '' : L.hostName ? `<span class="lobby-pulse"></span>${esc(L.hostName)}님이 시작하면 바로 팀이 떠요` : '';
   // 오늘 순위(짧게)
   loadToday();
   const t = el('lb-today');
@@ -672,6 +685,22 @@ function renderLobby() {
     `<div class="wi-rk-row${nn(p.name) === nn(myName) ? ' me' : ''}"><span class="wi-rk-r num">${p.rank}</span><span class="wi-rk-nm">${esc(p.name)}</span><span class="wi-rk-lp"><span class="num">${p.wins}</span>승 <span class="num">${p.losses}</span>패</span></div>`).join('') + '</div>';
 }
 el('lb-start').onclick = () => lbAct(() => window.api.lobbyStart());
+function toggleHostMenu(L) {   // 👑 내가 방장 ▾ = 접속 중인 사람에게 넘겨주기 · 그만하기 (오른쪽 창 메뉴와 같은 기능)
+  const m = el('lb-hostmenu');
+  if (m.style.display !== 'none') { m.style.display = 'none'; return; }
+  const others = (L.members || []).filter(x => x.online && !x.guest && !x.me);
+  m.innerHTML = '<div class="lb-hm-hd">방장 넘겨주기</div>'
+    + (others.length ? others.map(o => `<button class="lb-hm-item" data-p="${esc(o.key)}">${avatar(o, 'chip-av')}<span>${esc(o.name)}</span></button>`).join('') : '<div class="lb-hm-empty">앱을 켠 다른 사람이 없어요</div>')
+    + '<button class="lb-hm-item stop" id="lb-hm-stop">방장 그만하기</button>';
+  m.style.display = '';
+  m.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
+    const o = others.find(x => x.key === b.dataset.p); if (!o) return;
+    if (!confirm(`${o.name}님에게 방장을 넘길까요?\n진행 중인 판은 그대로 이어져요.`)) return;
+    m.style.display = 'none'; lbAct(() => window.api.handHost(o.key));
+  });
+  el('lb-hm-stop').onclick = () => { m.style.display = 'none'; lbAct(() => window.api.setHost(false)); };
+}
+document.addEventListener('mousedown', e => { if (!e.target.closest('#lb-hostmenu, #lb-hostme')) el('lb-hostmenu').style.display = 'none'; });
 function lbAddGuest() { const i = el('lb-add'), v = i.value.trim(); if (!v) return; i.value = ''; lbAct(() => window.api.lobbyGuest(v)); }
 el('lb-add-go').onclick = lbAddGuest;
 el('lb-add').addEventListener('keydown', e => { if (e.key === 'Enter') lbAddGuest(); });

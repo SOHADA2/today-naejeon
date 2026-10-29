@@ -95,6 +95,9 @@
     <!-- 🚪 대기실 — 접속한 사람 모두가 같은 화면 -->
     <section id="view-lobby" class="view ui-scroll" style="display:none;">
       <div id="lb-head" class="lb-head"></div>
+      <div id="lb-hostmenu" class="lb-hostmenu" style="display:none;"></div>
+      <!-- 👑 방장이 없으면 대기실 맨 위에 「내가 방장 할게요」(v0.1.38 · 전엔 오른쪽 창 위에만 있어서 못 찾음) -->
+      <div id="lb-hostcta" class="lb-hostcta" style="display:none;"></div>
       <div class="lb-mode"><span class="lb-mode-l">이번 판 방식</span><button class="lb-seg" data-mode="random">랜덤</button><button class="lb-seg" data-mode="draft">드래프트</button></div>
       <div id="lb-caps" class="lb-caps" style="display:none;"></div>
       <div id="lb-order" class="dr-order lb-order" style="display:none;"></div>

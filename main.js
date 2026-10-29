@@ -742,7 +742,7 @@ function lobbyView() {
   const caps = L.captains || {};
   const inNames = members.filter(m => m.st === 'in').map(m => m.name);
   return { members, mode: L.mode === 'draft' ? 'draft' : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
-    hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost };
+    hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost };
 }
 function lobbyLocal(mut) {   // ⚡ 내 화면 먼저(서버 왕복 ~0.1~0.3초 안 기다림)
   lobbyRaw = JSON.parse(JSON.stringify(lobbyRaw || {}));
