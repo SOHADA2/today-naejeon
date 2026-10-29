@@ -61,6 +61,11 @@ public class Win{
  [DllImport("user32.dll")] public static extern int GetMessage(out MSG m,IntPtr h,uint a,uint b);
  [DllImport("user32.dll")] public static extern bool TranslateMessage(ref MSG m);
  [DllImport("user32.dll")] public static extern IntPtr DispatchMessage(ref MSG m);
+ [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h,out uint p);
+ [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h,int i);
+ [DllImport("user32.dll")] public static extern IntPtr GetTopWindow(IntPtr h);
+ [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h,uint c);
+ [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h,IntPtr a,int x,int y,int cx,int cy,uint f);
  public delegate void WinEventProc(IntPtr hook,uint ev,IntPtr hwnd,int idO,int idC,uint th,uint tm);
  public struct RECT{public int L,T,R,B;}
  public struct POINT{public int X,Y;}
@@ -68,19 +73,38 @@ public class Win{
  static IntPtr target=IntPtr.Zero;
  static string last=null;
  static WinEventProc cb;
+ static uint ourPid=__OUR_PID__;          // 이 앱 메인 프로세스(패널 창 주인)
+ static bool withClient=__WITH_CLIENT__;  // 도킹 켬 = 롤 클라도 묶음에 넣음
+ static bool Ours(IntPtr h){ uint p; GetWindowThreadProcessId(h,out p); return p==ourPid; }
+ static bool Topmost(IntPtr h){ return (GetWindowLong(h,-20)&8)!=0; }   // WS_EX_TOPMOST(마커·팟지·확인창)
+ static bool InGroup(IntPtr h){ return h!=IntPtr.Zero && ((withClient && h==target) || Ours(h)); }
  static string Snap(){
   IntPtr h=FindWindow(null,"League of Legends");
   target=h;
   if(h==IntPtr.Zero) return "gone";                // 클라 창 자체가 없음(=종료) — 최소화와 구분
   if(!IsWindowVisible(h)||IsIconic(h)) return "";  // 최소화/숨김(=종료 아님·플로팅)
   RECT r; if(DwmGetWindowAttribute(h,9,out r,16)!=0 && !GetWindowRect(h,out r)) return "";  // 9=DWMWA_EXTENDED_FRAME_BOUNDS(보이는 실제 경계·투명 테두리 제외)
-  int fg=(GetForegroundWindow()==h)?1:0;
+  IntPtr f=GetForegroundWindow();
+  int fg=(f==h || Ours(f))?1:0;                    // 클라 '또는 우리 창'이 활성 = 한 묶음이 활성(클라↔패널 오갈 때 마커 안 깜빡임)
   return r.L+" "+r.T+" "+r.R+" "+r.B+" "+fg;
+ }
+ // 🪟 한 묶음 올리기 — 클라·왼쪽 창·오른쪽 창 중 하나가 활성이 되면 나머지를 그 바로 아래로(활성은 안 뺏음)
+ //   ⚠️ 항상 위(topmost) 창은 빼야 함: 그 아래로 끼우면 끼운 창도 항상 위가 됨
+ static void Restack(){
+  IntPtr f=GetForegroundWindow();
+  if(!InGroup(f) || Topmost(f) || IsIconic(f)) return;
+  IntPtr prev=f;
+  for(IntPtr h=GetTopWindow(IntPtr.Zero); h!=IntPtr.Zero; h=GetWindow(h,2)){   // 위에서부터(지금 순서 유지)
+   if(h==f || !InGroup(h) || !IsWindowVisible(h) || IsIconic(h) || Topmost(h)) continue;
+   SetWindowPos(h,prev,0,0,0,0,0x0213);            // NOSIZE|NOMOVE|NOACTIVATE|NOOWNERZORDER
+   prev=h;
+  }
  }
  static void Emit(){ string s=Snap(); if(s!=last){ last=s; Console.Out.WriteLine(s); Console.Out.Flush(); } }
  static void OnEvent(IntPtr hook,uint ev,IntPtr hwnd,int idO,int idC,uint th,uint tm){
   if(ev==0x800B){ if(idO!=0 || hwnd!=target) return; }   // 위치변경=대상 창 본체만(오버헤드 최소)
   Emit();
+  if(ev==0x0003) Restack();
  }
  public static void Run(){
   cb=new WinEventProc(OnEvent);
@@ -95,7 +119,7 @@ public class Win{
 }
 '@
 [Win]::Run()`;
-const _dockB64 = Buffer.from(_dockScript, 'utf16le').toString('base64');
+const _dockB64 = (withClient) => Buffer.from(_dockScript.replace('__OUR_PID__', String(process.pid)).replace('__WITH_CLIENT__', withClient ? 'true' : 'false'), 'utf16le').toString('base64');
 
 function setDockedFlag(v) {                    // 도킹 상태 → 오버레이에 알려 모서리 각지게(각/둥금 전환)
   if (v === dockedNow) return; dockedNow = v;
@@ -164,7 +188,7 @@ function onLobbySeat(d) {
 function updateSlotMarker(p) {   // p=[L,T,R,B] 원시 px(클라 감지됨)
   const t = teamOf(sessionData, config.myName);
   const side = t === 'teamA' ? 1 : t === 'teamB' ? 2 : 0;
-  // 로비 + 내 팀 있고 + 클라가 활성창일 때만(다른 창 위에 안 뜨게) · 이번 팀결성으로 게임이 이미 시작됐으면 숨김(게임 후 재등장 방지 — 다음 팀결성 때만 다시)
+  // 로비 + 내 팀 있고 + 클라 또는 우리 창이 활성일 때만(다른 앱 위엔 안 뜨게) · 이번 팀결성으로 게임이 이미 시작됐으면 숨김(게임 후 재등장 방지 — 다음 팀결성 때만 다시)
   const startedThisFormation = !!(lastFormed && _slotDoneFormed === lastFormed);
   // v0.1.51: 롤 대기방(Lobby·커스텀)일 때만 — 「게임 시작」 뒤 챔피언 선택(프로필 나오는 화면)·홈 화면·일반 큐 로비엔 안 뜸
   const inLobby = lobbyPhase === 'Lobby' && lobbyCustom !== false;
@@ -210,7 +234,7 @@ function applyRaise() {
   };
   show(overlayWin, !userHid && !sampleActive && !overlayMinimized);
   show(leftWin, config.sidePanel !== false && !leftUserHid && !leftMinimized);
-  // 📍 마커는 클라가 '활성창'일 때만(도킹 중·다른 앱 위엔 안 뜨게)
+  // 📍 마커는 클라 또는 우리 창이 활성일 때만(도킹 중·다른 앱 위엔 안 뜨게 · v0.1.53: 우리 창 눌러도 유지)
   if (!_floating && clientFg && _lastRect) updateSlotMarker(_lastRect); else hideSlotMarker();
 }
 function evalRaise() {   // 올릴 땐 즉시, 내릴 땐 살짝 텀(클라↔패널 클릭 전환 깜빡임 방지)
@@ -267,7 +291,7 @@ function handleDockLine(line) {
   //   (마지막 좌표 기억 때문에 왼쪽 창만 클라를 움직여야 붙던 문제 — 오른쪽은 게임 중 숨기며 기억이 지워져 괜찮았음)
   if (_floating) { _floating = false; _lastRaise = null; dockedBounds = null; leftDockedBounds = null; }
   _lastRect = p;
-  const fg = p[4] === 1;                            // 롤 클라가 지금 활성창인가
+  const fg = p[4] === 1;                            // 클라 또는 우리 창이 지금 활성인가(한 묶음 — 도킹 스크립트 Snap)
   if (fg !== clientFg) { clientFg = fg; }
   const w = p[2] - p[0], h = p[3] - p[1], sig = `${p[0]},${p[1]},${w},${h}`;
   // ◀ 팀·명단 오버레이 = 클라 왼쪽 (숨김 상태여도 위치는 갱신)
@@ -294,14 +318,15 @@ function queueDockLine(line) {
 function startDockStream() {
   if (dockProc) return;
   try {
-    dockProc = spawn('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', _dockB64], { windowsHide: true });
-    dockProc.stdout.on('data', chunk => {
+    const proc = dockProc = spawn('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', _dockB64(config.dock !== false)], { windowsHide: true });
+    proc.stdout.on('data', chunk => {
+      if (dockProc !== proc) return;
       _dockBuf += chunk.toString(); let i, latest = null;
       while ((i = _dockBuf.indexOf('\n')) >= 0) { latest = _dockBuf.slice(0, i).trim(); _dockBuf = _dockBuf.slice(i + 1); }
       if (latest !== null) queueDockLine(latest);
     });
-    dockProc.on('exit', () => { dockProc = null; if (!app._quitting) setTimeout(startDockStream, 2000); });  // 죽으면 재기동
-    dockProc.on('error', () => { dockProc = null; });
+    proc.on('exit', () => { if (dockProc !== proc) return; dockProc = null; if (!app._quitting) setTimeout(startDockStream, 2000); });  // 죽으면 재기동(stopDockStream으로 끈 건 제외)
+    proc.on('error', () => { if (dockProc === proc) dockProc = null; });
   } catch (_) { dockProc = null; }
 }
 function stopDockStream() { if (dockProc) { try { dockProc.kill(); } catch (_) {} dockProc = null; } }
@@ -1503,6 +1528,7 @@ function toggleDock() {
   config.dock = (config.dock === false);   // 뒤집기(기본 켜짐)
   saveConfig();
   if (config.dock !== false) { dockedBounds = null; }
+  stopDockStream(); _dockBuf = ''; startDockStream();   // 🪟 묶음 올리기에 클라를 넣을지(도킹 켬/끔)가 스크립트에 들어가 있어 다시 띄움
   refreshTrayMenu(); try { broadcastSettings(); } catch (_) {}
 }
 function toggleSidePanel() {                // ▶ 내 정보 패널 on/off
