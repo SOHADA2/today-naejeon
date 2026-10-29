@@ -22,6 +22,7 @@ let _onAccount  = () => {};     // 👤 롤에 로그인된 라이엇 계정 변
 let _onEog      = () => {};     // 📼 게임 결과 수집 단계 알림 → 왼쪽 창 「기록 저장 중」 화면
 let _onNormal   = () => {};     // 🎮 일반 게임(비커스텀) 결과 → main recordNormal(앱 켠 친구 2명+가 같은 팀이면 「같이 한 일반 판」)
 let _fakeLcu    = null;         // 🧪 개발용 "port:password"(TN_FAKE_LCU) — lockfile 대신 이 주소로 붙음
+let _onLobbySeat = () => {};   // 🪑 커스텀 로비에서 내가 앉은 쪽(1=왼쪽 팀100 · 2=오른쪽 팀200 · 'spec'=관전석 · null=로비 아님) → main 「내 팀」 마커
 let _isHost     = () => false;  // 👑 이 PC가 방장인지(리플레이 확인에서 실제 다운로드는 방장만)
 let _lolDir     = null;         // 롤 설치 폴더(lockfile 있는 곳) — Config/game.cfg 확인용
 
@@ -591,6 +592,25 @@ async function pollAccount() {
   if (key !== _acctKey) { _acctKey = key; try { _onAccount(acc); } catch (_) {} }
 }
 
+// ── 🪑 커스텀 로비 자리 — 팀을 짠 뒤 롤 대기방에서 맞는 쪽에 앉았는지 마커가 알려줌(1.5초, 로비일 때만 LCU 호출) ──
+let _seatTimer = null, _seatKey = undefined;
+async function pollSeat() {
+  let seat = null;
+  if (basePort && lastPhase === 'Lobby') {
+    try {
+      const lb = await lcu('/lol-lobby/v2/lobby');
+      const gc = lb && lb.gameConfig, me = lb && lb.localMember;
+      if (gc && gc.isCustom && me) {
+        const mine = (m) => m && ((me.puuid && m.puuid === me.puuid) || (me.summonerId && m.summonerId === me.summonerId));
+        const has = (arr) => Array.isArray(arr) && arr.some(mine);
+        seat = has(gc.customTeam100) ? 1 : has(gc.customTeam200) ? 2 : has(gc.customSpectators) ? 'spec' : null;
+      }
+    } catch (_) {}
+  }
+  const key = String(seat);
+  if (key !== _seatKey) { _seatKey = key; log(`🪑 로비 자리: ${seat == null ? '-' : seat}`); try { _onLobbySeat(seat); } catch (_) {} }
+}
+
 // ── LCU 연결 이벤트 ──────────────────────────────────────────────────────────
 connector.on('connect', async data => {
   basePort = data.port;
@@ -602,6 +622,7 @@ connector.on('connect', async data => {
   await fbSet(`${BRIDGE_ROOT}/connected`, true);
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(poll, 3000); poll();
+  if (!_seatTimer) _seatTimer = setInterval(pollSeat, 1500);
   if (_missedGame) { const m = _missedGame; _missedGame = null; scheduleHistoryBackfill(m.gameId); }   // 🛟 게임 직후 클라를 꺼서 못 잡은 판
 });
 connector.on('disconnect', async () => {
@@ -612,6 +633,7 @@ connector.on('disconnect', async () => {
   pollAccount();   // 클라 종료 → 계정 없음
   gameInProgress = false; activeGameId = null; activeIsCustom = null;
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  if (_seatTimer) { clearInterval(_seatTimer); _seatTimer = null; } pollSeat();   // 클라 종료 → 자리 없음
   await fbSet(`${BRIDGE_ROOT}/connected`, false);
   await fbSet(`${BRIDGE_ROOT}/inGame`, null);
 });
@@ -628,6 +650,7 @@ async function start(opts) {
   _onEog     = (opts && opts.onEog)           || (() => {});
   _onNormal  = (opts && opts.onNormal)        || (() => {});
   _isHost    = (opts && opts.isHost)          || (() => false);
+  _onLobbySeat = (opts && opts.onLobbySeat)  || (() => {});
   log('내장 브릿지 시작 — LCU 감지 대기');
   startHeartbeat();
   connector.start();
@@ -641,6 +664,7 @@ function stop() {
   stopEogWatch();
   if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
   if (_acctTimer) { clearInterval(_acctTimer); _acctTimer = null; }
+  if (_seatTimer) { clearInterval(_seatTimer); _seatTimer = null; }
   fbSet(`${BRIDGE_ROOT}/connected`, false);
   fbSet(`${BRIDGE_ROOT}/inGame`, null);
   fbSet(`${BRIDGE_ROOT}/operators/${OPERATOR_ID}`, null);
