@@ -1,7 +1,10 @@
 // 🎬 팟지 미리보기 영상 만들기(v0.1.41) — 실제 팟지 창(potg/potg.html·potg.js)을 화면에 안 띄우고(offscreen) 재생하며 녹화
 //   화면 = offscreen 'paint' 프레임 → 30fps로 고름 · 소리 = 재생 중 기록(영상·BGM 위치/볼륨·효과음 시각)대로 tools/potg-preview-mix.py가 다시 섞음
 // 사용(리포 루트, ELECTRON_RUN_AS_NODE 끄고): electron tools/potg-preview.cjs <영상.webm> <card.json> <출력폴더>
-//   card.json = 팟지 카드(potg.js가 받는 것과 같은 모양, clip은 {n:1} 아무거나) · 출력 = frames/*.jpg + log.json
+//   card.json = 팟지 카드(potg.js가 받는 것과 같은 모양, clip은 {n:1} 아무거나) · 출력 = frames/*.jpg + log.json + audio.webm
+// v0.1.61: 소리 = 팟지 창이 실제로 내는 소리를 그대로 녹음(audio.webm · 게임 영상·BGM·효과음을 페이지 안 WebAudio로 모아 MediaRecorder)
+//   → mp4: ffmpeg -framerate 30 -i frames/%05d.jpg -itsoffset <log.audioOffset> -i audio.webm -c:v libx264 -pix_fmt yuv420p -crf 20 -c:a aac -b:a 192k -shortest out.mp4
+//   (예전 potg-preview-mix.py는 BGM 속도(박자 맞춤 0.75~1.22배)를 몰라 1배속으로 가정해 위치를 억지로 당기고 건너뛰어 「지지직」 찢어졌음 — 실제 앱 소리 아님)
 const { app, BrowserWindow } = require('electron');
 const fs = require('fs'), path = require('path');
 const [clipFile, cardFile, outDir] = process.argv.slice(-3);
@@ -31,11 +34,19 @@ app.whenReady().then(async () => {
     window.__L = { ev: [], s: [], t0: performance.now() };
     const now = () => (performance.now() - __L.t0) / 1000;
     const ps = playSfx; playSfx = (n, g) => { __L.ev.push({ n, t: now(), g: g || 1 }); ps(n, g); };
+    window.__AC = new AudioContext(); const dest = __AC.createMediaStreamDestination(); window.__AP = [];
+    const hook = a => { try { __AC.createMediaElementSource(a).connect(dest); } catch (_) {} return a; };
+    hook(el('pg-video')); hook(bgm.a); const _A = window.Audio; window.Audio = function (src) { return hook(new _A(src)); };   // 효과음(new Audio)도
+    window.__MR = new MediaRecorder(dest.stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 192000 });
+    __MR.ondataavailable = e => { if (e.data && e.data.size) __AP.push(e.data); }; __AC.resume(); __MR.start(500); window.__REC_T0 = Date.now();
     (function loop() { const v = el('pg-video'); __L.s.push([now(), v.currentTime, v.paused || v.ended || !v.src ? 0 : 1, v.volume, v.playbackRate, bgm.a.currentTime, bgm.a.paused ? 0 : 1, bgm.a.volume, /_preview_clip2/.test(v.src) ? 1 : 0]); requestAnimationFrame(loop); })();
     window.__cb({ card: ${JSON.stringify(card)}, manual: true }); return 1; })()`);
   for (let i = 0; i < 120; i++) { await new Promise(r => setTimeout(r, 500)); if (await win.webContents.executeJavaScript(`document.getElementById('pg-end').style.display === ''`)) break; }
   await new Promise(r => setTimeout(r, 5600));   // 끝 화면 + BGM 페이드
   const log = JSON.parse(await win.webContents.executeJavaScript('JSON.stringify(__L)'));
+  const aud = await win.webContents.executeJavaScript(`new Promise(r => { __MR.onstop = async () => { const u = new Uint8Array(await new Blob(__AP, { type: 'audio/webm' }).arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); r({ b64: btoa(s), t0: __REC_T0 }); }; __MR.stop(); })`);
+  fs.writeFileSync(path.join(outDir, 'audio.webm'), Buffer.from(aud.b64, 'base64'));
+  log.audioOffset = (aud.t0 - t0) / 1000;   // 소리 녹음이 화면 녹화(t0)보다 늦게 시작한 만큼
   const dur = (Date.now() - t0) / 1000;
   let j = 0, n = 0;
   for (let t = 0; t < dur; t += 1 / FPS) { while (j + 1 < frames.length && frames[j + 1].t <= t) j++; if (!frames.length) break; fs.writeFileSync(path.join(outDir, 'frames', String(n++).padStart(5, '0') + '.jpg'), frames[j].jpg); }
