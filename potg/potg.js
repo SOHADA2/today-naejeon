@@ -157,7 +157,7 @@ function end(my) {
   if (!touched) idleTimer = setTimeout(() => window.api.potgClose(), 15000);   // 아무도 안 누르면 15초 뒤 닫힘
 }
 
-function sfx(team) { try { const a = new Audio(`../assets/sfx/pick-t${team}.ogg`); a.volume = 0.2; a.play().catch(() => {}); } catch (_) {} }
+function sfx(team) { try { const a = new Audio(`../assets/sfx/pick-t${team}.ogg`); a.volume = 0.2 * (window.__tnVol == null ? 1 : window.__tnVol); a.play().catch(() => {}); } catch (_) {} }
 
 document.addEventListener('pointerdown', () => { touched = true; clearTimeout(idleTimer); });
 el('pg-x').onclick = el('pg-close').onclick = () => window.api.potgClose();

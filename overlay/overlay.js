@@ -159,9 +159,10 @@ function playPick(s, lp) {
 }
 // 🔊 픽 효과음 = 실제 악기 녹음(VSCO-2 CE·CC0)으로 미리 섞은 「둥–툭–둥」 베이스: 콘트라베이스+첼로 피치카토(1팀 레→라 · 2팀 도→솔)
 //   0.2초 「둥」 = 화면에서 이름이 꽂히는 순간 · 0.37 「툭」 · 0.54 「둥」(화면 흔들림 세 번과 같은 박자). 재료·방법 = assets/sfx/CREDITS.txt
+const VOL = () => (window.__tnVol == null ? 1 : window.__tnVol);   // ⚙️ 설정의 효과음 크기(desktop/settings.js)
 const PICK_SFX = { A: new Audio('../assets/sfx/pick-t1.ogg'), B: new Audio('../assets/sfx/pick-t2.ogg') };
 Object.values(PICK_SFX).forEach(a => { a.preload = 'auto'; a.volume = 0.2; });   // 사장님: 0.7에서 10~11dB 더 작게
-function pickSound(A) { try { const a = PICK_SFX[A ? 'A' : 'B']; a.currentTime = 0; const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (_) {} }
+function pickSound(A) { try { const a = PICK_SFX[A ? 'A' : 'B']; a.volume = 0.2 * VOL(); if (!a.volume) return; a.currentTime = 0; const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (_) {} }
 // 🎯 뽑는 순서 막대: 같은 팀이 연달아 뽑는 칸은 한 묶음 · 뽑은 칸=흐리게 · 지금 차례=꽉 채워 튀어 오름
 function orderBar(order, idx, labels) {
   const groups = [];
@@ -191,7 +192,7 @@ const COIN_SFX_T = { FLY: 0.44, LAND: 1.84, ZOOM: 2.79 };
 // 🔊 효과음 부품(마스터·압축·리미터·잔향 + 소리 조각) — 동전·드래프트 픽이 같이 씀
 function sfxKit(ac) {
   const sr = ac.sampleRate;
-  const master = ac.createGain(); master.gain.value = 0.42;
+  const master = ac.createGain(); master.gain.value = 0.42 * (ac instanceof OfflineAudioContext ? 1 : VOL());
   const comp = ac.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.2;
   const lim = ac.createDynamicsCompressor(); lim.threshold.value = -4; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.1;   // 찢어지는 소리 방지
   master.connect(comp); comp.connect(lim); lim.connect(ac.destination);
@@ -255,7 +256,7 @@ function coinReveal(ac, K, z, A) {
 // · 0.76 리볼버 돌리는 「휙」 · 1.16/2.33 몸 돌릴 때 옷자락 · 2.91 정면 튕김 「팅·휙」 · 3.38 꽂힘 「쿵+와장창」 · 4.08 총 뽑는 「철컥」 · 4.43 「찰칵」 (전엔 받는 소리가 0.15초 늦고 움직임에 소리가 없었음)
 // 시각 = coin3d INTRO(0.4)+Taunt 시각과 맞춤 · 재료·섞는 법 = assets/sfx/CREDITS.txt
 const _coinSfx = (() => { try { const a = new Audio('../assets/sfx/coin-samira.ogg'); a.preload = 'auto'; return a; } catch (_) { return null; } })();
-function coinSamiraSound() { try { if (!_coinSfx) return; _coinSfx.pause(); _coinSfx.currentTime = 0; _coinSfx.volume = 0.3; _coinSfx.play().catch(() => {}); } catch (_) {} }
+function coinSamiraSound() { try { if (!_coinSfx) return; _coinSfx.pause(); _coinSfx.currentTime = 0; _coinSfx.volume = 0.3 * VOL(); _coinSfx.play().catch(() => {}); } catch (_) {} }
 function coinSound(A) {   // 앱에서 재생 = 지금 시각 기준으로 전체 예약
   try {
     _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
@@ -598,15 +599,15 @@ function renderLobby() {
   const me = M.find(m => m.me);
   el('lb-head').innerHTML = !myName ? '<span class="lb-wait"><span class="lobby-pulse"></span>롤 클라이언트에 로그인하면 자동으로 입장돼요</span>'
     : `<span class="lb-title"><span class="lb-en">LOBBY</span><b>대기실</b></span>`
-      + (myIsHost ? '<button id="lb-hostme" class="lb-hostme" title="방장 넘겨주기·그만하기">👑 내가 방장 <i>▾</i></button>'
+      + (myIsHost ? '<button id="lb-hostme" class="lb-hostme">👑 내가 방장 <i>▾</i></button>'
         : `<span class="lb-host">${L.hostName ? `<em>방장</em><span class="lb-hn">${esc(L.hostName)}</span>` : '<em class="no">방장 없음</em>'}</span>`);
   { // 👑 방장 자리 — 아무도 없으면(또는 응답 없으면) 대기실 맨 위에 큰 버튼
     const cta = el('lb-hostcta'), need = myName && !myIsHost && !L.hostName;
     cta.style.display = need ? '' : 'none';
     if (need) {
-      cta.innerHTML = `<div class="lb-hc-txt"><b>${L.hostStale ? `방장 ${esc(L.hostStale)}님이 응답이 없어요` : '아직 방장이 없어요'}</b>`
-        + `<small>방장이 방식을 고르고 「시작」을 눌러 팀을 짜요</small></div>`
-        + `<button id="lb-hc-go" class="ui-btn-gold lb-hc-go">👑 ${L.hostStale ? '방장 이어받기' : '내가 방장 할게요'}</button>`;
+      // v0.1.39: 설명 글 대신 버튼만 — 설명은 마우스를 올리면(tn-tip)
+      cta.dataset.tip = (L.hostStale ? `방장 ${L.hostStale}님이 1분 넘게 응답이 없어요.\n` : '') + '방장은 방식을 고르고 「시작」을 눌러 팀을 짜요.\n경기 기록·투표 마감도 방장 앱이 해요.';
+      cta.innerHTML = `<button id="lb-hc-go" class="ui-btn-gold lb-hc-go">👑 ${L.hostStale ? '방장 이어받기' : '방장 하기'}</button>`;
       el('lb-hc-go').onclick = () => lbAct(() => window.api.setHost(true));
     }
     const hm = el('lb-hostme'); if (hm) hm.onclick = e => { e.stopPropagation(); toggleHostMenu(L); };

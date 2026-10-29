@@ -17,10 +17,16 @@ contextBridge.exposeInMainWorld('api', {
   overlayMinimize: () => ipcRenderer.send('overlay-min'),
   hideOverlay: () => ipcRenderer.send('overlay-hide'),
   openWeb: () => ipcRenderer.send('open-web'),
-  // 🔄 업데이트 토스트 · 🚪 클라 종료 확인창
-  onUpdateInfo: (cb) => ipcRenderer.on('update-info', (_e, d) => cb(d)),
+  // 🔄 업데이트(v0.1.39: 창 안에 표시) {cur, state:'idle'|'checking'|'downloading'|'ready'|'latest'|'error'|'dev', version, pct} · 🚪 클라 종료 확인창
+  getUpdate: () => ipcRenderer.invoke('update-info'),
+  onUpdate: (cb) => ipcRenderer.on('update', (_e, d) => cb(d)),
+  checkUpdate: () => ipcRenderer.send('update-check'),
   updateNow: () => ipcRenderer.send('update-now'),
-  updateLater: () => ipcRenderer.send('update-later'),
+  // ⚙️ 설정 {sfxOn, sfxVol, dock, sidePanel, closeAsk, hotkey}
+  getSettings: () => ipcRenderer.invoke('settings-get'),
+  setSetting: (key, value) => ipcRenderer.invoke('settings-set', { key, value }),
+  onSettings: (cb) => ipcRenderer.on('settings', (_e, d) => cb(d)),
+  quitApp: () => ipcRenderer.send('app-quit'),
   quitConfirm: (yes, noAsk) => ipcRenderer.send('quit-confirm', yes, !!noAsk),
   // 👤 입장(라이엇 계정 자동)
   getPlayers: () => ipcRenderer.invoke('get-players'),
