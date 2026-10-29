@@ -1000,10 +1000,16 @@ async function recordNormal(e) {
   const rec = { gameId: gid, day, ts: Date.now(), source: e.source || 'eog', queueId: e.queueId == null ? null : e.queueId, gameMode: e.gameMode || null, queue: queueName(e.queueId, e.gameMode),
     side: Number(side), win, us: us.map(p => p.summonerName), ids, gameTime: e.gameTime || 0, stats: e.players, by: config.myName || '' };
   const w = await fbPutIfAbsent(`${T}/days/${day}/normals/${gid}`, rec);
-  if (!w.ok) { console.log('[normal] ' + (w.conflict ? '다른 친구 앱이 먼저 저장' : w.err)); return; }   // 먼저 저장한 앱이 팟지도 맡음
-  console.log(`[normal] 같이 한 판 저장 ${rec.queue} ${win ? '승' : '패'} · ${rec.us.join(', ')}`);
-  _profIdx = null;
-  normalPotg(rec).catch(err => console.log('[normal] 팟지 오류', err && err.message));
+  if (w.ok) { console.log(`[normal] 같이 한 판 저장 ${rec.queue} ${win ? '승' : '패'} · ${rec.us.join(', ')}`); _profIdx = null; }
+  else console.log('[normal] ' + (w.conflict ? '다른 친구 앱이 먼저 저장' : w.err));
+  // 🎬 팟지 담당 = 내전처럼 **방장 PC**(그 판에 방장이 있으면) · 방장이 그 판에 없거나 방장이 없으면 기록을 먼저 저장한 앱
+  const hostIn = !!(hostRec && hostAlive(hostRec) && Object.values(ids).includes(hostRec.puuid));
+  const mine = hostIn ? !!(config.isHost && account && hostRec.puuid === account.puuid) : w.ok;
+  if (!mine) return;
+  let use = rec;
+  if (!w.ok) { const cur = await getJson(`${FIREBASE_DB}/${T}/days/${day}/normals/${gid}.json`); if (!cur || !Array.isArray(cur.us)) return; if (cur.potg) return; use = cur; }   // 다른 앱이 저장한 기록으로(같은 판)
+  console.log(`[normal] 팟지 담당 = 이 앱(${hostIn ? '방장' : '먼저 저장'})`);
+  normalPotg(use).catch(err => console.log('[normal] 팟지 오류', err && err.message));
 }
 async function normalPotg(rec) {
   if (!potg) return;
