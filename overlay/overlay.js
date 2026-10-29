@@ -65,6 +65,18 @@ function renderTeam() {
   if (s.pendingEog) { pend.style.display = ''; pend.textContent = '경기가 끝났어요 · 방장이 승리팀을 확인하는 중'; }
   else if (_gamePlayed) { pend.style.display = ''; pend.textContent = '경기 결과 기록 대기 중…'; }
   else pend.style.display = 'none';
+  showCancel('tv-cancel', '팀 배정을 취소하고 모두 대기실로 돌아갈까요?' + (_gamePlayed || s.pendingEog ? '\n⚠️ 방금 끝난 경기 결과가 아직 기록 전이에요 — 취소하면 이 판은 기록되지 않아요.' : ''));
+}
+// 👑 팀 배정·드래프트 취소(v0.1.59) — 원래 오른쪽 창 「진행」 탭 맨 아래에만 있어 못 찾음(사장님) → 왼쪽 팀 화면에 방장만
+function showCancel(id, ask) {
+  const b = el(id); b.style.display = myIsHost ? '' : 'none';
+  b.onclick = async () => {
+    if (b.disabled || !confirm(ask)) return;
+    b.disabled = true;
+    const r = await window.api.lobbyReopen().catch(e => ({ ok: false, err: String(e) }));
+    b.disabled = false;
+    if (!r || !r.ok) alert('취소 실패 · ' + ((r && r.err) || '다시 눌러주세요'));
+  };
 }
 
 // ── 🎯 드래프트 픽 ─────────────────────────────────────────────────────────
@@ -93,6 +105,7 @@ function renderDraft() {
   el('dr-b').innerHTML = col('teamB', '2팀');
   el('dr-a').classList.toggle('turn', team === 'teamA');
   el('dr-b').classList.toggle('turn', team === 'teamB');
+  showCancel('dr-cancel', '드래프트를 취소하고 모두 대기실로 돌아갈까요?');
   const pool = s.pool || [];
   el('dr-pool-h').textContent = canPick ? (myTurn ? `남은 ${pool.length}명 — 눌러서 뽑기` : `남은 ${pool.length}명 — 방장: 눌러서 대신 뽑기`) : `남은 ${pool.length}명`;
   el('dr-pool').innerHTML = pool.map(n => `<button class="dr-p${nn(n) === nn(myName) ? ' me' : ''}" data-name="${esc(n)}" ${canPick ? '' : 'disabled'}>${esc(n)}${_standing(n) ? `<small>${_standing(n).wins}승 ${_standing(n).losses}패</small>` : ''}</button>`).join('');
