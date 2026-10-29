@@ -19,25 +19,29 @@ async function shrink(src, W, kbps, zoom) {
   const g = cv.getContext('2d');
   const ac = new AudioContext(), dest = ac.createMediaStreamDestination();
   try { ac.createMediaElementSource(v).connect(dest); } catch (_) {}   // 스피커로는 안 내보냄(소리 안 남)
-  const stream = cv.captureStream(30);
+  // v0.1.58: 고정 30fps 캡처 + 33ms 타이머(실제 30.3장/초)가 어긋나 3.3초마다 한 장씩 빠졌음(맥놀이 · 실측 66ms 끊김 3.3초 간격)
+  //   → 캡처는 0(자동 안 함), 영상 프레임이 새로 나올 때마다(requestVideoFrameCallback) 그리고 그 자리에서 requestFrame
+  const stream = cv.captureStream(0), vtrack = stream.getVideoTracks()[0];
   dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
   const mime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m));
   const mr = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: (kbps || 3500) * 1000, audioBitsPerSecond: 96000 });
   const parts = [];
   mr.ondataavailable = e => { if (e.data && e.data.size) parts.push(e.data); };
   const done = new Promise(r => { mr.onstop = r; });
-  const draw = () => { if (v.readyState >= 2) g.drawImage(v, sx, sy, sw, sh, 0, 0, w, h); };
+  const draw = () => { if (v.readyState >= 2) { g.drawImage(v, sx, sy, sw, sh, 0, 0, w, h); try { vtrack.requestFrame(); } catch (_) {} } };
   await ac.resume().catch(() => {});
   await v.play();
   draw(); mr.start(1000);   // 재생이 시작된 뒤에 녹화 시작(먼저 켜면 영상 시각이 0.2초쯤 밀려 킬 순간 연출이 늦어짐)
-  const timer = setInterval(draw, 1000 / 30);   // 숨은 창은 requestAnimationFrame이 느려서 타이머로 그림
+  let timer = null, frames = 0;
+  if (v.requestVideoFrameCallback) { const loop = () => { frames++; draw(); if (!v.ended) v.requestVideoFrameCallback(loop); }; v.requestVideoFrameCallback(loop); }
+  timer = setInterval(() => { if (!frames) draw(); }, 1000 / 30);   // 숨은 창에서 영상 프레임 알림이 안 오면 예전처럼 타이머로(오기 시작하면 타이머는 안 그림)
   await new Promise(r => { v.onended = r; setTimeout(r, (v.duration + 10) * 1000); });
-  draw(); clearInterval(timer);
+  draw(); if (timer) clearInterval(timer);
   mr.stop(); await done;
   const buf = await new Blob(parts, { type: 'video/webm' }).arrayBuffer();
   let s = ''; const u = new Uint8Array(buf);
   for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
-  return { b64: btoa(s), w, h, sec: v.duration };
+  return { b64: btoa(s), w, h, sec: v.duration, rvfc: frames };
 }
 </script>
 </body></html>

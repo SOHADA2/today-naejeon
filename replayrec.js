@@ -146,7 +146,7 @@ function makeReplayRec(d) {
           to = Math.min(to, len - 0.5); from = Math.max(0, Math.min(from, to - 3));
           // v0.1.34: 앞 구간(PRE초) 먼저 재생해 화면·카메라가 자리 잡은 뒤 녹화 — 전엔 되감기(seek)가 끝나기 전에 녹화가 시작돼
           //   첫 몇 초가 멈춘 기지 화면이었고, 녹화도 7~10초 만에 끊겨 정작 킬 장면이 빠졌음(실제 판 8436676738·8436741245)
-          const PRE = 3, startAt = Math.max(0, from - PRE);
+          const PRE = makeReplayRec.PRE, startAt = Math.max(0, from - PRE);
           const seekTo = async t => {   // 되감기 끝날 때까지(최대 40초)
             await live('POST', '/replay/playback', { time: t, paused: true, speed: 1 });
             for (let i = 0; i < 80; i++) { await sleep(500); const p = await live('GET', '/replay/playback'); if (p.data && !p.data.seeking && Math.abs((p.data.time || 0) - t) < 1.5) return true; }
@@ -200,5 +200,9 @@ function makeReplayRec(d) {
   return { record, ensureReplayApi, restorePending: () => restoreCfg(null), _findClip: findClip };
 }
 
+// v0.1.58: 롤은 startTime을 안 기다리고 재생이 시작되는 startAt(= from − PRE)부터 바로 찍음(실측: 540~556 요청 → 538.1초에 이미 녹화 중 · 영상 18.9초)
+//   → 영상 0초 = startAt. main recordPotgClip이 영상이 생긴 장면의 clipFrom을 여기로 옮겨 팟지 연출(킬 자막·슬로) 시각을 맞춤
+makeReplayRec.PRE = 3;
+makeReplayRec.videoStart = (from, to) => Math.max(0, Math.max(0, Math.min(from, to - 3)) - makeReplayRec.PRE);   // recordOne과 같은 계산
 module.exports = makeReplayRec;
 module.exports.defaults = () => ({ docsDir: path.join(os.homedir(), 'Documents', 'League of Legends', 'Highlights') });

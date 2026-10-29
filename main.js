@@ -1017,7 +1017,7 @@ async function hostPotg(s) {
     card.gameId = String(s.game.id);
     try { card.splash = await potg.splashFor(card.championId, card.skin); } catch (_) {}   // 🖼️ 소개 배경 = 그 사람이 낀 스킨 일러스트
     try {   // 🛡️ 숨은 영웅(v0.1.44) — 팟지 주인공 말고, 킬 아닌 장면(광역 이니시·버티기·세이브·한타 설계) 하나 더
-      const hero = potg.pickHero(raws, s, rec && rec.stats, card.name);
+      const hero = potg.pickHero(raws, s, rec && rec.stats, card.name, { avoid: [card.clipFrom, card.clipTo] });   // 팟지와 같은 한타는 숨은 영웅으로 안 고름
       if (hero) { try { hero.splash = await potg.splashFor(hero.championId, hero.skin); } catch (_) {} card.hero = hero; }
     } catch (e) { console.log('[potg] 숨은 영웅 고르기 오류', e && e.message); }
     const publish = async () => {   // 모두에게 보여주기(showAt = 다 같이 시작할 시각)
@@ -1086,7 +1086,7 @@ async function normalPotg(rec) {
   card.gameId = rec.gameId; card.normal = { queue: rec.queue, win: rec.win, us: rec.us, day: rec.day };
   try { card.splash = await potg.splashFor(card.championId, card.skin); } catch (_) {}
   try {
-    const hero = potg.pickHero(raws, s, rec.stats, card.name, opt);
+    const hero = potg.pickHero(raws, s, rec.stats, card.name, Object.assign({ avoid: [card.clipFrom, card.clipTo] }, opt));   // 팟지와 같은 한타는 숨은 영웅으로 안 고름
     if (hero) { hero.normal = card.normal; try { hero.splash = await potg.splashFor(hero.championId, hero.skin); } catch (_) {} card.hero = hero; }
   } catch (err) { console.log('[normal] 숨은 영웅 고르기 오류', err && err.message); }
   const publish = async () => {
@@ -1173,7 +1173,7 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   const parts = [{ from: card.clipFrom, to: card.clipTo, focus: card.name, champ: card.champ }].concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: H.champ }] : []);
   const t0 = Date.now(), recP = replayRec.record({ gameId: g.id, parts });
   recP.catch(() => {}).finally(() => setTimeout(() => { replayBusy = false; }, 6000));   // 리플레이가 실제로 끝나고(닫히고) 조금 더 지나야 풀림(시간 초과로 먼저 카드를 보여줘도)
-  const metas = [null, null], whys = [], LIMIT = H ? 260000 : 180000;
+  const metas = [null, null], whys = [], secs = [null, null], LIMIT = H ? 260000 : 180000;
   try {
     const files = await Promise.race([recP, new Promise(r => setTimeout(() => r(null), LIMIT))]);
     if (!files) whys.push(Date.now() - t0 >= LIMIT - 1000 ? `${LIMIT / 60000}분 초과` : '녹화 안 됨');
@@ -1182,12 +1182,19 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
       if (!file) { whys.push(tag + ' 녹화 안 됨'); continue; }
       let buf = fs.readFileSync(file);
       const small = await shrinkClip(file).catch(e => { _recLog.push(tag + ' 줄이기 실패 ' + (e && e.message)); return null; });   // 롤이 모니터 크기(예: 3440×1440)로 저장 → 가운데 16:9를 1.15배로 잘라 1280×720
-      if (small && small.length > 100000 && small.length < buf.length) { _recLog.push(`${tag} 줄임 ${(buf.length / 1048576).toFixed(1)}→${(small.length / 1048576).toFixed(1)}MB`); buf = small; }
+      if (small && Number.isFinite(small.sec)) secs[i] = small.sec;   // 롤 원본 영상 길이 → 영상 0초가 게임 몇 초인지 정확히(아래)
+      if (small && small.buf.length > 100000 && small.buf.length < buf.length) { _recLog.push(`${tag} 줄임 ${(buf.length / 1048576).toFixed(1)}→${(small.buf.length / 1048576).toFixed(1)}MB`); buf = small.buf; }
       if (buf.length > CLIP_MAX) whys.push(`${tag} 너무 큼 ${(buf.length / 1048576).toFixed(1)}MB`);
       else { metas[i] = await potg.uploadClip(i ? g.id + 'h' : g.id, buf, 'video/webm'); if (!metas[i]) whys.push(tag + ' 올리기 실패'); }
       try { fs.unlinkSync(file); } catch (_) {}
     }
   } catch (e) { whys.push('오류 ' + (e && e.message)); }
+  // 🎬 영상 0초 = 롤이 실제로 찍기 시작한 게임 시각 → 영상이 생긴 장면은 clipFrom을 거기로(안 하면 킬 자막·슬로가 어긋남 · v0.1.58)
+  //   = 녹화 끝(clipTo) − 원본 영상 길이(실측 540~556 요청 → 18.94초 → 537.06) · 길이를 모르거나 이상하면 되감기 지점(clipFrom − 3)
+  const vStart = (c, sec) => { const g = makeReplayRec.videoStart(c.clipFrom, c.clipTo), m = sec != null ? c.clipTo - sec : null; return m != null && Math.abs(m - g) <= 2 ? +m.toFixed(2) : g; };
+  if (metas[0]) { const v0 = vStart(card, secs[0]); card.clipLead = +(card.clipFrom - v0).toFixed(2); card.clipFrom = v0; }
+  if (metas[1] && H) { const v0 = vStart(H, secs[1]); H.clipLead = +(H.clipFrom - v0).toFixed(2); H.clipFrom = v0; }
+  if (metas[0] || metas[1]) _recLog.push(`영상 시작 = 게임 ${metas[0] ? card.clipFrom : '-'}초${H && metas[1] ? ` · 숨은 영웅 ${H.clipFrom}초` : ''} (원본 길이 ${secs.map(x => x == null ? '?' : x.toFixed(2)).join('/')}초)`);
   const sec = Math.round((Date.now() - t0) / 1000), mb = m => m ? +(m.size / 1048576).toFixed(1) : null;
   recEnd(); setTimeout(tryInstallUpdate, 8000);   // 녹화 끝 → 안내 닫기 · 업데이트 기다리던 중이면 이제 설치
   fbUpdate(g.path, { potgRec: { ok: !!metas[0], hero: H ? !!metas[1] : null, why: whys.join(' · ') || null, sec, mb: mb(metas[0]), mbHero: mb(metas[1]), lines: _recLog.slice(-40), at: Date.now() } }).catch(() => {});
@@ -1199,7 +1206,7 @@ async function shrinkClip(file) {
   try {
     await w.loadFile('potg/shrink.html');
     const r = await Promise.race([w.webContents.executeJavaScript(`shrink(${JSON.stringify(pathToFileURL(file).href)}, 1280, 3500, 1.15)`), new Promise((_, no) => setTimeout(() => no(new Error('시간 초과')), 90000))]);
-    return r && r.b64 ? Buffer.from(r.b64, 'base64') : null;
+    return r && r.b64 ? { buf: Buffer.from(r.b64, 'base64'), sec: r.sec } : null;
   } finally { try { w.destroy(); } catch (_) {} }
 }
 // 🎬 리플레이 창 숨기기(v0.1.37) — 리플레이 게임 창(League of Legends.exe)이 뜨면 0.1초마다 확인해 화면 밖(-4000,-4000)으로 옮기고

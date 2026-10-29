@@ -273,12 +273,16 @@ module.exports = function makePotg(d) {
     }
     for (const c of cands) { if (c.peak == null) c.peak = c.start; c.score += Math.min(40, c.peak / 45); }   // 같은 점수면 승부처(뒤쪽)
     cands.sort((a, b) => b.score - a.score);
-    const c = cands.find(x => x.score >= (x.dom ? HERO_MIN_DOM : HERO_MIN));
+    // v0.1.58: 팟지와 같은 한타면 건너뜀(사장님: 어시스트 많이 묻힌 사람이 팟지 장면 그대로 「한타 설계」로 붙음 — 10/29 540~556 vs 541~553)
+    const clipOf = c => { const f = Math.max(0, Math.floor(Math.max(c.start - 2, c.peak - 8))); return [f, Math.ceil(Math.max(c.peak + 2.5, Math.min(c.end + 1, f + 12)))]; };
+    const avoid = opt && Array.isArray(opt.avoid) ? opt.avoid : null;
+    const clash = c => { if (!avoid) return false; const [f, t] = clipOf(c); return f < avoid[1] && t > avoid[0]; };
+    const c = cands.find(x => x.score >= (x.dom ? HERO_MIN_DOM : HERO_MIN) && !clash(x));
     if (!c) return null;
     const p = players[c.n] || {}, S = st[c.n] || {};
     const name = (s.teamA || []).concat(s.teamB || []).find(x => norm(x) === c.n) || String(p.name || c.n).split('#')[0];
     const team = (s.teamA || []).some(x => norm(x) === c.n) ? 'teamA' : (s.teamB || []).some(x => norm(x) === c.n) ? 'teamB' : null;
-    const clipFrom = Math.max(0, Math.floor(Math.max(c.start - 2, c.peak - 8))), clipTo = Math.ceil(Math.max(c.peak + 2.5, Math.min(c.end + 1, clipFrom + 12)));
+    const [clipFrom, clipTo] = clipOf(c);
     const trim = h => (h || []).filter(([t]) => t >= clipFrom - 3 && t <= clipTo + 1);
     const who = n => { const v = players[n] || {}; return { name: String(v.name || n).split('#')[0], champ: v.champ || '', championId: champId(n) }; };
     const stats = [];   // 끝 화면 판 전체 지표(정산) — 그 사람이 1위·팀 1위인 것만
