@@ -592,23 +592,53 @@ async function pollAccount() {
   if (key !== _acctKey) { _acctKey = key; try { _onAccount(acc); } catch (_) {} }
 }
 
-// ── 🪑 커스텀 로비 자리 — 팀을 짠 뒤 롤 대기방에서 맞는 쪽에 앉았는지 마커가 알려줌(1.5초, 로비일 때만 LCU 호출) ──
-let _seatTimer = null, _seatKey = undefined;
+// ── 🪑 커스텀 로비 자리 — 팀을 짠 뒤 롤 대기방에서 맞는 쪽에 앉았는지 마커가 알려줌 ──
+// 1초마다 페이즈를 직접 읽음(3초 poll을 기다리면 「게임 시작」 뒤 챔피언 선택 화면에 마커가 최대 3초 남음 — v0.1.51)
+// main에 {phase, seat, custom}: seat 1=왼쪽 팀100 · 2=오른쪽 팀200 · 'spec'=관전석 · null=모름 / custom false=일반 큐 로비
+let _seatTimer = null, _seatKey = undefined, _seatBusy = false, _probeSig = '';
+const _teamOf = (gc, mine) => {
+  const has = (arr) => Array.isArray(arr) && arr.some(mine);
+  return has(gc.customTeam100) ? 1 : has(gc.customTeam200) ? 2 : has(gc.customSpectators) ? 'spec' : null;
+};
 async function pollSeat() {
-  let seat = null;
-  if (basePort && lastPhase === 'Lobby') {
-    try {
-      const lb = await lcu('/lol-lobby/v2/lobby');
-      const gc = lb && lb.gameConfig, me = lb && lb.localMember;
-      if (gc && gc.isCustom && me) {
-        const mine = (m) => m && ((me.puuid && m.puuid === me.puuid) || (me.summonerId && m.summonerId === me.summonerId));
-        const has = (arr) => Array.isArray(arr) && arr.some(mine);
-        seat = has(gc.customTeam100) ? 1 : has(gc.customTeam200) ? 2 : has(gc.customSpectators) ? 'spec' : null;
+  if (_seatBusy) return; _seatBusy = true;
+  let phase = null, seat = null, custom = null;
+  try {
+    if (basePort) {
+      try { phase = await lcu('/lol-gameflow/v1/gameflow-phase'); } catch (_) {}
+      if (phase === 'Lobby') {
+        try {
+          const lb = await lcu('/lol-lobby/v2/lobby');
+          const gc = lb && lb.gameConfig, me = lb && lb.localMember;
+          if (gc) custom = !!gc.isCustom;
+          if (gc && gc.isCustom && me) seat = _teamOf(gc, (m) => m && ((me.puuid && m.puuid === me.puuid) || (me.summonerId && m.summonerId === me.summonerId)));
+          if (gc && gc.isCustom) lobbyProbe(lb, seat);
+        } catch (_) {}
       }
-    } catch (_) {}
-  }
-  const key = String(seat);
-  if (key !== _seatKey) { _seatKey = key; log(`🪑 로비 자리: ${seat == null ? '-' : seat}`); try { _onLobbySeat(seat); } catch (_) {} }
+    }
+    const key = `${phase}|${seat}|${custom}`;
+    if (key !== _seatKey) { _seatKey = key; log(`🪑 로비: ${phase || '-'} · 자리 ${seat == null ? '-' : seat}${custom === false ? ' (일반 큐)' : ''}`); try { _onLobbySeat({ phase, seat, custom }); } catch (_) {} }
+  } finally { _seatBusy = false; }
+}
+// 🔎 실제 롤 대기방 응답 모양 기록(v0.1.51) — 필드 이름을 실기 없이 짐작해 넣었기 때문. 롤에서 사용자 설정 게임 방만 만들면 됨(게임 안 해도 됨)
+// today/bridge/lobbyProbe/{PC id} = {at, appVer, seat, gcKeys, team100/200/spec 인원·멤버 키, localKeys, hasPuuid} — 이름·puuid 값은 안 남김. 확인 = tools/lobby-report.cjs
+function lobbyProbe(lb, seat) {
+  try {
+    const gc = lb.gameConfig || {}, me = lb.localMember || {};
+    const cnt = (a) => Array.isArray(a) ? a.length : (a == null ? null : typeof a);
+    const sig = `${seat}|${cnt(gc.customTeam100)}|${cnt(gc.customTeam200)}|${cnt(gc.customSpectators)}`;
+    if (sig === _probeSig) return; _probeSig = sig;
+    const mk = (a) => Array.isArray(a) && a[0] ? Object.keys(a[0]).slice(0, 40) : null;
+    const meIn = (a) => Array.isArray(a) && a.some(m => m && me.puuid && m.puuid === me.puuid);
+    fbSet(`${BRIDGE_ROOT}/lobbyProbe/${OPERATOR_ID}`, {
+      at: Date.now(), appVer: _appVer, name: _getOpName() || null, seat: seat == null ? null : seat,
+      lbKeys: Object.keys(lb).slice(0, 40), gcKeys: Object.keys(gc).slice(0, 60), localKeys: Object.keys(me).slice(0, 40),
+      team100: cnt(gc.customTeam100), team200: cnt(gc.customTeam200), spec: cnt(gc.customSpectators),
+      memberKeys: mk(gc.customTeam100) || mk(gc.customTeam200) || mk(lb.members), members: cnt(lb.members),
+      meIn100: meIn(gc.customTeam100), meIn200: meIn(gc.customTeam200), meInSpec: meIn(gc.customSpectators),
+      hasPuuid: !!me.puuid, mapId: gc.mapId != null ? gc.mapId : null, maxTeam: gc.maxTeamSize != null ? gc.maxTeamSize : null,
+    }).catch(() => {});
+  } catch (_) {}
 }
 
 // ── LCU 연결 이벤트 ──────────────────────────────────────────────────────────
@@ -622,7 +652,7 @@ connector.on('connect', async data => {
   await fbSet(`${BRIDGE_ROOT}/connected`, true);
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(poll, 3000); poll();
-  if (!_seatTimer) _seatTimer = setInterval(pollSeat, 1500);
+  if (!_seatTimer) _seatTimer = setInterval(pollSeat, 1000);
   if (_missedGame) { const m = _missedGame; _missedGame = null; scheduleHistoryBackfill(m.gameId); }   // 🛟 게임 직후 클라를 꺼서 못 잡은 판
 });
 connector.on('disconnect', async () => {

@@ -156,14 +156,19 @@ function _repaintSlot() {   // 투명창이 흰 박스로 안 그려지는 Win �
   if (!slotWin || slotWin.isDestroyed()) return;
   try { const b = slotWin.getBounds(); slotWin.setBounds({ x: b.x, y: b.y, width: b.width + 1, height: b.height }); slotWin.setBounds(b); } catch (_) {}
 }
-let lobbySeat = null, _slotMsg = '';   // 🪑 롤 커스텀 로비에서 내가 지금 앉은 쪽(브릿지 pollSeat: 1·2·'spec'·null)
-function onLobbySeat(seat) { lobbySeat = seat; if (!_floating && clientFg && _lastRect) updateSlotMarker(_lastRect); }
+let lobbySeat = null, lobbyPhase = null, lobbyCustom = null, _slotMsg = '';   // 🪑 브릿지 pollSeat(1초): 롤 페이즈 · 커스텀 로비에서 내가 앉은 쪽(1·2·'spec'·null) · 커스텀 방인지
+function onLobbySeat(d) {
+  lobbyPhase = d && d.phase || null; lobbySeat = d ? d.seat : null; lobbyCustom = d ? d.custom : null;
+  if (!_floating && clientFg && _lastRect) updateSlotMarker(_lastRect); else hideSlotMarker();
+}
 function updateSlotMarker(p) {   // p=[L,T,R,B] 원시 px(클라 감지됨)
   const t = teamOf(sessionData, config.myName);
   const side = t === 'teamA' ? 1 : t === 'teamB' ? 2 : 0;
   // 로비 + 내 팀 있고 + 클라가 활성창일 때만(다른 창 위에 안 뜨게) · 이번 팀결성으로 게임이 이미 시작됐으면 숨김(게임 후 재등장 방지 — 다음 팀결성 때만 다시)
   const startedThisFormation = !!(lastFormed && _slotDoneFormed === lastFormed);
-  if (config.slot === false || inGame || !side || !clientFg || startedThisFormation) { hideSlotMarker(); return; }
+  // v0.1.51: 롤 대기방(Lobby·커스텀)일 때만 — 「게임 시작」 뒤 챔피언 선택(프로필 나오는 화면)·홈 화면·일반 큐 로비엔 안 뜸
+  const inLobby = lobbyPhase === 'Lobby' && lobbyCustom !== false;
+  if (config.slot === false || inGame || !side || !clientFg || startedThisFormation || !inLobby) { hideSlotMarker(); return; }
   if (!slotWin || slotWin.isDestroyed()) createSlotWin();
   const sf = (screen.getPrimaryDisplay().scaleFactor) || 1;
   const cx = p[0] / sf, cy = p[1] / sf, cw = (p[2] - p[0]) / sf, ch = (p[3] - p[1]) / sf;
