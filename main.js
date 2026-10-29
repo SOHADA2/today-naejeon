@@ -203,10 +203,11 @@ function updateSlotMarker(p) {   // p=[L,T,R,B] 원시 px(클라 감지됨)
   //   그 위 y 151~197은 빈 칸(.empty-header-spacer 72 + .custom-root 위 10 + .custom-game-teams top 36) → 칩을 여기, 화살표가 팀 글자 줄 오른쪽(비어 있음)을 지나 첫 자리를 가리킴
   //   친구 목록은 오른쪽 사이드바라 펼침/접힘과 무관 · 창 크기만큼 마커도 같이 커짐(zoom)
   const k = Math.max(0.75, Math.min(1.6, cw / 1280));
-  const bw = Math.round(184 * k), bh = Math.round(74 * k);
+  // v0.1.54 단순화: 태그 한 줄 + 화살표(창 150×58, 화살표 = 창 가운데) → 화살표가 첫 자리 「참가」 버튼 가운데(팀 칸 오른쪽 끝 −80)를 가리킴
+  const bw = Math.round(150 * k), bh = Math.round(58 * k);
   const colRight = cx + cw * ((side === 1 ? 523 : 1019) / 1280);
-  const x = Math.round(colRight - bw - 4 * k);
-  const y = Math.round(cy + ch * (150 / 720) - 3 * k);
+  const x = Math.round(colRight - bw - 5 * k);
+  const y = Math.round(cy + ch * (154 / 720));
   const sig = `${x},${y},${bw}`;
   if (sig !== _slotSig) { _slotSig = sig; slotWin.setBounds({ x, y, width: bw, height: bh }); try { slotWin.webContents.setZoomFactor(k); } catch (_) {} }
   if (!_slotReady) return;                               // 콘텐츠 로드 후에 표시(흰 박스 방지)
