@@ -43,11 +43,8 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .lb-host em.no { font-size:12px; color:var(--dim); }
 .lb-wait { font-size:13px; color:var(--ink-soft); }
 /* 👑 방장 자리(v0.1.38) — 방장 없으면 큰 금색 버튼 · 내가 방장이면 머리에 「👑 내가 방장 ▾」 메뉴 */
-.lb-hostcta { display:flex; flex-direction:column; gap:10px; padding:12px 14px; margin:-4px 0 12px; background:linear-gradient(135deg, rgba(200,170,110,0.16), rgba(200,170,110,0.04)); border:1px solid var(--gold-line); clip-path:var(--cut); }
-.lb-hc-txt { display:flex; flex-direction:column; gap:2px; min-width:0; }
-.lb-hc-txt b { font-size:14px; font-weight:800; color:var(--gold-hi); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.lb-hc-txt small { font-size:12px; color:var(--ink-soft); }
-.lb-hc-go { width:100%; padding:11px 10px; font-size:14px; font-weight:800; white-space:nowrap; }
+.lb-hostcta { position:relative; margin:-4px 0 12px; }
+.lb-hc-go { width:100%; padding:12px 10px; font-size:15px; font-weight:800; white-space:nowrap; }
 .lb-hostme { margin-left:auto; flex:none; padding:6px 10px; font-size:13px; font-weight:800; color:var(--gold-hi); background:rgba(200,170,110,0.12); border:1px solid var(--gold-line); cursor:pointer; white-space:nowrap; clip-path:var(--cut-sm); }
 .lb-hostme i { font-style:normal; font-size:10px; color:var(--dim); }
 .lb-hostme:hover { background:rgba(200,170,110,0.2); }

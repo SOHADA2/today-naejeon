@@ -457,30 +457,6 @@ function showMainPanel() {   // 트레이/재실행 → 내 정보 패널(메인
   leftWin.show(); leftWin.moveTop(); leftWin.focus();
 }
 
-// ── 🔄 업데이트 알림 토스트 (우하단·「지금 업데이트」 버튼 포함) ─────────────────
-//   Windows 네이티브 알림은 Electron으로 버튼을 못 붙여서, 같은 자리(우하단)에 테마 맞춘 커스텀 토스트를 띄운다.
-let updateToastWin = null;
-function showUpdateToast(version) {
-  const W = 340, H = 152, M = 16;
-  const wa = screen.getPrimaryDisplay().workArea;
-  const x = wa.x + wa.width - W - M, y = wa.y + wa.height - H - M;
-  if (updateToastWin && !updateToastWin.isDestroyed()) {
-    updateToastWin.setBounds({ x, y, width: W, height: H });
-    updateToastWin.webContents.send('update-info', { version });
-    updateToastWin.showInactive();
-    return;
-  }
-  updateToastWin = new BrowserWindow({
-    width: W, height: H, x, y, frame: false, transparent: true, resizable: false, movable: false,
-    alwaysOnTop: true, skipTaskbar: true, show: false, focusable: true,
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
-  });
-  updateToastWin.setAlwaysOnTop(true, 'screen-saver');
-  updateToastWin.loadFile('desktop/update-toast.html');
-  updateToastWin.once('ready-to-show', () => { updateToastWin.showInactive(); updateToastWin.webContents.send('update-info', { version }); });
-  updateToastWin.on('closed', () => { updateToastWin = null; });
-}
-
 // ── 오버레이 표시/숨김 ────────────────────────────────────────────────────
 function showOverlay() { overlayMinimized = false; if (overlayWin) { try { overlayWin.setSkipTaskbar(true); } catch (_) {} if (!overlayWin.isVisible()) overlayWin.showInactive(); } } // 게임 포커스 뺏지 않게
 function hideOverlay() { if (overlayWin && overlayWin.isVisible()) overlayWin.hide(); }
@@ -1368,14 +1344,14 @@ function toggleDock() {
   config.dock = (config.dock === false);   // 뒤집기(기본 켜짐)
   saveConfig();
   if (config.dock !== false) { dockedBounds = null; }
-  refreshTrayMenu();
+  refreshTrayMenu(); try { broadcastSettings(); } catch (_) {}
 }
 function toggleSidePanel() {                // ▶ 내 정보 패널 on/off
   config.sidePanel = (config.sidePanel === false);
   saveConfig();
   if (config.sidePanel !== false) { leftUserHid = false; leftDockedBounds = null; }
   else hideLeftPanel();
-  refreshTrayMenu();
+  refreshTrayMenu(); try { broadcastSettings(); } catch (_) {}
 }
 let _updateReady = false;
 function refreshTrayMenu(updateReady) {
@@ -1390,7 +1366,7 @@ function refreshTrayMenu(updateReady) {
     { type: 'separator' },
     { label: '내전 홈페이지 (기본 브라우저)', click: () => shell.openExternal(WEB_URL) },
     { type: 'separator' },
-    { label: '✕ 닫을 때 「숨기기/종료」 묻기', type: 'checkbox', checked: config.closeAsk !== false, click: () => { config.closeAsk = (config.closeAsk === false); saveConfig(); refreshTrayMenu(); } },
+    { label: '✕ 닫을 때 「숨기기/종료」 묻기', type: 'checkbox', checked: config.closeAsk !== false, click: () => { config.closeAsk = (config.closeAsk === false); saveConfig(); refreshTrayMenu(); try { broadcastSettings(); } catch (_) {} } },
     { type: 'separator' },
     { label: '투데이 내전 종료', click: () => { app._quitting = true; app.quit(); } },
   ];
@@ -1427,7 +1403,7 @@ ipcMain.on('quit-confirm', (_e, yes, noAsk) => {
   const mode = _quitMode;
   closeQuitConfirm();
   if (mode === 'close') {
-    if (noAsk && !yes) { config.closeAsk = false; saveConfig(); }
+    if (noAsk && !yes) { config.closeAsk = false; saveConfig(); try { broadcastSettings(); } catch (_) {} }
     if (yes) { app._quitting = true; app.quit(); }
     else if (tray && process.platform === 'win32') try { tray.displayBalloon({ title: '투데이 내전은 계속 켜져 있어요', content: '작업 표시줄 오른쪽 아래 숨은 아이콘(^)에서 아이콘을 우클릭 → 「투데이 내전 종료」', iconType: 'info' }); } catch (_) {}
     return;
@@ -1435,7 +1411,23 @@ ipcMain.on('quit-confirm', (_e, yes, noAsk) => {
   if (yes && !_clientPresent) { app._quitting = true; app.quit(); }
 });
 ipcMain.on('update-now', () => { app._quitting = true; try { autoUpdater.quitAndInstall(); } catch (_) { app.quit(); } });
-ipcMain.on('update-later', () => { if (updateToastWin && !updateToastWin.isDestroyed()) updateToastWin.hide(); });
+ipcMain.handle('update-info', () => updView());
+ipcMain.on('update-check', () => checkUpdate());
+// ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
+const settingsView = () => ({ sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY });
+function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
+ipcMain.handle('settings-get', () => settingsView());
+ipcMain.handle('settings-set', (_e, { key, value }) => {
+  if (key === 'sfxOn') config.sfxOn = !!value;
+  else if (key === 'sfxVol') config.sfxVol = Math.max(0, Math.min(1, +value || 0));
+  else if (key === 'dock') { if ((config.dock !== false) !== !!value) toggleDock(); }
+  else if (key === 'sidePanel') { if ((config.sidePanel !== false) !== !!value) toggleSidePanel(); }
+  else if (key === 'closeAsk') { config.closeAsk = !!value; refreshTrayMenu(); }
+  else return settingsView();
+  saveConfig(); broadcastSettings();
+  return settingsView();
+});
+ipcMain.on('app-quit', () => { app._quitting = true; app.quit(); });
 ipcMain.on('open-web', () => shell.openExternal(WEB_URL));
 ipcMain.handle('set-host', (_e, v) => v ? claimHost() : releaseHost());   // 👑 방장 하기/그만하기(한 명만)
 ipcMain.handle('hand-host', (_e, { puuid }) => handHost(puuid));            // 👑 방장 넘겨주기
@@ -1561,14 +1553,27 @@ else {
 }
 
 // 🔄 자동 업데이트 — GitHub Releases(SOHADA2/today-naejeon)
+// v0.1.39: 업데이트 알림 = 오른쪽 아래 따로 뜨는 창(게임 중에도 튀어나옴) 대신 왼쪽·오른쪽 창 안에(머리 아래 알림 줄 + ⚙ 점 + 설정의 버전 칸)
+const upd = { state: 'idle', version: null, pct: 0 };   // idle·checking·downloading·ready·latest·error·dev
+const updView = () => Object.assign({ cur: app.getVersion() }, upd);
+function setUpd(p) { Object.assign(upd, p); broadcast('update', updView()); }
+function checkUpdate() {
+  if (!app.isPackaged) { setUpd({ state: 'dev' }); return; }
+  if (upd.state === 'downloading' || upd.state === 'ready') return;
+  setUpd({ state: 'checking' });
+  autoUpdater.checkForUpdates().catch(() => setUpd({ state: 'error' }));
+}
 function setupAutoUpdate() {
-  if (!app.isPackaged) return;
+  if (!app.isPackaged) { upd.state = 'dev'; return; }
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on('update-downloaded', (info) => { showUpdateToast(info.version); refreshTrayMenu(true); });
-  autoUpdater.on('error', () => {});
-  autoUpdater.checkForUpdates().catch(() => {});
-  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 30 * 60 * 1000);
+  autoUpdater.on('update-available', (info) => setUpd({ state: 'downloading', version: info && info.version, pct: 0 }));
+  autoUpdater.on('download-progress', (p) => { const pct = Math.round((p && p.percent) || 0); if (pct !== upd.pct) setUpd({ pct }); });
+  autoUpdater.on('update-not-available', () => setUpd({ state: 'latest' }));
+  autoUpdater.on('update-downloaded', (info) => { setUpd({ state: 'ready', version: info && info.version, pct: 100 }); refreshTrayMenu(true); });
+  autoUpdater.on('error', () => { if (upd.state !== 'ready') setUpd({ state: 'error' }); });
+  checkUpdate();
+  setInterval(checkUpdate, 30 * 60 * 1000);
 }
 let _cleanedUp = false;
 app.on('before-quit', (e) => {
