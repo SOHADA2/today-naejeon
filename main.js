@@ -147,15 +147,17 @@ function createSlotWin() {
   slotWin.setIgnoreMouseEvents(true, { forward: true });   // 클릭 통과 → 클라 조작 방해 X
   slotWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   _slotReady = false;
-  slotWin.webContents.on('did-finish-load', () => { _slotReady = true; if (_slotTeam) { try { slotWin.webContents.send('slot-team', _slotTeam); } catch (_) {} } });
+  slotWin.webContents.on('did-finish-load', () => { _slotReady = true; _slotMsg = ''; });   // 내용은 처음 보일 때 updateSlotMarker가 보냄
   slotWin.loadFile('slot/slot.html');
   slotWin.on('closed', () => { slotWin = null; _slotReady = false; });
 }
-function hideSlotMarker() { if (slotWin && !slotWin.isDestroyed() && slotWin.isVisible()) slotWin.hide(); _slotSig = ''; }
+function hideSlotMarker() { if (slotWin && !slotWin.isDestroyed() && slotWin.isVisible()) slotWin.hide(); _slotSig = ''; _slotMsg = ''; }
 function _repaintSlot() {   // 투명창이 흰 박스로 안 그려지는 Win 버그 → 1px 넛지로 강제 리페인트
   if (!slotWin || slotWin.isDestroyed()) return;
   try { const b = slotWin.getBounds(); slotWin.setBounds({ x: b.x, y: b.y, width: b.width + 1, height: b.height }); slotWin.setBounds(b); } catch (_) {}
 }
+let lobbySeat = null, _slotMsg = '';   // 🪑 롤 커스텀 로비에서 내가 지금 앉은 쪽(브릿지 pollSeat: 1·2·'spec'·null)
+function onLobbySeat(seat) { lobbySeat = seat; if (!_floating && clientFg && _lastRect) updateSlotMarker(_lastRect); }
 function updateSlotMarker(p) {   // p=[L,T,R,B] 원시 px(클라 감지됨)
   const t = teamOf(sessionData, config.myName);
   const side = t === 'teamA' ? 1 : t === 'teamB' ? 2 : 0;
@@ -165,16 +167,23 @@ function updateSlotMarker(p) {   // p=[L,T,R,B] 원시 px(클라 감지됨)
   if (!slotWin || slotWin.isDestroyed()) createSlotWin();
   const sf = (screen.getPrimaryDisplay().scaleFactor) || 1;
   const cx = p[0] / sf, cy = p[1] / sf, cw = (p[2] - p[0]) / sf, ch = (p[3] - p[1]) / sf;
-  // 작은 배지를 팀 컬럼 우상단에(친구목록 펼침 기준). 1팀=왼쪽 컬럼 / 2팀=가운데 컬럼
-  const bw = 128, bh = 38;
+  // 상태: go=로비 자리 모름(아직 대기방 아님) · ok=맞는 쪽에 앉음 · move=반대 팀에 앉음 · spec=관전석
+  const state = lobbySeat == null ? 'go' : lobbySeat === side ? 'ok' : lobbySeat === 'spec' ? 'spec' : 'move';
+  // 마커 = 앉아야 할 팀 컬럼 우상단(친구목록 펼침 기준). 1팀=왼쪽 컬럼 / 2팀=가운데 컬럼 · 아래 화살표가 그 팀 자리를 가리킴
+  const bw = 184, bh = 74;
   const colRight = side === 1 ? cx + cw * 0.39 : cx + cw * 0.79;
-  const x = Math.round(colRight - bw - 4);
-  const y = Math.round(cy + ch * 0.235);   // 클라 상단에서 아래로 내린 위치(팀 컬럼 헤더에 맞춤) — 더 내리려면 이 값을 키우세요
-  if (side !== _slotTeam) { _slotTeam = side; try { slotWin.webContents.send('slot-team', side); } catch (_) {} }
-  const sig = `${x},${y},${side}`;
+  const x = Math.round(colRight - bw - 2);
+  const y = Math.round(cy + ch * 0.235 - 6);   // 클라 상단에서 아래로 내린 위치(팀 컬럼 헤더에 맞춤) — 더 내리려면 0.235를 키우세요
+  const sig = `${x},${y}`;
   if (sig !== _slotSig) { _slotSig = sig; slotWin.setBounds({ x, y, width: bw, height: bh }); }
   if (!_slotReady) return;                               // 콘텐츠 로드 후에 표시(흰 박스 방지)
-  if (!slotWin.isVisible()) { slotWin.showInactive(); try { slotWin.setAlwaysOnTop(true, 'screen-saver'); } catch (_) {} _repaintSlot(); }
+  const msg = side + '|' + state;
+  const appear = !slotWin.isVisible();
+  if (appear || msg !== _slotMsg) {   // 처음 뜰 때·상태 바뀔 때만 보냄(그때만 짧은 등장 효과 1번 — 무한 애니메이션 없음)
+    _slotMsg = msg; _slotTeam = side;
+    try { slotWin.webContents.send('slot-team', { side, state, appear }); } catch (_) {}
+  }
+  if (appear) { slotWin.showInactive(); try { slotWin.setAlwaysOnTop(true, 'screen-saver'); } catch (_) {} _repaintSlot(); }
 }
 // 🪟 클라와 같은 층위 — 롤 클라(또는 우리 패널)가 활성일 때만 패널을 위로, 아니면 뒤로(다른 앱에 안 가림)
 let clientFg = false, panelFg = false, _lastRaise = null, _dropTimer = null;
@@ -1691,7 +1700,7 @@ else {
     try { replayRec.restorePending(); } catch (_) {}   // 지난번에 녹화하다 앱이 꺼졌으면 game.cfg 창 설정 되돌림
     potg = makePotg({ T, FIREBASE_DB, fbSet, fbDelete, getJson, dayKey, normName, userData: app.getPath('userData'), getPlayers: () => latestPlayers, log: (m) => { try { console.log(m); } catch (_) {} } });
     setTimeout(() => potg.cleanup().catch(() => {}), 8000); setInterval(() => potg.cleanup().catch(() => {}), 30 * 60 * 1000);   // 🎬 3일 지난 영상·수집 지우기
-    bridge.start({ getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, onNormal: (e) => recordNormal(e).catch(err => console.log('[normal] 오류', err && err.message)), fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
+    bridge.start({ getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, onLobbySeat, onNormal: (e) => recordNormal(e).catch(err => console.log('[normal] 오류', err && err.message)), fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
     // 🧪 개발용: 롤 없이 테스트 — TN_FAKE_ACCOUNT="이름#태그" (배포본에선 안 씀) · TN_FAKE_DELAY=ms(기본 1500 · 50이면 창 로딩 도중 계정이 잡히는 경우 재현)
     if (!app.isPackaged && process.env.TN_FAKE_ACCOUNT) { const [g, t] = process.env.TN_FAKE_ACCOUNT.split('#'); setTimeout(() => setAccount({ puuid: 'fake-' + g, gameName: g, tagLine: t || 'KR1', iconId: 29 }), +(process.env.TN_FAKE_DELAY || 1500)); }
   });
