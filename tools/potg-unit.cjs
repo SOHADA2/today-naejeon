@@ -35,6 +35,10 @@ check('태그·포탑 무시', r && r.name === '테스터B' && r.label === '솔�
 check('없음', P.pickPotg({ a: { name: 'x', players: pl, hp: [], events: [] } }, s, eog) === null);
 check('raw 없음', P.pickPotg({}, s, eog) === null);
 
+// 6) 딜량: 비슷한 솔로킬 둘이면 딜량 압도 1위 쪽 · 펜타킬은 딜량과 상관없이 이김
+const eogD = pl.map((p, i) => ({ summonerName: p.name, championId: 100 + i, damage: p.name === '테스터C' ? 60000 : 20000 }));
+r = P.pickPotg({ a: { name: '테스터A', players: pl, hp: [], events: [K(300, '테스터A', '테스터D'), K(300, '테스터C', '테스터B')] } }, s, eogD);
+check('딜량 우선', r && r.name === '테스터C' && r.tags.includes('딜량 1위 60,000'), r);
 // ── 숨은 영웅(v0.1.44) ──
 const A = ['가1','가2','가3','가4','가5'], B = ['나1','나2','나3','나4','나5'];
 const pl5 = A.map((n,i)=>({name:n,champ:'A'+i,teamId:100})).concat(B.map((n,i)=>({name:n,champ:'B'+i,teamId:200})));

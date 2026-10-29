@@ -106,6 +106,11 @@ module.exports = function makePotg(d) {
     for (const e of ev) if (/^(DragonKill|BaronKill|HeraldKill|HordeKill|AtakhanKill)$/.test(e.n) && e.stolen && isPlayer(e.k)) cands.push({ kind: 'steal', killer: e.k, ks: [], obj: e });
     if (!cands.length) return null;
     const fb = ev.find(e => e.n === 'FirstBlood');
+    // 💥 딜량(v0.1.45) — 게임 중엔 순간 딜량을 롤이 안 알려줘서 판 전체 딜량(정산)으로: 1위 +50 · 2위의 1.4배+면 +100 · 2위 +20 (킬 장면끼리 비슷할 때 딜러 쪽으로)
+    const dmgs = (eog || []).filter(x => x && x.damage > 0).sort((a, b) => b.damage - a.damage);
+    const dmgBonus = n => { const i = dmgs.findIndex(x => norm(x.summonerName) === norm(n)); if (i < 0 || i > 1) return null;
+      const ratio = i === 0 && dmgs[1] ? dmgs[0].damage / dmgs[1].damage : 0;
+      return { score: i === 1 ? 20 : ratio >= 1.4 ? 100 : 50, tag: i === 0 ? `딜량 1위 ${Math.round(dmgs[0].damage).toLocaleString('en-US')}` : null }; };
     for (const c of cands) {
       const n = Math.min(5, c.ks.length), t0 = c.ks.length ? c.ks[0].t : c.obj.t, t1 = c.ks.length ? c.ks[c.ks.length - 1].t : c.obj.t;
       let score = 100 * n + MULTI_BONUS[n]; const tags = [];
@@ -116,6 +121,7 @@ module.exports = function makePotg(d) {
       if (c.kind === 'steal') { const big = /Baron|Atakhan/.test(c.obj.n); score += big ? 350 : 250; tags.unshift(({ BaronKill: '바론', DragonKill: '드래곤', HeraldKill: '전령', HordeKill: '공허 유충', AtakhanKill: '아타칸' })[c.obj.n] + ' 스틸'); }
       const hp = minHp(c.killer, t0 - 2, t1 + 0.5);
       if (hp != null && hp <= 40) { score += hp <= 10 ? 220 : hp <= 25 ? 120 : 40; tags.push(`체력 ${hp}%`); }
+      const db = dmgBonus(c.killer); if (db) { score += db.score; if (db.tag) tags.push(db.tag); }
       score += Math.min(60, t1 / 30);   // 같은 점수면 승부처(뒤쪽)
       Object.assign(c, { n, t0, t1, score, tags, hp });
     }
