@@ -79,7 +79,8 @@ module.exports = function makePotg(d) {
 
   // ── ② 고르기(방장) ────────────────────────────────────────────────────────
   // raws = {이름키: rec} · s = session · eog = 정산 선수 목록(챔피언 id)
-  function pickPotg(raws, s, eog) {
+  // opt.only = 이 이름들만 주인공 후보(🎮 같이 한 일반 판 = 우리 팀만 · 상대는 모르는 사람)
+  function pickPotg(raws, s, eog, opt) {
     const list = Object.values(raws || {}).filter(Boolean);
     if (!list.length) return null;
     const src = list.slice().sort((a, b) => (b.events || []).length - (a.events || []).length)[0];   // 사건이 제일 많이 남은 PC(모두 같은 사건)
@@ -104,6 +105,8 @@ module.exports = function makePotg(d) {
       flush();
     }
     for (const e of ev) if (/^(DragonKill|BaronKill|HeraldKill|HordeKill|AtakhanKill)$/.test(e.n) && e.stolen && isPlayer(e.k)) cands.push({ kind: 'steal', killer: e.k, ks: [], obj: e });
+    const only = opt && opt.only ? new Set(opt.only.map(norm)) : null;
+    if (only) for (let i = cands.length - 1; i >= 0; i--) if (!only.has(norm(cands[i].killer))) cands.splice(i, 1);
     if (!cands.length) return null;
     const fb = ev.find(e => e.n === 'FirstBlood');
     // 💥 딜량(v0.1.45) — 게임 중엔 순간 딜량을 롤이 안 알려줘서 판 전체 딜량(정산)으로: 1위 +50 · 2위의 1.4배+면 +100 · 2위 +20 (킬 장면끼리 비슷할 때 딜러 쪽으로)
@@ -170,7 +173,8 @@ module.exports = function makePotg(d) {
     }
     return out;
   }
-  function pickHero(raws, s, eog, potgName) {
+  function pickHero(raws, s, eog, potgName, opt) {
+    const only = opt && opt.only ? new Set(opt.only.map(norm)) : null;
     const list = Object.values(raws || {}).filter(Boolean);
     if (!list.length) return null;
     const src = list.slice().sort((a, b) => (b.events || []).length - (a.events || []).length)[0];
@@ -220,6 +224,7 @@ module.exports = function makePotg(d) {
         const firstMate = mates.filter(n => per[n].firstHit != null).sort((a, b) => per[a].firstHit - per[b].firstHit)[0];
         for (const n of mates) {
           if (potgName && n === norm(potgName)) continue;
+          if (only && !only.has(n)) continue;
           const P = per[n], S = st[n] || {}, involved = P.kills + P.assists;
           const base = { n, start, end, teamK, P };
           // 광역 이니시 — 누가 걸었는지는 롤이 안 알려줌 → 그 팀 CC 시간 1위(정산 없으면 우리 팀에서 제일 먼저 맞은 사람)

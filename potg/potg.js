@@ -90,7 +90,7 @@ async function showIntro(my, c, o) {
   intro.classList.toggle('hero', !!o.hero);
   el('pg-av').outerHTML = av(c.championId).replace('class="pg-av"', 'id="pg-av" class="pg-av"');
   el('pg-name').textContent = c.name;
-  const team = c.team === 'teamA' ? '1팀' : c.team === 'teamB' ? '2팀' : '';
+  const team = c.normal ? (c.normal.queue || '일반 게임') : c.team === 'teamA' ? '1팀' : c.team === 'teamB' ? '2팀' : '';   // 🎮 같이 한 일반 판은 큐 이름
   el('pg-sub').innerHTML = [team ? `<span class="tm">${team}</span>` : '', esc(c.champ || '')].filter(Boolean).join(' · ');
   el('pg-label').innerHTML = `<i class="en">${esc(o.en)}</i><div class="ko"><b>${esc(o.ko)}</b>${(o.tags || []).map(t => `<span>${esc(t)}</span>`).join('')}</div>`;
   // 🖼️ v0.1.43: 그 사람이 낀 스킨 일러스트(card.splash · 방장 앱이 CommunityDragon에서 찾아 줌) — 없거나 못 받으면 어두운 바탕 그대로

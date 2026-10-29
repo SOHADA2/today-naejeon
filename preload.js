@@ -76,4 +76,5 @@ contextBridge.exposeInMainWorld('api', {
   potgSave: (meta, name, hero) => ipcRenderer.invoke('potg-save', { meta, name, hero: !!hero }),
   potgClose: () => ipcRenderer.send('potg-close'),
   potgReplay: () => ipcRenderer.send('potg-replay'),
+  potgOpen: (card) => ipcRenderer.send('potg-open', card),   // 🎮 「오늘」 탭 일반 판 팟지
 });

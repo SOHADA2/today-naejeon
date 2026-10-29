@@ -123,7 +123,7 @@ function makeReplayRec(d) {
     const t0 = Date.now(), sec = () => ((Date.now() - t0) / 1000).toFixed(1);
     const ph = await d.lcuRaw('GET', '/lol-gameflow/v1/gameflow-phase');
     if (ph.status !== 200) { log('롤 클라 연결 없음'); return null; }
-    if (['GameStart', 'InProgress', 'Reconnect', 'ChampSelect'].includes(ph.data)) { log('게임/챔프 선택 중이라 녹화 안 함: ' + ph.data); return null; }
+    if (['GameStart', 'InProgress', 'Reconnect', 'ChampSelect', 'Matchmaking', 'ReadyCheck'].includes(ph.data)) { log('게임/큐/챔프 선택 중이라 녹화 안 함: ' + ph.data); return null; }   // 큐 잡는 중에 리플레이를 열면 큐가 꼬임(일반 판은 바로 다음 큐를 잡는 경우가 많음)
     log(`게임 ${gameId} ${parts.map(p => p.from + '~' + p.to).join(', ')}초 녹화 시작 · 창구 ${ensureReplayApi()}`);
     if (!await waitRofl(gameId)) return null;
     log(`리플레이 준비됨 (${sec()}초)`);

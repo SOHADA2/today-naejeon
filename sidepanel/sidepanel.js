@@ -184,7 +184,8 @@ async function renderToday() {
   const [, mm, dd] = t.day.split('-');
   $('td-day').textContent = (t.day === t.today ? '오늘 · ' : '') + `${Number(mm)}월 ${Number(dd)}일`;
   $('td-next').disabled = t.day >= t.today;
-  if (!t.matches.length) { body.innerHTML = `<div class="td-empty">${t.day === t.today ? '오늘은 아직 경기가 없어요<br><small>방장이 팀을 짜고 게임이 끝나면 자동으로 쌓여요</small>' : '이 날은 경기가 없어요'}</div>`; return; }
+  const normals = t.normals || [];
+  if (!t.matches.length && !normals.length) { body.innerHTML = `<div class="td-empty">${t.day === t.today ? '오늘은 아직 경기가 없어요<br><small>방장이 팀을 짜고 게임이 끝나면 자동으로 쌓여요</small>' : '이 날은 경기가 없어요'}</div>`; return; }
   const rows = t.standings.map(p => {
     const kda = p.d || p.k || p.a ? ((p.k + p.a) / Math.max(1, p.d)).toFixed(1) : '-';
     return `<tr class="${nn(p.name) === nn(_myName) ? 'me' : ''}"><td class="r">${p.rank}</td><td class="n"><a class="pf-link" data-name="${escH(p.name)}">${escH(p.name)}</a></td><td>${p.wins}-${p.losses}</td><td>${Math.round(p.wins / p.games * 100)}%</td><td>${p.mvp || ''}</td><td>${p.manner || ''}</td><td>${kda}</td></tr>`;
@@ -197,10 +198,20 @@ async function renderToday() {
     return `<div class="td-game"><div class="td-gh"><b>${t.matches.length - i}판</b><span>${fmt(m.ts)}</span>${m.source === 'manual' ? '<span class="td-tag">수동</span>' : ''}</div>`
       + `<div class="td-gt">${tm(m.teamA, winA)}<i>vs</i>${tm(m.teamB, !winA)}</div>${aw ? `<div class="td-ga">${aw}</div>` : ''}</div>`;
   }).join('');
-  body.innerHTML = `<div class="td-sec">순위 · ${t.matches.length}판</div>`
+  // 🎮 같이 한 일반 판(v0.1.48) — 내전 순위와 따로 · 우리 팀(앱 켠 사람)만 · 재미 지표 · 팟지 다시 보기
+  const nwin = normals.filter(m => m.win).length;
+  const ngames = normals.map((m, i) => {
+    const ps = (m.players || []).map(p => `<span class="nm-p">${champIcon(p.champId)}<span class="nm-pn"><a class="pf-link" data-name="${escH(p.name)}">${escH(p.name)}</a><small>${p.k}/${p.d}/${p.a}</small></span></span>`).join('');
+    const fun = (m.fun || []).map(x => `<span class="nm-f ${x.k}"><em>${escH(x.label)}</em><span class="nm-fn">${escH(x.name)}</span>${x.v ? `<small>${escH(x.v)}</small>` : ''}</span>`).join('');
+    return `<div class="td-game nm"><div class="td-gh"><span class="nm-res ${m.win ? 'w' : 'l'}">${m.win ? '승' : '패'}</span><b>${escH(m.queue || '일반 게임')}</b><span>${fmt(m.ts)}</span>${m.gameTime ? `<span class="nm-len">${Math.round(m.gameTime / 60)}분</span>` : ''}${m.potg ? `<button class="nm-pg" data-i="${i}" title="팟지·숨은 영웅 다시 보기">팟지</button>` : ''}</div>`
+      + `<div class="nm-ps">${ps}</div>${fun ? `<div class="nm-fun">${fun}</div>` : ''}</div>`;
+  }).join('');
+  body.innerHTML = (t.matches.length ? `<div class="td-sec">순위 · ${t.matches.length}판</div>`
     + `<table class="td-table"><thead><tr><th>#</th><th class="n">이름</th><th>전적</th><th>승률</th><th>🏆</th><th>💎</th><th>KDA</th></tr></thead><tbody>${rows}</tbody></table>`
-    + `<div class="td-sec">경기</div>${games}`;
+    + `<div class="td-sec">경기</div>${games}` : '')
+    + (normals.length ? `<div class="td-sec">같이 한 일반 판 · ${nwin}승 ${normals.length - nwin}패<small>내전 순위와 따로</small></div>${ngames}` : '');
   body.querySelectorAll('.pf-link').forEach(a => a.onclick = () => openProfile({ name: a.textContent }));
+  body.querySelectorAll('.nm-pg').forEach(b => b.onclick = () => { const m = normals[+b.dataset.i]; if (m && m.potg) window.api.potgOpen(m.potg); });
 }
 
 // ── 👤 개인 내전 프로필 ─────────────────────────────────────────────────────
