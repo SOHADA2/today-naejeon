@@ -39,13 +39,14 @@ function bgmStart(secToDrop) {   // 지금부터 secToDrop초 뒤에 「터짐�
   const begin = () => { seekPlay(bgm.a, BGM_DROP - (bgm.target - performance.now()) / 1000); bgmFade(BGM_VOL * VOL(), 1500); };
   if (pos >= 0) begin(); else bgm.timers.push(setTimeout(begin, -pos * 1000));   // 정지 화면이 아주 멀면(긴 영상) 조금 늦게 시작
 }
-function bgmRetarget(secToDrop) {   // 영상 재생 중 매 프레임: 남은 시간대로 맞춤(조금 어긋나면 속도 ±10%, 크게 어긋나면 건너뜀)
+function bgmRetarget(secToDrop, normal) {   // 영상 재생 중 매 프레임: 남은 시간대로 맞춤
+  // v0.1.41: BGM은 늘 원래 속도(사장님: 슬로우 때 노래까지 이상하게 들림 — 속도를 ±10% 바꿔 맞추던 것 뺌)
+  //   → 보통 속도 구간에서만, 0.3초 넘게 어긋났을 때 한 번 건너뜀 · 남은 작은 차이는 정지 화면 「쾅」 때 bgmDropNow가 맞춤
   if (bgm.target == null) return;
   bgm.target = performance.now() + secToDrop * 1000;
   const a = bgm.a; if (a.paused || a.readyState < 1) return;
-  const diff = (BGM_DROP - secToDrop) - a.currentTime;
-  if (Math.abs(diff) > 0.8) { try { a.currentTime = BGM_DROP - secToDrop; } catch (_) {} a.playbackRate = 1; }
-  else { const r = Math.abs(diff) < 0.03 ? 1 : Math.max(0.9, Math.min(1.1, 1 + diff * 0.7)); if (Math.abs(r - a.playbackRate) > 0.01) a.playbackRate = r; }
+  if (a.playbackRate !== 1) a.playbackRate = 1;
+  if (normal && Math.abs((BGM_DROP - secToDrop) - a.currentTime) > 0.3) { try { a.currentTime = BGM_DROP - secToDrop; } catch (_) {} }
 }
 function bgmDropNow() { bgm.target = null; try { bgm.a.playbackRate = 1; if (!bgm.a.paused && Math.abs(bgm.a.currentTime - BGM_DROP) > 0.12) bgm.a.currentTime = BGM_DROP - 0.02; } catch (_) {} }
 function bgmEnd(ms) { bgm.target = null; if (!bgm.a.paused) bgmFade(0, ms); }
@@ -129,10 +130,11 @@ function playVideo(my) {
       if (my !== run) return finish(false);
       const t = v.currentTime;
       if (!frozen) { const r = rateAt(t); if (r !== rate) { rate = r; v.playbackRate = r; } }
+      { const gv = frozen === 1 ? 0 : rate < 1 ? 0.15 : 0.6; v.volume += (gv - v.volume) * 0.25; }   // 🎵 슬로모션 땐 게임 소리를 확 줄임(느리고 낮아진 게임 소리가 이상한 음악처럼 들렸음) — BGM·효과음이 이끔
       v.style.transform = `scale(${zoomAt(t).toFixed(4)})`;
       ms.forEach((m, i) => { if (!fired.has(i) && t >= m) { fired.add(i); onKill(i); } });
       if (!frozen) {   // 🎵 BGM 「터짐」을 정지 화면에 맞추고, 「느려지는 떨림」의 타격을 마지막 킬에 맞춤
-        bgmRetarget(realBetween(rateAt, t, last + 0.45));
+        bgmRetarget(realBetween(rateAt, t, last + 0.45), rate === 1);
         if (!slowFired && t < last && realBetween(rateAt, t, last) <= SFX.slow.hit) { slowFired = true; playSfx('slow'); }
       }
       if (!frozen && t >= last + 0.45) {   // 마지막 킬 = 정지 화면
