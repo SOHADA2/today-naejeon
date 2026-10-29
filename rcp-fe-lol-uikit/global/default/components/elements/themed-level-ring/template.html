@@ -1,0 +1,29 @@
+<template>
+  <lol-uikit-radial-progress class="xp-meter-progress" type="custom" start-angle="247" end-angle="-67">
+    <div slot="bottom" class="bottom">
+      <img class="unfilled-xp-ring" />
+    </div>
+    <div slot="middle" class="middle regular" percent="0">
+      <img class="filled-xp-ring" />
+      <div class="mask-container left-half">
+        <img class="unfilled-xp-ring mask" />
+      </div>
+      <div class="mask-container right-half">
+        <img class="unfilled-xp-ring mask" />
+      </div>
+    </div>
+    <div slot="middle" class="middle fresh" percent="0">
+      <img class="filled-xp-ring" />
+      <div class="mask-container left-half">
+        <img class="unfilled-xp-ring mask" />
+      </div>
+      <div class="mask-container right-half">
+        <img class="unfilled-xp-ring mask" />
+      </div>
+    </div>
+    <div slot="top" class="top">
+      <img class="level-ring-border" />
+      <div class="level-text"></div>
+    </div>
+  </lol-uikit-radial-progress>
+</template>
