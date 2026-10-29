@@ -914,8 +914,8 @@ async function fbPutIfAbsent(pathStr, value) {
 
 // ── 🧩 세션 폴링 — 팀 배정·투표·결과를 오버레이/패널로 ──────────────────────
 async function pollSession() {
-  const [s, lob, h, pres, np] = await Promise.all([fetchSession(), fetchLobby(), fetchHost(), fetchPresence(), getJson(`${FIREBASE_DB}/${T}/normalLive.json`)]);
-  normalLive = np || null;
+  const [s, lob, h, pres, np, pr] = await Promise.all([fetchSession(), fetchLobby(), fetchHost(), fetchPresence(), getJson(`${FIREBASE_DB}/${T}/normalLive.json`), getJson(`${FIREBASE_DB}/${T}/potgRec.json`)]);
+  normalLive = np || null; potgRecRaw = pr || null;
   sessionData = s || null;
   lobbyRaw = lob || null; presenceRaw = pres || null; checkUpdateReq();
   onHostRec(h);
@@ -935,6 +935,13 @@ async function pollSession() {
   if (P && P.showAt && !P.none && !inGame && _potgSeen !== P.gameId && Date.now() - P.showAt < 20000) { _potgSeen = P.gameId; openPotg(P, false); }
   const NP = normalLive;   // 🎮 같이 한 일반 판 팟지 = 그 판에 있던 사람만
   if (NP && NP.showAt && NP.normal && !inGame && _potgSeen !== NP.gameId && Date.now() - NP.showAt < 20000 && (NP.normal.us || []).some(n => norm(n) === norm(config.myName))) { _potgSeen = NP.gameId; openPotg(NP, false); }
+  { // 🔴 팀원: 다른 PC가 내가 있던 판의 팟지를 녹화 중이면 같은 안내(2분 반 넘게 소식 없으면 끝난 걸로)
+    const R = potgRecRaw, me = config.myName;
+    const on = !_recLocal && R && R.who && me && norm(R.who) !== norm(me) && Date.now() - (R.at || 0) < 150000 && !inGame
+      && (R.players || []).some(n => norm(n) === norm(me)) && !(potgWin && !potgWin.isDestroyed() && potgWin.isVisible());
+    if (on) showRecToast(`${R.who}님 PC에서 리플레이로 찍는 중 · 곧 팟지가 떠요`);
+    else if (!_recLocal && recToastWin) hideRecToast();
+  }
   if (config.isHost) runHost();
 }
 
@@ -1140,20 +1147,29 @@ function showRecToast(sub) {
   recToastWin.loadFile('desktop/rec.html');
 }
 function hideRecToast() { if (recToastWin && !recToastWin.isDestroyed()) { try { recToastWin.destroy(); } catch (_) {} } recToastWin = null; }
+// 🔴 팀원에게도(v0.1.57) — 녹화하는 앱이 단계마다 today/potgRec {at, who, players, sub}를 적고 끝나면 지움 → 그 판에 있던 사람 앱은 pollSession(3초)에서 읽어 같은 안내
+let _recLocal = false, _recPlayers = [], potgRecRaw = null;
+function recStage(sub) {   // 내 PC 녹화 단계 → 내 안내 + 서버
+  showRecToast(sub);
+  fbSet(`${T}/potgRec`, { at: Date.now(), who: config.myName || null, players: _recPlayers, sub }).catch(() => {});
+}
+function recEnd() { _recLocal = false; hideRecToast(); fbSet(`${T}/potgRec`, null).catch(() => {}); }
 function onRecLog(m) {   // replayrec 로그 → 안내 글
-  if (!recToastWin) return;
+  if (!recToastWin || !_recLocal) return;
   const sc = () => _recParts > 1 ? `장면 ${_recCur}/${_recParts}` : '장면';
   const mm = /── 장면 (\d+)/.exec(m); if (mm) _recCur = +mm[1];
-  if (m.includes('리플레이 받기')) showRecToast('리플레이 받는 중…');
-  else if (m.includes('리플레이 준비됨')) showRecToast('리플레이 여는 중… (소리가 잠깐 나요)');
-  else if (m.includes('되감기')) showRecToast(`${sc()} 준비 중…`);
-  else if (m.includes('녹화 중')) showRecToast(`${sc()} 녹화 중 · 들리는 소리는 리플레이예요`);
-  else if (m.includes('리플레이 닫음')) showRecToast('영상 정리하고 올리는 중… (곧 끝나요)');
+  if (m.includes('리플레이 받기')) recStage('리플레이 받는 중…');
+  else if (m.includes('리플레이 준비됨')) recStage('리플레이 여는 중… (소리가 잠깐 나요)');
+  else if (m.includes('되감기')) recStage(`${sc()} 준비 중…`);
+  else if (m.includes('녹화 중') && !_recToastMsg.sub.startsWith(`${sc()} 녹화 중`)) recStage(`${sc()} 녹화 중 · 들리는 소리는 리플레이예요`);
+  else if (m.includes('리플레이 닫음')) recStage('영상 정리하고 올리는 중… (곧 끝나요)');
 }
 async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹화 기록 남길 경기 기록 경로 } → [팟지 영상 meta, 숨은 영웅 영상 meta] (실패한 쪽은 null)
   replayBusy = true; _recLog = [];
   const H = card.hero;   // v0.1.44: 숨은 영웅이 있으면 리플레이 한 번 열어 두 장면을 이어서 녹화
-  _recParts = H ? 2 : 1; _recCur = 1; showRecToast('리플레이 준비 중…');   // 🎬 방장에게 녹화 중 안내
+  _recParts = H ? 2 : 1; _recCur = 1; _recLocal = true;   // 🎬 방장(과 그 판 팀원)에게 녹화 중 안내
+  _recPlayers = card.normal ? (card.normal.us || []) : [...((sessionData && sessionData.teamA) || []), ...((sessionData && sessionData.teamB) || [])];
+  recStage('리플레이 준비 중…');
   const parts = [{ from: card.clipFrom, to: card.clipTo, focus: card.name, champ: card.champ }].concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: H.champ }] : []);
   const t0 = Date.now(), recP = replayRec.record({ gameId: g.id, parts });
   recP.catch(() => {}).finally(() => setTimeout(() => { replayBusy = false; }, 6000));   // 리플레이가 실제로 끝나고(닫히고) 조금 더 지나야 풀림(시간 초과로 먼저 카드를 보여줘도)
@@ -1173,7 +1189,7 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
     }
   } catch (e) { whys.push('오류 ' + (e && e.message)); }
   const sec = Math.round((Date.now() - t0) / 1000), mb = m => m ? +(m.size / 1048576).toFixed(1) : null;
-  hideRecToast(); setTimeout(tryInstallUpdate, 8000);   // 녹화 끝 → 안내 닫기 · 업데이트 기다리던 중이면 이제 설치
+  recEnd(); setTimeout(tryInstallUpdate, 8000);   // 녹화 끝 → 안내 닫기 · 업데이트 기다리던 중이면 이제 설치
   fbUpdate(g.path, { potgRec: { ok: !!metas[0], hero: H ? !!metas[1] : null, why: whys.join(' · ') || null, sec, mb: mb(metas[0]), mbHero: mb(metas[1]), lines: _recLog.slice(-40), at: Date.now() } }).catch(() => {});
   return metas;
 }
