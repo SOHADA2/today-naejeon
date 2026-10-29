@@ -864,7 +864,7 @@ async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(�
   const [L, P] = await Promise.all([fetchLobby(), fetchPresence()]);
   lobbyRaw = L || null; presenceRaw = P || null;
   const v = lobbyView(), names = v.members.filter(m => m.st === 'in').map(m => m.name);
-  if (names.length < 4) return { ok: false, err: `참가자가 4명 이상이어야 해요 (지금 ${names.length}명)` };
+  if (names.length < 2) return { ok: false, err: `참가자가 2명 이상이어야 해요 (지금 ${names.length}명)` };
   if (v.mode === 'draft') {
     if (!v.captains.teamA || !v.captains.teamB) return { ok: false, err: '팀장 2명을 정해주세요' };
     return startDraft(names, [v.captains.teamA, v.captains.teamB]);
@@ -1263,7 +1263,7 @@ async function startTeamBuild(names, mode) {
   if (!config.isHost) return { ok: false, err: '방장만 팀을 짤 수 있어요' };
   if (_tbBusy) return { ok: false, err: '팀을 짜는 중이에요' };
   names = [...new Set((names || []).map(n => normName(String(n))).filter(Boolean))];
-  if (names.length < 4) return { ok: false, err: `최소 4명이 필요해요 (현재 ${names.length}명)` };
+  if (names.length < 2) return { ok: false, err: `최소 2명이 필요해요 (현재 ${names.length}명)` };
   _tbBusy = true;
   sendTb({ state: 'building' });
   try {
@@ -1326,9 +1326,10 @@ function draftOrder(first, picks) {   // 스네이크: first, other, other, firs
 async function startDraft(names, captains) {
   if (!config.isHost) return { ok: false, err: '방장만 드래프트를 시작할 수 있어요' };
   names = [...new Set((names || []).map(n => normName(String(n))).filter(Boolean))];
-  if (names.length < 4) return { ok: false, err: `최소 4명이 필요해요 (현재 ${names.length}명)` };
+  if (names.length < 2) return { ok: false, err: `최소 2명이 필요해요 (현재 ${names.length}명)` };
   let caps = [...new Set((captains || []).map(n => normName(String(n))).filter(n => names.includes(n)))];
   if (caps.length !== 2) caps = names.slice().sort(() => Math.random() - 0.5).slice(0, 2);   // 팀장 미지정 → 무작위 2명
+  if (names.length < 4) return writeTeams([caps[0]], [caps[1]], names.filter(n => !caps.includes(n)), 'draft');   // 2~3명 = 1:1이라 뽑을 차례가 없음 → 팀장끼리 바로 확정(남은 1명=관전)
   const first = Math.random() < 0.5 ? 'teamA' : 'teamB';   // 🪙 선픽 = 동전 던지기
   const teamSize = Math.min(5, Math.floor(names.length / 2));
   const now = Date.now(), ids = await teamIds(names);
@@ -1658,8 +1659,9 @@ ipcMain.handle('vote-cast', async (_e, { mvpPick, mannerPick }) => {
   if (!team) return { ok: false, err: '이 경기에 참가하지 않았어요' };
   const opp = team === 'teamA' ? 'teamB' : 'teamA';
   if (!teamOf(s, mvpPick) || teamOf(s, mvpPick) !== opp) return { ok: false, err: 'MVP는 상대 팀에서 골라요' };
-  if (teamOf(s, mannerPick) !== team || normName(mannerPick) === normName(me)) return { ok: false, err: '매너왕은 우리 팀(본인 제외)에서 골라요' };
-  const r = await fbSet(`${T}/session/votes/${fbKeyOf(me)}`, { mvp: normName(mvpPick), manner: normName(mannerPick), team, at: Date.now() });
+  const mates = (s[team] || []).filter(n => normName(n) !== normName(me));   // 우리 팀이 나 혼자(1:1 등)면 매너왕 없이 투표
+  if (mates.length && (teamOf(s, mannerPick) !== team || normName(mannerPick) === normName(me))) return { ok: false, err: '매너왕은 우리 팀(본인 제외)에서 골라요' };
+  const r = await fbSet(`${T}/session/votes/${fbKeyOf(me)}`, { mvp: normName(mvpPick), manner: mates.length ? normName(mannerPick) : null, team, at: Date.now() });
   if (r.ok && config.isHost) runHost();
   return r;
 });

@@ -499,12 +499,12 @@ function renderVote() {
   }
   const opp = mt === 1 ? B : A;
   const ours = (mt === 1 ? A : B).filter(x => nn(x) !== nn(myName));
-  const ready = _pendMvp && _pendManner;
+  const ready = _pendMvp && (_pendManner || !ours.length);   // 우리 팀이 나 혼자(1:1 등)면 매너왕 없이
   if (!_today || !_today.matches.some(x => s.game && String(x.gameId) === String(s.game.id))) { _todayAt = 0; loadToday(); }   // 방금 기록된 판의 챔피언 정보
   body.innerHTML =
     `<div class="vt-sec"><div class="vt-sec-h mvp"><span class="lb-sec-en">MVP</span>상대 팀에서 제일 잘한 사람</div><div class="vt-cands">${opp.map(x => voteCardHtml(x, 'mvp', nn(x) === nn(_pendMvp))).join('')}</div></div>`
-    + `<div class="vt-sec"><div class="vt-sec-h manner"><span class="lb-sec-en">MANNER</span>우리 팀 매너왕</div><div class="vt-cands">${ours.map(x => voteCardHtml(x, 'manner', nn(x) === nn(_pendManner))).join('') || '<div class="vt-note">후보 없음</div>'}</div></div>`
-    + `<button id="vt-cast" class="ui-btn-gold" ${ready ? '' : 'disabled'}>${ready ? '투표 확정' : 'MVP·매너왕을 각각 골라주세요'}</button>`;
+    + `<div class="vt-sec"><div class="vt-sec-h manner"><span class="lb-sec-en">MANNER</span>우리 팀 매너왕</div><div class="vt-cands">${ours.map(x => voteCardHtml(x, 'manner', nn(x) === nn(_pendManner))).join('') || '<div class="vt-note">우리 팀이 나 혼자라 매너왕 투표는 없어요</div>'}</div></div>`
+    + `<button id="vt-cast" class="ui-btn-gold" ${ready ? '' : 'disabled'}>${ready ? '투표 확정' : ours.length ? 'MVP·매너왕을 각각 골라주세요' : 'MVP를 골라주세요'}</button>`;
   body.querySelectorAll('.vt-cand').forEach(btn => btn.onclick = () => {
     const name = btn.dataset.name;
     if (btn.dataset.kind === 'mvp') _pendMvp = nn(_pendMvp) === nn(name) ? null : name;
@@ -513,9 +513,9 @@ function renderVote() {
   });
   const cast = el('vt-cast');
   if (cast) cast.onclick = async () => {
-    if (_voteBusy || !_pendMvp || !_pendManner) return;
+    if (_voteBusy || !_pendMvp || (!_pendManner && ours.length)) return;
     _voteBusy = true; cast.disabled = true; cast.textContent = '전송 중…';
-    const r = await window.api.voteCast(_pendMvp, _pendManner);
+    const r = await window.api.voteCast(_pendMvp, ours.length ? _pendManner : null);
     _voteBusy = false;
     if (!r || !r.ok) { cast.disabled = false; cast.textContent = '⚠️ ' + ((r && r.err) || '전송 실패 · 다시'); }
     else { _pendMvp = _pendManner = null; }
@@ -685,8 +685,8 @@ function renderLobby() {
   el('lb-gobar').style.display = myIsHost ? '' : 'none';
   const n = ins.length, capsOk = !draft || (caps.teamA && caps.teamB), sideOk = !manual || (!sNone.length && sA.length && sB.length);
   const go = el('lb-start');
-  go.disabled = n < 4 || !capsOk || !sideOk;
-  go.textContent = n < 4 ? `4명부터 시작할 수 있어요 · 지금 ${n}명` : !capsOk ? '팀장 2명을 정해주세요'
+  go.disabled = n < 2 || !capsOk || !sideOk;
+  go.textContent = n < 2 ? `2명부터 시작할 수 있어요 · 지금 ${n}명` : !capsOk ? '팀장 2명을 정해주세요'
     : manual ? (sNone.length ? `팀 안 정한 사람 ${sNone.length}명` : !sideOk ? '두 팀에 한 명 이상씩' : `이 팀으로 시작 · ${sA.length}:${sB.length}`)
     : draft ? `드래프트 시작 · ${n}명` : `랜덤으로 팀 짜기 · ${n}명`;
   el('lb-foot').innerHTML = myIsHost ? (manual ? (sNone.length ? '<span>아래 「팀 미정」에서 1팀·2팀을 눌러 넣어요 · 자리에 마우스를 올리면 ⇄ 옮기기 · ↩ 빼기</span>' : '') : n > 10 || n % 2 ? '<span>11명 이상이거나 홀수면 남는 사람은 관전으로 빠져요</span>' : '')

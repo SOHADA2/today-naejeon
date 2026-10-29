@@ -41,7 +41,7 @@ function getWinRateScore(matches, name, season) {
 //   prevTeamA/B: 직전 팀(전판 회피용·session에서) / spectatorExclude: 관전 제외 이름 배열(선택)
 // 반환: { teamA, teamB, teamSize, spectators } (전부 이름 문자열)
 function buildTeams({ names, mode, matches, season, prevTeamA, prevTeamB, spectatorExclude }) {
-  if (!Array.isArray(names) || names.length < 4) throw new Error('일반 매치엔 최소 4명이 필요해요! (현재 ' + (names ? names.length : 0) + '명)');
+  if (!Array.isArray(names) || names.length < 2) throw new Error('최소 2명이 필요해요! (현재 ' + (names ? names.length : 0) + '명)');
   let pool = names.map(n => ({ name: n }));
 
   // 5v5 최대 — 10명 초과는 관전자로, 그 후 홀수이면 1명 추가 관전자 (관전 제외 설정자는 마지막 순위)
