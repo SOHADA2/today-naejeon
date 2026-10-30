@@ -59,13 +59,15 @@ check('버티기', r && r.kind==='tank' && r.name==='나3' && r.minHp===12 && r.
 // 3) 세이브: 가4가 20%까지 떨어졌다 회복 · 가5 힐 압도
 ev = [K(701,'가1','나1',['가5']), K(703,'가2','나2',['가5'])];
 hp = { 가4:[[690,100],[699,45],[700,20],[702,65]], 가1:[[690,100],[700,80],[702,95]] };
-r = P.pickHero(raw(hp, ev), s5, eog5({ 가5:{ healMates:18000 } }), '가1');
+r = P.pickHero(raw(hp, ev), s5, eog5({ 가5:{ healMates:18000 }, 나1:{ healMates:6000 } }), '가1');   // v0.1.67: 1명 살린 작은 세이브는 힐 압도(2위의 1.5배+)일 때만
 check('세이브', r && r.kind==='save' && r.name==='가5' && r.ally && r.ally.name==='가4' && r.ally.low===20, r);
 // 4) 지는 한타·작은 장면은 안 뽑음
 ev = [K(801,'나1','가1')];
 check('없음(작음)', P.pickHero(raw({}, ev), s5, eog5(), '나1') === null);
-// 5) 한타 설계: 어시 4
+// 5) 한타 설계: 어시 4는 평범(v0.1.67 안 뽑음) · 어시 6은 뽑음
 ev = [K(901,'가1','나1',['가3']), K(903,'가2','나2',['가3']), K(905,'가1','나3',['가3']), K(907,'가4','나4',['가3'])];
+check('한타 설계 어시4 = 없음', P.pickHero(raw({}, ev), s5, eog5(), '가1') === null);
+ev = ev.concat([K(909,'가2','나5',['가3']), K(911,'가4','나1',['가3'])]);
 r = P.pickHero(raw({}, ev), s5, eog5(), '가1');
-check('한타 설계', r && r.kind==='play' && r.name==='가3' && r.assists.length===4, r);
+check('한타 설계', r && r.kind==='play' && r.name==='가3' && r.assists.length===6, r);
 console.log(`통과 ${pass} · 실패 ${fail}`); process.exit(fail ? 1 : 0);

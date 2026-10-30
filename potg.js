@@ -148,6 +148,10 @@ module.exports = function makePotg(d) {
   //     · 세이브(아군이 25% 아래로 떨어졌다 크게 회복 + 그 팀 힐·보호막 1위) · 한타 설계(어시스트 3+ · 킬 1 이하)
   //  ③ 정산 합계가 압도적(2위의 1.5배+)이면 큰 보너스·낮은 문턱 · 팟지 주인공은 빼고 고름
   const HERO_MIN = 260, HERO_MIN_DOM = 180;
+  // v0.1.67: 점수만 넘으면 거의 매 판 나왔음(10/28~29 15판 중 14판 · 어시 3~4개 「한타 설계」가 대부분) → 사장님: 쓸만한 장면 없으면 안 넣어도 됨(평범한 장면이 더 별로)
+  //   종류별 「특별함」 문턱을 넘어야 후보: 한타 설계 = 어시 6+(5개면 에이스 + 살아남음 — 칼바람은 5어시 한타가 흔함) · 광역 이니시 = 적 4명+ 동시 적중(3명이면 CC 압도) · 버티기 = 체력 100%+ 받아내고 20% 아래까지 갔다 생존(또는 받은 피해 압도)
+  //   · 세이브 = 실제로 아군을 살림 + 점수 350+ · 회복만 많은 「생명줄」은 힐 압도일 때만
+  const heroSpecial = c => c.kind === 'play' ? c.P.assists >= 6 || (c.P.assists >= 5 && c.ace && !c.P.dead) : c.kind === 'engage' ? c.hitWho.length >= 4 || c.dom : c.kind === 'tank' ? (c.P.taken >= 100 && c.P.minHp != null && c.P.minHp <= 20) || c.dom : c.kind === 'save' ? c.score >= 350 || c.dom : c.dom;
   const HERO_LABEL = { engage: ['광역 이니시', 'BIG ENGAGE'], tank: ['버티기', 'UNKILLABLE'], save: ['세이브', 'CLUTCH SAVE'], heal: ['생명줄', 'LIFELINE'], play: ['한타 설계', 'PLAYMAKER'] };
   const fmt = n => Math.round(n).toLocaleString('en-US');
   function steps(series) {   // 체력 기록 → 깎임/회복 조각 [{t, d}] (부활로 차오른 건 뺌)
@@ -266,7 +270,7 @@ module.exports = function makePotg(d) {
           if (P.assists >= 3 && P.kills <= 1) {
             const score = 60 * P.assists + 35 * teamK + (ace ? 70 : 0) + (P.dead ? 0 : 20) - ((dmgRank[n] || 9) <= 2 ? 120 : 0);
             const myKs = ks.filter(k => (k.a || []).some(a => norm(a) === n) || norm(k.k) === n);
-            cands.push(Object.assign({}, base, { kind: 'play', score, peak: myKs[myKs.length - 1].t, tags: [`어시스트 ${P.assists}`, `한타 ${teamK}킬`].concat(ace ? ['에이스'] : []), myKs }));
+            cands.push(Object.assign({}, base, { kind: 'play', score, ace, peak: myKs[myKs.length - 1].t, tags: [`어시스트 ${P.assists}`, `한타 ${teamK}킬`].concat(ace ? ['에이스'] : []), myKs }));
           }
         }
       }
@@ -278,7 +282,7 @@ module.exports = function makePotg(d) {
     const avoid = opt && Array.isArray(opt.avoid) ? opt.avoid : null;
     // v0.1.66: 영상 구간만 비교하면 같은 한타의 「이니시」(바로 앞 장면)가 빠져나감(10/29 이니시 525~537 · 팟지 537~557, 한타는 527~555 하나) → 한타 전체가 팟지 구간과 겹쳐도 건너뜀
     const clash = c => { if (!avoid) return false; const [f, t] = clipOf(c); return (f < avoid[1] && t > avoid[0]) || (c.start < avoid[1] && c.end > avoid[0]); };
-    const c = cands.find(x => x.score >= (x.dom ? HERO_MIN_DOM : HERO_MIN) && !clash(x));
+    const c = cands.find(x => x.score >= (x.dom ? HERO_MIN_DOM : HERO_MIN) && heroSpecial(x) && !clash(x));
     if (!c) return null;
     const p = players[c.n] || {}, S = st[c.n] || {};
     const name = (s.teamA || []).concat(s.teamB || []).find(x => norm(x) === c.n) || String(p.name || c.n).split('#')[0];
