@@ -18,6 +18,8 @@ const text = html => html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<
   const days = (await get(`${DB}/days.json`, true)).body || {};
   const cnt = {};
   for (const d of Object.values(days)) for (const kind of ['matches', 'normals']) for (const m of Object.values((d && d[kind]) || {})) for (const st of (m && m.stats) || []) if (st && st.championId) cnt[st.championId] = (cnt[st.championId] || 0) + 1;
+  const seenAug = {}; for (const d of Object.values(days)) for (const kind of ['matches', 'normals']) for (const m of Object.values((d && d[kind]) || {})) for (const st of (m && m.stats) || []) for (const a of (st && st.augments) || []) seenAug[a] = (seenAug[a] || 0) + 1;
+  fs.mkdirSync(OUT, { recursive: true }); fs.writeFileSync(path.join(OUT, 'seen-augs.json'), JSON.stringify(seenAug));   // 우리 기록에 실제로 나온 증강 번호(같은 이름 두 번호 중 어느 쪽이 아수라장인지 확인용)
   const champs = (await get(`${CD}/champion-summary.json`, true)).body || [];
   const byId = {}; for (const c of champs) if (c.id > 0) byId[c.id] = c;
   const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([id, n]) => ({ id: +id, n, name: (byId[id] || {}).name, alias: (byId[id] || {}).alias })).filter(c => c.alias).slice(0, N);
