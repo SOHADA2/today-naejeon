@@ -1546,16 +1546,12 @@ async function getAugments() {
 // 사람 키 = 'p:'+puuid(앱으로 들어온 사람) 또는 'n:'+이름(앱 없이 방장이 추가한 사람·옛 기록)
 // 판별 순서: 경기 기록의 ids(이름→puuid) → 게임 결과(stats)의 puuid(이름 매칭) → 계정 목록 이름 → 이름
 const fetchAllDays = () => getJson(`${FIREBASE_DB}/${T}/days.json`);
-// ── 🧭 증강 가이드(v0.1.72) — 챔피언 선택 화면에서 「이 챔피언이면 이런 증강」을 카테고리로(게임 전 정해진 추천 = 라이엇 정책 허용 범위) ──
+// ── 🧭 증강 가이드(v0.1.72 · v0.1.74 플랜 방식) — 챔피언 선택 화면에서 「이 챔피언이면 이런 증강 노려보자」(게임 전 정해진 추천 = 라이엇 정책 허용 범위) ──
 // 게임 중 증강 3개가 뜬 순간 등급을 매기는 방식(블리츠·OP.GG)은 안 함 — 정책상 게임 중 실시간 선택 도움은 막혀 있고, 롤이 그 정보를 주지도 않음.
-// 데이터 = today/augGuide/champs/{championId} = {perf:[{id,why}], fun:[…], combo:[{id,with:[id…],why}], trap:[…], at, by}
+// v0.1.74: 카테고리 4개(성능·꿀잼·조합·함정)는 나눠 채우기 어렵다(사장님) → 챔피언마다 「플랜」 몇 개 = 이름 + 노릴 증강 묶음 + 한 줄 설명
+// 데이터 = today/augGuide/champs/{championId} = {plans:[{title, augs:[증강 id…], why}], draft?(초안 표시), src?, at, by}
 //   앱 업데이트 없이 오른쪽 창 「증강」 탭에서 채우면 모두에게 바로 반영 · 증강 이름·아이콘은 getAugments(패치되면 자동 최신)
-const AUG_CATS = [
-  { k: 'perf', label: '성능 픽', en: 'POWER', tip: '이 챔피언으로 잘 굴러가면 강한 증강(기복 큰 건 「기복 큼」이라고 적어 주세요)' },
-  { k: 'fun', label: '꿀잼 픽', en: 'FUN', tip: '이기고 지는 것보다 재미있는 그림이 나오는 증강' },
-  { k: 'combo', label: '조합 픽', en: 'COMBO', tip: '다른 증강과 같이 잡아야 완성 — 「A 잡았으면 B 노리기」' },
-  { k: 'trap', label: '함정 픽', en: 'TRAP', tip: '이름은 그럴듯한데 이 챔피언에겐 안 맞는 증강' },
-];
+const PLAN_MAX = 4, PLAN_AUGS = 6, TITLE_MAX = 20, WHY_MAX = 80;
 const CHAMP_URL = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1/champion-summary.json';
 let _champs = null, _champsAt = 0;
 async function getChamps() {   // 챔피언 번호 → {name, alias} (편집 화면 목록·챔피언 선택 화면 이름)
@@ -1579,21 +1575,15 @@ async function getGuide(force) {   // 2분 캐시(챔피언 선택 1~2분 동안
   try { const g = await getJson(`${FIREBASE_DB}/${T}/augGuide/champs.json`); _guide = g || {}; _guideAt = Date.now(); } catch (_) { if (!_guide) _guide = {}; }
   return _guide;
 }
-const GUIDE_MAX = 8, WHY_MAX = 80;
 function cleanGuideEntry(c) {   // 저장 전에 모양·길이 정리(누가 써도 같은 모양)
-  const out = {};
-  for (const { k } of AUG_CATS) {
-    const list = Array.isArray(c && c[k]) ? c[k] : [];
-    const seen = new Set(), rows = [];
-    for (const e of list) {
-      const id = Number(e && e.id); if (!(id > 0) || seen.has(id)) continue; seen.add(id);
-      const row = { id, why: String((e && e.why) || '').trim().slice(0, WHY_MAX) };
-      if (k === 'combo') row.with = [...new Set((Array.isArray(e.with) ? e.with : []).map(Number).filter(x => x > 0 && x !== id))].slice(0, 3);
-      rows.push(row); if (rows.length >= GUIDE_MAX) break;
-    }
-    if (rows.length) out[k] = rows;
+  const plans = [];
+  for (const p of (Array.isArray(c && c.plans) ? c.plans : [])) {
+    const augs = [...new Set((Array.isArray(p && p.augs) ? p.augs : []).map(Number).filter(x => x > 0))].slice(0, PLAN_AUGS);
+    if (!augs.length) continue;
+    plans.push({ title: String((p && p.title) || '').trim().slice(0, TITLE_MAX), augs, why: String((p && p.why) || '').trim().slice(0, WHY_MAX) });
+    if (plans.length >= PLAN_MAX) break;
   }
-  return out;
+  return plans.length ? { plans } : {};
 }
 // 우리 기록 = 지금까지 내전·같이 한 일반 판에서 그 챔피언으로 그 증강을 고른 판 수·승 (프로필과 같은 30초 캐시)
 let _augRec = null, _augRecAt = 0;
@@ -1624,10 +1614,11 @@ async function augGuideView() {
   const ids = [...new Set([champSel.mine, ...(champSel.bench || [])].filter(x => x > 0))];
   const list = ids.map(id => {
     const g = guide[id] || {}, r = {};
-    for (const { k } of AUG_CATS) for (const e of g[k] || []) for (const a of [e.id, ...(e.with || [])]) { const x = rec[id + ':' + a]; if (x) r[a] = x; }
-    return { id, name: (champs[id] && champs[id].name) || '', mine: id === champSel.mine, guide: cleanGuideEntry(g), rec: r };
+    const guideC = cleanGuideEntry(g);
+    for (const p of guideC.plans || []) for (const a of p.augs) { const x = rec[id + ':' + a]; if (x) r[a] = x; }
+    return { id, name: (champs[id] && champs[id].name) || '', mine: id === champSel.mine, guide: guideC, draft: !!g.draft, src: g.src || '', rec: r };
   });
-  return { active: true, cats: AUG_CATS, list };
+  return { active: true, list };
 }
 async function pushAugGuide() { const v = await augGuideView(); broadcast('augguide', v); }
 ipcMain.handle('augguide', () => augGuideView());
@@ -1635,7 +1626,7 @@ ipcMain.handle('augguide', () => augGuideView());
 ipcMain.handle('augguide-all', async () => {
   const [guide, champs, augs, rec] = await Promise.all([getGuide(true), getChamps(), getAugments(), augRecords().catch(() => ({}))]);
   const seen = {}; for (const k of Object.keys(rec)) { const a = k.split(':')[1]; seen[a] = (seen[a] || 0) + rec[k].g; }   // 우리 기록에 나온 증강(편집 목록 위로)
-  return { cats: AUG_CATS, guide, champs, augs, seen, max: GUIDE_MAX, whyMax: WHY_MAX };
+  return { guide, champs, augs, seen, planMax: PLAN_MAX, planAugs: PLAN_AUGS, titleMax: TITLE_MAX, whyMax: WHY_MAX };
 });
 ipcMain.handle('augguide-save', async (_e, arg) => {
   const id = Number(arg && arg.champId); if (!(id > 0)) return { ok: false, err: '챔피언 번호가 이상해요' };
