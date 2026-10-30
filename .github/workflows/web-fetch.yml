@@ -1,0 +1,26 @@
+# 🌐 증강 가이드 초안용 자료(우리 기록 TOP 챔피언의 아수라장 증강 페이지·증강 목록)를 받아 web-out 브랜치에 올림
+# 이유: 원격 작업 세션은 네트워크 정책으로 그 사이트들이 막혀 있음 · tools/web-fetch.cjs(읽기만)
+name: web-fetch
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['tools/.web-fetch']
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 받기
+        run: node tools/web-fetch.cjs $(head -1 tools/.web-fetch | grep -oE '^[0-9]+' || echo 30) out
+      - name: 올리기
+        run: |
+          cd out
+          git init -q -b web-out && git add -A
+          git -c user.name=bot -c user.email=bot@users.noreply.github.com commit -qm "web $(date -u +%F)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" web-out
