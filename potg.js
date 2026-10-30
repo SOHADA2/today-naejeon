@@ -276,7 +276,8 @@ module.exports = function makePotg(d) {
     // v0.1.58: 팟지와 같은 한타면 건너뜀(사장님: 어시스트 많이 묻힌 사람이 팟지 장면 그대로 「한타 설계」로 붙음 — 10/29 540~556 vs 541~553)
     const clipOf = c => { const f = Math.max(0, Math.floor(Math.max(c.start - 2, c.peak - 8))); return [f, Math.ceil(Math.max(c.peak + 2.5, Math.min(c.end + 1, f + 12)))]; };
     const avoid = opt && Array.isArray(opt.avoid) ? opt.avoid : null;
-    const clash = c => { if (!avoid) return false; const [f, t] = clipOf(c); return f < avoid[1] && t > avoid[0]; };
+    // v0.1.66: 영상 구간만 비교하면 같은 한타의 「이니시」(바로 앞 장면)가 빠져나감(10/29 이니시 525~537 · 팟지 537~557, 한타는 527~555 하나) → 한타 전체가 팟지 구간과 겹쳐도 건너뜀
+    const clash = c => { if (!avoid) return false; const [f, t] = clipOf(c); return (f < avoid[1] && t > avoid[0]) || (c.start < avoid[1] && c.end > avoid[0]); };
     const c = cands.find(x => x.score >= (x.dom ? HERO_MIN_DOM : HERO_MIN) && !clash(x));
     if (!c) return null;
     const p = players[c.n] || {}, S = st[c.n] || {};
