@@ -345,12 +345,12 @@ function getJson(opts) {
 }
 // ⚡ Firebase 실시간 스트림(REST SSE) — 노드가 바뀌는 즉시 onChange 호출(3초 폴링 지연 제거·v0.1.55).
 //   끊기면 자동 재연결(1→30초 백오프). 폴링은 안전망으로 그대로 유지.
-function fbStream(pathStr, onChange) {
+function fbStream(pathStr, onChange, onDown) {   // onChange(ev, {path, data}) · onDown() = 끊김(다시 연결하면 처음에 전체가 'put /'로 다시 옴)
   let retry = 1000;
   const open = (url, hops) => {
     if (app._quitting) return;
     let lastBeat = Date.now(), buf = '', done = false;
-    const again = () => { if (done) return; done = true; clearInterval(idle); setTimeout(() => open(`${FIREBASE_DB}/${pathStr}.json`, 0), retry); retry = Math.min(retry * 2, 30000); };
+    const again = () => { if (done) return; done = true; clearInterval(idle); try { if (onDown) onDown(); } catch (_) {} setTimeout(() => open(`${FIREBASE_DB}/${pathStr}.json`, 0), retry); retry = Math.min(retry * 2, 30000); };
     const req = https.get(url, { headers: { Accept: 'text/event-stream' } }, res => {
       if ((res.statusCode === 307 || res.statusCode === 302) && res.headers.location && hops < 3) {   // 샤드 호스트로 리다이렉트
         done = true; clearInterval(idle); res.resume(); open(res.headers.location, hops + 1); return;
@@ -362,7 +362,11 @@ function fbStream(pathStr, onChange) {
         while ((i = buf.indexOf('\n\n')) >= 0) {
           const block = buf.slice(0, i); buf = buf.slice(i + 2);
           const ev = (block.match(/^event: *(.*)$/m) || [])[1];
-          if (ev === 'put' || ev === 'patch') { retry = 1000; try { onChange(); } catch (_) {} }
+          if (ev === 'put' || ev === 'patch') {
+            retry = 1000; let msg = null;
+            try { msg = JSON.parse((block.match(/^data: *(.*)$/m) || [])[1] || 'null'); } catch (_) {}
+            try { onChange(ev, msg); } catch (_) {}
+          }
           else if (ev === 'cancel' || ev === 'auth_revoked') { req.destroy(); again(); return; }
         }
       });
@@ -374,6 +378,28 @@ function fbStream(pathStr, onChange) {
   };
   open(`${FIREBASE_DB}/${pathStr}.json`, 0);
 }
+// 📡 스트림 사본(v0.1.63 · 내려받기 절약) — 처음 연결 때 전체 1번 + 그 뒤엔 바뀐 부분만 받아 사본에 적용 · 다시 읽기(REST) 없음
+//   예전 = 3초마다 session·lobby·host·presence·normalLive·potgRec를 통째로 다시 읽음(앱 하나 시간당 ~6MB · 무료 한도 월 10GB를 사이트와 나눠 씀)
+//   끊겨 있는 동안(ready=false)은 pollSession이 그 노드만 예전처럼 REST로 읽음
+const MIR = {};
+function mirSet(root, ks, val) {
+  if (!ks.length) return val === undefined ? null : val;
+  const o = root && typeof root === 'object' ? (Array.isArray(root) ? root.slice() : Object.assign({}, root)) : {};
+  const v = mirSet(o[ks[0]], ks.slice(1), val);
+  if (v == null) delete o[ks[0]]; else o[ks[0]] = v;
+  return Object.keys(o).length ? o : null;
+}
+function fbMirror(name, onData) {
+  const m = MIR[name] = { ready: false, data: null };
+  fbStream(`${T}/${name}`, (ev, msg) => {
+    if (!msg || typeof msg.path !== 'string') return;
+    const ks = msg.path.split('/').filter(Boolean);
+    if (ev === 'put') { m.data = mirSet(m.data, ks, msg.data); if (!ks.length) m.ready = true; }
+    else if (ev === 'patch' && msg.data && typeof msg.data === 'object') for (const [k, v] of Object.entries(msg.data)) m.data = mirSet(m.data, ks.concat(k.split('/').filter(Boolean)), v);
+    if (m.ready) onData(m.data);
+  }, () => { m.ready = false; });
+}
+const mirOr = (name, fetcher) => MIR[name] && MIR[name].ready ? Promise.resolve(MIR[name].data) : fetcher();
 // 같은 폴러가 겹쳐 돌지 않게(스트림 이벤트+타이머 동시 호출) — 실행 중이면 끝난 뒤 1번만 다시
 function coalesce(fn) {
   let running = false, again = false;
@@ -915,7 +941,8 @@ async function fbPutIfAbsent(pathStr, value) {
 
 // ── 🧩 세션 폴링 — 팀 배정·투표·결과를 오버레이/패널로 ──────────────────────
 async function pollSession() {
-  const [s, lob, h, pres, np, pr] = await Promise.all([fetchSession(), fetchLobby(), fetchHost(), fetchPresence(), getJson(`${FIREBASE_DB}/${T}/normalLive.json`), getJson(`${FIREBASE_DB}/${T}/potgRec.json`)]);
+  const [s, lob, h, pres, np, pr] = await Promise.all([mirOr('session', fetchSession), mirOr('lobby', fetchLobby), mirOr('host', fetchHost), mirOr('presence', fetchPresence),
+    mirOr('normalLive', () => getJson(`${FIREBASE_DB}/${T}/normalLive.json`)), mirOr('potgRec', () => getJson(`${FIREBASE_DB}/${T}/potgRec.json`))]);   // 📡 스트림 사본(끊겼을 때만 서버에서)
   normalLive = np || null; potgRecRaw = pr || null;
   sessionData = s || null;
   lobbyRaw = lob || null; presenceRaw = pres || null;
@@ -1787,11 +1814,13 @@ else {
     pollGame(); pollSession(); startDockStream();
     setInterval(pollGame, 2500);
     const runSession = coalesce(pollSession);
-    setInterval(runSession, 3000);                       // 안전망(스트림 끊겼을 때)
-    fbStream(`${T}/session`, runSession);                // ⚡ 팀 배정·투표·결과 = 바뀌는 즉시
-    fbStream(`${T}/lobby`, refreshLobby);                 // ⚡ 대기실(참가·방식·팀장) = 이 노드만 다시 읽음
-    fbStream(`${T}/presence`, refreshPresence);           // ⚡ 누가 들어오고 나감
-    fbStream(`${T}/host`, runSession);                   // ⚡ 방장 바뀜(넘겨받음·이어받음)                  // ⚡ 방장 준비 중 배너
+    setInterval(runSession, 3000);                       // 화면·방장 일 3초마다(📡 v0.1.63: 데이터는 스트림 사본 — 끊긴 노드만 서버에서 읽음)
+    fbMirror('session', runSession);                     // ⚡ 팀 배정·투표·결과 = 바뀌는 즉시
+    fbMirror('lobby', d => { lobbyRaw = d || null; broadcast('lobby', lobbyView()); });       // ⚡ 대기실(참가·방식·팀장)
+    fbMirror('presence', d => { presenceRaw = d || null; broadcast('lobby', lobbyView()); }); // ⚡ 누가 들어오고 나감
+    fbMirror('host', runSession);                        // ⚡ 방장 바뀜(넘겨받음·이어받음)
+    fbMirror('normalLive', runSession);                  // 🎮 같이 한 일반 판 팟지
+    fbMirror('potgRec', runSession);                     // 🔴 녹화 중 안내                  // ⚡ 방장 준비 중 배너
     fbStream(`${T}/bridge/eogStats`, () => { if (config.isHost) runHost(); });   // ⚡ 경기 종료 → 방장 앱이 바로 기록
     setupAutoUpdate();
     replayRec = makeReplayRec(Object.assign(makeReplayRec.defaults(), {   // 🎬 방장 PC가 팟지 장면을 리플레이로 녹화
