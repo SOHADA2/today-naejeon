@@ -1,0 +1,17 @@
+# 🧭 증강 가이드 초안(tools/aug-draft.json)을 Firebase today/augGuide/champs에 넣음 — 사람이 저장한 챔피언은 건너뜀
+name: aug-seed
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['tools/aug-draft.json']
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 초안 넣기
+        run: node tools/aug-seed.cjs
