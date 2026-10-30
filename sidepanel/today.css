@@ -227,3 +227,46 @@
 .age-save { position:sticky; bottom:0; padding:10px 0 12px; background:linear-gradient(180deg, transparent, var(--bg-0) 35%); }
 .age-save .ui-btn-gold { width:100%; padding:10px; font-size:13px; }
 .age-save .ui-btn-gold:disabled { opacity:.45; cursor:default; }
+
+/* ── 🧭 증강 가이드 — 챔피언 선택 동안 보는 화면(v0.1.73 · 왼쪽 창에서 옮김) ── */
+#ag-ed .ag-head { display:flex; align-items:baseline; gap:8px; margin:0 2px 8px; }
+#ag-ed .ag-sub { font-size:11px; color:var(--dim); }
+#ag-ed .ag-tabs { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px; }
+#ag-ed .ag-tabs:empty { display:none; }
+#ag-ed .ag-tab { position:relative; width:34px; height:34px; padding:0; border:1px solid var(--line-2); background:var(--bg-2); cursor:pointer; clip-path:var(--cut-sm); opacity:.6; }
+#ag-ed .ag-tab img { width:100%; height:100%; display:block; }
+#ag-ed .ag-tab.mine { border-color:var(--gold); }
+#ag-ed .ag-tab.on { opacity:1; border-color:var(--gold-hi); box-shadow:inset 0 0 0 1px var(--gold-hi); }
+#ag-ed .ag-tab s { position:absolute; inset:0; background:rgba(6,11,16,.55); }   /* 아직 데이터 없는 챔피언 = 어둡게 */
+#ag-ed .ag-champ { display:flex; align-items:center; gap:10px; padding:8px 10px; margin-bottom:10px; background:var(--card-bg); border:1px solid var(--line-2); clip-path:var(--cut); }
+#ag-ed .ag-champ img { width:40px; height:40px; flex:none; border:1px solid var(--gold-line); }
+#ag-ed .ag-cn { display:flex; flex-direction:column; min-width:0; }
+#ag-ed .ag-cn b { font-size:15px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#ag-ed .ag-cn small { font-size:11px; color:var(--dim); }
+#ag-ed .ag-sec { margin-bottom:10px; }
+#ag-ed .ag-sh { display:flex; align-items:center; gap:7px; margin:0 2px 5px; }
+#ag-ed .ag-tag { font-size:12px; font-weight:800; padding:2px 8px; color:#1a1408; background:linear-gradient(180deg, var(--gold-hi), var(--gold)); clip-path:var(--cut-sm); }
+#ag-ed .ag-fun .ag-tag { color:#04201d; background:linear-gradient(180deg, #7FF0E4, var(--teal)); }
+#ag-ed .ag-combo .ag-tag { color:var(--ink); background:var(--bg-3); box-shadow:inset 0 0 0 1px var(--line-2); }
+#ag-ed .ag-trap .ag-tag { color:var(--ink-soft); background:transparent; box-shadow:inset 0 0 0 1px var(--mute); }
+#ag-ed .ag-row { display:flex; gap:9px; align-items:flex-start; padding:7px 8px; margin-bottom:4px; background:rgba(17,27,36,.7); border-left:2px solid var(--line-2); }
+#ag-ed .ag-perf .ag-row { border-left-color:var(--gold); } #ag-ed .ag-fun .ag-row { border-left-color:var(--teal); } #ag-ed .ag-trap .ag-row { border-left-color:var(--mute); }
+#ag-ed .aug.ag-ic { width:30px; height:30px; flex:none; }
+#ag-ed .ag-trap .aug.ag-ic { filter:grayscale(.7) brightness(.8); }
+#ag-ed .aug.ag-ic-s { width:16px; height:16px; vertical-align:-3px; margin-right:3px; }
+#ag-ed .ag-tx { display:flex; flex-direction:column; gap:2px; min-width:0; flex:1; }
+#ag-ed .ag-nm { font-size:13px; color:var(--ink); line-height:1.3; }
+#ag-ed .ag-trap .ag-nm { color:var(--ink-soft); }
+#ag-ed .ag-with { font-size:11.5px; color:var(--ink-soft); line-height:1.5; }
+#ag-ed .ag-or { font-style:normal; color:var(--mute); margin:0 4px; }
+#ag-ed .ag-why { font-size:11.5px; color:var(--dim); line-height:1.45; word-break:keep-all; }
+#ag-ed .ag-rec { font-size:10.5px; color:var(--dim); }
+#ag-ed .ag-rec b { color:var(--ink-soft); font-size:12px; }
+#ag-ed .ag-empty { padding:18px 12px; text-align:center; font-size:13px; color:var(--ink-soft); line-height:1.6; border:1px dashed var(--line-2); }
+#ag-ed .ag-empty small { display:block; font-size:11px; color:var(--dim); margin-top:4px; word-break:keep-all; }
+#ag-ed .ag-live-hd { display:flex; align-items:center; gap:8px; margin:0 0 8px; }
+#ag-ed .lb-sec-en { font-family:var(--f-num); font-weight:700; font-size:11px; letter-spacing:0.16em; color:var(--gold); }
+#ag-ed .ag-live-hd .ag-sub { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#ag-ed .ag-editbtn { -webkit-app-region:no-drag; flex:none; padding:4px 8px; font-size:11px; font-weight:700; color:var(--gold); background:transparent; border:1px solid var(--line-2); cursor:pointer; font-family:var(--f-body); white-space:nowrap; }
+#ag-ed .ag-editbtn:hover { border-color:var(--gold); }
+@media (max-width:340px) { #ag-ed .ag-live-hd .ag-sub { visibility:hidden; } }   /* 좁은 폭: 부제 숨김(…로 잘리지 않게) */

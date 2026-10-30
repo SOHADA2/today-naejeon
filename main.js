@@ -1610,7 +1610,7 @@ async function augRecords() {
   _augRec = rec; _augRecAt = Date.now();
   return rec;
 }
-// 챔피언 선택 화면 상태(브릿지 onChampSelect) → 왼쪽 창 「증강 가이드」
+// 챔피언 선택 화면 상태(브릿지 onChampSelect) → 오른쪽 창 「증강」 탭(v0.1.73: 왼쪽 창은 팀 화면 그대로)
 let champSel = null, _champSelSig = '';
 function onChampSelect(d) {
   const sig = d ? JSON.stringify([d.mine, d.bench]) : '';
