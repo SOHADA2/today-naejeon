@@ -30,7 +30,7 @@ window.api.onLobby(d => { lobbyData = d || null; if (d) myIsHost = !!d.isHost; r
 window.api.onDocked(v => { document.body.classList.toggle('docked', !!v); });
 
 function showView(v) {
-  for (const k of ['lobby', 'rec', 'team', 'draft', 'vote', 'result', 'roster']) el('view-' + k).style.display = v === k ? (k === 'team' ? 'flex' : 'block') : 'none';
+  for (const k of ['lobby', 'rec', 'team', 'draft', 'vote', 'result', 'roster', 'aug']) el('view-' + k).style.display = v === k ? (k === 'team' ? 'flex' : 'block') : 'none';
 }
 function myTeam() {
   const s = sessionData; if (!s) return 0;
@@ -773,6 +773,33 @@ function renderRoster() {
   wi.innerHTML = `<div class="wi-sec-h">오늘 순위 · ${_today.matches.length}판</div><div class="wi-rk">${rows}</div>`;
 }
 
+// ── 🧭 증강 가이드(v0.1.72) — 챔피언 선택 화면 동안 내 챔피언·벤치 챔피언별 성능/꿀잼/조합/함정 픽 ─────
+// 게임 전에 미리 보는 정해진 추천(라이엇 정책 허용 범위) · 데이터는 오른쪽 창 「증강」 탭에서 채움(앱 업데이트 없이 반영)
+let _ag = null, _agSel = 0;
+window.api.getAugGuide().then(d => { _ag = d; render(); }).catch(() => {});
+window.api.onAugGuide(d => { const was = _ag && _ag.active; _ag = d; if (d && d.active && !was) _agSel = 0; render(); });
+function agAug(id, cls) {
+  const a = (_augMap || {})[id] || {};
+  return `<i class="aug ${a.rarity || ''} ${cls || ''}" title="${esc(a.name || '증강 #' + id)}">${a.icon ? `<img src="${a.icon}" alt="" onerror="this.remove()">` : ''}<b>?</b></i>`;
+}
+const agName = id => ((_augMap || {})[id] || {}).name || ('증강 #' + id);
+function renderAug() {
+  const list = (_ag && _ag.list) || [];
+  if (!list.some(c => c.id === _agSel)) _agSel = (list.find(c => c.mine) || list[0] || {}).id || 0;
+  el('ag-tabs').innerHTML = list.length > 1 ? list.map(c => `<button class="ag-tab${c.id === _agSel ? ' on' : ''}${c.mine ? ' mine' : ''}" data-id="${c.id}" title="${esc(c.name)}${c.mine ? ' · 내 챔피언' : ' · 벤치'}"><img src="${champUrl(c.id)}" alt="" onerror="this.remove()">${Object.keys(c.guide || {}).length ? '' : '<s></s>'}</button>`).join('') : '';
+  el('ag-tabs').querySelectorAll('.ag-tab').forEach(b => b.onclick = () => { _agSel = Number(b.dataset.id); renderAug(); });
+  const c = list.find(x => x.id === _agSel);
+  if (!c) { el('ag-body').innerHTML = '<div class="ag-empty">챔피언을 고르면 여기에 증강 추천이 떠요</div>'; return; }
+  const g = c.guide || {}, rec = c.rec || {};
+  const recTx = id => { const r = rec[id]; return r && r.g ? `<span class="ag-rec">우리 기록 <b class="num">${r.g}</b>판 <b class="num">${r.w}</b>승</span>` : ''; };
+  const cats = ((_ag && _ag.cats) || []).filter(k => (g[k.k] || []).length);
+  const head = `<div class="ag-champ"><img src="${champUrl(c.id)}" alt="" onerror="this.remove()"><span class="ag-cn"><b>${esc(c.name || '')}</b><small>${c.mine ? '내 챔피언' : '벤치 · 바꾸면 이런 증강'}</small></span></div>`;
+  if (!cats.length) { el('ag-body').innerHTML = head + '<div class="ag-empty">이 챔피언은 아직 준비 중이에요<small>오른쪽 창 「증강」 탭에서 채우면 모두에게 바로 보여요</small></div>'; return; }
+  el('ag-body').innerHTML = head + cats.map(k => `<div class="ag-sec ag-${k.k}"><div class="ag-sh"><span class="ag-tag">${esc(k.label)}</span><span class="lb-sec-en">${esc(k.en)}</span></div>` +
+    g[k.k].map(e => `<div class="ag-row">${agAug(e.id, 'ag-ic')}<span class="ag-tx"><b class="ag-nm">${k.k === 'trap' ? '✕ ' : ''}${esc(agName(e.id))}</b>` +
+      (e.with && e.with.length ? `<span class="ag-with">＋ ${e.with.map(w => `${agAug(w, 'ag-ic-s')}<span>${esc(agName(w))}</span>`).join('<i class="ag-or">·</i>')}</span>` : '') +
+      (e.why ? `<span class="ag-why">${esc(e.why)}</span>` : '') + recTx(e.id) + `</span></div>`).join('') + '</div>').join('');
+}
 function render() {
   const s = sessionData, ph = s && s.phase;
   if (ph === 'draft' && !inGame) { maybePick(s); loadToday(); renderDraft(); updateDraftTimer(); showView('draft'); el('phase').textContent = '드래프트'; maybeCoin(s); return; }   // 픽 먼저(뽑힌 칸을 연출 끝까지 비워둠)
@@ -782,6 +809,7 @@ function render() {
     renderVote(); showView('vote'); el('phase').textContent = '투표'; return;
   }
   if (ph === 'result' && hasTeams() && s.game && !resultSeen()) { loadToday(); renderResult(); showView('result'); el('phase').textContent = '결과'; return; }
+  if (_ag && _ag.active && !inGame) { renderAug(); showView('aug'); el('phase').textContent = '챔피언 픽'; return; }   // 🧭 챔피언 선택 동안은 증강 가이드
   if (recData && !inGame && ph === 'teams') { renderRec(); showView('rec'); el('phase').textContent = '기록 저장 중'; return; }
   if (!inGame && ph === 'teams' && hasTeams()) { loadToday(); renderTeam(); showView('team'); el('phase').textContent = _gamePlayed ? '결과 대기' : '팀 배정'; if (sessionData.mode === 'draft') maybePick(sessionData); return; }   // 마지막 픽은 바로 팀 화면이 되므로 여기서도
   if (inGame || roster.length) { renderRoster(); showView('roster'); el('phase').textContent = '게임 중'; return; }

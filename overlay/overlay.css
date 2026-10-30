@@ -426,3 +426,41 @@ header .phase, header .win-btn { flex-shrink:0; }
 .lb-upd > span:first-child { flex:1; min-width:0; }
 .lb-upd .lb-mini { flex:none; }
 .lb-upd-st { flex:none; font-family:var(--f-num); color:var(--gold-hi); }
+
+/* ── 🧭 증강 가이드(v0.1.72 · 챔피언 선택 화면) ── */
+#view-aug { padding:10px 12px 14px; }
+.ag-head { display:flex; align-items:baseline; gap:8px; margin:0 2px 8px; }
+.ag-sub { font-size:11px; color:var(--dim); }
+.ag-tabs { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px; }
+.ag-tabs:empty { display:none; }
+.ag-tab { position:relative; width:34px; height:34px; padding:0; border:1px solid var(--line-2); background:var(--bg-2); cursor:pointer; clip-path:var(--cut-sm); opacity:.6; }
+.ag-tab img { width:100%; height:100%; display:block; }
+.ag-tab.mine { border-color:var(--gold); }
+.ag-tab.on { opacity:1; border-color:var(--gold-hi); box-shadow:inset 0 0 0 1px var(--gold-hi); }
+.ag-tab s { position:absolute; inset:0; background:rgba(6,11,16,.55); }   /* 아직 데이터 없는 챔피언 = 어둡게 */
+.ag-champ { display:flex; align-items:center; gap:10px; padding:8px 10px; margin-bottom:10px; background:var(--card-bg); border:1px solid var(--line-2); clip-path:var(--cut); }
+.ag-champ img { width:40px; height:40px; flex:none; border:1px solid var(--gold-line); }
+.ag-cn { display:flex; flex-direction:column; min-width:0; }
+.ag-cn b { font-size:15px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ag-cn small { font-size:11px; color:var(--dim); }
+.ag-sec { margin-bottom:10px; }
+.ag-sh { display:flex; align-items:center; gap:7px; margin:0 2px 5px; }
+.ag-tag { font-size:12px; font-weight:800; padding:2px 8px; color:#1a1408; background:linear-gradient(180deg, var(--gold-hi), var(--gold)); clip-path:var(--cut-sm); }
+.ag-fun .ag-tag { color:#04201d; background:linear-gradient(180deg, #7FF0E4, var(--teal)); }
+.ag-combo .ag-tag { color:var(--ink); background:var(--bg-3); box-shadow:inset 0 0 0 1px var(--line-2); }
+.ag-trap .ag-tag { color:var(--ink-soft); background:transparent; box-shadow:inset 0 0 0 1px var(--mute); }
+.ag-row { display:flex; gap:9px; align-items:flex-start; padding:7px 8px; margin-bottom:4px; background:rgba(17,27,36,.7); border-left:2px solid var(--line-2); }
+.ag-perf .ag-row { border-left-color:var(--gold); } .ag-fun .ag-row { border-left-color:var(--teal); } .ag-trap .ag-row { border-left-color:var(--mute); }
+.aug.ag-ic { width:30px; height:30px; flex:none; }
+.ag-trap .aug.ag-ic { filter:grayscale(.7) brightness(.8); }
+.aug.ag-ic-s { width:16px; height:16px; vertical-align:-3px; margin-right:3px; }
+.ag-tx { display:flex; flex-direction:column; gap:2px; min-width:0; flex:1; }
+.ag-nm { font-size:13px; color:var(--ink); line-height:1.3; }
+.ag-trap .ag-nm { color:var(--ink-soft); }
+.ag-with { font-size:11.5px; color:var(--ink-soft); line-height:1.5; }
+.ag-or { font-style:normal; color:var(--mute); margin:0 4px; }
+.ag-why { font-size:11.5px; color:var(--dim); line-height:1.45; word-break:keep-all; }
+.ag-rec { font-size:10.5px; color:var(--dim); }
+.ag-rec b { color:var(--ink-soft); font-size:12px; }
+.ag-empty { padding:18px 12px; text-align:center; font-size:13px; color:var(--ink-soft); line-height:1.6; border:1px dashed var(--line-2); }
+.ag-empty small { display:block; font-size:11px; color:var(--dim); margin-top:4px; word-break:keep-all; }

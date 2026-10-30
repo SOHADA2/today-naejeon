@@ -184,7 +184,9 @@ function _repaintSlot() {   // 투명창이 흰 박스로 안 그려지는 Win �
 }
 let lobbySeat = null, lobbyPhase = null, lobbyCustom = null, _slotMsg = '';   // 🪑 브릿지 pollSeat(1초): 롤 페이즈 · 커스텀 로비에서 내가 앉은 쪽(1·2·'spec'·null) · 커스텀 방인지
 function onLobbySeat(d) {
+  const prevPhase = lobbyPhase;
   lobbyPhase = d && d.phase || null; lobbySeat = d ? d.seat : null; lobbyCustom = d ? d.custom : null;
+  if ((prevPhase === 'ChampSelect') !== (lobbyPhase === 'ChampSelect')) { if (lobbyPhase !== 'ChampSelect') { champSel = null; _champSelSig = ''; } pushAugGuide().catch(() => {}); }   // 🧭 증강 가이드 켜고 끄기
   if (!_floating && clientFg && _lastRect) updateSlotMarker(_lastRect); else hideSlotMarker();
 }
 function updateSlotMarker(p) {   // p=[L,T,R,B] 원시 px(클라 감지됨)
@@ -1527,6 +1529,7 @@ async function getAugments() {
         name: a.nameTRA || '#' + a.id,
         icon: a.augmentSmallIconPath ? AUG_ICON_BASE + a.augmentSmallIconPath.replace('/lol-game-data/assets', '').toLowerCase() : '',
         rarity: String(a.rarity || '').replace(/^k/, '').toLowerCase(),   // silver / gold / prismatic
+        desc: String(a.descriptionTRA || a.desc || '').replace(/<[^>]+>/g, '').slice(0, 300),   // 설명(있으면 · 증강 가이드 편집 화면용)
       };
       _aug = map; _augAt = Date.now();
       try { fs.writeFileSync(augCachePath(), JSON.stringify({ at: _augAt, map })); } catch (_) {}
@@ -1543,6 +1546,107 @@ async function getAugments() {
 // 사람 키 = 'p:'+puuid(앱으로 들어온 사람) 또는 'n:'+이름(앱 없이 방장이 추가한 사람·옛 기록)
 // 판별 순서: 경기 기록의 ids(이름→puuid) → 게임 결과(stats)의 puuid(이름 매칭) → 계정 목록 이름 → 이름
 const fetchAllDays = () => getJson(`${FIREBASE_DB}/${T}/days.json`);
+// ── 🧭 증강 가이드(v0.1.72) — 챔피언 선택 화면에서 「이 챔피언이면 이런 증강」을 카테고리로(게임 전 정해진 추천 = 라이엇 정책 허용 범위) ──
+// 게임 중 증강 3개가 뜬 순간 등급을 매기는 방식(블리츠·OP.GG)은 안 함 — 정책상 게임 중 실시간 선택 도움은 막혀 있고, 롤이 그 정보를 주지도 않음.
+// 데이터 = today/augGuide/champs/{championId} = {perf:[{id,why}], fun:[…], combo:[{id,with:[id…],why}], trap:[…], at, by}
+//   앱 업데이트 없이 오른쪽 창 「증강」 탭에서 채우면 모두에게 바로 반영 · 증강 이름·아이콘은 getAugments(패치되면 자동 최신)
+const AUG_CATS = [
+  { k: 'perf', label: '성능 픽', en: 'POWER', tip: '이 챔피언으로 잘 굴러가면 강한 증강(기복 큰 건 「기복 큼」이라고 적어 주세요)' },
+  { k: 'fun', label: '꿀잼 픽', en: 'FUN', tip: '이기고 지는 것보다 재미있는 그림이 나오는 증강' },
+  { k: 'combo', label: '조합 픽', en: 'COMBO', tip: '다른 증강과 같이 잡아야 완성 — 「A 잡았으면 B 노리기」' },
+  { k: 'trap', label: '함정 픽', en: 'TRAP', tip: '이름은 그럴듯한데 이 챔피언에겐 안 맞는 증강' },
+];
+const CHAMP_URL = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1/champion-summary.json';
+let _champs = null, _champsAt = 0;
+async function getChamps() {   // 챔피언 번호 → {name, alias} (편집 화면 목록·챔피언 선택 화면 이름)
+  if (_champs && Date.now() - _champsAt < 12 * 3600e3) return _champs;
+  const file = path.join(app.getPath('userData'), 'champs-cache.json');
+  try {
+    const list = await getJson(CHAMP_URL);
+    if (Array.isArray(list) && list.length) {
+      const map = {}; for (const c of list) if (c && c.id > 0) map[c.id] = { name: c.name || '', alias: c.alias || '' };
+      _champs = map; _champsAt = Date.now();
+      try { fs.writeFileSync(file, JSON.stringify(map)); } catch (_) {}
+      return _champs;
+    }
+  } catch (_) {}
+  if (!_champs) { try { _champs = JSON.parse(fs.readFileSync(file, 'utf8')); _champsAt = Date.now() - 11 * 3600e3; } catch (_) { _champs = {}; } }
+  return _champs;
+}
+let _guide = null, _guideAt = 0;
+async function getGuide(force) {   // 2분 캐시(챔피언 선택 1~2분 동안 한 번만 받음)
+  if (!force && _guide && Date.now() - _guideAt < 120000) return _guide;
+  try { const g = await getJson(`${FIREBASE_DB}/${T}/augGuide/champs.json`); _guide = g || {}; _guideAt = Date.now(); } catch (_) { if (!_guide) _guide = {}; }
+  return _guide;
+}
+const GUIDE_MAX = 8, WHY_MAX = 80;
+function cleanGuideEntry(c) {   // 저장 전에 모양·길이 정리(누가 써도 같은 모양)
+  const out = {};
+  for (const { k } of AUG_CATS) {
+    const list = Array.isArray(c && c[k]) ? c[k] : [];
+    const seen = new Set(), rows = [];
+    for (const e of list) {
+      const id = Number(e && e.id); if (!(id > 0) || seen.has(id)) continue; seen.add(id);
+      const row = { id, why: String((e && e.why) || '').trim().slice(0, WHY_MAX) };
+      if (k === 'combo') row.with = [...new Set((Array.isArray(e.with) ? e.with : []).map(Number).filter(x => x > 0 && x !== id))].slice(0, 3);
+      rows.push(row); if (rows.length >= GUIDE_MAX) break;
+    }
+    if (rows.length) out[k] = rows;
+  }
+  return out;
+}
+// 우리 기록 = 지금까지 내전·같이 한 일반 판에서 그 챔피언으로 그 증강을 고른 판 수·승 (프로필과 같은 30초 캐시)
+let _augRec = null, _augRecAt = 0;
+async function augRecords() {
+  if (_augRec && Date.now() - _augRecAt < 30000) return _augRec;
+  const days = await fetchAllDays().catch(() => null);
+  const rec = {};
+  for (const d of Object.values(days || {})) for (const kind of ['matches', 'normals']) for (const m of Object.values((d && d[kind]) || {})) {
+    for (const st of (m && m.stats) || []) {
+      if (!st || !st.championId) continue;
+      for (const id of new Set(st.augments || [])) { const k = st.championId + ':' + id; const x = rec[k] = rec[k] || { g: 0, w: 0 }; x.g++; if (st.isWin) x.w++; }
+    }
+  }
+  _augRec = rec; _augRecAt = Date.now();
+  return rec;
+}
+// 챔피언 선택 화면 상태(브릿지 onChampSelect) → 왼쪽 창 「증강 가이드」
+let champSel = null, _champSelSig = '';
+function onChampSelect(d) {
+  const sig = d ? JSON.stringify([d.mine, d.bench]) : '';
+  if (sig === _champSelSig) return;
+  _champSelSig = sig; champSel = d;
+  pushAugGuide().catch(() => {});
+}
+async function augGuideView() {
+  if (!champSel || lobbyPhase !== 'ChampSelect') return { active: false };
+  const [guide, champs, rec] = await Promise.all([getGuide(), getChamps(), augRecords().catch(() => ({}))]);
+  const ids = [...new Set([champSel.mine, ...(champSel.bench || [])].filter(x => x > 0))];
+  const list = ids.map(id => {
+    const g = guide[id] || {}, r = {};
+    for (const { k } of AUG_CATS) for (const e of g[k] || []) for (const a of [e.id, ...(e.with || [])]) { const x = rec[id + ':' + a]; if (x) r[a] = x; }
+    return { id, name: (champs[id] && champs[id].name) || '', mine: id === champSel.mine, guide: cleanGuideEntry(g), rec: r };
+  });
+  return { active: true, cats: AUG_CATS, list };
+}
+async function pushAugGuide() { const v = await augGuideView(); broadcast('augguide', v); }
+ipcMain.handle('augguide', () => augGuideView());
+// 편집(오른쪽 창 「증강」 탭) — 누구나 채울 수 있음 · 저장 = 그 챔피언 칸 통째로 교체(마지막 저장이 이김)
+ipcMain.handle('augguide-all', async () => {
+  const [guide, champs, augs, rec] = await Promise.all([getGuide(true), getChamps(), getAugments(), augRecords().catch(() => ({}))]);
+  const seen = {}; for (const k of Object.keys(rec)) { const a = k.split(':')[1]; seen[a] = (seen[a] || 0) + rec[k].g; }   // 우리 기록에 나온 증강(편집 목록 위로)
+  return { cats: AUG_CATS, guide, champs, augs, seen, max: GUIDE_MAX, whyMax: WHY_MAX };
+});
+ipcMain.handle('augguide-save', async (_e, arg) => {
+  const id = Number(arg && arg.champId); if (!(id > 0)) return { ok: false, err: '챔피언 번호가 이상해요' };
+  const data = cleanGuideEntry(arg.guide || {});
+  const has = Object.keys(data).length > 0;
+  const r = has ? await fbSet(`${T}/augGuide/champs/${id}`, { ...data, at: Date.now(), by: (account && account.gameName) || config.myName || '' })
+    : await fbDelete(`${T}/augGuide/champs/${id}`);
+  if (r.ok) { _guideAt = 0; if (champSel) pushAugGuide().catch(() => {}); }
+  return r.ok ? { ok: true } : { ok: false, err: r.err || '저장 실패' };
+});
+
 const fetchAccounts = () => getJson(`${FIREBASE_DB}/${T}/accounts.json`);
 let _profIdx = null, _profAt = 0;
 async function profileIndex() {
@@ -1840,7 +1944,7 @@ else {
     try { replayRec.restorePending(); } catch (_) {}   // 지난번에 녹화하다 앱이 꺼졌으면 game.cfg 창 설정 되돌림
     potg = makePotg({ T, FIREBASE_DB, fbSet, fbDelete, getJson, dayKey, normName, userData: app.getPath('userData'), getPlayers: () => latestPlayers, log: (m) => { try { console.log(m); } catch (_) {} } });
     setTimeout(() => potg.cleanup().catch(() => {}), 8000); setInterval(() => potg.cleanup().catch(() => {}), 30 * 60 * 1000);   // 🎬 3일 지난 영상·수집 지우기
-    bridge.start({ getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, onLobbySeat, onNormal: (e) => recordNormal(e).catch(err => console.log('[normal] 오류', err && err.message)), fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
+    bridge.start({ getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, onLobbySeat, onChampSelect, onNormal: (e) => recordNormal(e).catch(err => console.log('[normal] 오류', err && err.message)), fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
     // 🧪 개발용: 롤 없이 테스트 — TN_FAKE_ACCOUNT="이름#태그" (배포본에선 안 씀) · TN_FAKE_DELAY=ms(기본 1500 · 50이면 창 로딩 도중 계정이 잡히는 경우 재현)
     if (!app.isPackaged && process.env.TN_FAKE_ACCOUNT) { const [g, t] = process.env.TN_FAKE_ACCOUNT.split('#'); setTimeout(() => setAccount({ puuid: 'fake-' + g, gameName: g, tagLine: t || 'KR1', iconId: 29 }), +(process.env.TN_FAKE_DELAY || 1500)); }
   });

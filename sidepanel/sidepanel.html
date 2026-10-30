@@ -39,6 +39,7 @@
         <button class="rail-btn" data-cat="team" id="s-rail-team" style="display:none;"><span class="ri">⚔️</span><span class="rl">진행</span></button>
         <button class="rail-btn on" data-cat="today"><span class="ri">📅</span><span class="rl">오늘</span></button>
         <button class="rail-btn" data-cat="profile"><span class="ri">👤</span><span class="rl">프로필</span></button>
+        <button class="rail-btn" data-cat="aug"><span class="ri">🧭</span><span class="rl">증강</span></button>
       </nav>
       <div class="cat">
         <!-- ⚔️ 팀짜기(방장) -->
@@ -60,6 +61,11 @@
           <div class="cat-hd"><span id="pf-title">내 프로필</span><button class="pf-back" id="pf-back" style="display:none;">내 프로필로</button></div>
           <div id="pf-body" class="cat-scroll ui-scroll"></div>
         </section>
+        <!-- 🧭 증강 가이드 편집 -->
+        <section class="cat-view" id="cat-aug" style="display:none;">
+          <div class="cat-hd">증강 가이드 <span class="cat-hd-sub">챔피언별 추천</span></div>
+          <div id="ag-ed" class="cat-scroll ui-scroll"></div>
+        </section>
         <!-- 📅 오늘 -->
         <section class="cat-view" id="cat-today" style="display:flex;">
           <div class="cat-hd"><button class="td-nav" id="td-prev" title="이전 날">‹</button><span id="td-day">오늘</span><button class="td-nav" id="td-next" title="다음 날">›</button></div>
@@ -70,5 +76,6 @@
   </div>
   <script src="../desktop/settings.js"></script>
   <script src="sidepanel.js"></script>
+  <script src="augguide.js"></script>
 </body>
 </html>

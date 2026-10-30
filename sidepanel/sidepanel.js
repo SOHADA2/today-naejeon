@@ -110,6 +110,7 @@ function switchCat(cat) {
   document.querySelectorAll('.cat-view').forEach(v => { v.style.display = (v.id === 'cat-' + cat) ? 'flex' : 'none'; });
   if (cat === 'team') renderLive();
   else if (cat === 'profile') renderProfile();
+  else if (cat === 'aug') renderAugEdit();
   else renderToday();
 }
 document.querySelectorAll('.rail-btn').forEach(b => b.addEventListener('click', () => switchCat(b.dataset.cat)));

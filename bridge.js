@@ -22,7 +22,8 @@ let _onAccount  = () => {};     // 👤 롤에 로그인된 라이엇 계정 변
 let _onEog      = () => {};     // 📼 게임 결과 수집 단계 알림 → 왼쪽 창 「기록 저장 중」 화면
 let _onNormal   = () => {};     // 🎮 일반 게임(비커스텀) 결과 → main recordNormal(앱 켠 친구 2명+가 같은 팀이면 「같이 한 일반 판」)
 let _fakeLcu    = null;         // 🧪 개발용 "port:password"(TN_FAKE_LCU) — lockfile 대신 이 주소로 붙음
-let _onLobbySeat = () => {};   // 🪑 커스텀 로비에서 내가 앉은 쪽(1=왼쪽 팀100 · 2=오른쪽 팀200 · 'spec'=관전석 · null=로비 아님) → main 「내 팀」 마커
+let _onLobbySeat = () => {};
+let _onChampSelect = () => {}; // 🧭 챔피언 선택 화면: {mine: 내 챔피언 번호, bench: [벤치 챔피언 번호…]} → main 증강 가이드   // 🪑 커스텀 로비에서 내가 앉은 쪽(1=왼쪽 팀100 · 2=오른쪽 팀200 · 'spec'=관전석 · null=로비 아님) → main 「내 팀」 마커
 let _isHost     = () => false;  // 👑 이 PC가 방장인지(리플레이 확인에서 실제 다운로드는 방장만)
 let _lolDir     = null;         // 롤 설치 폴더(lockfile 있는 곳) — Config/game.cfg 확인용
 
@@ -200,6 +201,8 @@ async function handleChampSelect() {
       benchChampions: (session.benchChampions || []).map(c => ({ champId: c.championId })),
       timerPhase: session.timer?.phase || '', updatedAt: Date.now(),
     });
+    const me = (session.myTeam || []).find(p => p.cellId === session.localPlayerCellId) || (session.myTeam || []).find(p => p.isSelf);
+    try { _onChampSelect({ mine: (me && me.championId) || 0, bench: (session.benchChampions || []).map(c => c.championId).filter(x => x > 0) }); } catch (_) {}
   } catch (_) {}
 }
 
@@ -681,6 +684,7 @@ async function start(opts) {
   _onNormal  = (opts && opts.onNormal)        || (() => {});
   _isHost    = (opts && opts.isHost)          || (() => false);
   _onLobbySeat = (opts && opts.onLobbySeat)  || (() => {});
+  _onChampSelect = (opts && opts.onChampSelect) || (() => {});
   log('내장 브릿지 시작 — LCU 감지 대기');
   startHeartbeat();
   connector.start();

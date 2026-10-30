@@ -171,3 +171,59 @@
 .nm-fn { flex:0 0 auto; max-width:58%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink); }
 .nm-f small { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--dim); font-size:10.5px; }
 @media (max-width:340px) { .nm-len { display:none; } .nm-f em { min-width:46px; } }
+
+/* ── 🧭 증강 가이드 편집(v0.1.72) ── */
+#ag-ed { padding:10px 12px 0; }
+#ag-ed .aug { position:relative; display:inline-block; width:20px; height:20px; overflow:hidden; background:var(--bg-3); border:1.5px solid var(--mute); border-radius:3px; flex:none; }
+#ag-ed .aug img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:1; }
+#ag-ed .aug b { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:var(--dim); }
+#ag-ed .aug.silver { border-color:#B9C3CC; } #ag-ed .aug.gold { border-color:#E8C46A; } #ag-ed .aug.prismatic { border-color:#C58BFF; }
+#ag-ed .aug.ag-ic { width:30px; height:30px; }
+#ag-ed .aug.ag-ic-s { width:16px; height:16px; vertical-align:-3px; margin-right:3px; }
+.age-intro { font-size:11.5px; color:var(--dim); line-height:1.6; margin-bottom:8px; word-break:keep-all; }
+.age-intro b { color:var(--ink-soft); }
+.age-q { -webkit-app-region:no-drag; width:100%; box-sizing:border-box; padding:8px 10px; font-size:12.5px; color:var(--ink); background:var(--bg-2); border:1px solid var(--line-2); outline:none; font-family:var(--f-body); }
+.age-q:focus { border-color:var(--gold-line); }
+.age-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(62px, 1fr)); gap:6px; margin:10px 0 14px; }
+.age-ch { -webkit-app-region:no-drag; display:flex; flex-direction:column; align-items:center; gap:3px; padding:5px 2px; background:var(--bg-2); border:1px solid var(--hair); cursor:pointer; color:var(--dim); font-size:10.5px; font-family:var(--f-body); min-width:0; }
+.age-ch img { width:38px; height:38px; opacity:.55; }
+.age-ch span { max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.age-ch.has { border-color:var(--gold-line); color:var(--ink); }
+.age-ch.has img { opacity:1; }
+.age-ch:hover { border-color:var(--gold); }
+.age-top { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.age-top img { width:32px; height:32px; border:1px solid var(--gold-line); }
+.age-top b { font-size:15px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.age-top small { margin-left:auto; font-size:10.5px; color:var(--dim); white-space:nowrap; }
+.age-sec { margin-bottom:12px; }
+.age-sh { display:flex; flex-direction:column; gap:3px; margin-bottom:6px; }
+.age-sh small { font-size:10.5px; color:var(--dim); line-height:1.4; word-break:keep-all; }
+.age-sh .ag-tag { align-self:flex-start; font-size:12px; font-weight:800; padding:2px 8px; color:#1a1408; background:linear-gradient(180deg, var(--gold-hi), var(--gold)); clip-path:var(--cut-sm); }
+.ag-fun .ag-tag { color:#04201d !important; background:linear-gradient(180deg, #7FF0E4, var(--teal)) !important; }
+.ag-combo .ag-tag { color:var(--ink) !important; background:var(--bg-3) !important; box-shadow:inset 0 0 0 1px var(--line-2); }
+.ag-trap .ag-tag { color:var(--ink-soft) !important; background:transparent !important; box-shadow:inset 0 0 0 1px var(--mute); }
+.age-row { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:flex-start; padding:7px 6px 7px 8px; margin-bottom:4px; background:rgba(17,27,36,.7); border-left:2px solid var(--line-2); }
+.ag-perf .age-row { border-left-color:var(--gold); } .ag-fun .age-row { border-left-color:var(--teal); } .ag-trap .age-row { border-left-color:var(--mute); }
+.age-rc { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
+.age-rc > b { font-size:12.5px; color:var(--ink); }
+.age-why { -webkit-app-region:no-drag; flex:1 1 100%; width:100%; box-sizing:border-box; padding:5px 7px; font-size:11.5px; color:var(--ink-soft); background:var(--bg-1); border:1px solid var(--hair); outline:none; font-family:var(--f-body); }
+.age-why:focus { border-color:var(--gold-line); }
+.age-wl { font-weight:700; color:var(--dim); margin-right:2px; }
+.age-with { display:flex; flex-wrap:wrap; gap:4px; align-items:center; font-size:11px; color:var(--dim); }
+.age-w, .age-add-w { -webkit-app-region:no-drag; padding:2px 6px; font-size:11px; color:var(--ink-soft); background:var(--bg-2); border:1px solid var(--line-2); cursor:pointer; font-family:var(--f-body); white-space:nowrap; }
+.age-add-w { color:var(--gold); border-style:dashed; }
+.age-del { -webkit-app-region:no-drag; flex:none; width:24px; height:24px; padding:0; font-size:12px; color:var(--dim); background:transparent; border:none; cursor:pointer; }
+.age-del:hover { color:var(--lose); }
+.age-add { -webkit-app-region:no-drag; width:100%; padding:7px; font-size:12px; font-weight:700; color:var(--gold); background:transparent; border:1px dashed var(--line-2); cursor:pointer; font-family:var(--f-body); }
+.age-add:hover { border-color:var(--gold); }
+.age-pick { margin:4px 0 12px; padding:8px; background:var(--bg-1); border:1px solid var(--gold-line); }
+.age-pk-hd { display:flex; gap:6px; align-items:center; margin-bottom:6px; }
+.age-pk-list { max-height:260px; overflow:auto; display:flex; flex-direction:column; gap:3px; }
+.age-pk { -webkit-app-region:no-drag; display:flex; gap:8px; align-items:center; padding:5px 6px; background:var(--bg-2); border:1px solid var(--hair); cursor:pointer; text-align:left; font-family:var(--f-body); }
+.age-pk:hover { border-color:var(--gold-line); }
+.age-pk span { display:flex; flex-direction:column; min-width:0; }
+.age-pk b { font-size:12px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.age-pk small { font-size:10px; color:var(--dim); }
+.age-save { position:sticky; bottom:0; padding:10px 0 12px; background:linear-gradient(180deg, transparent, var(--bg-0) 35%); }
+.age-save .ui-btn-gold { width:100%; padding:10px; font-size:13px; }
+.age-save .ui-btn-gold:disabled { opacity:.45; cursor:default; }
