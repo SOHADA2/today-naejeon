@@ -423,3 +423,6 @@ header .phase, header .win-btn { flex-shrink:0; }
 .seat-btn.t1:hover, .seat-btn.t2:hover { color:#fff; filter:brightness(1.15); }
 .lb-mini + .lb-mini { margin-left:0; }
 .lb-mini.plain { color:var(--dim); background:transparent; border-color:var(--hair); }
+.lb-upd > span:first-child { flex:1; min-width:0; }
+.lb-upd .lb-mini { flex:none; }
+.lb-upd-st { flex:none; font-family:var(--f-num); color:var(--gold-hi); }

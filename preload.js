@@ -55,7 +55,6 @@ contextBridge.exposeInMainWorld('api', {
   lobbySidesPrev: () => ipcRenderer.invoke('lobby-sides-prev'),               // 🧩 지난 판 팀 그대로
   lobbySidesClear: () => ipcRenderer.invoke('lobby-sides-clear'),
   lobbyReopen: () => ipcRenderer.invoke('lobby-reopen'),                    // 👑 지금 판 접고 대기실로
-  lobbyUpdateReq: () => ipcRenderer.invoke('lobby-update-req'),             // 👑 옛 버전 앱들 업데이트 시키기
   showOverlay: () => ipcRenderer.send('overlay-show'),
   hostResult: (winner) => ipcRenderer.invoke('host-result', { winner }),   // 🏁 승리팀 직접 기록
   // 🗳️ 투표

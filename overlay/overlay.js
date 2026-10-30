@@ -665,19 +665,22 @@ function renderLobby() {
       + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="${m.guest ? '목록에서 빼기' : '관전으로 보내기'}">${m.guest ? '✕' : '↓'}</button>` : '')) : '';
     return `<div class="seat filled${m.me ? ' me' : ''}${cap ? ' cap' + cap : ''}${sn ? ' side' + sn : ''}">`
       + `<span class="seat-no">${no}</span>${avatar(m, 'seat-av')}`
-      + `<span class="seat-main"><b class="lb-nm" data-pk="${esc(m.key)}" title="프로필 보기">${esc(m.name)}</b><small>${tags}${m.ver && verLt(m.ver, L.latest) ? `<span class="seat-old" title="지금 v${esc(m.ver)} · 최신 v${esc(L.latest)}">업데이트 필요</span>` : ''}${m.guest ? '<span>앱 없음</span>' : m.online ? '' : '<span>오프라인</span>'}${st ? `<span><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : ''}</small></span>`
+      + `<span class="seat-main"><b class="lb-nm" data-pk="${esc(m.key)}" title="프로필 보기">${esc(m.name)}</b><small>${tags}${m.me && m.ver && verLt(m.ver, L.latest) ? `<span class="seat-old" title="지금 v${esc(m.ver)} · 최신 v${esc(L.latest)}">옛 버전</span>` : ''}${m.guest ? '<span>앱 없음</span>' : m.online ? '' : '<span>오프라인</span>'}${st ? `<span><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : ''}</small></span>`
       + (ctl ? `<span class="seat-ctl">${ctl}</span>` : '') + '</div>';
   };
   el('lb-seats').innerHTML = manual ? Array.from({ length: 5 }, (_, i) => seat(sA[i], i, 'teamA') + seat(sB[i], i, 'teamB')).join('')   // 🧩 직접: 왼쪽 열 1팀 · 오른쪽 열 2팀
     : Array.from({ length: SEATS }, (_, i) => seat(ins[i], i)).join('');
   el('lb-me').style.display = myName ? '' : 'none';
-  { // 🔄 방장: 옛 버전 앱이 있으면 「업데이트 시키기」(v0.1.56 이상 앱만 알아들음 — 그 전 버전은 직접 다시 켜야 함)
-    const old = M.filter(m => m.online && m.ver && verLt(m.ver, L.latest)), ub = el('lb-upd');
-    ub.style.display = myIsHost && old.length ? '' : 'none';
-    if (myIsHost && old.length) {
-      ub.innerHTML = `<span>옛 버전 <b class="num">${old.length}</b>명 · 최신 v${esc(L.latest)}</span><button id="lb-upd-go" class="lb-mini" title="그 사람들 앱이 잠깐 꺼졌다가 새 버전으로 다시 켜져요(게임 중이면 끝난 뒤).
-v0.1.56 전 버전은 이 요청을 못 알아들어서 직접 트레이에서 종료 후 다시 켜야 해요.">업데이트 시키기</button>`;
-      el('lb-upd-go').onclick = () => lbAct(async () => { const r = await window.api.lobbyUpdateReq(); if (r && r.ok) { const b = el('lb-upd-go'); if (b) { b.textContent = '요청 보냄'; b.disabled = true; } } return r; });
+  { // 🔄 내 앱이 옛 버전이면 나에게만 안내(v0.1.62 · 방장 「업데이트 시키기」는 뺌) — 최신 = 접속한 사람들 앱·받은 새 버전 중 가장 높은 것
+    const ub = el('lb-upd'), mv = me && me.ver, old = !!(mv && L.latest && verLt(mv, L.latest));
+    ub.style.display = old ? '' : 'none';
+    if (old) {
+      const ready = _upd && _upd.state === 'ready', busy = _upd && (_upd.state === 'downloading' || _upd.state === 'checking');
+      ub.innerHTML = `<span>내 앱이 옛 버전이에요 · v${esc(mv)} → 최신 v${esc(L.latest)}</span>`
+        + (ready ? '<button id="lb-upd-go" class="lb-mini" title="앱이 잠깐 꺼졌다가 새 버전으로 다시 켜져요">지금 업데이트</button>'
+          : busy ? `<span class="lb-upd-st">${_upd.state === 'downloading' ? `받는 중 ${_upd.pct || 0}%` : '확인 중'}</span>`
+          : '<button id="lb-upd-go" class="lb-mini" title="새 버전을 받아요 · 다 받으면 「지금 업데이트」">새 버전 받기</button>');
+      const go = el('lb-upd-go'); if (go) go.onclick = () => { if (ready) window.api.updateNow(); else window.api.checkUpdate(); };
     }
   }
   { // 접속하면 바로 자리에 앉음 → 버튼은 하나: 앉아 있으면 「관전으로 빠지기」, 관전 중이면 「다시 참가하기」
@@ -789,3 +792,8 @@ function render() {
 window.api.getPlayers().then(d => { if (d) applySession({ session: d.session, myName: d.myName, isHost: d.isHost }); }).catch(() => {});
 window.api.getLobby().then(d => { if (d) { lobbyData = d; myIsHost = !!d.isHost; render(); } }).catch(() => {});
 render();
+
+// 🔄 업데이트 상태(내 안내 줄 「새 버전 받기 / 받는 중 n% / 지금 업데이트」)
+let _upd = null;
+window.api.getUpdate().then(u => { _upd = u; if (lobbyData) render(); }).catch(() => {});
+window.api.onUpdate(u => { _upd = u; if (lobbyData) render(); });

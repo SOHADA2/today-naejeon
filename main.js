@@ -768,7 +768,7 @@ function lobbyView() {
   return { members, sides, mode: ['draft', 'manual', 'normal'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
     hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members) };
 }
-// 🔄 버전 비교(v0.1.56) — 대기실 「업데이트 필요」 표시·방장 「업데이트 시키기」용
+// 🔄 버전 비교(v0.1.56) — 대기실 내 자리 「업데이트 필요」·내 안내 줄
 const verCmp = (a, b) => { const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return 0; };
 function latestVer(members) {   // 내 앱 · 받는 중/받은 새 버전 · 접속한 사람들 앱 중 가장 높은 것
   let v = app.getVersion();
@@ -794,7 +794,7 @@ function lobbyJoin(key, st, extra) {
   return lobbyWrite(fbSet(`${T}/lobby/join/${k}`, val));
 }
 // ⚡ 대기실 스트림 → 바뀐 노드만 다시 읽음(세션·방장까지 4개 다 읽던 것 대신)
-const refreshLobby = coalesce(async () => { const L = await fetchLobby(); if (L !== undefined) { lobbyRaw = L || null; broadcast('lobby', lobbyView()); checkUpdateReq(); } });
+const refreshLobby = coalesce(async () => { const L = await fetchLobby(); if (L !== undefined) { lobbyRaw = L || null; broadcast('lobby', lobbyView()); } });
 const refreshPresence = coalesce(async () => { const P = await fetchPresence(); if (P !== undefined) { presenceRaw = P || null; broadcast('lobby', lobbyView()); } });
 async function lobbySetMine(st) {
   if (!account) return { ok: false, err: '롤에 로그인하면 참가할 수 있어요' };
@@ -918,7 +918,7 @@ async function pollSession() {
   const [s, lob, h, pres, np, pr] = await Promise.all([fetchSession(), fetchLobby(), fetchHost(), fetchPresence(), getJson(`${FIREBASE_DB}/${T}/normalLive.json`), getJson(`${FIREBASE_DB}/${T}/potgRec.json`)]);
   normalLive = np || null; potgRecRaw = pr || null;
   sessionData = s || null;
-  lobbyRaw = lob || null; presenceRaw = pres || null; checkUpdateReq();
+  lobbyRaw = lob || null; presenceRaw = pres || null;
   onHostRec(h);
   const formed = (s && s.teamsFormedAt) || 0;
   if (formed && formed !== lastFormed) {          // 새 팀 배정 → 오버레이 자동 표시
@@ -1698,7 +1698,6 @@ ipcMain.handle('lobby-side', (_e, { name, team }) => lobbySide(name, team));
 ipcMain.handle('lobby-sides-prev', () => lobbySidesPrev());
 ipcMain.handle('lobby-sides-clear', () => lobbySidesClear());
 ipcMain.handle('lobby-reopen', () => lobbyReopen());
-ipcMain.handle('lobby-update-req', () => requestUpdateAll());
 ipcMain.on('overlay-show', () => { userHid = false; showOverlay(); });
 ipcMain.handle('get-players', async () => ({ account, myName: config.myName || '', isHost: !!config.isHost, appVer: app.getVersion(), session: sessionData }));
 ipcMain.handle('roster-data', () => getRoster());
@@ -1823,25 +1822,13 @@ function checkUpdate() {
   autoUpdater.checkForUpdates().catch(() => setUpd({ state: 'error' }));
 }
 // 🔄 업데이트 바로 설치(v0.1.56) — 팀원이 알림 줄을 못 찾아 옛 버전으로 남던 것(사장님)
-//   _wantInstall = 켠 직후 받음 · 방장이 「업데이트 시키기」(today/lobby/updateReq) → 받아 두었으면 게임·녹화 중이 아닐 때 바로 재시작 설치
+//   _wantInstall = 켠 직후 받음 → 게임·녹화 중이 아닐 때 바로 재시작 설치 (방장 「업데이트 시키기」는 v0.1.62에서 뺌 — 옛 버전은 본인 대기실에 안내 줄)
 //   게임 중이면 게임 끝나고 1분 30초 뒤(정산 수집 올린 뒤), 녹화 중이면 녹화 끝난 뒤 다시 시도
-let _wantInstall = false, _updReqSeen = 0;
+let _wantInstall = false;
 function tryInstallUpdate() {
   if (!_wantInstall || upd.state !== 'ready' || inGame || replayBusy || !app.isPackaged) return;
   app._quitting = true;
   try { autoUpdater.quitAndInstall(true, true); } catch (_) { app.quit(); }   // 조용히 설치 + 설치 뒤 다시 켜기
-}
-function checkUpdateReq() {
-  const r = lobbyRaw && lobbyRaw.updateReq;
-  if (!r || !r.at || r.at <= _updReqSeen) return;
-  _updReqSeen = r.at;
-  if (Date.now() - r.at > 10 * 60000 || !r.ver || verCmp(app.getVersion(), r.ver) >= 0) return;   // 오래된 요청·이미 최신이면 무시
-  _wantInstall = true;
-  if (upd.state === 'ready') tryInstallUpdate(); else checkUpdate();   // 아직 못 받았으면 받는 대로(update-downloaded) 설치
-}
-async function requestUpdateAll() {   // 👑 방장: 옛 버전 앱들에게 업데이트 요청
-  if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
-  return fbSet(`${T}/lobby/updateReq`, { at: Date.now(), ver: latestVer(lobbyView().members), by: config.myName || null });
 }
 function setupAutoUpdate() {
   if (!app.isPackaged) { upd.state = 'dev'; return; }
