@@ -1156,7 +1156,7 @@ function normalFun(m) {   // 🎉 우리 팀 안 재미 지표 한 줄(캐리·�
   if (dead) out.push({ k: 'dead', label: '최다 데스', name: nm(dead), champId: dead.championId, v: `${dead.deaths}데스` });
   return out;
 }
-const CLIP_MAX = 12 * 1048576;   // 이보다 크면 안 올림(서버 용량·팀원 내려받기) → 카드
+const CLIP_MAX = 40 * 1048576;   // 이보다 크면 안 올림 → 카드 · v0.1.71: 12→40MB(영상은 GitHub = 받는 양 제한 없음 · 화질 올림)
 let _recLog = [];   // 🎬 녹화 기록(경기 기록 potgRec에 남김 → tools/potg-report.cjs로 어디서 멈췄는지 확인)
 // 🎬 팟지 녹화 중 안내(v0.1.56 · 방장 PC) — 리플레이 창을 화면 밖에 숨기고 녹화해서 소리만 남(사장님: 방장이 녹화 중인 걸 알아야 함)
 //   → 롤 클라 위쪽 가운데(클라 없으면 화면 위쪽 가운데)에 작은 창 · 클릭 통과 · 녹화 로그(onRecLog)에 맞춰 단계 글만 바뀜
@@ -1214,9 +1214,10 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
       const file = files[i], tag = i ? '숨은 영웅' : '팟지';
       if (!file) { whys.push(tag + ' 녹화 안 됨'); continue; }
       let buf = fs.readFileSync(file);
-      const small = await shrinkClip(file).catch(e => { _recLog.push(tag + ' 줄이기 실패 ' + (e && e.message)); return null; });   // 롤이 모니터 크기(예: 3440×1440)로 저장 → 가운데 16:9를 1.15배로 잘라 1280×720
+      const small = await shrinkClip(file).catch(e => { _recLog.push(tag + ' 줄이기 실패 ' + (e && e.message)); return null; });   // 가운데 16:9를 1.15배로 잘라 그 해상도 그대로(1920×1080 창 → 1670×938)·8Mbps
       if (small && Number.isFinite(small.sec)) secs[i] = small.sec;   // 롤 원본 영상 길이 → 영상 0초가 게임 몇 초인지 정확히(아래)
-      if (small && small.buf.length > 100000 && small.buf.length < buf.length) { _recLog.push(`${tag} 줄임 ${(buf.length / 1048576).toFixed(1)}→${(small.buf.length / 1048576).toFixed(1)}MB`); buf = small.buf; }
+      // v0.1.71: 화질을 올려 원본보다 커질 수 있음 → 크기 비교 안 함(잘라 맞춘 화면 = 주인공 중심이 기준)
+      if (small && small.buf.length > 100000 && small.buf.length <= CLIP_MAX) { _recLog.push(`${tag} 다시 녹화 ${(buf.length / 1048576).toFixed(1)}→${(small.buf.length / 1048576).toFixed(1)}MB ${small.w}×${small.h}`); buf = small.buf; }
       if (buf.length > CLIP_MAX) whys.push(`${tag} 너무 큼 ${(buf.length / 1048576).toFixed(1)}MB`);
       else { metas[i] = await potg.uploadClip(i ? g.id + 'h' : g.id, buf, 'video/webm'); if (!metas[i]) whys.push(tag + ' 올리기 실패'); }
       try { fs.unlinkSync(file); } catch (_) {}
@@ -1233,13 +1234,14 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   fbUpdate(g.path, { potgRec: { ok: !!metas[0], hero: H ? !!metas[1] : null, why: whys.join(' · ') || null, sec, mb: mb(metas[0]), mbHero: mb(metas[1]), lines: _recLog.slice(-40), at: Date.now() } }).catch(() => {});
   return metas;
 }
-// 🎬 녹화 영상 줄이기(v0.1.34~35) — 숨은 창에서 다시 재생하며 가운데 16:9를 1.15배로 잘라 1280×720·3.5Mbps로 다시 녹화(소리 포함) · 영상 길이만큼 걸림
+// 🎬 녹화 영상 줄이기(v0.1.34~35) — 숨은 창에서 다시 재생하며 가운데 16:9를 1.15배로 잘라 다시 녹화(소리 포함) · 영상 길이만큼 걸림
+//   v0.1.71(사장님: 화질 때문에 잘 안 보임): 1280×720·3.5Mbps → **최대 1920 폭(잘라낸 해상도 그대로, 늘리지 않음)·8Mbps** — 영상은 GitHub라 받는 양 걱정 없음
 async function shrinkClip(file) {
   const w = new BrowserWindow({ show: false, width: 320, height: 200, skipTaskbar: true, webPreferences: { backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required', contextIsolation: true } });
   try {
     await w.loadFile('potg/shrink.html');
-    const r = await Promise.race([w.webContents.executeJavaScript(`shrink(${JSON.stringify(pathToFileURL(file).href)}, 1280, 3500, 1.15)`), new Promise((_, no) => setTimeout(() => no(new Error('시간 초과')), 90000))]);
-    return r && r.b64 ? { buf: Buffer.from(r.b64, 'base64'), sec: r.sec } : null;
+    const r = await Promise.race([w.webContents.executeJavaScript(`shrink(${JSON.stringify(pathToFileURL(file).href)}, 1920, 8000, 1.15)`), new Promise((_, no) => setTimeout(() => no(new Error('시간 초과')), 90000))]);
+    return r && r.b64 ? { buf: Buffer.from(r.b64, 'base64'), sec: r.sec, w: r.w, h: r.h } : null;
   } finally { try { w.destroy(); } catch (_) {} }
 }
 // 🎬 리플레이 창 숨기기(v0.1.37) — 리플레이 게임 창(League of Legends.exe)이 뜨면 0.1초마다 확인해 화면 밖(-4000,-4000)으로 옮기고
