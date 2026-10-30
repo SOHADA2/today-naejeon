@@ -313,10 +313,10 @@ module.exports = function makePotg(d) {
 
   // ── ③ 영상 조각 ───────────────────────────────────────────────────────────
   // 🎞️ v0.1.69 영상 = **GitHub 릴리스**(비공개 저장소 · 날마다 릴리스 `clips-YYYY-MM-DD` · 영상 = 그 릴리스 파일 · 받는 양 제한 없음)
-  //   사장님: Firebase 무료 한도(내려받기 월 10GB)는 거의 다 「모두가 팟지 영상을 받아 보는 것」 → 영상은 GitHub만(Firebase 예비 없음 — 사장님 지시)
+  //   사장님: Firebase 무료 한도(내려받기 월 10GB)는 거의 다 「모두가 팟지 영상을 받아 보는 것」 → 영상은 GitHub로
   //   v0.1.68 litterbox는 실패(업로드 500/412 → 집 IP가 BunkerWeb에 차단) → 버림
   //   저장소·토큰 = Firebase `today/config/clips` {repo, token}(토큰 = 그 저장소 Contents 읽기·쓰기만 · 바꾸면 앱 업데이트 없이 반영 · 10분 캐시) · 개발 = env TN_CLIPS_REPO+TN_CLIPS_TOKEN
-  //   실패 = 영상 없음(킬 타임라인 카드) · Firebase 조각 받기는 v0.1.67 이전에 올라간 옛 영상(meta.n>0)만
+  //   v0.1.70: GitHub 올리기 실패한 판만 Firebase 조각(예비 · meta.n>0) · 둘 다 실패 = 영상 없음(킬 타임라인 카드)
   const GH = process.env.TN_GH_API || 'https://api.github.com';
   let _gh = null;
   async function ghCfg() {
@@ -340,19 +340,32 @@ module.exports = function makePotg(d) {
     log(`영상 릴리스 만들기 실패 ${r.status} ${JSON.stringify(r.j || {}).slice(0, 120)}`);
     r = await gh(cfg, 'GET', `/releases/tags/${tag}`); return r.ok ? r.j : null;
   }
-  async function uploadClip(gameId, buf, mime) {
-    const day = d.dayKey();
-    mime = mime || 'video/webm';
+  async function uploadGh(gameId, buf, mime, day) {   // → assetId 또는 null
     try {
-      const cfg = await ghCfg(); if (!cfg) { log('영상 저장소 설정 없음(today/config/clips) → 영상 없음'); return null; }
+      const cfg = await ghCfg(); if (!cfg) { log('영상 저장소 설정 없음(today/config/clips)'); return null; }
       const rel = await dayRelease(cfg, day); if (!rel) return null;
       const name = `${String(gameId).replace(/[^\w-]/g, '')}-${Date.now().toString(36)}.${extOf(mime)}`;   // 같은 판 다시 올려도 안 부딪힘
       const r = await gh(cfg, 'POST', `${rel.upload_url.replace(/\{.*$/, '')}?name=${encodeURIComponent(name)}`, buf, { headers: { 'Content-Type': mime }, timeout: 180000 });
-      if (!r.ok || !r.j || !r.j.id) { log(`영상 올리기 실패 ${r.status} ${JSON.stringify(r.j || {}).slice(0, 120)}`); return null; }
-      const meta = { day, gameId: String(gameId), n: 0, size: buf.length, mime, at: Date.now(), gh: r.j.id };
-      log(`영상 올림 ✅ ${(buf.length / 1048576).toFixed(1)}MB · GitHub ${name}`);
-      return meta;
-    } catch (e) { log('영상 올리기 실패 ' + e.message); return null; }
+      if (r.ok && r.j && r.j.id) { log(`영상 올림 ✅ ${(buf.length / 1048576).toFixed(1)}MB · GitHub ${name}`); return r.j.id; }
+      log(`GitHub 영상 올리기 실패 ${r.status} ${JSON.stringify(r.j || {}).slice(0, 120)}`);
+    } catch (e) { log('GitHub 영상 올리기 실패 ' + e.message); }
+    return null;
+  }
+  async function uploadClip(gameId, buf, mime) {
+    const day = d.dayKey();
+    mime = mime || 'video/webm';
+    const id = await uploadGh(gameId, buf, mime, day);
+    if (id) return { day, gameId: String(gameId), n: 0, size: buf.length, mime, at: Date.now(), gh: id };
+    // v0.1.70 예비(사장님): GitHub가 실패한 판만 예전처럼 Firebase 조각 — 그 판만 Firebase 한도를 씀
+    const base = `${d.T}/clips/${day}/${gameId}`, n = Math.ceil(buf.length / CHUNK);
+    for (let i = 0; i < n; i++) {
+      const r = await d.fbSet(`${base}/c/${i}`, buf.subarray(i * CHUNK, (i + 1) * CHUNK).toString('base64'));
+      if (!r.ok) { log(`영상 조각 ${i} 올리기 실패 → 영상 없음`); return null; }
+    }
+    const meta = { day, gameId: String(gameId), n, size: buf.length, mime, at: Date.now() };
+    await d.fbSet(`${base}/meta`, meta);
+    log(`영상 올림 ✅ ${(buf.length / 1048576).toFixed(1)}MB · Firebase 예비 조각 ${n}`);
+    return meta;
   }
   async function getGh(meta) {   // 비공개 저장소 파일 = API가 서명된 임시 주소로 넘겨줌 → 그 주소는 토큰 없이 받음
     const cfg = await ghCfg(); if (!cfg) { log('영상 저장소 설정 없음 → 영상 못 받음'); return null; }
@@ -369,7 +382,7 @@ module.exports = function makePotg(d) {
     fs.mkdirSync(clipDir(), { recursive: true });
     const f = path.join(clipDir(), `${String(meta.gameId).replace(/[^\w-]/g, '')}.${extOf(meta.mime)}`);
     try { if (fs.statSync(f).size === meta.size) return f; } catch (_) {}
-    if (meta.gh) {   // 🎞️ GitHub만(Firebase 한도 안 씀)
+    if (meta.gh) {   // 🎞️ GitHub(Firebase 한도 안 씀)
       try {
         const buf = await getGh(meta);
         if (buf && buf.length === meta.size) { fs.writeFileSync(f, buf); return f; }
