@@ -312,45 +312,69 @@ module.exports = function makePotg(d) {
   }
 
   // ── ③ 영상 조각 ───────────────────────────────────────────────────────────
-  // 🌐 v0.1.68 바깥 영상 서버(litterbox.catbox.moe · 무료·가입 없음·72시간 뒤 자동 삭제 = 보관 3일과 같음·내려받기 제한 없음)
-  //   사장님: Firebase 무료 한도(내려받기 월 10GB)는 거의 다 「모두가 팟지 영상을 받아 보는 것」 → 영상은 **바깥 서버만**(Firebase 예비 없음 — 사장님 지시)
-  //   바깥 올리기 실패 = 영상 없음(킬 타임라인 카드) · Firebase 조각 받기는 v0.1.67 이전에 올라간 옛 영상(meta.url 없음)만
-  const EXT_UP = process.env.TN_CLIP_HOST || 'https://litterbox.catbox.moe/resources/internals/api.php';
-  const EXT_OK = /^https?:\/\/[\w.:-]+\/[\w.-]+$/;
-  async function uploadExt(buf, mime, name) {
-    try {
-      const fd = new FormData(); fd.append('reqtype', 'fileupload'); fd.append('time', '72h');
-      fd.append('fileToUpload', new Blob([buf], { type: mime }), name);
-      const r = await fetch(EXT_UP, { method: 'POST', body: fd, signal: AbortSignal.timeout(120000) });
-      const t = (await r.text()).trim();
-      if (r.ok && EXT_OK.test(t)) return t;
-      log(`바깥 영상 서버 올리기 실패 ${r.status} ${t.slice(0, 80)}`);
-    } catch (e) { log('바깥 영상 서버 올리기 실패 ' + e.message); }
-    return null;
+  // 🎞️ v0.1.69 영상 = **GitHub 릴리스**(비공개 저장소 · 날마다 릴리스 `clips-YYYY-MM-DD` · 영상 = 그 릴리스 파일 · 받는 양 제한 없음)
+  //   사장님: Firebase 무료 한도(내려받기 월 10GB)는 거의 다 「모두가 팟지 영상을 받아 보는 것」 → 영상은 GitHub만(Firebase 예비 없음 — 사장님 지시)
+  //   v0.1.68 litterbox는 실패(업로드 500/412 → 집 IP가 BunkerWeb에 차단) → 버림
+  //   저장소·토큰 = Firebase `today/config/clips` {repo, token}(토큰 = 그 저장소 Contents 읽기·쓰기만 · 바꾸면 앱 업데이트 없이 반영 · 10분 캐시) · 개발 = env TN_CLIPS_REPO+TN_CLIPS_TOKEN
+  //   실패 = 영상 없음(킬 타임라인 카드) · Firebase 조각 받기는 v0.1.67 이전에 올라간 옛 영상(meta.n>0)만
+  const GH = process.env.TN_GH_API || 'https://api.github.com';
+  let _gh = null;
+  async function ghCfg() {
+    if (_gh && Date.now() - _gh.at < 600000) return _gh;
+    const c = process.env.TN_CLIPS_REPO && process.env.TN_CLIPS_TOKEN ? { repo: process.env.TN_CLIPS_REPO, token: process.env.TN_CLIPS_TOKEN }
+      : await d.getJson(`${d.FIREBASE_DB}/${d.T}/config/clips.json`);
+    _gh = c && c.repo && c.token ? { repo: c.repo, token: c.token, at: Date.now() } : null;
+    return _gh;
+  }
+  async function gh(cfg, method, p, body, o) {
+    const r = await fetch(/^https?:/.test(p) ? p : `${GH}/repos/${cfg.repo}${p}`, { method, redirect: (o && o.redirect) || 'follow',
+      headers: Object.assign({ Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'today-naejeon' }, o && o.headers),
+      body: body == null ? undefined : Buffer.isBuffer(body) ? body : JSON.stringify(body), signal: AbortSignal.timeout((o && o.timeout) || 30000) });
+    let j = null; if (r.status < 300 || r.status >= 400) try { j = await r.json(); } catch (_) {}
+    return { ok: r.ok, status: r.status, j, r };
+  }
+  async function dayRelease(cfg, day) {   // 그날 릴리스(없으면 만듦 · 다른 앱이 동시에 만들었으면 다시 찾음)
+    const tag = `clips-${day}`;
+    let r = await gh(cfg, 'GET', `/releases/tags/${tag}`); if (r.ok) return r.j;
+    r = await gh(cfg, 'POST', '/releases', { tag_name: tag, name: `팟지 영상 ${day}`, body: '투데이 내전 앱이 자동으로 올리고 3일 뒤 지움' }); if (r.ok) return r.j;
+    log(`영상 릴리스 만들기 실패 ${r.status} ${JSON.stringify(r.j || {}).slice(0, 120)}`);
+    r = await gh(cfg, 'GET', `/releases/tags/${tag}`); return r.ok ? r.j : null;
   }
   async function uploadClip(gameId, buf, mime) {
     const day = d.dayKey();
     mime = mime || 'video/webm';
-    const url = await uploadExt(buf, mime, `${String(gameId).replace(/[^\w-]/g, '')}.${extOf(mime)}`);
-    if (!url) return null;
-    const meta = { day, gameId: String(gameId), n: 0, size: buf.length, mime, at: Date.now(), url };
-    log(`영상 올림 ✅ ${(buf.length / 1048576).toFixed(1)}MB · ${url}`);
-    return meta;
+    try {
+      const cfg = await ghCfg(); if (!cfg) { log('영상 저장소 설정 없음(today/config/clips) → 영상 없음'); return null; }
+      const rel = await dayRelease(cfg, day); if (!rel) return null;
+      const name = `${String(gameId).replace(/[^\w-]/g, '')}-${Date.now().toString(36)}.${extOf(mime)}`;   // 같은 판 다시 올려도 안 부딪힘
+      const r = await gh(cfg, 'POST', `${rel.upload_url.replace(/\{.*$/, '')}?name=${encodeURIComponent(name)}`, buf, { headers: { 'Content-Type': mime }, timeout: 180000 });
+      if (!r.ok || !r.j || !r.j.id) { log(`영상 올리기 실패 ${r.status} ${JSON.stringify(r.j || {}).slice(0, 120)}`); return null; }
+      const meta = { day, gameId: String(gameId), n: 0, size: buf.length, mime, at: Date.now(), gh: r.j.id };
+      log(`영상 올림 ✅ ${(buf.length / 1048576).toFixed(1)}MB · GitHub ${name}`);
+      return meta;
+    } catch (e) { log('영상 올리기 실패 ' + e.message); return null; }
+  }
+  async function getGh(meta) {   // 비공개 저장소 파일 = API가 서명된 임시 주소로 넘겨줌 → 그 주소는 토큰 없이 받음
+    const cfg = await ghCfg(); if (!cfg) { log('영상 저장소 설정 없음 → 영상 못 받음'); return null; }
+    const r = await gh(cfg, 'GET', `/releases/assets/${meta.gh}`, null, { headers: { Accept: 'application/octet-stream' }, redirect: 'manual' });
+    const loc = r.r.headers.get('location');
+    const res = loc ? await fetch(loc, { signal: AbortSignal.timeout(90000) }) : r.r;
+    if (!res.ok) { log(`영상 받기 실패 ${r.status}/${res.status}`); return null; }
+    return Buffer.from(await res.arrayBuffer());
   }
   const clipDir = () => path.join(d.userData, 'clips');
   const extOf = mime => /mp4/.test(mime || '') ? 'mp4' : 'webm';
   async function getClip(meta) {   // → 내 PC 임시 파일 경로(한 번 받으면 재사용)
-    if (!meta || (!meta.n && !meta.url)) return null;
+    if (!meta || (!meta.n && !meta.gh)) return null;
     fs.mkdirSync(clipDir(), { recursive: true });
     const f = path.join(clipDir(), `${String(meta.gameId).replace(/[^\w-]/g, '')}.${extOf(meta.mime)}`);
     try { if (fs.statSync(f).size === meta.size) return f; } catch (_) {}
-    if (meta.url) {   // 🌐 바깥 서버만(Firebase 한도 안 씀)
+    if (meta.gh) {   // 🎞️ GitHub만(Firebase 한도 안 씀)
       try {
-        const r = await fetch(meta.url, { signal: AbortSignal.timeout(60000) });
-        const buf = r.ok ? Buffer.from(await r.arrayBuffer()) : null;
+        const buf = await getGh(meta);
         if (buf && buf.length === meta.size) { fs.writeFileSync(f, buf); return f; }
-        log(`바깥 영상 받기 실패 ${r.status} ${buf ? buf.length : 0}/${meta.size}`);
-      } catch (e) { log('바깥 영상 받기 실패 ' + e.message); }
+        if (buf) log(`영상 크기 불일치 ${buf.length}/${meta.size}`);
+      } catch (e) { log('영상 받기 실패 ' + e.message); }
       return null;
     }
     const parts = new Array(meta.n);
@@ -371,6 +395,15 @@ module.exports = function makePotg(d) {
       if (!days || typeof days !== 'object') continue;
       for (const day of Object.keys(days)) if (day < oldest) { await d.fbDelete(`${d.T}/${root}/${day}`); log(`지난 ${root} 삭제: ${day}`); }
     }
+    try {   // 🎞️ GitHub 릴리스도 3일 지난 날 지움(릴리스 + 태그)
+      const cfg = await ghCfg();
+      const r = cfg && await gh(cfg, 'GET', '/releases?per_page=100');
+      for (const rel of (r && r.ok && Array.isArray(r.j) ? r.j : [])) {
+        const m = /^clips-(\d{4}-\d\d-\d\d)$/.exec(rel.tag_name || ''); if (!m || m[1] >= oldest) continue;
+        const del = await gh(cfg, 'DELETE', `/releases/${rel.id}`);
+        if (del.ok || del.status === 404) { await gh(cfg, 'DELETE', `/git/refs/tags/${rel.tag_name}`); log(`지난 영상 릴리스 삭제: ${m[1]}`); }
+      }
+    } catch (e) { log('영상 릴리스 정리 실패 ' + e.message); }
     try { for (const f of fs.readdirSync(clipDir())) { const p = path.join(clipDir(), f); if (Date.now() - fs.statSync(p).mtimeMs > KEEP_DAYS * 86400000) fs.unlinkSync(p); } } catch (_) {}
   }
 
