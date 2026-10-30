@@ -312,24 +312,47 @@ module.exports = function makePotg(d) {
   }
 
   // ── ③ 영상 조각 ───────────────────────────────────────────────────────────
+  // 🌐 v0.1.68 바깥 영상 서버(litterbox.catbox.moe · 무료·가입 없음·72시간 뒤 자동 삭제 = 보관 3일과 같음·내려받기 제한 없음)
+  //   사장님: Firebase 무료 한도(내려받기 월 10GB)는 거의 다 「모두가 팟지 영상을 받아 보는 것」 → 영상은 **바깥 서버만**(Firebase 예비 없음 — 사장님 지시)
+  //   바깥 올리기 실패 = 영상 없음(킬 타임라인 카드) · Firebase 조각 받기는 v0.1.67 이전에 올라간 옛 영상(meta.url 없음)만
+  const EXT_UP = process.env.TN_CLIP_HOST || 'https://litterbox.catbox.moe/resources/internals/api.php';
+  const EXT_OK = /^https?:\/\/[\w.:-]+\/[\w.-]+$/;
+  async function uploadExt(buf, mime, name) {
+    try {
+      const fd = new FormData(); fd.append('reqtype', 'fileupload'); fd.append('time', '72h');
+      fd.append('fileToUpload', new Blob([buf], { type: mime }), name);
+      const r = await fetch(EXT_UP, { method: 'POST', body: fd, signal: AbortSignal.timeout(120000) });
+      const t = (await r.text()).trim();
+      if (r.ok && EXT_OK.test(t)) return t;
+      log(`바깥 영상 서버 올리기 실패 ${r.status} ${t.slice(0, 80)}`);
+    } catch (e) { log('바깥 영상 서버 올리기 실패 ' + e.message); }
+    return null;
+  }
   async function uploadClip(gameId, buf, mime) {
-    const day = d.dayKey(), base = `${d.T}/clips/${day}/${gameId}`, n = Math.ceil(buf.length / CHUNK);
-    for (let i = 0; i < n; i++) {
-      const r = await d.fbSet(`${base}/c/${i}`, buf.subarray(i * CHUNK, (i + 1) * CHUNK).toString('base64'));
-      if (!r.ok) { log(`영상 조각 ${i} 올리기 실패`); return null; }
-    }
-    const meta = { day, gameId: String(gameId), n, size: buf.length, mime: mime || 'video/webm', at: Date.now() };
-    await d.fbSet(`${base}/meta`, meta);
-    log(`영상 올림 ✅ ${(buf.length / 1048576).toFixed(1)}MB · 조각 ${n}`);
+    const day = d.dayKey();
+    mime = mime || 'video/webm';
+    const url = await uploadExt(buf, mime, `${String(gameId).replace(/[^\w-]/g, '')}.${extOf(mime)}`);
+    if (!url) return null;
+    const meta = { day, gameId: String(gameId), n: 0, size: buf.length, mime, at: Date.now(), url };
+    log(`영상 올림 ✅ ${(buf.length / 1048576).toFixed(1)}MB · ${url}`);
     return meta;
   }
   const clipDir = () => path.join(d.userData, 'clips');
   const extOf = mime => /mp4/.test(mime || '') ? 'mp4' : 'webm';
   async function getClip(meta) {   // → 내 PC 임시 파일 경로(한 번 받으면 재사용)
-    if (!meta || !meta.n) return null;
+    if (!meta || (!meta.n && !meta.url)) return null;
     fs.mkdirSync(clipDir(), { recursive: true });
     const f = path.join(clipDir(), `${String(meta.gameId).replace(/[^\w-]/g, '')}.${extOf(meta.mime)}`);
     try { if (fs.statSync(f).size === meta.size) return f; } catch (_) {}
+    if (meta.url) {   // 🌐 바깥 서버만(Firebase 한도 안 씀)
+      try {
+        const r = await fetch(meta.url, { signal: AbortSignal.timeout(60000) });
+        const buf = r.ok ? Buffer.from(await r.arrayBuffer()) : null;
+        if (buf && buf.length === meta.size) { fs.writeFileSync(f, buf); return f; }
+        log(`바깥 영상 받기 실패 ${r.status} ${buf ? buf.length : 0}/${meta.size}`);
+      } catch (e) { log('바깥 영상 받기 실패 ' + e.message); }
+      return null;
+    }
     const parts = new Array(meta.n);
     let next = 0;
     const worker = async () => { while (next < meta.n) { const i = next++; const s = await d.getJson(`${d.FIREBASE_DB}/${d.T}/clips/${meta.day}/${meta.gameId}/c/${i}.json`); if (typeof s !== 'string') throw new Error('chunk ' + i); parts[i] = Buffer.from(s, 'base64'); } };
