@@ -22,7 +22,9 @@ const text = html => html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<
   fs.mkdirSync(OUT, { recursive: true }); fs.writeFileSync(path.join(OUT, 'seen-augs.json'), JSON.stringify(seenAug));   // 우리 기록에 실제로 나온 증강 번호(같은 이름 두 번호 중 어느 쪽이 아수라장인지 확인용)
   const champs = (await get(`${CD}/champion-summary.json`, true)).body || [];
   const byId = {}; for (const c of champs) if (c.id > 0) byId[c.id] = c;
-  const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([id, n]) => ({ id: +id, n, name: (byId[id] || {}).name, alias: (byId[id] || {}).alias })).filter(c => c.alias).slice(0, N);
+  let top = Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([id, n]) => ({ id: +id, n, name: (byId[id] || {}).name, alias: (byId[id] || {}).alias })).filter(c => c.alias);
+  if (N >= 999) { const have = new Set(top.map(c => c.id)); for (const c of Object.values(byId)) if (!have.has(c.id) && c.alias) top.push({ id: c.id, n: 0, name: c.name, alias: c.alias }); }   // 999 = 전체 챔피언(기록에 없는 것까지)
+  top = top.slice(0, N);
   console.log(`기록 속 챔피언 ${Object.keys(cnt).length}종 → TOP ${top.length}:`, top.map(c => `${c.name}(${c.n})`).join(' · '));
   const augs = (await get(`${CD}/cherry-augments.json`, true)).body || [];
   fs.writeFileSync(path.join(OUT, 'augments.json'), JSON.stringify(augs.map(a => ({ id: a.id, name: a.nameTRA, rarity: a.rarity, desc: String(a.descriptionTRA || a.desc || '').replace(/<[^>]+>/g, '') })), null, 0));
