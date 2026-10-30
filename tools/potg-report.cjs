@@ -2,7 +2,7 @@
 // 사용: node tools/potg-report.cjs            (오늘 날짜 · 하루 = 새벽 6시 기준)
 //       node tools/potg-report.cjs 2026-10-28 (날짜 지정)
 // 보는 것: ① 각 PC 수집(today/potg/raw) ② 방장이 고른 장면(session.potg·경기 기록 potg) ③ 영상(today/clips) ④ 리플레이 확인(replayProbe)
-const DB = 'https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app/today';
+const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app/today';
 const get = async p => { const r = await fetch(`${DB}/${p}.json`); return r.ok ? r.json() : null; };
 const dayKey = (t = Date.now()) => { const d = new Date(t - 6 * 3600e3); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const when = t => t ? new Date(t).toLocaleTimeString('ko-KR') : '-';

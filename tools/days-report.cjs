@@ -1,6 +1,6 @@
 // 📅 날짜별 경기 기록 점검(읽기만) — today/days 에 어떤 날짜에 몇 판이 저장됐는지 + 판마다 요약
 // 사용: node tools/days-report.cjs
-const DB = 'https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app/today';
+const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app/today';
 const get = async p => { const [a, q] = p.split('?'); const r = await fetch(`${DB}/${a}.json${q ? '?' + q : ''}`); return r.ok ? r.json() : null; };
 const when = t => t ? new Date(t).toLocaleString('ko-KR') : '-';
 (async () => {

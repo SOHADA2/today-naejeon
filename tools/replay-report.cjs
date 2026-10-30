@@ -2,7 +2,7 @@
 // 사용: node tools/replay-report.cjs        (읽기만 함)
 // 판정: result ok-watch = 방장 PC가 실제로 받아 파일까지 확인(팟지 리플레이 가능) · ok-download = 받을 수 있음까지 확인(방장 아닌 PC)
 //       missingOrExpired / unsupported / incompatible / error / timeout = 안 됨(steps·create로 어디서 막혔는지 확인)
-const DB = 'https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app';
+const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app';
 (async () => {
   const all = await (await fetch(`${DB}/today/bridge/replayProbe.json`)).json();
   if (!all) { console.log('아직 기록 없음 — v0.1.29 이상으로 내전 한 판 끝나면 생겨요'); return; }

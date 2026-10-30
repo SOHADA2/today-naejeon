@@ -13,8 +13,10 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 
 const WEB_URL = 'https://sohada2.github.io/aram/';
-const FIREBASE_DB = 'https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app';
-const FIREBASE_API_KEY = 'AIzaSyAzRirJzvaqu6jelqUUjV_Tik1MgsALEE4';   // aram/index.html firebaseConfig와 동일(홈페이지에 공개된 값)
+// 🗄️ v0.1.64: 투데이 내전 전용 Firebase 프로젝트(today-naejeon-sohada · 무료 Spark · 싱가포르) — 사이트 DB(aramchaos)와 한도(저장 1GB·내려받기 월 10GB) 분리
+//   규칙 = today/ 읽기·쓰기 공개(브릿지는 원래 인증 없이 씀) · 익명 로그인은 이 프로젝트에서 못 켬(Identity Platform = 결제 필요) → 인증 없이 씀
+const FIREBASE_DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app';
+const FIREBASE_API_KEY = null;   // 인증 안 씀(위 참고) — 이 프로젝트 웹 앱 키: AIzaSyDhVbSzNQ306LUTcPo44Ru9G4_RqV9Dl_E
 const TOGGLE_HOTKEY = 'Shift+F7';   // 기존 오버레이(Shift+F5)와 겹치지 않게
 const T = 'today';                  // ⚠️ 이 앱의 모든 쓰기 루트 — 사이트 노드(session·lobby·bridge·matches…)에 절대 쓰지 않음
 const { buildTeams, normName } = require('./teams');   // ⚔️ 홈페이지 makeTeams 1:1 이식(밸런스 계산)
@@ -431,7 +433,10 @@ function reqJson(method, url, body) {
 
 // 🔑 Firebase 익명 인증 — 쓰기 규칙(auth != null)용. 홈페이지 signInAnonymously와 동일한 신뢰모델.
 let _fbTok = null, _fbTokAt = 0;
+const NOAUTH = 'noauth';
+const authQ = tok => tok === NOAUTH ? '' : `?auth=${tok}`;
 async function fbToken() {
+  if (!FIREBASE_API_KEY) return NOAUTH;
   if (_fbTok && Date.now() - _fbTokAt < 50 * 60 * 1000) return _fbTok;   // idToken 수명 1h → 50분 캐시
   const r = await reqJson('POST', `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`, { returnSecureToken: true });
   if (r.json && r.json.idToken) { _fbTok = r.json.idToken; _fbTokAt = Date.now(); return _fbTok; }
@@ -441,7 +446,7 @@ async function fbToken() {
 async function fbSet(pathStr, value) {
   const tok = await fbToken();
   if (!tok) return { ok: false, err: '인증 실패(네트워크 확인)' };
-  const r = await reqJson('PUT', `${FIREBASE_DB}/${pathStr}.json?auth=${tok}`, value);
+  const r = await reqJson('PUT', `${FIREBASE_DB}/${pathStr}.json${authQ(tok)}`, value);
   if (r.status === 200) return { ok: true };
   if (r.status === 401 || r.status === 403) { _fbTok = null; }   // 토큰 만료/거부 → 다음 시도에 재발급
   return { ok: false, err: `쓰기 실패(HTTP ${r.status})` };
@@ -449,14 +454,14 @@ async function fbSet(pathStr, value) {
 async function fbDelete(pathStr) {   // 특정 키 삭제 — 홈페이지 remove()와 동일(투표 취소용)
   const tok = await fbToken();
   if (!tok) return { ok: false };
-  const r = await reqJson('DELETE', `${FIREBASE_DB}/${pathStr}.json?auth=${tok}`);
+  const r = await reqJson('DELETE', `${FIREBASE_DB}/${pathStr}.json${authQ(tok)}`);
   if (r.status === 401 || r.status === 403) { _fbTok = null; }
   return { ok: r.status === 200 };
 }
 async function fbUpdate(pathStr, value) {   // 노드 일부 필드만 갱신(PATCH) — 홈페이지 update()와 동일. items_s2만 덮어씀(다른 필드 유실 방지).
   const tok = await fbToken();
   if (!tok) return { ok: false, err: '인증 실패' };
-  const r = await reqJson('PATCH', `${FIREBASE_DB}/${pathStr}.json?auth=${tok}`, value);
+  const r = await reqJson('PATCH', `${FIREBASE_DB}/${pathStr}.json${authQ(tok)}`, value);
   if (r.status === 401 || r.status === 403) { _fbTok = null; }
   return { ok: r.status === 200, err: r.status === 200 ? null : `쓰기 실패(HTTP ${r.status})` };
 }
@@ -924,7 +929,7 @@ async function lobbyReopen() {   // 👑 지금 판을 접고 대기실로(팀�
 async function fbPutIfAbsent(pathStr, value) {
   const tok = await fbToken();
   if (!tok) return { ok: false, err: '인증 실패(네트워크 확인)' };
-  const u = new URL(`${FIREBASE_DB}/${pathStr}.json?auth=${tok}`);
+  const u = new URL(`${FIREBASE_DB}/${pathStr}.json${authQ(tok)}`);
   const data = JSON.stringify(value);
   const status = await new Promise(resolve => {
     const req = https.request({ hostname: u.hostname, path: u.pathname + u.search, method: 'PUT',
@@ -1384,7 +1389,7 @@ async function fbCas(pathStr, mutate, tries = 5) {
   for (let i = 0; i < tries; i++) {
     const tok = await fbToken();
     if (!tok) return { ok: false, err: '인증 실패(네트워크 확인)' };
-    const url = new URL(`${FIREBASE_DB}/${pathStr}.json?auth=${tok}`);
+    const url = new URL(`${FIREBASE_DB}/${pathStr}.json${authQ(tok)}`);
     const cur = await new Promise(resolve => {
       const req = https.get({ hostname: url.hostname, path: url.pathname + url.search, headers: { 'X-Firebase-ETag': 'true' } }, res => {
         let d = ''; res.on('data', c => d += c);

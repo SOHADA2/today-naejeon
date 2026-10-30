@@ -1,7 +1,7 @@
 // 🎬 팟지 영상 받아서 파일로(읽기만) — 점검 작업이 ffprobe·장면 캡처로 영상 내용 확인할 때 씀
 // 사용: node tools/clip-dump.cjs [날짜] 출력폴더
 const fs = require('fs'), path = require('path');
-const DB = 'https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app/today';
+const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app/today';
 const get = async p => { const [a, q] = p.split('?'); const r = await fetch(`${DB}/${a}.json${q ? '?' + q : ''}`); return r.ok ? r.json() : null; };
 const dayKey = (t = Date.now()) => { const d = new Date(t - 6 * 3600e3); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 (async () => {

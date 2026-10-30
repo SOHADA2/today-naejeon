@@ -11,7 +11,7 @@ const os    = require('os');
 const { EventEmitter } = require('events');
 const { execFile }     = require('child_process');
 
-const FIREBASE_URL      = 'https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app';
+const FIREBASE_URL      = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app';   // 🗄️ v0.1.64 투데이 내전 전용 프로젝트
 const BRIDGE_ROOT       = 'today/bridge';   // ⚠️ 사이트 bridge/ 와 분리(시즌2 데이터 오염 방지)
 
 // 주입 옵션(startBridge에서 세팅)

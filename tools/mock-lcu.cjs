@@ -8,7 +8,7 @@
 //   만들기: openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 2 -subj /CN=127.0.0.1  (Git Bash는 MSYS_NO_PATHCONV=1)
 // ⚠️ 실제 Firebase today/bridge/eogStats에 씀 → 끝나면 today/ 테스트 데이터 삭제
 const https = require('https'), fs = require('fs'), path = require('path');
-const DB = 'https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app';
+const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app';
 const scen = process.argv[2] || 'fastexit';
 const GID = 900000 + Math.floor(Math.random() * 99999);
 let phase = 'Lobby', eogOn = false, histOn = false, up = true;
