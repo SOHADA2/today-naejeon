@@ -151,7 +151,7 @@ function playHeroVideo(my) {
     const peak = h.peak - h.clipFrom, freezeAt = peak + 0.35;
     let frozen = 0, raf = 0, rate = 1, done = false, slowFired = false, hitFired = false;
     const fired = new Set();
-    el('pg-stage').style.display = ''; resetFx(); fx.style.display = '';
+    el('pg-stage').style.display = ''; resetFx(); fxBegin(); fx.style.display = '';
     el('pg').classList.add('hero');
     el('pg-tag').innerHTML = `${av(h.championId)}<div><small>UNSUNG HERO</small><b>${esc(h.name)}${h.champ ? ' · ' + esc(h.champ) : ''}</b></div>`;
     fx.querySelectorAll('.pg-bar').forEach(b => go(b, [{ transform: 'scaleY(0)' }, { transform: 'scaleY(1)' }], { duration: 450 }));
@@ -176,7 +176,7 @@ function playHeroVideo(my) {
       const t = v.currentTime, g = t + h.clipFrom;
       if (!frozen) { const r = rateAt(t); if (r !== rate) { rate = r; v.playbackRate = r; } }
       { const gv = frozen === 1 ? 0 : rate < 1 ? 0.03 : 0.6; v.volume += (gv - v.volume) * 0.25; }
-      v.style.transform = `scale(${zoomAt(t).toFixed(4)})`;
+      fxPaint(v, { zoom: zoomAt(t), punch: frozen ? 0 : punchAt([peak], t), frozen });   // 🎨
       if (showMeter) {   // 실제 체력 기록으로 막대를 움직임(1초 간격 기록 · 사이는 선형)
         const hp = hpAt(series, g);
         if (hp != null) {
@@ -275,13 +275,104 @@ const rateFor = ms => { const last = ms[ms.length - 1]; return t => { for (const
 function realBetween(rateAt, a, b) { let w = 0; for (let x = a; x < b; x += 0.02) w += 0.02 / rateAt(x); return w; }   // 영상 a→b초가 실제로 걸리는 시간(슬로모션 감안)
 function realToFreeze(c) { const ms = killsAt(c); return realBetween(rateFor(ms), 0, ms[ms.length - 1] + 0.45); }
 const cardDropAt = c => (400 + Math.max(0, ((c.kills || []).length || 1) - 1) * 380) / 1000;   // 카드: 마지막 킬 칸이 찍히는 시각(소개 뒤)
+// 🎨 화면 효과(v0.1.65 · 레퍼런스 v2 「팟지 업그레이드」에서 옮김) — WebGL 셰이더 한 장으로 영상 위에:
+//   색 보정(대비·채도·밝은 곳 따뜻하게/어두운 곳 차갑게) · 필름 그레인 · 천천히 밀기 · 킬 순간 펀치 줌+방사형 모션 블러+RGB 분리
+//   · 정지 화면 = 임팩트 프레임(반전 2장) → 주인공 둘레만 컬러(스포트라이트) · 확대(zoomAt)도 셰이더가 함
+//   WebGL이 없거나 이 PC에서 느리면(처음 1.5초 평균 25fps 아래) 예전처럼 영상 그대로(CSS 확대) — 효과 있는 버전과 타이밍·자막·소리는 같음
+const FS = `precision mediump float;
+uniform sampler2D tex; uniform vec2 res; uniform float vasp, zoom, rblur, ca, sat, flash, desat, grain, tm, vig, inv;
+varying vec2 uv;
+vec3 grade(vec3 c) {
+  c = (c - 0.5) * 1.12 + 0.5;
+  float l = dot(c, vec3(0.299, 0.587, 0.114));
+  c = mix(vec3(l), c, sat);
+  c += vec3(0.035, 0.012, -0.03) * smoothstep(0.45, 1.0, l) + vec3(-0.025, 0.006, 0.035) * (1.0 - smoothstep(0.0, 0.45, l));
+  return c;
+}
+void main() {
+  vec2 c = vec2(0.5), p = uv; float sa = res.x / res.y;
+  if (sa < vasp) p.x = (p.x - 0.5) * sa / vasp + 0.5; else p.y = (p.y - 0.5) * vasp / sa + 0.5;
+  p = (p - c) / zoom + c;
+  vec3 col = vec3(0.0);
+  for (int i = 0; i < 6; i++) {
+    float s = 1.0 - rblur * float(i) / 6.0; vec2 q = (p - c) * s + c;
+    col.r += texture2D(tex, (q - c) * (1.0 - ca) + c).r;
+    col.g += texture2D(tex, q).g;
+    col.b += texture2D(tex, (q - c) * (1.0 + ca) + c).b;
+  }
+  col = grade(col / 6.0);
+  float d = distance((uv - c) * vec2(sa, 1.0), vec2(0.0));
+  float l = dot(col, vec3(0.299, 0.587, 0.114));
+  col = mix(col, vec3(l) * 0.8, desat * smoothstep(0.16, 0.42, d));
+  col = mix(col, 1.0 - col, inv);
+  col *= 1.0 - vig * smoothstep(0.45, 1.05, d);
+  col += flash;
+  float n = fract(sin(dot(uv * res + tm * 61.7, vec2(12.9898, 78.233))) * 43758.5453);
+  col += (n - 0.5) * grain;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+function makeGL(canvas) {
+  const gl = canvas.getContext('webgl', { premultipliedAlpha: false, preserveDrawingBuffer: false, alpha: false });
+  if (!gl) return null;
+  const sh = (t, src) => { const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+  const pr = gl.createProgram();
+  gl.attachShader(pr, sh(gl.VERTEX_SHADER, 'attribute vec2 p; varying vec2 uv; void main(){ uv = vec2(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5); gl_Position = vec4(p, 0.0, 1.0); }'));
+  gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(pr); gl.useProgram(pr);
+  const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const tx = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tx);
+  [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T].forEach(k => gl.texParameteri(gl.TEXTURE_2D, k, gl.CLAMP_TO_EDGE));
+  [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER].forEach(k => gl.texParameteri(gl.TEXTURE_2D, k, gl.LINEAR));
+  const U = {}; ['res', 'vasp', 'zoom', 'rblur', 'ca', 'sat', 'flash', 'desat', 'grain', 'tm', 'vig', 'inv'].forEach(k => U[k] = gl.getUniformLocation(pr, k));
+  return (video, u) => {
+    if (video.readyState < 2) return false;
+    const w = canvas.clientWidth * devicePixelRatio | 0, h = canvas.clientHeight * devicePixelRatio | 0;
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    gl.viewport(0, 0, w, h);
+    try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, video); } catch (_) { return false; }
+    gl.uniform2f(U.res, w, h); gl.uniform1f(U.vasp, video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : 16 / 9);
+    for (const k of ['zoom', 'rblur', 'ca', 'sat', 'flash', 'desat', 'grain', 'tm', 'vig', 'inv']) gl.uniform1f(U[k], u[k]);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    return true;
+  };
+}
+let _glDraw, _glSlow = false;   // _glDraw: undefined=아직 · null=이 PC에선 못 씀 · _glSlow=느려서 끔(이 창이 열려 있는 동안)
+const GF = { on: false, t0: 0, n: 0, last: 0, sum: 0, freezeAt: 0, thawAt: 0 };
+function fxBegin() {   // 영상 장면 시작마다
+  const cv = el('pg-canvas'), v = el('pg-video');
+  if (_glDraw === undefined) { try { _glDraw = makeGL(cv); } catch (e) { _glDraw = null; } }
+  GF.on = !!_glDraw && !_glSlow; Object.assign(GF, { t0: performance.now(), n: 0, last: 0, sum: 0, freezeAt: 0, thawAt: 0 });
+  cv.style.display = GF.on ? '' : 'none'; v.style.opacity = GF.on ? '0' : '';
+  if (GF.on) v.style.transform = '';
+}
+function fxOff() { el('pg-canvas').style.display = 'none'; el('pg-video').style.opacity = ''; GF.on = false; }
+// o = { zoom, punch(0~1 킬 순간), frozen(0 재생·1 정지·2 다시 재생) }
+function fxPaint(v, o) {
+  const nw = performance.now();
+  if (o.frozen === 1 && !GF.freezeAt) GF.freezeAt = nw;
+  if (o.frozen === 2 && !GF.thawAt) GF.thawAt = nw;
+  if (!GF.on) { v.style.transform = `scale(${o.zoom.toFixed(4)})`; return; }
+  if (GF.last) { const dt = nw - GF.last; if (dt < 500) { GF.n++; GF.sum += dt; } }   // 이 PC가 버티나: 처음 45장 평균 40ms(25fps) 넘으면 끔
+  GF.last = nw;
+  if (GF.n === 45 && GF.sum / GF.n > 40) { _glSlow = true; fxOff(); v.style.transform = `scale(${o.zoom.toFixed(4)})`; return; }
+  const fz = o.frozen === 1 ? Math.min(1, (nw - GF.freezeAt) / 160) : o.frozen === 2 ? Math.max(0, 1 - (nw - GF.thawAt) / 400) : 0, p = o.punch || 0;
+  const ok = _glDraw(v, {
+    zoom: o.zoom * (1 + 0.025 * Math.min(1, (nw - GF.t0) / 6000)) + 0.08 * p,   // 천천히 밀기 + 킬 펀치
+    rblur: 0.05 * p, ca: 0.003 + 0.014 * p, sat: 1.15 + 0.15 * fz, flash: 0.14 * p,
+    desat: 0.8 * fz, grain: 0.04, tm: (nw % 10000) / 1000, vig: 0.22 + 0.3 * fz,
+    inv: o.frozen === 1 && nw - GF.freezeAt < 70 ? 1 : 0,   // 임팩트 프레임(반전 2장)
+  });
+  if (ok === false && !GF.n) v.style.opacity = '';   // 아직 첫 장면이 없으면 영상을 그대로 보여 둠
+  else if (ok) v.style.opacity = '0';
+}
+const punchAt = (ms, t) => { let p = 0; for (const m of ms) { const x = t - m; if (x >= 0 && x < 0.7) p = Math.max(p, Math.exp(-x * 7)); else if (x > -0.06 && x < 0) p = Math.max(p, (x + 0.06) / 0.06); } return p; };
 function playVideo(my) {
   return new Promise(resolve => {
     const v = el('pg-video'), c = card, fx = el('pg-fx'), wrap = el('pg-vwrap');
     const ms = killsAt(c);
     const last = ms[ms.length - 1], fired = new Set();
     let frozen = 0, raf = 0, rate = 1, done = false, slowFired = false;
-    resetFx();
+    resetFx(); fxBegin();
     fx.style.display = '';
     el('pg-tag').innerHTML = `${av(c.championId)}<div><small>PLAY OF THE GAME</small><b>${esc(c.name)}${c.champ ? ' · ' + esc(c.champ) : ''}</b>`
       + `<span class="pg-pips">${ms.map(() => '<i></i>').join('')}</span></div>`;   // 킬 칸 — 킬마다 하나씩 팀 색으로
@@ -305,7 +396,7 @@ function playVideo(my) {
       const t = v.currentTime;
       if (!frozen) { const r = rateAt(t); if (r !== rate) { rate = r; v.playbackRate = r; } }
       { const gv = frozen === 1 ? 0 : rate < 1 ? 0.03 : 0.6; v.volume += (gv - v.volume) * 0.25; }   // 🎵 슬로모션 땐 게임 소리를 확 줄임(느리고 낮아진 게임 소리가 이상한 음악처럼 들렸음) — BGM·효과음이 이끔 · v0.1.61: 0.15도 웅웅거려서(사장님 「후반 소리가 왜 이래」) 거의 끔(0.03)
-      v.style.transform = `scale(${zoomAt(t).toFixed(4)})`;
+      fxPaint(v, { zoom: zoomAt(t), punch: frozen ? 0 : punchAt(ms, t), frozen });   // 🎨
       ms.forEach((m, i) => { if (!fired.has(i) && t >= m) { fired.add(i); onKill(i); } });
       if (!frozen) {   // 🎵 BGM 「터짐」을 정지 화면에 맞추고, 「느려지는 떨림」의 타격을 마지막 킬에 맞춤
         bgmRetarget(realBetween(rateAt, t, last + 0.45), rate === 1);
@@ -366,7 +457,7 @@ function resetFx() {
   fx.style.display = 'none';
   fx.querySelectorAll('*').forEach(n => n.getAnimations().forEach(a => a.cancel()));
   el('pg-feed').innerHTML = ''; el('pg-kb').innerHTML = ''; el('pg-kb').className = 'pg-kb'; el('pg-meter').innerHTML = ''; el('pg-hits').innerHTML = ''; el('pg').classList.remove('hero');
-  v.getAnimations().forEach(a => a.cancel()); v.style.transform = ''; v.playbackRate = 1;
+  v.getAnimations().forEach(a => a.cancel()); v.style.transform = ''; v.playbackRate = 1; fxOff();
   el('pg-vwrap').getAnimations().forEach(a => a.cancel());
 }
 
