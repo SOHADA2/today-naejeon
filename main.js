@@ -797,10 +797,10 @@ async function augTick() {
     const champId = augState.champId || (augState.champId = await myChampId());
     const [guide, glob, rec] = await Promise.all([getGuide(), augGlobal(), augRecords().catch(() => ({}))]);
     const recMy = {}; for (const id of ids) { const x = rec[champId + ':' + id]; if (x) recMy[id] = x; }
-    const ranks = augscan.rankAugs(ids, guide[champId], glob, recMy, augState.globalR);
+    const ranks = augscan.rankAugs(ids, guide[champId], glob, recMy, augState.globalR, { champName: (me && me.championName) || '' });
     const sf = d.scaleFactor || 1, ox = band.x - pr.x, oy = band.y - pr.y;   // 띠 좌표(실제 픽셀) → 그 모니터 기준 화면 좌표(DIP)
     const aug = await getAugments();
-    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, rank: ranks[i].rank, why: ranks[i].why, name: (aug[c.id] || {}).name || '' }));   // 띠 기준
+    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, rank: ranks[i].rank, why: ranks[i].why, tier: ranks[i].tier, scope: ranks[i].scope, extra: ranks[i].extra, name: (aug[c.id] || {}).name || '' }));   // 띠 기준
     augState.showing = { sig };
     augLog(`증강 ${found.cards.map((c, i) => `${cards[i].name}(${c.score.toFixed(2)})=${ranks[i].rank}위`).join(' · ')} · 캡처 ${r.cap}ms · 읽기 ${r.ms}ms`);
     showAugRank(d, cards, { x: ox / sf, y: oy / sf, width: band.w / sf, height: band.h / sf });

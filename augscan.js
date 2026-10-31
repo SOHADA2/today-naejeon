@@ -46,24 +46,30 @@ function findCards(ix, lines, H) {
 
 const TS = { 'S+': 10, S: 9, 'S-': 8, 'A+': 7, A: 6, 'A-': 5, 'B+': 4, B: 3, 'B-': 2, C: 1, D: 0 };
 // g = 그 챔피언 augGuide 칸({tiers?, top?, plans?, avoid?}) · globalT = {id: tier} · rec = {id: {g, w}} · globalR = {id: 전체 순위} → [{id, rank, score, why}]
-function rankAugs(ids, g, globalT, rec, globalR) {
+// v0.1.85: 순위가 일관성 없음(사장님 · 「자료 없음」이 B- 위 2위) → 자료 있는 증강끼리만 1·2·3위 · 자료 없는 건 rank null(「등급 없음」)
+//   이유 글은 「기준 등급」 한 모양(「신 짜오 S-」「전체 B-」) · opt.champName = 내 챔피언 이름
+function rankAugs(ids, g, globalT, rec, globalR, opt) {
+  const champName = (opt && opt.champName) || '이 챔피언';
   g = g || {};
   const champT = Object.assign({}, (g.tiers && g.tiers.t) || {}); for (const x of (g.top && g.top.augs) || []) if (champT[x.id] == null) champT[x.id] = x.tier;
   const avoid = new Set(g.avoid || []);
   const rows = ids.map(id => {
-    let score, why;
-    if (TS[champT[id]] != null) { score = 10 + TS[champT[id]]; why = `이 챔피언 ${champT[id]}`; }
-    else if (globalT && TS[globalT[id]] != null) { score = TS[globalT[id]]; why = `전체 ${globalT[id]}`; }
-    else { score = 3; why = '자료 없음'; }
+    // tier = 등급 글자(S+…D) · scope = 그 등급의 기준(챔피언 이름/전체) · extra = 덧붙임(콤보·함정·우리 기록) — 배지는 순위(크게)·등급 칩·기준 순(v0.1.85)
+    let score, tier = null, scope = '', known = true;
+    const extra = [];
+    if (TS[champT[id]] != null) { score = 10 + TS[champT[id]]; tier = champT[id]; scope = champName; }
+    else if (globalT && TS[globalT[id]] != null) { score = TS[globalT[id]]; tier = globalT[id]; scope = '전체'; }
+    else { score = 3; known = false; }
     const combo = (g.plans || []).find(p => (p.augs || []).includes(id) && (p.augs || []).length > 1);
-    if (combo) { score += 1 + (TS[combo.tier] != null ? TS[combo.tier] : 6) / 10; why += ' · 콤보'; }
-    if (avoid.has(id)) { score -= 8; why = '함정 표시'; }
-    const r = rec && rec[id]; if (r && r.g >= 2) { score += (r.w / r.g - 0.5) * 4; why += ` · 우리 ${r.g}판 ${r.w}승`; }
+    if (combo) { score += 1 + (TS[combo.tier] != null ? TS[combo.tier] : 6) / 10; extra.push('콤보'); }
+    if (avoid.has(id)) { score -= 8; extra.unshift('함정'); known = true; }
+    const r = rec && rec[id]; if (r && r.g >= 2) { score += (r.w / r.g - 0.5) * 4; extra.push(`우리 ${r.g}판 ${r.w}승`); known = true; }
     if (globalR && globalR[id]) score -= globalR[id] / 10000;   // 동점이면 사이트 전체 순위가 높은 쪽(1~204위)
-    return { id, score: Math.round(score * 10000) / 10000, why };
+    const why = [tier ? `${scope} ${tier}` : known ? '' : '등급 없음'].concat(extra).filter(Boolean).join(' · ');
+    return { id, score: Math.round(score * 10000) / 10000, why, known, tier, scope, extra };
   });
-  const order = rows.slice().sort((a, b) => b.score - a.score);
-  for (const r of rows) r.rank = order.findIndex(o => o.score === r.score) + 1;   // 점수가 같으면 같은 등수
+  const order = rows.filter(r => r.known).sort((a, b) => b.score - a.score);
+  for (const r of rows) r.rank = r.known ? order.findIndex(o => o.score === r.score) + 1 : null;   // 점수가 같으면 같은 등수 · 자료 없으면 순위 없음
   return rows;
 }
 module.exports = { clean, lev, nameIndex, matchLine, findCards, rankAugs, TS };

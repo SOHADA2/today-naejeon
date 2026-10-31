@@ -1,6 +1,6 @@
 {
   "name": "today-naejeon",
-  "version": "0.1.84",
+  "version": "0.1.85",
   "description": "투데이 내전 — 하루 안에 끝나는 인스턴트 내전(팀짜기·경기 자동 기록·투표·오늘 순위)",
   "main": "main.js",
   "author": "SOHADA2",

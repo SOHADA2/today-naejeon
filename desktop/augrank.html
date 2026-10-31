@@ -9,14 +9,22 @@
     /* 🎯 증강 순위(v0.1.78 · 베타) — 게임 화면 크기 투명 창(클릭 통과) · 증강 카드 이름 바로 위에 「1위」+짧은 이유
        main showAugRank → 'augrank' {cards:[{x,y,w,h(카드 이름 줄 · 이 창 기준 좌표), rank, why, name}]}
        ⚠️ 무한 애니메이션 금지 — 뜰 때 한 번만 */
-    .bd { position:absolute; transform:translate(-50%, -100%); display:flex; flex-direction:column; align-items:center; gap:2px; animation:in .22s ease-out both; }
-    .rk { font-family:var(--f-num); font-weight:700; font-size:22px; line-height:1; padding:4px 12px 3px; color:#14100a;
-      clip-path:polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px); filter:drop-shadow(0 2px 4px rgba(0,0,0,.6)); }
-    .rk small { font-family:var(--f-body); font-size:13px; font-weight:800; margin-left:1px; }
+    /* v0.1.85: 순위(가장 크게) + 등급 칩(S·A·B·C 색) + 아래 작은 기준 글 · 크기 = 이 창(이름 띠 = 화면 높이 28%) 높이 비례(vh)라 해상도 따라 같이 커짐 */
+    .bd { position:absolute; transform:translate(-50%, -100%); display:flex; flex-direction:column; align-items:center; gap:3px; animation:in .22s ease-out both; }
+    .top { display:flex; align-items:stretch; gap:4px; filter:drop-shadow(0 2px 5px rgba(0,0,0,.65)); }
+    .rk { font-family:var(--f-num); font-weight:700; font-size:max(26px, 9.5vh); line-height:1; padding:.1em .32em .04em; color:#14100a;
+      clip-path:polygon(.24em 0, 100% 0, 100% calc(100% - .24em), calc(100% - .24em) 100%, 0 100%, 0 .24em); }
+    .rk small { font-family:var(--f-body); font-size:.5em; font-weight:800; margin-left:1px; }
+    .tr { display:flex; align-items:center; font-family:var(--f-num); font-weight:700; font-size:max(17px, 6vh); line-height:1; padding:0 .3em; color:#fff; background:#3a414a;
+      clip-path:polygon(.18em 0, 100% 0, 100% calc(100% - .18em), calc(100% - .18em) 100%, 0 100%, 0 .18em); }
+    .tr.tS { background:linear-gradient(180deg, #ff9d4d, #d9542a); } .tr.tA { background:linear-gradient(180deg, #b48cff, #7a4fd6); }
+    .tr.tB { background:linear-gradient(180deg, #5fb3ff, #2f74c9); } .tr.tC, .tr.tD { background:linear-gradient(180deg, #8c96a1, #5a636d); }
     .r1 .rk { background:linear-gradient(180deg, #ffe7a3, #d9a93a); }
     .r2 .rk { background:linear-gradient(180deg, #eef2f6, #a7b2bf); }
     .r3 .rk { background:linear-gradient(180deg, #f0c3a0, #b07446); }
-    .why { font-family:var(--f-body); font-size:12px; font-weight:700; color:#f1ead8; white-space:nowrap; padding:2px 7px; background:rgba(6,10,16,.82); }
+    .r0 .rk { background:linear-gradient(180deg, #59626d, #3a414a); color:#c9d1da; }   /* v0.1.85: 등급 자료 없음 = 순위 없이 회색 「?」 */
+    .r0 .why { color:#aeb6bf; }
+    .why { font-family:var(--f-body); font-size:max(12px, 3.6vh); font-weight:700; color:#f1ead8; white-space:nowrap; padding:.15em .55em; background:rgba(6,10,16,.82); }
     @keyframes in { from { opacity:0; transform:translate(-50%, -80%); } to { opacity:1; transform:translate(-50%, -100%); } }
   </style>
 </head>
@@ -26,8 +34,9 @@
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     function set(d) {
       const cards = (d && d.cards) || [];
-      document.getElementById('root').innerHTML = cards.map(c => `<div class="bd r${Math.min(3, c.rank)}" style="left:${Math.round(c.x + c.w / 2)}px;top:${Math.round(c.y - 6)}px">
-        <span class="rk">${c.rank}<small>위</small></span><span class="why">${esc(c.why)}</span></div>`).join('');
+      document.getElementById('root').innerHTML = cards.map(c => `<div class="bd r${c.rank ? Math.min(3, c.rank) : 0}" style="left:${Math.round(c.x + c.w / 2)}px;top:${Math.round(c.y - 6)}px">
+        <span class="top"><span class="rk">${c.rank ? `${c.rank}<small>위</small>` : '?'}</span>${c.tier ? `<span class="tr t${esc(String(c.tier)[0])}">${esc(c.tier)}</span>` : ''}</span>
+        <span class="why">${esc([c.tier ? c.scope : c.rank ? '' : '등급 없음'].concat(c.extra || []).filter(Boolean).join(' · ') || c.why)}</span></div>`).join('');
     }
     window.__set = set;
     if (window.api && window.api.onAugRank) window.api.onAugRank(set);
