@@ -61,7 +61,7 @@ async function run(name, opt) {
   ok(r.st.hides === 1 && !r.st.hidden && r.st.shown === 0, '리플레이 창 숨김 → 끝나고 숨기기 멈춤');
   ok(r.calls.some(c => c.endsWith('/download/graceful')) && r.calls.some(c => c.endsWith('/watch')), '받기 요청 → 리플레이 열기');
   ok(r.st.rec && r.st.rec.startTime === 644 && r.st.rec.endTime === 650 && r.st.rec.codec === 'webm', '녹화 구간 644~650초 · webm');
-  ok(r.st.seeks[0] === 641 && r.st.recAt <= 641.5, `되감기 끝난 뒤 3초 앞(641초)부터 재생하며 녹화 (녹화 요청 때 리플레이 ${r.st.recAt.toFixed(1)}초)`);
+  ok(r.st.seeks[0] === 639 && r.st.recAt >= 640.7 && r.st.recAt <= 641.6, `5초 앞(639초)으로 되감아 카메라 먼저 따라붙이고 641초쯤 녹화 시작(v0.1.81 · 녹화 요청 때 리플레이 ${r.st.recAt.toFixed(1)}초)`);
   ok(r.st.render.selectionName === 'ap렉사이서폿' && r.st.render.cameraAttached === true && r.st.render.interfaceScoreboard === false, '카메라 = 주인공 따라가기 · 점수판 숨김');
   ok(r.st.killed === 1, '끝나고 리플레이 닫음');
   console.log('■ stall — 화면 밖에선 롤이 리플레이를 안 그림'); r = await run('stall', { stallHidden: true });

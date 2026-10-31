@@ -185,19 +185,26 @@ function makeReplayRec(d) {
             for (let i = 0; i < 80; i++) { await sleep(500); const p = await live('GET', '/replay/playback'); if (p.data && !p.data.seeking && Math.abs((p.data.time || 0) - t) < 1.5) return true; }
             return false;
           };
-          log(`되감기 ${startAt}초 ${await seekTo(startAt) ? '완료' : '확인 못 함'} (${sec()}초)`);
+          // v0.1.81: 첫 장면이 빈 곳으로 시작하던 것(사장님) — 멈춘 채 카메라를 붙이면 주인공 쪽으로 다 못 옮긴 채 녹화가 시작됨
+          //   → WARM초 더 앞으로 되감고, 녹화 없이 먼저 재생해 카메라가 따라붙은 뒤 startAt에 닿으면 녹화 시작(영상 0초는 길이로 실측하니 타이밍은 그대로)
+          const WARM = 2, warmAt = Math.max(0, startAt - WARM);
+          log(`되감기 ${warmAt}초 ${await seekTo(warmAt) ? '완료' : '확인 못 함'} (${sec()}초)`);
           const view = { cameraAttached: true, cameraMode: 'top', interfaceScoreboard: false, interfaceChat: false, interfaceTimeline: false, interfaceReplay: false, interfaceMinimap: false, interfaceFrames: false, interfaceScore: false, interfaceTarget: false, interfaceQuests: false, interfaceKillCallouts: false, interfaceAnnounce: false };   // 화면 깨끗하게(체력바만 남김 · 롤 킬 알림은 확대하면 위가 잘려서 끄고 팟지 킬 피드로 대신)
           await live('POST', '/replay/render', Object.assign({ selectionName: focus }, view));
           const r = await live('GET', '/replay/render');
           if (champ && !(r.data && r.data.selectionName)) { await live('POST', '/replay/render', Object.assign({ selectionName: champ }, view)); log('카메라: 챔피언 이름으로 다시 지정'); }   // 게임 이름이 안 먹으면
           if (fov) await live('POST', '/replay/render', { fieldOfView: fov });   // v0.1.80: 시야 넓히기(먼 사거리 · 주인공이 화면 끝에 걸리던 것)
           { const c = (await live('GET', '/replay/render')).data || {}; log(`카메라 ${JSON.stringify({ sel: c.selectionName, att: c.cameraAttached, mode: c.cameraMode, fov: c.fieldOfView, off: c.selectionOffset, pos: c.cameraPosition, rot: c.cameraRotation })}`); }
-          await sleep(1500);   // 장면 불러오기
+          await sleep(800);   // 장면 불러오기
+          if (warmAt < startAt) {   // 카메라 따라붙기(녹화 없이 재생)
+            await live('POST', '/replay/playback', { time: warmAt, paused: false, speed: 1 });
+            for (let i = 0; i < 60; i++) { await sleep(100); const q = await live('GET', '/replay/playback'); if (q.data && (q.data.time || 0) >= startAt - 0.15) break; }
+          }
           const outDir = d.outDir; fs.mkdirSync(outDir, { recursive: true });
           const since = Date.now();
           const rr = await live('POST', '/replay/recording', { recording: true, startTime: from, endTime: to, framesPerSecond: FPS, enforceFrameRate: false, codec: 'webm', lossless: false, width: W, height: H, path: outDir, replaySpeed: 1 });
           if (!(rr.status >= 200 && rr.status < 300)) { log('녹화 시작 실패 HTTP ' + rr.status); return null; }
-          await live('POST', '/replay/playback', { time: startAt, paused: false, speed: 1 });
+          if (warmAt >= startAt) await live('POST', '/replay/playback', { time: startAt, paused: false, speed: 1 });   // 따라붙기 없었을 때(게임 맨 앞)만 여기서 재생
           // ⑤ 끝 = 리플레이 시간이 to를 지나고 녹화가 멈춤(녹화 쪽 값만 믿지 않음 — 리플레이 시간 기준) · 최대 (구간+앞부분)×4 + 30초
           let lastPath = null, last = 0, n = 0, moveAt = Date.now(), moveT = -1, shown = !hid;
           const limit = Date.now() + ((to - startAt) * 4 + 30) * 1000;

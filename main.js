@@ -184,9 +184,20 @@ function _repaintSlot() {   // 투명창이 흰 박스로 안 그려지는 Win �
   try { const b = slotWin.getBounds(); slotWin.setBounds({ x: b.x, y: b.y, width: b.width + 1, height: b.height }); slotWin.setBounds(b); } catch (_) {}
 }
 let lobbySeat = null, lobbyPhase = null, lobbyCustom = null, _slotMsg = '';   // 🪑 브릿지 pollSeat(1초): 롤 페이즈 · 커스텀 로비에서 내가 앉은 쪽(1·2·'spec'·null) · 커스텀 방인지
+// 🔀 대기실 방식 자동(v0.1.81 · 사장님) — 방장 롤 대기방이 일반 큐(커스텀 아님)면 「일반판」, 사용자 설정 방이면 마지막 내전 방식(랜덤·드래프트·직접)
+//   바뀔 때만(롤 대기방 종류가 바뀐 순간) · 방장이 그 뒤에 직접 바꾸면 그대로 둠
+let _autoModeKey = null;
+function autoLobbyMode() {
+  if (!config.isHost || lobbyPhase !== 'Lobby' || lobbyCustom == null) { if (lobbyPhase !== 'Lobby') _autoModeKey = null; return; }
+  const key = lobbyCustom ? 'custom' : 'queue'; if (key === _autoModeKey) return; _autoModeKey = key;
+  const cur = (lobbyRaw && lobbyRaw.mode) || 'random';
+  const want = lobbyCustom ? (cur === 'normal' ? (config.lastTeamMode || 'random') : null) : (cur !== 'normal' ? 'normal' : null);
+  if (want) { console.log('[lobby] 롤 대기방이', key === 'custom' ? '사용자 설정 방' : '일반 큐', '→ 방식', want); lobbySetMode(want, true).catch(() => {}); }
+}
 function onLobbySeat(d) {
   const prevPhase = lobbyPhase;
   lobbyPhase = d && d.phase || null; lobbySeat = d ? d.seat : null; lobbyCustom = d ? d.custom : null;
+  autoLobbyMode();
   if ((prevPhase === 'ChampSelect') !== (lobbyPhase === 'ChampSelect')) { if (lobbyPhase !== 'ChampSelect') { champSel = null; _champSelSig = ''; } pushAugGuide().catch(() => {}); }   // 🧭 증강 가이드 켜고 끄기
   if (lobbyPhase === 'ChampSelect' && prevPhase !== 'ChampSelect') borderlessOn();   // 🖥️ 게임 중 정보 창 켠 사람 = 게임 뜨기 전에 테두리 없는 창으로
   else if (prevPhase === 'ChampSelect' && ['Lobby', 'None', 'Matchmaking', 'ReadyCheck'].includes(lobbyPhase) && !inGame) borderlessOff();   // 닷지·취소 → 원래대로
@@ -1123,9 +1134,10 @@ async function lobbyRemoveGuest(key) {
   if (!config.isHost || !String(key).startsWith('g_')) return { ok: false };
   return lobbyJoin(key, null);
 }
-async function lobbySetMode(mode) {
+async function lobbySetMode(mode, auto) {
   if (!config.isHost) return { ok: false, err: '방장만 방식을 정할 수 있어요' };
   const m = ['draft', 'manual', 'normal'].includes(mode) ? mode : 'random';   // normal = 🎮 일반판 진행(v0.1.60 · 팀짜기 없음)
+  if (!auto && m !== 'normal' && config.lastTeamMode !== m) { config.lastTeamMode = m; saveConfig(); }   // 일반판에서 내전으로 돌아올 때 쓸 방식
   lobbyLocal(L => { L.mode = m; });
   return lobbyWrite(fbUpdate(`${T}/lobby`, { mode: m }));
 }
@@ -1310,6 +1322,9 @@ async function hostTick() {
 }
 // 🎬 팟지 고르기(방장) — 모든 PC의 수집이 모이면(최대 25초 기다림) 점수 1위 장면 → session.potg(showAt=모두 같이 시작할 시각)
 let _potgBusy = false, _potgFor = null;
+// 🛡️ 숨은 영웅은 판이 클 때만(v0.1.81 · 사장님: 서브 팟지는 최소 6인 대전은 돼야) — 1:1·2:2는 한타라 부를 장면이 없어 평범한 장면이 뽑힘
+const HERO_MIN_PLAYERS = 6;
+const heroAllowed = n => n >= HERO_MIN_PLAYERS;
 async function hostPotg(s) {
   if (!potg || _potgBusy || _potgFor === String(s.game.id) || String(s.game.id).startsWith('m')) return;   // 수동 기록 판은 게임 번호가 없어 수집과 못 이음
   _potgBusy = true;
@@ -1325,7 +1340,7 @@ async function hostPotg(s) {
     card.gameId = String(s.game.id);
     try { card.splash = await potg.splashFor(card.championId, card.skin); } catch (_) {}   // 🖼️ 소개 배경 = 그 사람이 낀 스킨 일러스트
     try {   // 🛡️ 숨은 영웅(v0.1.44) — 팟지 주인공 말고, 킬 아닌 장면(광역 이니시·버티기·세이브·한타 설계) 하나 더
-      const hero = potg.pickHero(raws, s, rec && rec.stats, card.name, { avoid: [card.clipFrom, card.clipTo] });   // 팟지와 같은 한타는 숨은 영웅으로 안 고름
+      const hero = heroAllowed((s.teamA || []).length + (s.teamB || []).length) ? potg.pickHero(raws, s, rec && rec.stats, card.name, { avoid: [card.clipFrom, card.clipTo] }) : null;   // 팟지와 같은 한타는 숨은 영웅으로 안 고름 · 인원 적으면 없음
       if (hero) { try { hero.splash = await potg.splashFor(hero.championId, hero.skin); } catch (_) {} card.hero = hero; }
     } catch (e) { console.log('[potg] 숨은 영웅 고르기 오류', e && e.message); }
     const publish = async () => {   // 모두에게 보여주기(showAt = 다 같이 시작할 시각)
@@ -1394,7 +1409,7 @@ async function normalPotg(rec) {
   card.gameId = rec.gameId; card.normal = { queue: rec.queue, win: rec.win, us: rec.us, day: rec.day };
   try { card.splash = await potg.splashFor(card.championId, card.skin); } catch (_) {}
   try {
-    const hero = potg.pickHero(raws, s, rec.stats, card.name, Object.assign({ avoid: [card.clipFrom, card.clipTo] }, opt));   // 팟지와 같은 한타는 숨은 영웅으로 안 고름
+    const hero = heroAllowed(rec.us.length * 2) ? potg.pickHero(raws, s, rec.stats, card.name, Object.assign({ avoid: [card.clipFrom, card.clipTo] }, opt)) : null;   // 팟지와 같은 한타는 숨은 영웅으로 안 고름 · 일반 판은 우리 팀 앱 인원 ×2로 셈(3명+)
     if (hero) { hero.normal = card.normal; try { hero.splash = await potg.splashFor(hero.championId, hero.skin); } catch (_) {} card.hero = hero; }
   } catch (err) { console.log('[normal] 숨은 영웅 고르기 오류', err && err.message); }
   const publish = async () => {
