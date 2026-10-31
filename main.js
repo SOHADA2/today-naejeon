@@ -1587,6 +1587,7 @@ function cleanGuideEntry(c) {   // 저장 전에 모양·길이 정리(누가 �
     if (/^\d{1,2}\.\d{1,2}$/.test(p && p.patch)) x.patch = p.patch;
     if (/^\d{4}-\d{2}(-\d{2})?$/.test(p && p.date)) x.date = p.date;   // 패치 기록이 없는 자료 = 등록 날짜라도(얼마나 오래된 자료인지 보이게)
     if (typeof (p && p.link) === 'string' && p.link.startsWith(GUIDE_LINK) && p.link.length < 200) x.link = p.link;
+    if (p && p.by) { x.by = String(p.by).slice(0, 24); if (Number(p.at) > 0) x.at = Number(p.at); }   // 이 플랜을 마지막으로 고친 사람(위키처럼 · v0.1.76)
     plans.push(x);
     if (plans.length >= PLAN_MAX) break;
   }
@@ -1646,17 +1647,72 @@ ipcMain.handle('augguide-all', async () => {
   const seen = {}; for (const k of Object.keys(rec)) { const a = k.split(':')[1]; seen[a] = (seen[a] || 0) + rec[k].g; }   // 우리 기록에 나온 증강(편집 목록 위로)
   return { guide, champs, augs, seen, planMax: PLAN_MAX, planAugs: PLAN_AUGS, titleMax: TITLE_MAX, whyMax: WHY_MAX };
 });
+// ✍️ 위키 방식 편집(v0.1.76) — 누구나 고침 · 고친 사람·시각이 플랜마다 남음 · 편집마다 기록(전/후) → 「되돌리기」 · 남이 먼저 고쳤으면 덮어쓰지 않고 알림(편집 충돌)
+//   기록 = today/augGuide/hist/{championId}/{키} = {at, by, sum, before:[플랜], after:[플랜]} (챔피언당 최근 30개) · 최근 고친 것 = today/augGuide/recent/{키} = {champ, at, by, sum} (최근 50개)
+const HIST_MAX = 30, RECENT_MAX = 50, SUM_MAX = 40;
+const planSig = p => JSON.stringify([p.title || '', (p.augs || []).slice().sort((a, b) => a - b), p.why || '']);
+const histKey = () => Date.now().toString(36).padStart(9, '0') + Math.random().toString(36).slice(2, 6);   // 시간순으로 정렬되는 키
+function planDiff(before, after) {   // 자동 요약(「무엇을 바꿨나요」를 안 썼을 때)
+  const b = new Set(before.map(p => JSON.stringify((p.augs || []).slice().sort((x, y) => x - y)))), a = new Set(after.map(p => JSON.stringify((p.augs || []).slice().sort((x, y) => x - y))));
+  const add = [...a].filter(x => !b.has(x)).length, del = [...b].filter(x => !a.has(x)).length;
+  const bs = new Set(before.map(planSig)); const chg = after.filter(p => !bs.has(planSig(p))).length - add;
+  return [add && `플랜 추가 ${add}`, del && `플랜 빼기 ${del}`, chg > 0 && `플랜 수정 ${chg}`].filter(Boolean).join(' · ') || '순서·자잘한 수정';
+}
+async function augGuideWrite(id, guide, opt) {   // opt = {baseAt?, sum?, force?, restore?}
+  const me = (account && account.gameName) || config.myName || '';
+  if (!me) return { ok: false, err: '롤에 로그인해야 고칠 수 있어요(누가 고쳤는지 남겨요)' };
+  const want = cleanGuideEntry(guide || {}), now = Date.now();
+  let before = [], after = [];
+  const r = await fbCas(`${T}/augGuide/champs/${id}`, cur => {
+    cur = cur || {};
+    if (!opt.force && opt.baseAt != null && (cur.at || 0) !== opt.baseAt) return { err: 'conflict', info: { by: cur.by || '', at: cur.at || 0 } };
+    before = (cleanGuideEntry(cur).plans) || [];
+    const prevBySig = {}; for (const p of before) prevBySig[planSig(p)] = p;
+    after = (want.plans || []).map(p => { const o = prevBySig[planSig(p)]; return o ? { ...p, by: o.by, at: o.at } : opt.restore ? { ...p } : { ...p, by: me, at: now }; });   // 안 바뀐 플랜은 원래 고친 사람 그대로 · 되돌리기는 그 버전의 고친 사람 그대로(되돌린 사람은 기록에)
+    for (const p of after) if (!p.by) delete p.by;
+    const v = { plans: after, at: now, by: me };
+    const top = cleanTop(cur.top), av = cleanAvoid(cur.avoid);   // 이번 패치 등급·함정 표시는 자료에서만
+    if (top) v.top = top; if (av) v.avoid = av;
+    if (cur.src) v.src = cur.src;
+    if (!opt.force && JSON.stringify(before) === JSON.stringify(after)) return { err: 'same' };
+    return { value: after.length || top || av ? v : null };
+  });
+  if (!r.ok) {
+    if (r.err === 'conflict') return { ok: false, conflict: true, by: (r.info && r.info.by) || '', err: '그사이 다른 사람이 먼저 고쳤어요' };
+    if (r.err === 'same') return { ok: false, err: '바뀐 게 없어요' };
+    return { ok: false, err: r.err || '저장 실패' };
+  }
+  const sum = String(opt.sum || '').trim().slice(0, SUM_MAX) || planDiff(before, after), k = histKey();
+  await fbSet(`${T}/augGuide/hist/${id}/${k}`, { at: now, by: me, sum, before, after });
+  await fbSet(`${T}/augGuide/recent/${k}`, { champ: id, at: now, by: me, sum });
+  pruneKeys(`${T}/augGuide/hist/${id}`, HIST_MAX).catch(() => {}); pruneKeys(`${T}/augGuide/recent`, RECENT_MAX).catch(() => {});
+  _guideAt = 0; if (champSel) pushAugGuide().catch(() => {});
+  return { ok: true, at: now };
+}
+async function pruneKeys(pathStr, max) {   // 오래된 것부터 지워 max개만 남김
+  const keys = await getJson(`${FIREBASE_DB}/${pathStr}.json?shallow=true`).catch(() => null);
+  const ks = Object.keys(keys || {}).sort();
+  for (const k of ks.slice(0, Math.max(0, ks.length - max))) await fbDelete(`${pathStr}/${k}`);
+}
 ipcMain.handle('augguide-save', async (_e, arg) => {
   const id = Number(arg && arg.champId); if (!(id > 0)) return { ok: false, err: '챔피언 번호가 이상해요' };
-  const data = cleanGuideEntry(arg.guide || {});
-  const prev = (await getGuide(true))[id] || {}; delete data.top; delete data.avoid;
-  const old = cleanTop(prev.top); if (old) data.top = old;   // 이번 패치 등급·함정 표시는 자료에서만(편집으로 안 바뀜)
-  const av = cleanAvoid(prev.avoid); if (av) data.avoid = av;
-  const has = !!(data.plans && data.plans.length) || !!data.top || !!data.avoid;
-  const r = has ? await fbSet(`${T}/augGuide/champs/${id}`, { ...data, at: Date.now(), by: (account && account.gameName) || config.myName || '' })
-    : await fbDelete(`${T}/augGuide/champs/${id}`);
-  if (r.ok) { _guideAt = 0; if (champSel) pushAugGuide().catch(() => {}); }
-  return r.ok ? { ok: true } : { ok: false, err: r.err || '저장 실패' };
+  return augGuideWrite(id, arg.guide, { baseAt: arg.baseAt, sum: arg.sum });
+});
+ipcMain.handle('augguide-hist', async (_e, champId) => {   // 그 챔피언 고친 기록(최신 먼저)
+  const id = Number(champId); if (!(id > 0)) return [];
+  const h = await getJson(`${FIREBASE_DB}/${T}/augGuide/hist/${id}.json`).catch(() => null);
+  return Object.entries(h || {}).map(([k, v]) => ({ k, at: v.at, by: v.by, sum: v.sum, n: ((v.after || []).length), before: v.before || [], after: v.after || [] })).sort((a, b) => b.k.localeCompare(a.k));
+});
+ipcMain.handle('augguide-recent', async () => {   // 최근 고친 것(모든 챔피언)
+  const h = await getJson(`${FIREBASE_DB}/${T}/augGuide/recent.json`).catch(() => null);
+  return Object.entries(h || {}).map(([k, v]) => ({ k, ...v })).sort((a, b) => b.k.localeCompare(a.k)).slice(0, 20);
+});
+ipcMain.handle('augguide-restore', async (_e, arg) => {   // 되돌리기 = 그 기록의 내용으로 다시 저장(이것도 기록에 남음)
+  const id = Number(arg && arg.champId); if (!(id > 0)) return { ok: false, err: '챔피언 번호가 이상해요' };
+  const v = await getJson(`${FIREBASE_DB}/${T}/augGuide/hist/${id}/${String(arg.k || '').replace(/[^0-9a-z]/g, '')}.json`).catch(() => null);
+  if (!v) return { ok: false, err: '기록을 못 찾았어요' };
+  const plans = arg.which === 'before' ? (v.before || []) : (v.after || []);
+  return augGuideWrite(id, { plans }, { force: true, restore: true, sum: `되돌리기 — ${new Date(v.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} ${v.by || ''} ${arg.which === 'before' ? '편집 전' : '버전'}`.slice(0, SUM_MAX) });
 });
 
 const fetchAccounts = () => getJson(`${FIREBASE_DB}/${T}/accounts.json`);
