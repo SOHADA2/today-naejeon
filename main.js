@@ -623,6 +623,9 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 [Console]::InputEncoding = [Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
+Add-Type -AssemblyName System.Drawing
+Add-Type -Name Dpi -Namespace Tn -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();'
+[void][Tn.Dpi]::SetProcessDPIAware()   # 화면 캡처 좌표 = 실제 픽셀(배율 쓰는 모니터에서도)
 [void][Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime]
 [void][Windows.Graphics.Imaging.BitmapDecoder, Windows.Graphics, ContentType = WindowsRuntime]
 [void][Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]
@@ -636,14 +639,25 @@ if ($engine -eq $null) { [Console]::Out.WriteLine('{"ready":false,"err":"no-kore
 while ($true) {
   $p = [Console]::In.ReadLine(); if ($p -eq $null) { break }
   try {
-    $sw = [Diagnostics.Stopwatch]::StartNew()
-    $f = Await ([Windows.Storage.StorageFile]::GetFileFromPathAsync($p)) ([Windows.Storage.StorageFile])
-    $s = Await ($f.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Windows.Storage.Streams.IRandomAccessStream])
+    $sw = [Diagnostics.Stopwatch]::StartNew(); $capMs = 0
+    if ($p.StartsWith('cap ') -or $p.StartsWith('img ')) {
+      # v0.1.80: 「cap x y w h k」 = 화면의 그 영역만(실제 픽셀) 캡처해 k배로 키워 바로 읽음 · 「img x y w h k 경로」 = 파일에서 같은 영역(시험용)
+      #   예전엔 앱이 desktopCapturer로 화면 전체(3440×1440)를 캡처 → 한 번 0.4~0.76초 · 앱 메인 스레드 최대 0.5초 멈춤 + PNG 0.19초 → 1.2초마다라 마우스까지 끊김
+      $a = $p.Split(' '); $cx = [int]$a[1]; $cy = [int]$a[2]; $cw = [int]$a[3]; $chh = [int]$a[4]; $k = [double]$a[5]
+      if ($a[0] -eq 'cap') { $img = New-Object System.Drawing.Bitmap $cw, $chh; $g = [System.Drawing.Graphics]::FromImage($img); $g.CopyFromScreen($cx, $cy, 0, 0, $img.Size); $g.Dispose() }
+      else { $src = [System.Drawing.Bitmap]::FromFile(($a[6..($a.Length - 1)] -join ' ')); $img = $src.Clone((New-Object System.Drawing.Rectangle $cx, $cy, $cw, $chh), [System.Drawing.Imaging.PixelFormat]::Format32bppArgb); $src.Dispose() }
+      if ($k -gt 1) { $big = New-Object System.Drawing.Bitmap ([int]($cw * $k)), ([int]($chh * $k)); $g = [System.Drawing.Graphics]::FromImage($big); $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic; $g.DrawImage($img, 0, 0, $big.Width, $big.Height); $g.Dispose(); $img.Dispose(); $img = $big }
+      $ms = New-Object System.IO.MemoryStream; $img.Save($ms, [System.Drawing.Imaging.ImageFormat]::Bmp); $img.Dispose(); $ms.Position = 0
+      $s = [System.IO.WindowsRuntimeStreamExtensions]::AsRandomAccessStream($ms); $capMs = $sw.ElapsedMilliseconds
+    } else {
+      $f = Await ([Windows.Storage.StorageFile]::GetFileFromPathAsync($p)) ([Windows.Storage.StorageFile])
+      $s = Await ($f.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Windows.Storage.Streams.IRandomAccessStream])
+    }
     $dec = Await ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($s)) ([Windows.Graphics.Imaging.BitmapDecoder])
     $bmp = Await ($dec.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
     $res = Await ($engine.RecognizeAsync($bmp)) ([Windows.Media.Ocr.OcrResult])
     $sb = New-Object System.Text.StringBuilder
-    [void]$sb.Append('{"ms":' + $sw.ElapsedMilliseconds + ',"lines":[')
+    [void]$sb.Append('{"ms":' + $sw.ElapsedMilliseconds + ',"cap":' + $capMs + ',"lines":[')
     $first = $true
     foreach ($ln in $res.Lines) {
       $x1 = 1e9; $y1 = 1e9; $x2 = 0; $y2 = 0
@@ -728,17 +742,22 @@ async function myChampId() {
   for (const [id, c] of Object.entries(champs || {})) if ((alias && String(c.alias).toLowerCase() === alias) || c.name === me.championName) return Number(id);
   return 0;
 }
-// 🎯 셋째 카드 다시 읽기(v0.1.79) — 넓은 화면 한 번에 읽으면 짧은 이름을 놓침(실기: 「무한 반복」→「口 하 B卜보」) → 찾은 두 장 간격으로
+// 🎯 증강 이름 띠(v0.1.80) — 카드 제목 줄이 있는 가로 띠만(화면 높이 26~54% · 16:9 영역 가운데 84%) · 실기 3440×1440: 제목 줄 = 높이 40%
+//   pr = 그 모니터의 실제 픽셀 사각형 → {x, y, w, h}(실제 픽셀) · 띠만 캡처(OCR 프로세스 「cap」)라 앱 메인 스레드는 안 멈춤
+function augBand(pr) {
+  const cw = Math.min(pr.width, Math.round(pr.height * 16 / 9));
+  return { x: pr.x + Math.round((pr.width - cw) / 2 + cw * 0.08), y: pr.y + Math.round(pr.height * 0.26), w: Math.round(cw * 0.84), h: Math.round(pr.height * 0.28) };
+}
+const augCap = (x, y, w, h, k) => `cap ${Math.round(x)} ${Math.round(y)} ${Math.round(w)} ${Math.round(h)} ${k}`;
+// 🎯 셋째 카드 다시 읽기(v0.1.79) — 띠 한 번에 읽으면 짧은 이름을 놓침(실기: 「무한 반복」→「口 하 B卜보」) → 찾은 두 장 간격으로
 //   남은 자리(간격이 넓으면 가운데, 아니면 양옆)를 계산해 그 제목 줄만 2배로 키워 다시 읽음(실기: 「무한 반보」→ 무한 반복 0.75 · 한 번 65ms)
-async function augThird(cr, found, ix) {
-  const [a, b] = found.cards, ca = a.x + a.w / 2, cb = b.x + b.w / 2, gap = cb - ca, Hc = cr.img.getSize().height / 0.66;
-  const { width: W, height: Hh } = cr.img.getSize(), y = Math.min(a.y, b.y), h = Math.max(a.h, b.h);
-  for (const cx of gap > Hc * 0.5 ? [(ca + cb) / 2] : [cb + gap, ca - gap]) {
-    const w = Math.round(Hc * 0.24), x = Math.round(cx - w / 2), yy = Math.round(y - h * 0.6), hh = Math.round(h * 2.4);
-    if (x < 0 || x + w > W || yy < 0 || yy + hh > Hh) continue;
-    const file = path.join(os.tmpdir(), 'tn-aug3.png');
-    fs.writeFileSync(file, cr.img.crop({ x, y: yy, width: w, height: hh }).resize({ width: w * 2, quality: 'best' }).toPNG());
-    const r = await ocrRead(file); if (r.err) continue;
+//   band = 띠(실제 픽셀) · 카드 좌표 = 띠 기준 · H = 화면 높이 · cmd = 읽기 명령 만들기(시험 땐 파일에서)
+async function augThird(band, found, ix, H, cmd) {
+  const [a, b] = found.cards, ca = a.x + a.w / 2, cb = b.x + b.w / 2, gap = cb - ca, y = Math.min(a.y, b.y), h = Math.max(a.h, b.h);
+  for (const cx of gap > H * 0.5 ? [(ca + cb) / 2] : [cb + gap, ca - gap]) {
+    const w = Math.round(H * 0.24), x = Math.round(cx - w / 2), yy = Math.round(y - h * 0.6), hh = Math.round(h * 2.4);
+    if (x < 0 || x + w > band.w || yy < 0 || yy + hh > band.h) continue;
+    const r = await ocrRead((cmd || augCap)(band.x + x, band.y + yy, w, hh, 2)); if (r.err) continue;
     for (const L of r.lines || []) {
       const m = augscan.matchLine(ix, L.text);
       if (m && !found.cards.some(c => c.id === m.id)) return Object.assign({ x: x + L.x / 2, y: yy + L.y / 2, w: L.w / 2, h: L.h / 2 }, m);
@@ -755,14 +774,12 @@ async function augTick() {
   if (hot && now - augState.lastScan < 1200) return;
   augState.busy = true; augState.lastScan = now;
   try {
-    const d = gameDisplay(), img = await captureDisplay(d); if (!img || img.isEmpty()) return;
-    const cr = augCrop(img), file = path.join(os.tmpdir(), 'tn-aug.png');
-    fs.writeFileSync(file, cr.img.toPNG());
-    const r = await ocrRead(file); if (r.err) { if (augState.n++ < 5) augLog('읽기 실패 ' + r.err); return; }
+    const d = gameDisplay(), pr = screen.dipToScreenRect(null, d.bounds), band = augBand(pr);
+    const r = await ocrRead(augCap(band.x, band.y, band.w, band.h, 1)); if (r.err) { if (augState.n++ < 5) augLog('읽기 실패 ' + r.err); return; }
     const ix = await augNames(); if (!ix) return;
-    const found = augscan.findCards(ix, r.lines, cr.img.getSize().height / (0.66));   // 높이 기준 = 화면 전체 높이(잘라낸 비율 되돌림)
+    const found = augscan.findCards(ix, r.lines, pr.height);
     if (!found) { if (augState.showing && now - augState.lastSeen > 2500) { augState.showing = null; hideAugRank(); } return; }
-    if (found.cards.length === 2) { const c3 = await augThird(cr, found, ix).catch(() => null); if (c3) found.cards = found.cards.concat(c3).sort((p, q) => p.x - q.x); }
+    if (found.cards.length === 2) { const c3 = await augThird(band, found, ix, pr.height).catch(() => null); if (c3) found.cards = found.cards.concat(c3).sort((p, q) => p.x - q.x); }
     augState.lastSeen = now;
     const ids = found.cards.map(c => c.id), sig = ids.join(',');
     if (augState.showing && augState.showing.sig === sig) return;   // 같은 카드면 그대로
@@ -770,16 +787,16 @@ async function augTick() {
     const [guide, glob, rec] = await Promise.all([getGuide(), augGlobal(), augRecords().catch(() => ({}))]);
     const recMy = {}; for (const id of ids) { const x = rec[champId + ':' + id]; if (x) recMy[id] = x; }
     const ranks = augscan.rankAugs(ids, guide[champId], glob, recMy, augState.globalR);
-    const sf = d.scaleFactor || 1, pk = 1 / cr.k;   // 캡처 픽셀 → 화면 좌표(DIP)
+    const sf = d.scaleFactor || 1, ox = band.x - pr.x, oy = band.y - pr.y;   // 띠 좌표(실제 픽셀) → 그 모니터 기준 화면 좌표(DIP)
     const aug = await getAugments();
-    const cards = found.cards.map((c, i) => ({ x: (cr.x + c.x * pk) / sf, y: (cr.y + c.y * pk) / sf, w: c.w * pk / sf, h: c.h * pk / sf, rank: ranks[i].rank, why: ranks[i].why, name: (aug[c.id] || {}).name || '' }));
+    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, rank: ranks[i].rank, why: ranks[i].why, name: (aug[c.id] || {}).name || '' }));   // 띠 기준
     augState.showing = { sig };
-    augLog(`증강 ${found.cards.map((c, i) => `${cards[i].name}(${c.score.toFixed(2)})=${ranks[i].rank}위`).join(' · ')} · 읽기 ${r.ms}ms`);
-    showAugRank(d, cards);
+    augLog(`증강 ${found.cards.map((c, i) => `${cards[i].name}(${c.score.toFixed(2)})=${ranks[i].rank}위`).join(' · ')} · 캡처 ${r.cap}ms · 읽기 ${r.ms}ms`);
+    showAugRank(d, cards, { x: ox / sf, y: oy / sf, width: band.w / sf, height: band.h / sf });
   } catch (e) { augLog('오류 ' + e.message); } finally { augState.busy = false; }
 }
-function showAugRank(d, cards) {
-  const b = d.bounds;
+function showAugRank(d, cards, area) {   // area = 띠(그 모니터 기준 DIP) — 투명 창을 띠 크기로만(v0.1.80: 예전엔 화면 전체 3440×1440 투명 창이 게임 위에 떠 합성 부담)
+  const b = area ? { x: Math.round(d.bounds.x + area.x), y: Math.round(d.bounds.y + area.y), width: Math.round(area.width), height: Math.round(area.height) } : d.bounds;
   const send = () => { try { augWin.webContents.send('augrank', { cards: cards.map(c => Object.assign({}, c, { x: c.x, y: c.y })) }); } catch (_) {} };
   if (augWin && !augWin.isDestroyed()) { augWin.setBounds(b); send(); if (!augWin.isVisible()) augWin.showInactive(); return; }
   augWin = new BrowserWindow(Object.assign({}, b, {
