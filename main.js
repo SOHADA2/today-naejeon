@@ -223,7 +223,7 @@ function updateSlotMarker(p) {   // p=[L,T,R,B] 원시 px(클라 감지됨)
   const k = Math.max(0.75, Math.min(1.6, cw / 1280));
   // v0.1.54 단순화: 태그 한 줄 + 화살표(창 150×58, 화살표 = 창 가운데) → 화살표가 첫 자리 「참가」 버튼 가운데(팀 칸 오른쪽 끝 −80)를 가리킴
   const bw = Math.round(150 * k), bh = Math.round(58 * k);
-  const colRight = cx + cw * ((side === 1 ? 523 : 1019) / 1280);
+  const colRight = cx + cw * ((side === 1 ? 523 : 1027) / 1280)   /* v0.1.84: 2팀 끝은 실측 1027(클라 CSS 계산 1019보다 8px 오른쪽) — docs/screen-layout.md */;
   const x = Math.round(colRight - bw - 5 * k);
   const y = Math.round(cy + ch * (154 / 720));
   const sig = `${x},${y},${bw}`;
