@@ -22,7 +22,7 @@ async function get(url, json) {
     console.log(r.status, url);
     if (r.body) {
       fs.writeFileSync(path.join(OUT, 'list', a + '.html'), r.body);
-      const links = [...new Set([...r.body.matchAll(/href="(\/ko-kr\/combo\/[a-z0-9-]+-\d+\/)"/g)].map(m => m[1]))];
+      const links = [...new Set([...r.body.matchAll(/href="(\/ko-kr\/combo\/[a-z0-9-]+\/)"/g)].map(m => m[1]).filter(l => !/\/combo\/(augment|champion)\//.test(l)))];
       for (const l of links) {
         if (seen.has(l)) continue; seen.add(l);
         await sleep(1200);
