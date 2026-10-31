@@ -1,7 +1,7 @@
 // 🌐 증강 가이드 초안용 자료 받기(GitHub Actions에서 실행 — 원격 작업 세션은 네트워크 정책으로 이 사이트들이 막혀 있음)
 // 우리 기록(today/days 내전·같이 한 일반 판)에 자주 나온 챔피언 TOP N → 각 챔피언 아수라장 증강 페이지 + 증강 목록(이름·등급·설명)을 out/에
 // 사용: node tools/web-fetch.cjs [N=30] [out]   · 읽기만(Firebase·사이트) · 사이트 부담 없게 페이지 사이 1.5초 쉼
-// ⚠️ 받은 자료는 초안 작성용 참고 — 통계·티어표를 그대로 앱에 옮기지 않음(제 말로 정리한 플랜만 today/augGuide에 draft로)
+// v0.1.75~: 콤보(증강 구성·등급·링크)·이번 패치 등급은 출처 표시와 함께 앱에 넣음(tools/combo-*.py) · 설명 글은 옮기지 않고 원문 링크로
 const fs = require('fs'), path = require('path');
 const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app/today';
 const CD = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1';

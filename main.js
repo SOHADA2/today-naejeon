@@ -1549,9 +1549,10 @@ const fetchAllDays = () => getJson(`${FIREBASE_DB}/${T}/days.json`);
 // ── 🧭 증강 가이드(v0.1.72 · v0.1.74 플랜 방식) — 챔피언 선택 화면에서 「이 챔피언이면 이런 증강 노려보자」(게임 전 정해진 추천 = 라이엇 정책 허용 범위) ──
 // 게임 중 증강 3개가 뜬 순간 등급을 매기는 방식(블리츠·OP.GG)은 안 함 — 정책상 게임 중 실시간 선택 도움은 막혀 있고, 롤이 그 정보를 주지도 않음.
 // v0.1.74: 카테고리 4개(성능·꿀잼·조합·함정)는 나눠 채우기 어렵다(사장님) → 챔피언마다 「플랜」 몇 개 = 이름 + 노릴 증강 묶음 + 한 줄 설명
-// 데이터 = today/augGuide/champs/{championId} = {plans:[{title, augs:[증강 id…], why}], draft?(초안 표시), src?, at, by}
+// 데이터 = today/augGuide/champs/{championId} = {plans:[{title, augs:[증강 id…], why, tier?, patch?, date?, link?}], top?:{patch, augs:[{id,tier}]}, avoid?:[증강 id], draft?(초안 표시), src?, at, by}
 //   앱 업데이트 없이 오른쪽 창 「증강」 탭에서 채우면 모두에게 바로 반영 · 증강 이름·아이콘은 getAugments(패치되면 자동 최신)
-const PLAN_MAX = 4, PLAN_AUGS = 6, TITLE_MAX = 20, WHY_MAX = 80;
+const PLAN_MAX = 6, PLAN_AUGS = 6, TITLE_MAX = 20, WHY_MAX = 80;
+const GUIDE_LINK = 'https://arammayhem.com/';   // 플랜 원문 링크로 열 수 있는 곳(이 주소로 시작할 때만)
 const CHAMP_URL = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1/champion-summary.json';
 let _champs = null, _champsAt = 0;
 async function getChamps() {   // 챔피언 번호 → {name, alias} (편집 화면 목록·챔피언 선택 화면 이름)
@@ -1580,10 +1581,26 @@ function cleanGuideEntry(c) {   // 저장 전에 모양·길이 정리(누가 �
   for (const p of (Array.isArray(c && c.plans) ? c.plans : [])) {
     const augs = [...new Set((Array.isArray(p && p.augs) ? p.augs : []).map(Number).filter(x => x > 0))].slice(0, PLAN_AUGS);
     if (!augs.length) continue;
-    plans.push({ title: String((p && p.title) || '').trim().slice(0, TITLE_MAX), augs, why: String((p && p.why) || '').trim().slice(0, WHY_MAX) });
+    const x = { title: String((p && p.title) || '').trim().slice(0, TITLE_MAX), augs, why: String((p && p.why) || '').trim().slice(0, WHY_MAX) };
+    // 자료에서 가져온 플랜(v0.1.75) = 사이트가 매긴 등급·그 자료의 패치·원문 링크(설명은 원문에서 보기 — 남의 글을 옮겨 쓰지 않음)
+    if (/^[SABCD][+-]?$/.test(p && p.tier)) x.tier = p.tier;
+    if (/^\d{1,2}\.\d{1,2}$/.test(p && p.patch)) x.patch = p.patch;
+    if (/^\d{4}-\d{2}(-\d{2})?$/.test(p && p.date)) x.date = p.date;   // 패치 기록이 없는 자료 = 등록 날짜라도(얼마나 오래된 자료인지 보이게)
+    if (typeof (p && p.link) === 'string' && p.link.startsWith(GUIDE_LINK) && p.link.length < 200) x.link = p.link;
+    plans.push(x);
     if (plans.length >= PLAN_MAX) break;
   }
-  return plans.length ? { plans } : {};
+  const out = plans.length ? { plans } : {};
+  const top = cleanTop(c && c.top); if (top) out.top = top;
+  const avoid = cleanAvoid(c && c.avoid); if (avoid) out.avoid = avoid;
+  return out;
+}
+function cleanAvoid(v) { const a = [...new Set((Array.isArray(v) ? v : []).map(Number).filter(x => x > 0))].slice(0, 6); return a.length ? a : null; }   // 피하면 좋은 증강(자료 사이트 「함정」 표시)
+// 이번 패치 잘 나오는 증강(v0.1.75) = 자료 사이트의 챔피언별 증강 등급(그 패치 승률 기준) {patch, augs:[{id, tier}]} — 사람이 고치는 칸 아님(저장할 때 그대로 둠)
+function cleanTop(t) {
+  if (!t || !/^\d{1,2}\.\d{1,2}$/.test(t.patch) || !Array.isArray(t.augs)) return null;
+  const augs = []; for (const a of t.augs) { const id = Number(a && a.id); if (id > 0 && /^[SABCD][+-]?$/.test(a.tier) && !augs.some(x => x.id === id)) augs.push({ id, tier: a.tier }); if (augs.length >= 9) break; }
+  return augs.length ? { patch: t.patch, augs } : null;
 }
 // 우리 기록 = 지금까지 내전·같이 한 일반 판에서 그 챔피언으로 그 증강을 고른 판 수·승 (프로필과 같은 30초 캐시)
 let _augRec = null, _augRecAt = 0;
@@ -1615,13 +1632,14 @@ async function augGuideView() {
   const list = ids.map(id => {
     const g = guide[id] || {}, r = {};
     const guideC = cleanGuideEntry(g);
-    for (const p of guideC.plans || []) for (const a of p.augs) { const x = rec[id + ':' + a]; if (x) r[a] = x; }
+    for (const a of [...(guideC.plans || []).flatMap(p => p.augs), ...((guideC.top && guideC.top.augs) || []).map(x => x.id), ...(guideC.avoid || [])]) { const x = rec[id + ':' + a]; if (x) r[a] = x; }
     return { id, name: (champs[id] && champs[id].name) || '', mine: id === champSel.mine, guide: guideC, draft: !!g.draft, src: g.src || '', rec: r };
   });
   return { active: true, list };
 }
 async function pushAugGuide() { const v = await augGuideView(); broadcast('augguide', v); }
 ipcMain.handle('augguide', () => augGuideView());
+ipcMain.on('augguide-link', (_e, url) => { if (typeof url === 'string' && url.startsWith(GUIDE_LINK)) shell.openExternal(url); });   // 플랜 원문 보기(기본 브라우저)
 // 편집(오른쪽 창 「증강」 탭) — 누구나 채울 수 있음 · 저장 = 그 챔피언 칸 통째로 교체(마지막 저장이 이김)
 ipcMain.handle('augguide-all', async () => {
   const [guide, champs, augs, rec] = await Promise.all([getGuide(true), getChamps(), getAugments(), augRecords().catch(() => ({}))]);
@@ -1631,7 +1649,10 @@ ipcMain.handle('augguide-all', async () => {
 ipcMain.handle('augguide-save', async (_e, arg) => {
   const id = Number(arg && arg.champId); if (!(id > 0)) return { ok: false, err: '챔피언 번호가 이상해요' };
   const data = cleanGuideEntry(arg.guide || {});
-  const has = Object.keys(data).length > 0;
+  const prev = (await getGuide(true))[id] || {}; delete data.top; delete data.avoid;
+  const old = cleanTop(prev.top); if (old) data.top = old;   // 이번 패치 등급·함정 표시는 자료에서만(편집으로 안 바뀜)
+  const av = cleanAvoid(prev.avoid); if (av) data.avoid = av;
+  const has = !!(data.plans && data.plans.length) || !!data.top || !!data.avoid;
   const r = has ? await fbSet(`${T}/augGuide/champs/${id}`, { ...data, at: Date.now(), by: (account && account.gameName) || config.myName || '' })
     : await fbDelete(`${T}/augGuide/champs/${id}`);
   if (r.ok) { _guideAt = 0; if (champSel) pushAugGuide().catch(() => {}); }

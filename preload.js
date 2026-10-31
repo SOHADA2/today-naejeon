@@ -69,7 +69,8 @@ contextBridge.exposeInMainWorld('api', {
   getAugGuide: () => ipcRenderer.invoke('augguide'),                       // 🧭 챔피언 선택 화면 증강 가이드(내 챔피언+벤치)
   onAugGuide: (cb) => ipcRenderer.on('augguide', (_e, d) => cb(d)),
   getAugGuideAll: () => ipcRenderer.invoke('augguide-all'),                // 🧭 편집용 전체(카테고리·챔피언·증강·우리 기록에 나온 증강)
-  saveAugGuide: (champId, guide) => ipcRenderer.invoke('augguide-save', { champId, guide }),   // 🧩 증강 번호 → {name, icon, rarity}(최신 패치 데이터)
+  saveAugGuide: (champId, guide) => ipcRenderer.invoke('augguide-save', { champId, guide }),
+  openAugLink: (url) => ipcRenderer.send('augguide-link', url),   // 🧭 플랜 원문(arammayhem) 기본 브라우저로   // 🧩 증강 번호 → {name, icon, rarity}(최신 패치 데이터)
   // 📼 게임 끝난 뒤 기록 저장 진행 상태 {stage:'get'|'save'|'rec'|'done', since, src, tries, max, problem}
   onRec: (cb) => ipcRenderer.on('rec', (_e, d) => cb(d)),
   getRec: () => ipcRenderer.invoke('rec-state'),
