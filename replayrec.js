@@ -76,6 +76,31 @@ function makeReplayRec(d) {
     return 'restored';
   }
 
+  // 🖥️ 게임 중 정보 창(v0.1.77) — 챔피언 선택 때 「테두리 없는 창」(WindowMode=2)으로 바꿨다가 게임 끝나면 바꾼 값만 되돌림
+  //   전체 화면(0)은 다른 창이 게임 위에 못 뜸 · 롤은 게임이 켜질 때 game.cfg를 읽음 · 해상도는 안 건드림 · 앱이 중간에 꺼져도 다음 실행 때 되돌림
+  const BL = { WindowMode: 2 };
+  function borderlessOn() {
+    const f = cfgPath(); if (!f || !d.borderlessFile) return 'no-dir';
+    if (fs.existsSync(d.borderlessFile)) return 'pending';   // 이미 바꿔 둠
+    let s = ''; try { s = fs.readFileSync(f, 'utf8'); } catch (_) {}
+    const m = s.match(/^[ \t]*WindowMode[ \t]*=(.*)$/mi);
+    if (m && m[1].trim() === '2') return 'already';
+    const before = setGeneral(f, BL);
+    try { fs.writeFileSync(d.borderlessFile, JSON.stringify({ f, before, at: Date.now() })); } catch (_) {}
+    log(`게임 중 정보 창: 테두리 없는 창으로 (원래 ${JSON.stringify(before)})`);
+    return 'set';
+  }
+  function borderlessOff() {
+    let r; try { r = JSON.parse(fs.readFileSync(d.borderlessFile, 'utf8')); } catch (_) { return 'none'; }
+    try {
+      const s = fs.readFileSync(r.f, 'utf8'), m = s.match(/^[ \t]*WindowMode[ \t]*=(.*)$/mi);
+      if (m && m[1].trim() === '2') setGeneral(r.f, { WindowMode: r.before.WindowMode });   // 그새 사용자가 바꿨으면 안 건드림
+    } catch (_) {}
+    try { fs.unlinkSync(d.borderlessFile); } catch (_) {}
+    log('게임 중 정보 창: 화면 모드 원래대로');
+    return 'restored';
+  }
+
   // ② 리플레이 파일 준비(최대 90초)
   async function waitRofl(gameId) {
     let asked = false;
@@ -197,7 +222,7 @@ function makeReplayRec(d) {
     }
   }
 
-  return { record, ensureReplayApi, restorePending: () => restoreCfg(null), _findClip: findClip };
+  return { record, ensureReplayApi, restorePending: () => restoreCfg(null), borderlessOn, borderlessOff, _findClip: findClip };
 }
 
 // v0.1.58: 롤은 startTime을 안 기다리고 재생이 시작되는 startAt(= from − PRE)부터 바로 찍음(실측: 540~556 요청 → 538.1초에 이미 녹화 중 · 영상 18.9초)

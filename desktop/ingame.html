@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="../shared.css">
+  <style>
+    * { margin:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; background:transparent; overflow:hidden; -webkit-user-select:none; }
+    /* 🖥️ 게임 중 정보 창(v0.1.77 · 설정에서 켠 사람만) — 롤 화면 위쪽 가운데 · 클릭 통과
+       main ingameUpdate → 'ingame' {my, t:{ORDER:{gold,kills,lv,n}, CHAOS:{…}}, label}
+       왼쪽 = 우리 팀(모르면 ORDER) · 색 = 롤과 같은 진영색(ORDER 파랑 · CHAOS 빨강)
+       ⚠️ 무한 애니메이션 금지(투명 창) — 막대는 값이 바뀔 때만 0.6초 움직임 */
+    #box { position:absolute; inset:2px; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px; padding:0 12px;
+      background:linear-gradient(180deg, rgba(8,16,26,0.86), rgba(3,9,16,0.88)); border:1px solid var(--line-2);
+      clip-path:polygon(9px 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%, 0 9px); font-family:var(--f-body); color:var(--ink); }
+    #box.hide { visibility:hidden; }
+    .side { display:flex; flex-direction:column; align-items:flex-start; min-width:58px; }
+    .side.r { align-items:flex-end; }
+    .nm { font-size:11px; font-weight:800; white-space:nowrap; }
+    .kl { font-family:var(--f-num); font-size:19px; font-weight:700; line-height:1.05; }
+    .kl small { font-family:var(--f-body); font-size:10px; font-weight:600; color:var(--dim); margin:0 2px; }
+    .mid { min-width:0; display:flex; flex-direction:column; gap:4px; }
+    .golds { display:flex; align-items:baseline; justify-content:space-between; font-family:var(--f-num); font-weight:700; font-size:15px; }
+    .diff { font-size:13px; padding:0 6px; }
+    .bar { position:relative; height:6px; background:rgba(255,255,255,0.08); overflow:hidden; }
+    .bar i { position:absolute; top:0; bottom:0; left:0; transition:width .6s ease-out; }
+    .bar b { position:absolute; top:0; bottom:0; right:0; transition:width .6s ease-out; }
+    .bar u { position:absolute; top:-1px; bottom:-1px; left:50%; width:1px; background:rgba(255,255,255,0.5); }
+    .sub { display:flex; justify-content:space-between; font-size:9.5px; color:var(--dim); white-space:nowrap; }
+    .t1 { color:#5aa8ff; } .t2 { color:#ff5a64; }
+    .bar .t1 { background:#3d8bff; } .bar .t2 { background:#e8414c; }
+  </style>
+</head>
+<body>
+  <div id="box" class="hide">
+    <div class="side"><span class="nm" id="ln">우리 팀</span><span class="kl" id="lk">0</span></div>
+    <div class="mid">
+      <div class="golds"><span id="lg">0</span><span class="diff" id="df">±0</span><span id="rg">0</span></div>
+      <div class="bar"><i id="lb"></i><b id="rb"></b><u></u></div>
+      <div class="sub"><span id="ll">Lv 0</span><span>아이템 골드 합</span><span id="rl">Lv 0</span></div>
+    </div>
+    <div class="side r"><span class="nm" id="rn">상대 팀</span><span class="kl" id="rk">0</span></div>
+  </div>
+  <script>
+    const $ = id => document.getElementById(id);
+    const k = n => n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(Math.round(n));
+    function set(v) {
+      if (!v || !v.t) return;
+      const L = v.my === 'CHAOS' ? 'CHAOS' : 'ORDER', R = L === 'ORDER' ? 'CHAOS' : 'ORDER';
+      const cls = s => s === 'ORDER' ? 't1' : 't2';
+      const a = v.t[L], b = v.t[R];
+      const name = (s, mine) => (v.label ? v.label[s] + ' ' : '') + (v.my ? (mine ? '우리' : '상대') : (s === 'ORDER' ? '블루' : '레드'));
+      $('ln').textContent = name(L, true); $('ln').className = 'nm ' + cls(L);
+      $('rn').textContent = name(R, false); $('rn').className = 'nm ' + cls(R);
+      $('lk').innerHTML = a.kills + '<small>킬</small>'; $('lk').className = 'kl ' + cls(L);
+      $('rk').innerHTML = '<small>킬</small>' + b.kills; $('rk').className = 'kl ' + cls(R);
+      $('lg').textContent = k(a.gold); $('lg').className = cls(L);
+      $('rg').textContent = k(b.gold); $('rg').className = cls(R);
+      const d = a.gold - b.gold;
+      $('df').textContent = d === 0 ? '±0' : (d > 0 ? '+' : '−') + k(Math.abs(d));
+      $('df').className = 'diff ' + (d === 0 ? '' : d > 0 ? cls(L) : cls(R));
+      const tot = a.gold + b.gold || 1, half = 50;
+      const w = Math.min(half, Math.abs(d) / tot * 100 * 2);   // 가운데에서 앞선 쪽으로 차이만큼
+      $('lb').className = cls(L); $('rb').className = cls(R);
+      $('lb').style.left = (half - (d > 0 ? w : 0)) + '%'; $('lb').style.width = (d > 0 ? w : 0) + '%';
+      $('rb').style.right = (half - (d < 0 ? w : 0)) + '%'; $('rb').style.width = (d < 0 ? w : 0) + '%';
+      $('ll').textContent = '평균 Lv ' + a.lv; $('rl').textContent = '평균 Lv ' + b.lv;
+      $('box').className = '';
+    }
+    window.__set = set;
+    if (window.api && window.api.onIngame) window.api.onIngame(set);
+  </script>
+</body>
+</html>

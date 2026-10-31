@@ -187,6 +187,8 @@ function onLobbySeat(d) {
   const prevPhase = lobbyPhase;
   lobbyPhase = d && d.phase || null; lobbySeat = d ? d.seat : null; lobbyCustom = d ? d.custom : null;
   if ((prevPhase === 'ChampSelect') !== (lobbyPhase === 'ChampSelect')) { if (lobbyPhase !== 'ChampSelect') { champSel = null; _champSelSig = ''; } pushAugGuide().catch(() => {}); }   // 🧭 증강 가이드 켜고 끄기
+  if (lobbyPhase === 'ChampSelect' && prevPhase !== 'ChampSelect') borderlessOn();   // 🖥️ 게임 중 정보 창 켠 사람 = 게임 뜨기 전에 테두리 없는 창으로
+  else if (prevPhase === 'ChampSelect' && ['Lobby', 'None', 'Matchmaking', 'ReadyCheck'].includes(lobbyPhase) && !inGame) borderlessOff();   // 닷지·취소 → 원래대로
   if (!_floating && clientFg && _lastRect) updateSlotMarker(_lastRect); else hideSlotMarker();
 }
 function updateSlotMarker(p) {   // p=[L,T,R,B] 원시 px(클라 감지됨)
@@ -538,6 +540,7 @@ function showMainPanel() {   // 트레이/재실행 → 내 정보 패널(메인
 function showOverlay() { overlayMinimized = false; if (overlayWin) { try { overlayWin.setSkipTaskbar(true); } catch (_) {} if (!overlayWin.isVisible()) overlayWin.showInactive(); } } // 게임 포커스 뺏지 않게
 function hideOverlay() { if (overlayWin && overlayWin.isVisible()) overlayWin.hide(); }
 function toggleOverlay() {
+  if (inGame && config.ingame) { ingameHidden = !ingameHidden; if (ingameHidden) hideIngame(); else ingameUpdate(_rawPlayers); return; }   // 🖥️ 게임 중엔 Shift+F7 = 게임 중 정보 창 켜기/끄기
   if (!overlayWin) return;
   if (overlayWin.isVisible()) { hideOverlay(); userHid = true; }
   else { showOverlay(); userHid = false; }
@@ -554,6 +557,57 @@ function broadcast(channel, payload) {
   for (const w of [overlayWin, leftWin]) if (w && !w.isDestroyed()) w.webContents.send(channel, payload);
 }
 
+// ── 🖥️ 게임 중 정보 창(v0.1.77 · 설정에서 켠 사람만) ─────────────────────────────
+// 롤 화면 위쪽 가운데에 작은 띠 = 우리 팀/상대 팀 아이템 골드 합(=모은 골드 추정)·킬·평균 레벨 — 라이브 클라이언트(2999) playerlist, 2.5초마다
+// ⚖️ 라이엇 정책: 게임 안 점수판(Tab)에 보이는 정보(아이템·킬·레벨)만 합쳐 보여줌 · 상대 쿨타임·안 보이는 정보 X · 클릭 통과(게임 조작 안 막음)
+// 전체 화면(WindowMode=0)이면 어떤 창도 게임 위에 못 뜸 → 켜 두면 챔피언 선택 때 game.cfg를 「테두리 없는 창」(2)으로 바꾸고 게임 끝나면 원래대로
+let ingameWin = null, ingameHidden = false, _rawPlayers = [], _itemPrice = null;
+const ITEMS_URL = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/items.json';
+async function itemPrices() {   // 아이템 번호 → 총 가격(priceTotal) · 12시간 · userData 보관
+  if (_itemPrice && Date.now() - _itemPrice.at < 12 * 3600e3) return _itemPrice.map;
+  const file = path.join(app.getPath('userData'), 'items-cache.json');
+  try { const list = await getJson(ITEMS_URL); if (Array.isArray(list) && list.length) { const map = {}; for (const it of list) if (it && it.id) map[it.id] = it.priceTotal || 0; _itemPrice = { at: Date.now(), map }; try { fs.writeFileSync(file, JSON.stringify(map)); } catch (_) {} return map; } } catch (_) {}
+  if (!_itemPrice) { try { _itemPrice = { at: Date.now() - 11 * 3600e3, map: JSON.parse(fs.readFileSync(file, 'utf8')) }; } catch (_) { _itemPrice = { at: Date.now() - 11.9 * 3600e3, map: {} }; } }
+  return _itemPrice.map;
+}
+function ingameSummary(list, prices, me) {   // → {my:'ORDER'|'CHAOS'|null, t:{ORDER:{gold,kills,lv,n}, CHAOS:{…}}, label:{ORDER,CHAOS}}
+  const t = { ORDER: { gold: 0, kills: 0, lv: 0, n: 0 }, CHAOS: { gold: 0, kills: 0, lv: 0, n: 0 } };
+  let my = null;
+  for (const p of list || []) {
+    const x = t[p.team]; if (!x) continue;
+    x.n++; x.lv += p.level || 0; x.kills += (p.scores && p.scores.kills) || 0;
+    for (const it of p.items || []) x.gold += ((prices && prices[it.itemID]) || it.price || 0) * (it.count > 1 && it.consumable ? it.count : 1);
+    const nm = norm(p.riotIdGameName || p.summonerName || (typeof p.riotId === 'string' ? p.riotId.split('#')[0] : ''));
+    if (me && nm === norm(me)) my = p.team;
+  }
+  for (const k of ['ORDER', 'CHAOS']) t[k].lv = t[k].n ? Math.round(t[k].lv / t[k].n * 10) / 10 : 0;
+  const s = sessionData && ['teams', 'vote', 'result'].includes(sessionData.phase) ? sessionData : null;   // 내전이면 1팀/2팀 이름(1팀 = 대기방 왼쪽 = ORDER)
+  return { my, t, label: s ? { ORDER: '1팀', CHAOS: '2팀' } : null };
+}
+function ingameBounds() {
+  const W = 420, H = 62;
+  let d = screen.getPrimaryDisplay();
+  if (_lastRect) { const sf = d.scaleFactor || 1; d = screen.getDisplayNearestPoint({ x: Math.round(_lastRect[0] / sf), y: Math.round(_lastRect[1] / sf) }) || d; }   // 롤 클라가 있던 모니터
+  const b = d.bounds;
+  return { x: Math.round(b.x + (b.width - W) / 2), y: b.y + 2, width: W, height: H };
+}
+async function ingameUpdate(list) {
+  if (!config.ingame || !inGame || ingameHidden || replayBusy) return;
+  const v = ingameSummary(list, await itemPrices(), (account && account.gameName) || config.myName);
+  if (ingameWin && !ingameWin.isDestroyed()) { try { ingameWin.webContents.send('ingame', v); } catch (_) {} return; }
+  ingameWin = new BrowserWindow(Object.assign(ingameBounds(), {
+    frame: false, transparent: true, resizable: false, movable: false, focusable: false, skipTaskbar: true, alwaysOnTop: true, show: false, hasShadow: false, roundedCorners: false,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+  }));
+  ingameWin.setAlwaysOnTop(true, 'screen-saver'); ingameWin.setIgnoreMouseEvents(true);
+  ingameWin.webContents.on('did-finish-load', () => { if (ingameWin && !ingameWin.isDestroyed()) { ingameWin.webContents.send('ingame', v); ingameWin.showInactive(); } });
+  ingameWin.on('closed', () => { ingameWin = null; });
+  ingameWin.loadFile('desktop/ingame.html');
+}
+function hideIngame() { if (ingameWin && !ingameWin.isDestroyed()) { try { ingameWin.destroy(); } catch (_) {} } ingameWin = null; }
+function borderlessOn() { try { if (replayRec && config.ingame) replayRec.borderlessOn(); } catch (_) {} }
+function borderlessOff() { try { if (replayRec) replayRec.borderlessOff(); } catch (_) {} }
+
 // ── 폴링 루프 ──────────────────────────────────────────────────────────────
 async function pollGame() {
   if (replayBusy) return;   // 🎬 팟지 리플레이 녹화 중 = 리플레이 게임 창이라 실제 게임 아님(패널 숨김·「기록 저장 중」·수집이 잘못 켜지지 않게)
@@ -562,6 +616,7 @@ async function pollGame() {
   if (nowIn) sampleActive = false;          // 실게임 시작 → 미리보기 해제
   else if (sampleActive) return;            // 미리보기 유지 중(실게임 아님) → 건드리지 않음
   if (nowIn) {
+    _rawPlayers = list;
     latestPlayers = list.filter(p => !p.isBot).map(p => ({
       name: (p.riotIdGameName || p.summonerName || (typeof p.riotId === 'string' ? p.riotId.split('#')[0] : '') || '').trim(),
       champ: p.championName || '',
@@ -576,7 +631,9 @@ async function pollGame() {
     if (inGame) { hideOverlay(); hideLeftPanel(); _slotDoneFormed = lastFormed; hideSlotMarker(); closePotg(); if (potg) potg.startCollect(bridge.getGameId()); }   // 🎬 팟지 수집 시작   // 게임 시작 → 양쪽 패널 완전히 숨김(전투 중 정보 미노출, 새 폼 재설계 예정) · 좌측 내 정보 패널도 숨김(클라 창 사라지며 floatPanels가 잠깐 띄우는 레이스 차단) · applyRaise/floatPanels가 inGame return이라 재등장 없음
     else { setTimeout(tryInstallUpdate, 90000); hideOverlay(); userHid = false; latestPlayers = []; _lastRaise = null; evalRaise(); recGameEnded(); if (potg) potg.stopCollect(bridge.getGameId()).catch(() => {}); }   // 🎬 수집 올림   // 게임 종료 → 로비 층위 재적용 · 📼 「기록 저장 중」 시작
     broadcast('state', { inGame, label: inGame ? '게임 중' : '대기' });
+    if (!inGame) { _rawPlayers = []; ingameHidden = false; hideIngame(); setTimeout(() => { if (!inGame) borderlessOff(); }, 4000); }   // 🖥️ 게임 끝 → 정보 창 닫고 화면 모드 원래대로
   }
+  if (inGame && config.ingame && !ingameHidden) ingameUpdate(_rawPlayers);
   broadcast('players', { players: latestPlayers });
 }
 
@@ -1873,7 +1930,7 @@ ipcMain.on('update-now', () => { app._quitting = true; try { autoUpdater.quitAnd
 ipcMain.handle('update-info', () => updView());
 ipcMain.on('update-check', () => checkUpdate());
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
-const settingsView = () => ({ sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY });
+const settingsView = () => ({ ingame: !!config.ingame, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
 ipcMain.handle('settings-get', () => settingsView());
 ipcMain.handle('settings-set', (_e, { key, value }) => {
@@ -1882,6 +1939,11 @@ ipcMain.handle('settings-set', (_e, { key, value }) => {
   else if (key === 'dock') { if ((config.dock !== false) !== !!value) toggleDock(); }
   else if (key === 'sidePanel') { if ((config.sidePanel !== false) !== !!value) toggleSidePanel(); }
   else if (key === 'closeAsk') { config.closeAsk = !!value; refreshTrayMenu(); }
+  else if (key === 'ingame') {   // 🖥️ 게임 중 정보 창 — 끄면 바꿔 둔 화면 모드도 원래대로(게임 중이면 끝나고)
+    config.ingame = !!value;
+    if (!config.ingame) { hideIngame(); if (!inGame) borderlessOff(); }
+    else if (lobbyPhase === 'ChampSelect') borderlessOn();
+  }
   else return settingsView();
   saveConfig(); broadcastSettings();
   return settingsView();
@@ -2007,9 +2069,11 @@ else {
       kill: () => new Promise(r => require('child_process').execFile('taskkill', ['/IM', 'League of Legends.exe', '/F'], () => r())),
       log: (m) => { _recLog.push(`${new Date().toTimeString().slice(0, 8)} ${m}`); try { onRecLog(m); } catch (_) {} try { console.log(m); } catch (_) {} },
       restoreFile: path.join(app.getPath('userData'), 'replay-cfg-restore.json'),
+      borderlessFile: path.join(app.getPath('userData'), 'ingame-cfg-restore.json'),
       hideWindow: process.platform === 'win32' ? hideReplayWindow : null,
     }));
     try { replayRec.restorePending(); } catch (_) {}   // 지난번에 녹화하다 앱이 꺼졌으면 game.cfg 창 설정 되돌림
+    setTimeout(() => { if (!inGame && lobbyPhase !== 'ChampSelect') borderlessOff(); }, 15000);   // 🖥️ 지난번 게임 중 앱이 꺼졌으면 화면 모드 원래대로(롤이 게임 중이면 기다림)
     potg = makePotg({ T, FIREBASE_DB, fbSet, fbDelete, getJson, dayKey, normName, userData: app.getPath('userData'), getPlayers: () => latestPlayers, log: (m) => { try { console.log(m); } catch (_) {} } });
     setTimeout(() => potg.cleanup().catch(() => {}), 8000); setInterval(() => potg.cleanup().catch(() => {}), 30 * 60 * 1000);   // 🎬 3일 지난 영상·수집 지우기
     bridge.start({ getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, onLobbySeat, onChampSelect, onNormal: (e) => recordNormal(e).catch(err => console.log('[normal] 오류', err && err.message)), fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
@@ -2057,6 +2121,7 @@ function setupAutoUpdate() {
 let _cleanedUp = false;
 app.on('before-quit', (e) => {
   app._quitting = true;
+  if (!inGame) borderlessOff();   // 🖥️ 바꿔 둔 화면 모드 원래대로(게임 중이면 다음 실행 때)
   try { bridge.stop(); } catch (_) {}
   try { stopDockStream(); } catch (_) {}
   if (_cleanedUp) return;
