@@ -6,26 +6,25 @@
   <style>
     * { margin:0; box-sizing:border-box; }
     html, body { width:100%; height:100%; background:transparent; overflow:hidden; -webkit-user-select:none; }
-    /* 🎯 증강 순위(v0.1.78 · 베타) — 게임 화면 크기 투명 창(클릭 통과) · 증강 카드 이름 바로 위에 「1위」+짧은 이유
-       main showAugRank → 'augrank' {cards:[{x,y,w,h(카드 이름 줄 · 이 창 기준 좌표), rank, why, name}]}
+    /* 🎯 증강 순위(v0.1.78 · 베타) — 게임 화면 위 투명 창(클릭 통과) · main showAugRank → 'augrank' {cards:[{ax, ay(카드 위쪽 가운데 · 이 창 기준), rank, tier, scope, extra, why}]}
+       v0.1.86: 사장님 「글자가 잘 안 보임 · 더 직관적이고 시인성 있게」 → 아이콘·이름 사이에 끼우던 것 대신 **카드 맨 위 가장자리 가운데에 리본처럼**
+         진한 불투명 판 + 순위 색 테두리 · 1줄 = 「1위」(가장 크게) + 등급 칩 · 2줄 = 「신 짜오 기준」 · 크기 = 창 높이(화면 높이 42%) 비례(vh)
        ⚠️ 무한 애니메이션 금지 — 뜰 때 한 번만 */
-    /* v0.1.85: 순위(가장 크게) + 등급 칩(S·A·B·C 색) + 아래 작은 기준 글 · 크기 = 이 창(이름 띠 = 화면 높이 28%) 높이 비례(vh)라 해상도 따라 같이 커짐 */
-    .bd { position:absolute; transform:translate(-50%, -100%); display:flex; flex-direction:column; align-items:center; gap:3px; animation:in .22s ease-out both; }
-    .top { display:flex; align-items:stretch; gap:4px; filter:drop-shadow(0 2px 5px rgba(0,0,0,.65)); }
-    .rk { font-family:var(--f-num); font-weight:700; font-size:max(26px, 9.5vh); line-height:1; padding:.1em .32em .04em; color:#14100a;
-      clip-path:polygon(.24em 0, 100% 0, 100% calc(100% - .24em), calc(100% - .24em) 100%, 0 100%, 0 .24em); }
-    .rk small { font-family:var(--f-body); font-size:.5em; font-weight:800; margin-left:1px; }
-    .tr { display:flex; align-items:center; font-family:var(--f-num); font-weight:700; font-size:max(17px, 6vh); line-height:1; padding:0 .3em; color:#fff; background:#3a414a;
-      clip-path:polygon(.18em 0, 100% 0, 100% calc(100% - .18em), calc(100% - .18em) 100%, 0 100%, 0 .18em); }
+    .bd { position:absolute; transform:translate(-50%, -50%); display:flex; flex-direction:column; align-items:center; gap:.35vh;
+      padding:.9vh 2.2vh 1vh; background:rgba(7,11,17,.95); border:.45vh solid var(--rc); box-shadow:0 .6vh 1.8vh rgba(0,0,0,.7), 0 0 2.2vh var(--rg);
+      clip-path:polygon(1.4vh 0, 100% 0, 100% calc(100% - 1.4vh), calc(100% - 1.4vh) 100%, 0 100%, 0 1.4vh); animation:in .22s ease-out both; --rc:#7d8792; --rg:transparent; }
+    .r1 { --rc:#f2c25a; --rg:rgba(242,194,90,.45); } .r2 { --rc:#cfd8e2; --rg:rgba(207,216,226,.3); } .r3 { --rc:#d48a55; --rg:rgba(212,138,85,.3); }
+    .top { display:flex; align-items:center; gap:1.2vh; }
+    .rk { font-family:var(--f-num); font-weight:700; font-size:max(30px, 7.6vh); line-height:.9; color:var(--rc); text-shadow:0 .3vh .6vh rgba(0,0,0,.8); }
+    .rk small { font-family:var(--f-body); font-size:.48em; font-weight:800; margin-left:.08em; }
+    .tr { font-family:var(--f-num); font-weight:700; font-size:max(20px, 5vh); line-height:1; padding:.12em .32em .08em; color:#fff; background:#4a525c; text-shadow:0 .15vh .3vh rgba(0,0,0,.5); }
     .tr.tS { background:linear-gradient(180deg, #ff9d4d, #d9542a); } .tr.tA { background:linear-gradient(180deg, #b48cff, #7a4fd6); }
     .tr.tB { background:linear-gradient(180deg, #5fb3ff, #2f74c9); } .tr.tC, .tr.tD { background:linear-gradient(180deg, #8c96a1, #5a636d); }
-    .r1 .rk { background:linear-gradient(180deg, #ffe7a3, #d9a93a); }
-    .r2 .rk { background:linear-gradient(180deg, #eef2f6, #a7b2bf); }
-    .r3 .rk { background:linear-gradient(180deg, #f0c3a0, #b07446); }
-    .r0 .rk { background:linear-gradient(180deg, #59626d, #3a414a); color:#c9d1da; }   /* v0.1.85: 등급 자료 없음 = 순위 없이 회색 「?」 */
-    .r0 .why { color:#aeb6bf; }
-    .why { font-family:var(--f-body); font-size:max(12px, 3.6vh); font-weight:700; color:#f1ead8; white-space:nowrap; padding:.15em .55em; background:rgba(6,10,16,.82); }
-    @keyframes in { from { opacity:0; transform:translate(-50%, -80%); } to { opacity:1; transform:translate(-50%, -100%); } }
+    .sc { font-family:var(--f-body); font-size:max(14px, 3.3vh); font-weight:800; color:#f5efe2; white-space:nowrap; letter-spacing:-.01em; }
+    .sc b { color:var(--rc); font-weight:900; }
+    .sc em { font-style:normal; color:#c9d1da; font-weight:700; }
+    .r0 .rk { color:#aeb6bf; } .r0 .sc { color:#c9d1da; }
+    @keyframes in { from { opacity:0; transform:translate(-50%, -30%); } to { opacity:1; transform:translate(-50%, -50%); } }
   </style>
 </head>
 <body>
@@ -34,9 +33,14 @@
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     function set(d) {
       const cards = (d && d.cards) || [];
-      document.getElementById('root').innerHTML = cards.map(c => `<div class="bd r${c.rank ? Math.min(3, c.rank) : 0}" style="left:${Math.round(c.x + c.w / 2)}px;top:${Math.round(c.y - 6)}px">
-        <span class="top"><span class="rk">${c.rank ? `${c.rank}<small>위</small>` : '?'}</span>${c.tier ? `<span class="tr t${esc(String(c.tier)[0])}">${esc(c.tier)}</span>` : ''}</span>
-        <span class="why">${esc([c.tier ? c.scope : c.rank ? '' : '등급 없음'].concat(c.extra || []).filter(Boolean).join(' · ') || c.why)}</span></div>`).join('');
+      document.getElementById('root').innerHTML = cards.map(c => {
+        const r = c.rank ? Math.min(3, c.rank) : 0;
+        const scope = c.tier ? `<b>${esc(c.scope)}</b> 기준` : c.rank ? '' : '등급 자료 없음';
+        const extra = (c.extra || []).map(x => `<em>${esc(x)}</em>`).join(' · ');
+        return `<div class="bd r${r}" style="left:${Math.round(c.ax)}px;top:${Math.round(c.ay)}px">
+          <span class="top"><span class="rk">${c.rank ? `${c.rank}<small>위</small>` : '?'}</span>${c.tier ? `<span class="tr t${esc(String(c.tier)[0])}">${esc(c.tier)}</span>` : ''}</span>
+          <span class="sc">${[scope, extra].filter(Boolean).join(' · ') || esc(c.why || '')}</span></div>`;
+      }).join('');
     }
     window.__set = set;
     if (window.api && window.api.onAugRank) window.api.onAugRank(set);

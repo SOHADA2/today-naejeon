@@ -797,13 +797,18 @@ async function augTick() {
     const champId = augState.champId || (augState.champId = await myChampId());
     const [guide, glob, rec] = await Promise.all([getGuide(), augGlobal(), augRecords().catch(() => ({}))]);
     const recMy = {}; for (const id of ids) { const x = rec[champId + ':' + id]; if (x) recMy[id] = x; }
-    const ranks = augscan.rankAugs(ids, guide[champId], glob, recMy, augState.globalR, { champName: (me && me.championName) || '' });
+    // 기준 이름 = 지금 하고 있는 챔피언(사장님: 「이 챔피언」 말고 실제 이름 · 신뢰성) — 라이브 클라 championName, 없으면 챔피언 번호로 찾은 이름
+    let champName = (me && me.championName) || '';
+    if (!champName && champId) { try { const ch = (await getChamps()) || {}; champName = (ch[champId] && ch[champId].name) || ''; } catch (_) {} }
+    const ranks = augscan.rankAugs(ids, guide[champId], glob, recMy, augState.globalR, { champName });
     const sf = d.scaleFactor || 1, ox = band.x - pr.x, oy = band.y - pr.y;   // 띠 좌표(실제 픽셀) → 그 모니터 기준 화면 좌표(DIP)
+    // v0.1.86: 배지 = 카드 맨 위 가장자리 가운데(이름 줄 − 화면 높이 0.232 · 실측 docs/screen-layout.md) → 창을 위로 0.16H 늘림
+    const top = Math.max(0, oy - Math.round(pr.height * 0.16)), lift = oy - top;
     const aug = await getAugments();
-    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, rank: ranks[i].rank, why: ranks[i].why, tier: ranks[i].tier, scope: ranks[i].scope, extra: ranks[i].extra, name: (aug[c.id] || {}).name || '' }));   // 띠 기준
+    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, ax: (c.x + c.w / 2) / sf, ay: Math.max(30, lift + c.y - pr.height * 0.232) / sf, rank: ranks[i].rank, why: ranks[i].why, tier: ranks[i].tier, scope: ranks[i].scope, extra: ranks[i].extra, name: (aug[c.id] || {}).name || '' }));   // 띠 기준
     augState.showing = { sig };
     augLog(`증강 ${found.cards.map((c, i) => `${cards[i].name}(${c.score.toFixed(2)})=${ranks[i].rank}위`).join(' · ')} · 캡처 ${r.cap}ms · 읽기 ${r.ms}ms`);
-    showAugRank(d, cards, { x: ox / sf, y: oy / sf, width: band.w / sf, height: band.h / sf });
+    showAugRank(d, cards, { x: ox / sf, y: top / sf, width: band.w / sf, height: (lift + band.h) / sf });
   } catch (e) { augLog('오류 ' + e.message); } finally { augState.busy = false; }
 }
 function showAugRank(d, cards, area) {   // area = 띠(그 모니터 기준 DIP) — 투명 창을 띠 크기로만(v0.1.80: 예전엔 화면 전체 3440×1440 투명 창이 게임 위에 떠 합성 부담)
