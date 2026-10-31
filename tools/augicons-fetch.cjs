@@ -13,9 +13,10 @@ const asset = p => `${CD}/default${String(p || '').replace('/lol-game-data/asset
   console.log('증강', augs.length, '키', Object.keys(augs[0] || {}).join(','));
   let n = 0;
   for (const a of augs.filter(a => a.id >= 1000)) {
-    for (const [k, dir] of [['augmentSmallIconPath', 'small'], ['augmentLargeIconPath', 'large']]) {
-      if (!a[k]) continue;
-      const r = await get(asset(a[k]), 'bin'); if (r.body) { fs.writeFileSync(path.join(OUT, dir, a.id + '.png'), r.body); n++; }
+    const sm = a.augmentSmallIconPath || '', lg = sm.replace(/_small\.png$/i, '_large.png');   // 큰 그림 = 같은 폴더 _large(카드에 뜨는 색 그림으로 보임)
+    for (const [p, dir] of [[sm, 'small'], [lg, 'large']]) {
+      if (!p) continue;
+      const r = await get(asset(p), 'bin'); if (r.body) { fs.writeFileSync(path.join(OUT, dir, a.id + '.png'), r.body); n++; }
     }
   }
   console.log('아이콘', n);
