@@ -18,7 +18,8 @@ jobs:
           node-version: 20
       - name: 받기
         run: |
-          if head -1 tools/.web-fetch | grep -q '^combos'; then node tools/combo-fetch.cjs out
+          if head -1 tools/.web-fetch | grep -q '^augicons'; then node tools/augicons-fetch.cjs out
+          elif head -1 tools/.web-fetch | grep -q '^combos'; then node tools/combo-fetch.cjs out
           else node tools/web-fetch.cjs $(head -1 tools/.web-fetch | grep -oE '^[0-9]+' || echo 30) out; fi
       - name: 올리기
         run: |
