@@ -343,7 +343,7 @@ function stopDockStream() { if (dockProc) { try { dockProc.kill(); } catch (_) {
 function getJson(opts) {
   return new Promise(resolve => {
     const req = https.get(opts, res => {
-      let d = ''; res.on('data', c => d += c);
+      let d = ''; res.setEncoding('utf8'); res.on('data', c => d += c);
       res.on('end', () => { try { resolve(JSON.parse(d)); } catch (_) { resolve(null); } });
     });
     req.on('error', () => resolve(null));
@@ -426,7 +426,7 @@ function reqJson(method, url, body) {
     const data = body === undefined ? null : JSON.stringify(body);
     const req = https.request({ hostname: u.hostname, path: u.pathname + u.search, method,
       headers: data ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {} }, res => {
-      let d = ''; res.on('data', c => d += c);
+      let d = ''; res.setEncoding('utf8'); res.on('data', c => d += c);
       res.on('end', () => { try { resolve({ status: res.statusCode, json: JSON.parse(d) }); } catch (_) { resolve({ status: res.statusCode, json: null }); } });
     });
     req.on('error', () => resolve({ status: 0, json: null }));
@@ -626,6 +626,7 @@ Add-Type -AssemblyName System.Runtime.WindowsRuntime
 [void][Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime]
 [void][Windows.Graphics.Imaging.BitmapDecoder, Windows.Graphics, ContentType = WindowsRuntime]
 [void][Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]
+[void][Windows.Globalization.Language, Windows.Globalization, ContentType = WindowsRuntime]   # v0.1.79: 안 불러오면 Language를 못 만들어 한국어 OCR이 있어도 「no-korean-ocr」(실기에서 발견)
 $asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation\`1' })[0]
 function Await($op, [Type]$t) { $task = $asTask.MakeGenericMethod($t).Invoke($null, @($op)); $task.Wait(-1) | Out-Null; $task.Result }
 $engine = $null
@@ -727,6 +728,24 @@ async function myChampId() {
   for (const [id, c] of Object.entries(champs || {})) if ((alias && String(c.alias).toLowerCase() === alias) || c.name === me.championName) return Number(id);
   return 0;
 }
+// 🎯 셋째 카드 다시 읽기(v0.1.79) — 넓은 화면 한 번에 읽으면 짧은 이름을 놓침(실기: 「무한 반복」→「口 하 B卜보」) → 찾은 두 장 간격으로
+//   남은 자리(간격이 넓으면 가운데, 아니면 양옆)를 계산해 그 제목 줄만 2배로 키워 다시 읽음(실기: 「무한 반보」→ 무한 반복 0.75 · 한 번 65ms)
+async function augThird(cr, found, ix) {
+  const [a, b] = found.cards, ca = a.x + a.w / 2, cb = b.x + b.w / 2, gap = cb - ca, Hc = cr.img.getSize().height / 0.66;
+  const { width: W, height: Hh } = cr.img.getSize(), y = Math.min(a.y, b.y), h = Math.max(a.h, b.h);
+  for (const cx of gap > Hc * 0.5 ? [(ca + cb) / 2] : [cb + gap, ca - gap]) {
+    const w = Math.round(Hc * 0.24), x = Math.round(cx - w / 2), yy = Math.round(y - h * 0.6), hh = Math.round(h * 2.4);
+    if (x < 0 || x + w > W || yy < 0 || yy + hh > Hh) continue;
+    const file = path.join(os.tmpdir(), 'tn-aug3.png');
+    fs.writeFileSync(file, cr.img.crop({ x, y: yy, width: w, height: hh }).resize({ width: w * 2, quality: 'best' }).toPNG());
+    const r = await ocrRead(file); if (r.err) continue;
+    for (const L of r.lines || []) {
+      const m = augscan.matchLine(ix, L.text);
+      if (m && !found.cards.some(c => c.id === m.id)) return Object.assign({ x: x + L.x / 2, y: yy + L.y / 2, w: L.w / 2, h: L.h / 2 }, m);
+    }
+  }
+  return null;
+}
 async function augTick() {
   if (!config.augRank || !inGame || replayBusy || augState.busy || process.platform !== 'win32') return;
   const now = Date.now(), me = myRaw();
@@ -743,6 +762,7 @@ async function augTick() {
     const ix = await augNames(); if (!ix) return;
     const found = augscan.findCards(ix, r.lines, cr.img.getSize().height / (0.66));   // 높이 기준 = 화면 전체 높이(잘라낸 비율 되돌림)
     if (!found) { if (augState.showing && now - augState.lastSeen > 2500) { augState.showing = null; hideAugRank(); } return; }
+    if (found.cards.length === 2) { const c3 = await augThird(cr, found, ix).catch(() => null); if (c3) found.cards = found.cards.concat(c3).sort((p, q) => p.x - q.x); }
     augState.lastSeen = now;
     const ids = found.cards.map(c => c.id), sig = ids.join(',');
     if (augState.showing && augState.showing.sig === sig) return;   // 같은 카드면 그대로
@@ -1639,7 +1659,7 @@ async function fbCas(pathStr, mutate, tries = 5) {
     const url = new URL(`${FIREBASE_DB}/${pathStr}.json${authQ(tok)}`);
     const cur = await new Promise(resolve => {
       const req = https.get({ hostname: url.hostname, path: url.pathname + url.search, headers: { 'X-Firebase-ETag': 'true' } }, res => {
-        let d = ''; res.on('data', c => d += c);
+        let d = ''; res.setEncoding('utf8'); res.on('data', c => d += c);
         res.on('end', () => { let j = null; try { j = JSON.parse(d); } catch (_) {} resolve({ status: res.statusCode, etag: res.headers.etag, data: j }); });
       });
       req.on('error', () => resolve({ status: 0 }));

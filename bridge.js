@@ -42,7 +42,7 @@ function httpReq(method, url, body, extraHeaders) {
       rejectUnauthorized: !(u.hostname === '127.0.0.1'),   // 로컬(LCU/2999)만 자체서명 무시
       headers, timeout: 6000,
     }, res => {
-      let d = ''; res.on('data', c => d += c);
+      let d = ''; res.setEncoding('utf8'); res.on('data', c => d += c);
       res.on('end', () => { let j = null; try { j = JSON.parse(d); } catch (_) {} resolve({ status: res.statusCode, data: j, etag: res.headers.etag || null }); });
     });
     req.on('error', () => resolve({ status: 0, data: null, etag: null }));

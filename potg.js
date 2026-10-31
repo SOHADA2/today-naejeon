@@ -26,7 +26,7 @@ module.exports = function makePotg(d) {
   // 라이브 클라이언트(게임 중에만 열림·자체서명 인증서)
   const live = p => new Promise(resolve => {
     const req = https.get({ host: '127.0.0.1', port: 2999, path: p, rejectUnauthorized: false, timeout: 1500 }, res => {
-      let s = ''; res.on('data', c => s += c); res.on('end', () => { try { resolve(JSON.parse(s)); } catch (_) { resolve(null); } });
+      let s = ''; res.setEncoding('utf8'); res.on('data', c => s += c); res.on('end', () => { try { resolve(JSON.parse(s)); } catch (_) { resolve(null); } });
     });
     req.on('error', () => resolve(null)); req.on('timeout', () => { req.destroy(); resolve(null); });
   });

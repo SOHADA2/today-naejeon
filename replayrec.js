@@ -26,7 +26,7 @@ function makeReplayRec(d) {
     const u = new URL(base + p), payload = body == null ? null : JSON.stringify(body);
     const req = https.request({ hostname: u.hostname, port: u.port, path: u.pathname, method, rejectUnauthorized: false, timeout: 4000,
       headers: payload ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } : {} }, res => {
-      let s = ''; res.on('data', c => s += c); res.on('end', () => { let j = null; try { j = JSON.parse(s); } catch (_) {} resolve({ status: res.statusCode, data: j }); });
+      let s = ''; res.setEncoding('utf8'); res.on('data', c => s += c); res.on('end', () => { let j = null; try { j = JSON.parse(s); } catch (_) {} resolve({ status: res.statusCode, data: j }); });
     });
     req.on('error', () => resolve({ status: 0, data: null })); req.on('timeout', () => { req.destroy(); resolve({ status: 0, data: null }); });
     if (payload) req.write(payload); req.end();
