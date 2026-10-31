@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="../shared.css">
+  <style>
+    * { margin:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; background:transparent; overflow:hidden; -webkit-user-select:none; }
+    /* 🎯 증강 순위(v0.1.78 · 베타) — 게임 화면 크기 투명 창(클릭 통과) · 증강 카드 이름 바로 위에 「1위」+짧은 이유
+       main showAugRank → 'augrank' {cards:[{x,y,w,h(카드 이름 줄 · 이 창 기준 좌표), rank, why, name}]}
+       ⚠️ 무한 애니메이션 금지 — 뜰 때 한 번만 */
+    .bd { position:absolute; transform:translate(-50%, -100%); display:flex; flex-direction:column; align-items:center; gap:2px; animation:in .22s ease-out both; }
+    .rk { font-family:var(--f-num); font-weight:700; font-size:22px; line-height:1; padding:4px 12px 3px; color:#14100a;
+      clip-path:polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px); filter:drop-shadow(0 2px 4px rgba(0,0,0,.6)); }
+    .rk small { font-family:var(--f-body); font-size:13px; font-weight:800; margin-left:1px; }
+    .r1 .rk { background:linear-gradient(180deg, #ffe7a3, #d9a93a); }
+    .r2 .rk { background:linear-gradient(180deg, #eef2f6, #a7b2bf); }
+    .r3 .rk { background:linear-gradient(180deg, #f0c3a0, #b07446); }
+    .why { font-family:var(--f-body); font-size:12px; font-weight:700; color:#f1ead8; white-space:nowrap; padding:2px 7px; background:rgba(6,10,16,.82); }
+    @keyframes in { from { opacity:0; transform:translate(-50%, -80%); } to { opacity:1; transform:translate(-50%, -100%); } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    function set(d) {
+      const cards = (d && d.cards) || [];
+      document.getElementById('root').innerHTML = cards.map(c => `<div class="bd r${Math.min(3, c.rank)}" style="left:${Math.round(c.x + c.w / 2)}px;top:${Math.round(c.y - 6)}px">
+        <span class="rk">${c.rank}<small>위</small></span><span class="why">${esc(c.why)}</span></div>`).join('');
+    }
+    window.__set = set;
+    if (window.api && window.api.onAugRank) window.api.onAugRank(set);
+  </script>
+</body>
+</html>

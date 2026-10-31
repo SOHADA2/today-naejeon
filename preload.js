@@ -11,7 +11,8 @@ contextBridge.exposeInMainWorld('api', {
   onDocked: (cb) => ipcRenderer.on('docked', (_e, v) => cb(v)),         // 🖥️ 클라 도킹 중이면 각진 모서리
   onSlotTeam: (cb) => ipcRenderer.on('slot-team', (_e, t) => cb(t)),    // 📍 클라 위 내 팀 마커(1/2)
   onRecToast: (cb) => ipcRenderer.on('rec-toast', (_e, d) => cb(d)),
-  onIngame: (cb) => ipcRenderer.on('ingame', (_e, d) => cb(d)),        // 🖥️ 게임 중 정보 창(설정에서 켠 사람)    // 🎬 팟지 녹화 중 안내(방장 PC)
+  onIngame: (cb) => ipcRenderer.on('ingame', (_e, d) => cb(d)),
+  onAugRank: (cb) => ipcRenderer.on('augrank', (_e, d) => cb(d)),      // 🎯 증강 순위(설정에서 켠 사람 · 베타)        // 🖥️ 게임 중 정보 창(설정에서 켠 사람)    // 🎬 팟지 녹화 중 안내(방장 PC)
   onTeamBuild: (cb) => ipcRenderer.on('teambuild', (_e, d) => cb(d)),
   // 🪟 창
   sideClose: () => ipcRenderer.send('side-hide'),

@@ -12,13 +12,14 @@ const dry = process.argv.includes('--dry');
     const c = cur[id];
     if (c && !c.draft && c.plans && c.plans.length) {   // 사람이 저장한 플랜은 그대로 · 「이번 패치 등급」(top)만 새것으로
       skip++;
-      if (g.top && !dry) { const r = await fetch(`${DB}/${id}/top.json`, { method: 'PUT', body: JSON.stringify(g.top) }); if (!r.ok) console.log('등급 실패', id, r.status); }
+      for (const k of ['top', 'tiers', 'avoid']) if (g[k] && !dry) { const r = await fetch(`${DB}/${id}/${k}.json`, { method: 'PUT', body: JSON.stringify(g[k]) }); if (!r.ok) console.log('등급 실패', id, k, r.status); }
       console.log('플랜 건너뜀(사람이 저장함) · 등급만', id); continue;
     }
     const body = { plans: g.plans, draft: true, src: draft.src, at: Date.now(), by: '초안' };
-    if (g.top) body.top = g.top;
+    for (const k of ['top', 'tiers', 'avoid']) if (g[k]) body[k] = g[k];
     if (!dry) { const r = await fetch(`${DB}/${id}.json`, { method: 'PUT', body: JSON.stringify(body) }); if (!r.ok) { console.log('실패', id, r.status); continue; } }
     put++;
   }
+  if (draft.global && !dry) { const r = await fetch(DB.replace(/\/champs$/, '/global.json'), { method: 'PUT', body: JSON.stringify(draft.global) }); console.log('전체 등급', r.status, Object.keys(draft.global.t).length); }   // 🎯 증강 순위용 전체 등급표
   console.log(`초안 넣음 ${put} · 건너뜀 ${skip}${dry ? ' (dry)' : ''}`);
 })();

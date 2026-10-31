@@ -6,7 +6,7 @@
   const api = window.api; if (!api || !api.getSettings) return;
   const $ = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstChild; };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  let S = { ingame: false, sfxOn: true, sfxVol: 1, dock: true, sidePanel: true, closeAsk: true, hotkey: 'Shift+F7' }, U = { state: 'idle' }, hideStrip = false;
+  let S = { ingame: false, augRank: false, sfxOn: true, sfxVol: 1, dock: true, sidePanel: true, closeAsk: true, hotkey: 'Shift+F7' }, U = { state: 'idle' }, hideStrip = false;
   const applyVol = () => { window.__tnVol = S.sfxOn ? S.sfxVol : 0; };
   applyVol();
   const header = document.querySelector('#bar, #sbar'), minBtn = document.querySelector('#ov-min, #s-min');
@@ -52,6 +52,7 @@
         <div class="tn-row tn-vol${S.sfxOn ? '' : ' off'}"><span class="tn-row-tx"><b>크기</b></span><input type="range" min="0" max="100" step="5" value="${Math.round(S.sfxVol * 100)}" class="tn-range" ${S.sfxOn ? '' : 'disabled'}><span class="tn-vol-n num">${Math.round(S.sfxVol * 100)}</span></div>
         <div class="tn-sec">게임 중</div>
         ${tog('ingame', '게임 중 정보 창 <span class=\"tn-tip\" data-tip=\"켜면 챔피언 선택 때 롤 화면 모드를 「테두리 없는 창」으로 바꾸고 게임이 끝나면 원래대로 돌려요(전체 화면이면 어떤 창도 게임 위에 못 떠요). 다음 판부터 적용 · 게임 중 Shift+F7로 숨기기\">ⓘ</span>', '양 팀 아이템 골드·킬 · 테두리 없는 창으로')}
+        ${tog('augRank', '증강 순위 <span class=\"tn-tip\" data-tip=\"증강 3개가 뜨면 게임 화면에서 이름을 읽어(Windows 글자 읽기) 내 챔피언 기준 1·2·3위를 카드 위에 띄워요. 리롤하면 바로 다시 매겨요. 화면을 보기만 하고 게임 파일은 안 건드리지만, 라이엇 정책상 위험할 수 있어요. 게임 중 Shift+F8 = 그 화면을 개발용으로 보내기\">ⓘ</span>', '뜬 증강에 1·2·3위 · 베타')}
         <div class="tn-sec">창</div>
         ${tog('dock', '롤 클라이언트 옆에 붙이기', '끄면 두 창이 따로 떠 있어요')}
         ${tog('sidePanel', '오른쪽 창 보이기', '진행·오늘·프로필')}

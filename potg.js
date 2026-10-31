@@ -351,6 +351,14 @@ module.exports = function makePotg(d) {
     } catch (e) { log('GitHub 영상 올리기 실패 ' + e.message); }
     return null;
   }
+  async function uploadShot(file, buf) {   // 🎯 증강 순위 개발용(Shift+F8) — 같은 비공개 저장소에 파일로(contents API) → true/false
+    try {
+      const cfg = await ghCfg(); if (!cfg) return false;
+      const r = await gh(cfg, 'PUT', `/contents/${file.split('/').map(encodeURIComponent).join('/')}`, { message: `증강 화면 ${file}`, content: buf.toString('base64') }, { timeout: 60000 });
+      if (!r.ok) log(`화면 보내기 실패 ${r.status} ${JSON.stringify(r.j || {}).slice(0, 120)}`);
+      return r.ok;
+    } catch (e) { log('화면 보내기 실패 ' + e.message); return false; }
+  }
   async function uploadClip(gameId, buf, mime) {
     const day = d.dayKey();
     mime = mime || 'video/webm';
@@ -432,5 +440,5 @@ module.exports = function makePotg(d) {
     return cdPath(s.splashPath || s.uncenteredSplashPath);
   }
 
-  return { splashFor, startCollect, stopCollect, pickPotg, pickHero, heroStats, readRaws, uploadClip, getClip, cleanup, extOf, _pick: pickPotg };
+  return { splashFor, startCollect, stopCollect, pickPotg, pickHero, heroStats, readRaws, uploadClip, uploadShot, getClip, cleanup, extOf, _pick: pickPotg };
 };

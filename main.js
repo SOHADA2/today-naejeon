@@ -10,6 +10,7 @@ const { autoUpdater } = require('electron-updater');   // 🔄 GitHub Releases �
 const path = require('path');
 const https = require('https');
 const fs = require('fs');
+const os = require('os');
 const { spawn } = require('child_process');
 
 const WEB_URL = 'https://sohada2.github.io/aram/';
@@ -605,8 +606,185 @@ async function ingameUpdate(list) {
   ingameWin.loadFile('desktop/ingame.html');
 }
 function hideIngame() { if (ingameWin && !ingameWin.isDestroyed()) { try { ingameWin.destroy(); } catch (_) {} } ingameWin = null; }
-function borderlessOn() { try { if (replayRec && config.ingame) replayRec.borderlessOn(); } catch (_) {} }
+function borderlessOn() { try { if (replayRec && (config.ingame || config.augRank)) replayRec.borderlessOn(); } catch (_) {} }   // 정보 창·증강 순위 둘 다 게임 위에 떠야 함
 function borderlessOff() { try { if (replayRec) replayRec.borderlessOff(); } catch (_) {} }
+
+// ── 🎯 증강 순위(v0.1.78 · 설정에서 켠 사람만 · 베타) ─────────────────────────────
+// 사장님: 증강 3개가 뜨면 내 챔피언 기준 1·2·3위를 띄우고, 리롤로 바뀌면 순위도 바로 바뀌게
+// 롤은 뜬 증강을 앱에 안 알려줌 → 게임 화면 가운데를 캡처(desktopCapturer) → Windows 내장 글자 읽기(OCR, 한국어)로 카드의 증강 이름 → augscan.findCards
+//  · 언제 읽나: 게임 시작 2분 30초 · 내 레벨이 오른 뒤 60초 · 순위가 떠 있는 동안 = 1.2초마다 / 그 밖엔 5초마다(가볍게)
+//  · 순위 = augscan.rankAugs(그 챔피언 이번 패치 등급 tiers·top > 전체 등급 today/augGuide/global > 모름 · 콤보 + · 함정 − · 우리 기록)
+//  · 화면 = desktop/augrank.html(게임 화면 크기 · 투명 · 클릭 통과) 카드 이름 위에 「1위」 · 이름이 사라지면 2.5초 뒤 지움
+//  · Shift+F8(게임 중) = 지금 화면과 읽은 글자를 개발용 비공개 저장소(today/config/clips의 저장소)로 보냄 → 위치·글자 맞추기용
+// ⚠️ 실제 증강 화면으로 아직 못 맞춰 봄 · ⚖️ 화면을 보기만 함(게임 파일·메모리 안 건드림) · 라이엇 정책상 위험할 수 있어 기본 꺼짐
+const augscan = require('./augscan');
+const OCR_PS = `
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+[Console]::InputEncoding = [Text.Encoding]::UTF8
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+[void][Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime]
+[void][Windows.Graphics.Imaging.BitmapDecoder, Windows.Graphics, ContentType = WindowsRuntime]
+[void][Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]
+$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation\`1' })[0]
+function Await($op, [Type]$t) { $task = $asTask.MakeGenericMethod($t).Invoke($null, @($op)); $task.Wait(-1) | Out-Null; $task.Result }
+$engine = $null
+try { $lang = New-Object Windows.Globalization.Language('ko'); if ([Windows.Media.Ocr.OcrEngine]::IsLanguageSupported($lang)) { $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromLanguage($lang) } } catch {}
+if ($engine -eq $null) { [Console]::Out.WriteLine('{"ready":false,"err":"no-korean-ocr"}'); [Console]::Out.Flush(); exit }
+[Console]::Out.WriteLine('{"ready":true,"max":' + [Windows.Media.Ocr.OcrEngine]::MaxImageDimension + '}'); [Console]::Out.Flush()
+while ($true) {
+  $p = [Console]::In.ReadLine(); if ($p -eq $null) { break }
+  try {
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    $f = Await ([Windows.Storage.StorageFile]::GetFileFromPathAsync($p)) ([Windows.Storage.StorageFile])
+    $s = Await ($f.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Windows.Storage.Streams.IRandomAccessStream])
+    $dec = Await ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($s)) ([Windows.Graphics.Imaging.BitmapDecoder])
+    $bmp = Await ($dec.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
+    $res = Await ($engine.RecognizeAsync($bmp)) ([Windows.Media.Ocr.OcrResult])
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.Append('{"ms":' + $sw.ElapsedMilliseconds + ',"lines":[')
+    $first = $true
+    foreach ($ln in $res.Lines) {
+      $x1 = 1e9; $y1 = 1e9; $x2 = 0; $y2 = 0
+      foreach ($w in $ln.Words) { $r = $w.BoundingRect; if ($r.X -lt $x1) { $x1 = $r.X }; if ($r.Y -lt $y1) { $y1 = $r.Y }; if ($r.X + $r.Width -gt $x2) { $x2 = $r.X + $r.Width }; if ($r.Y + $r.Height -gt $y2) { $y2 = $r.Y + $r.Height } }
+      $t = $ln.Text.Replace('\\', '\\\\').Replace('"', '\\"')
+      if (-not $first) { [void]$sb.Append(',') }; $first = $false
+      [void]$sb.Append('{"text":"' + $t + '","x":' + [int]$x1 + ',"y":' + [int]$y1 + ',"w":' + [int]($x2 - $x1) + ',"h":' + [int]($y2 - $y1) + '}')
+    }
+    [void]$sb.Append(']}')
+    $s.Dispose()
+    [Console]::Out.WriteLine($sb.ToString())
+  } catch { [Console]::Out.WriteLine('{"err":"' + ($_.Exception.Message -replace '[\\\\"\\r\\n]', ' ') + '"}') }
+  [Console]::Out.Flush()
+}
+`;
+let _ocr = null;   // {proc, ready, max, queue:[resolve], buf, err}
+function ocrStart() {
+  if (_ocr || process.platform !== 'win32') return _ocr;
+  const proc = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(OCR_PS, 'utf16le').toString('base64')], { windowsHide: true });
+  const o = _ocr = { proc, ready: null, max: 2600, q: [], buf: '' };
+  proc.stdout.setEncoding('utf8');
+  proc.stdout.on('data', (c) => {
+    o.buf += c; let i;
+    while ((i = o.buf.indexOf('\n')) >= 0) {
+      const line = o.buf.slice(0, i).trim(); o.buf = o.buf.slice(i + 1); if (!line) continue;
+      let j = null; try { j = JSON.parse(line); } catch (_) { j = { err: 'bad-json ' + line.slice(0, 80) }; }
+      if (o.ready === null && 'ready' in j) { o.ready = !!j.ready; o.err = j.err || null; if (j.max) o.max = j.max; augLog('글자 읽기 ' + (o.ready ? `준비됨(최대 ${o.max}px)` : '못 씀: ' + o.err)); continue; }
+      const r = o.q.shift(); if (r) r(j);
+    }
+  });
+  proc.stderr.on('data', (c) => augLog('글자 읽기 오류 ' + String(c).slice(0, 200)));
+  proc.on('exit', () => { for (const r of o.q) r({ err: 'exit' }); o.q = []; if (_ocr === o) _ocr = null; if (o.ready) augLog('글자 읽기 꺼짐'); });
+  return o;
+}
+function ocrStop() { if (_ocr) { try { _ocr.proc.kill(); } catch (_) {} _ocr = null; } }
+function ocrRead(file) {
+  const o = ocrStart(); if (!o || o.ready === false) return Promise.resolve({ err: (o && o.err) || 'no-ocr' });
+  return new Promise((resolve) => { const t = setTimeout(() => resolve({ err: 'timeout' }), 8000); o.q.push(j => { clearTimeout(t); resolve(j); }); try { o.proc.stdin.write(file + '\n'); } catch (e) { resolve({ err: e.message }); } });
+}
+const _augLog = [];
+function augLog(m) { _augLog.push(`${new Date().toTimeString().slice(0, 8)} ${m}`); if (_augLog.length > 200) _augLog.shift(); try { console.log('[aug]', m); } catch (_) {} }
+
+function gameDisplay() {
+  let d = screen.getPrimaryDisplay();
+  if (_lastRect) { const sf = d.scaleFactor || 1; d = screen.getDisplayNearestPoint({ x: Math.round(_lastRect[0] / sf), y: Math.round(_lastRect[1] / sf) }) || d; }
+  return d;
+}
+async function captureDisplay(d, full) {   // → nativeImage(그 화면 · 실제 픽셀 크기)
+  const { desktopCapturer } = require('electron');
+  const W = Math.round(d.size.width * d.scaleFactor), H = Math.round(d.size.height * d.scaleFactor);
+  const src = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: W, height: H } });
+  const s = src.find(x => String(x.display_id) === String(d.id)) || src[0];
+  return s ? s.thumbnail : null;
+}
+function augCrop(img) {   // 가운데(카드가 뜨는 곳)만 · 글자 읽기 최대 크기 안으로
+  const { width: W, height: H } = img.getSize();
+  const cw = Math.min(W, Math.round(H * 16 / 9)), x = Math.round((W - cw) / 2 + cw * 0.08), w = Math.round(cw * 0.84), y = Math.round(H * 0.12), h = Math.round(H * 0.66);
+  let c = img.crop({ x, y, width: w, height: h }), k = 1;
+  const max = (_ocr && _ocr.max) || 2600;
+  if (w > max - 40) { k = (max - 40) / w; c = c.resize({ width: Math.round(w * k), quality: 'best' }); }
+  return { img: c, x, y, k, H };
+}
+let _ingameAt = 0, augWin = null, augState = { lastScan: 0, hot: 0, lastLv: 0, busy: false, showing: null, lastSeen: 0, ix: null, ixAt: 0, global: null, globalAt: 0, champId: 0, n: 0 };
+function myRaw() { const me = norm((account && account.gameName) || config.myName); return (_rawPlayers || []).find(p => norm(p.riotIdGameName || p.summonerName || (typeof p.riotId === 'string' ? p.riotId.split('#')[0] : '')) === me) || null; }
+async function augNames() {
+  if (augState.ix && Date.now() - augState.ixAt < 3600e3) return augState.ix;
+  const augs = await getAugments();
+  const names = Object.entries(augs || {}).map(([id, a]) => ({ id: Number(id), name: a.name })).filter(a => a.id >= 1000 && a.name && !a.name.startsWith('#'));
+  if (names.length) { augState.ix = augscan.nameIndex(names); augState.ixAt = Date.now(); }
+  return augState.ix;
+}
+async function augGlobal() {
+  if (augState.global && Date.now() - augState.globalAt < 30 * 60e3) return augState.global;
+  const g = await getJson(`${FIREBASE_DB}/${T}/augGuide/global.json`).catch(() => null);
+  augState.global = (g && g.t) || augState.global || {}; augState.globalR = (g && g.r) || augState.globalR || {}; augState.globalAt = Date.now();
+  return augState.global;
+}
+async function myChampId() {
+  const me = myRaw(); if (!me) return 0;
+  const alias = String(me.rawChampionName || '').replace(/^game_character_displayname_/i, '').toLowerCase();
+  const champs = await getChamps();
+  for (const [id, c] of Object.entries(champs || {})) if ((alias && String(c.alias).toLowerCase() === alias) || c.name === me.championName) return Number(id);
+  return 0;
+}
+async function augTick() {
+  if (!config.augRank || !inGame || replayBusy || augState.busy || process.platform !== 'win32') return;
+  const now = Date.now(), me = myRaw();
+  if (me && me.level !== augState.lastLv) { if (augState.lastLv) augState.hot = now + 60000; augState.lastLv = me.level; }
+  const hot = now < augState.hot || now - _ingameAt < 150000 || augState.showing;
+  if (!hot && now - augState.lastScan < 5000) return;
+  if (hot && now - augState.lastScan < 1200) return;
+  augState.busy = true; augState.lastScan = now;
+  try {
+    const d = gameDisplay(), img = await captureDisplay(d); if (!img || img.isEmpty()) return;
+    const cr = augCrop(img), file = path.join(os.tmpdir(), 'tn-aug.png');
+    fs.writeFileSync(file, cr.img.toPNG());
+    const r = await ocrRead(file); if (r.err) { if (augState.n++ < 5) augLog('읽기 실패 ' + r.err); return; }
+    const ix = await augNames(); if (!ix) return;
+    const found = augscan.findCards(ix, r.lines, cr.img.getSize().height / (0.66));   // 높이 기준 = 화면 전체 높이(잘라낸 비율 되돌림)
+    if (!found) { if (augState.showing && now - augState.lastSeen > 2500) { augState.showing = null; hideAugRank(); } return; }
+    augState.lastSeen = now;
+    const ids = found.cards.map(c => c.id), sig = ids.join(',');
+    if (augState.showing && augState.showing.sig === sig) return;   // 같은 카드면 그대로
+    const champId = augState.champId || (augState.champId = await myChampId());
+    const [guide, glob, rec] = await Promise.all([getGuide(), augGlobal(), augRecords().catch(() => ({}))]);
+    const recMy = {}; for (const id of ids) { const x = rec[champId + ':' + id]; if (x) recMy[id] = x; }
+    const ranks = augscan.rankAugs(ids, guide[champId], glob, recMy, augState.globalR);
+    const sf = d.scaleFactor || 1, pk = 1 / cr.k;   // 캡처 픽셀 → 화면 좌표(DIP)
+    const aug = await getAugments();
+    const cards = found.cards.map((c, i) => ({ x: (cr.x + c.x * pk) / sf, y: (cr.y + c.y * pk) / sf, w: c.w * pk / sf, h: c.h * pk / sf, rank: ranks[i].rank, why: ranks[i].why, name: (aug[c.id] || {}).name || '' }));
+    augState.showing = { sig };
+    augLog(`증강 ${found.cards.map((c, i) => `${cards[i].name}(${c.score.toFixed(2)})=${ranks[i].rank}위`).join(' · ')} · 읽기 ${r.ms}ms`);
+    showAugRank(d, cards);
+  } catch (e) { augLog('오류 ' + e.message); } finally { augState.busy = false; }
+}
+function showAugRank(d, cards) {
+  const b = d.bounds;
+  const send = () => { try { augWin.webContents.send('augrank', { cards: cards.map(c => Object.assign({}, c, { x: c.x, y: c.y })) }); } catch (_) {} };
+  if (augWin && !augWin.isDestroyed()) { augWin.setBounds(b); send(); if (!augWin.isVisible()) augWin.showInactive(); return; }
+  augWin = new BrowserWindow(Object.assign({}, b, {
+    frame: false, transparent: true, resizable: false, movable: false, focusable: false, skipTaskbar: true, alwaysOnTop: true, show: false, hasShadow: false, roundedCorners: false,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+  }));
+  augWin.setAlwaysOnTop(true, 'screen-saver'); augWin.setIgnoreMouseEvents(true);
+  augWin.webContents.on('did-finish-load', () => { if (augWin && !augWin.isDestroyed()) { send(); augWin.showInactive(); } });
+  augWin.on('closed', () => { augWin = null; });
+  augWin.loadFile('desktop/augrank.html');
+}
+function hideAugRank() { if (augWin && !augWin.isDestroyed()) { try { augWin.destroy(); } catch (_) {} } augWin = null; }
+async function sendAugShot() {   // Shift+F8 — 지금 게임 화면 + 읽은 글자 → 개발용 비공개 저장소(위치·글자 맞추기)
+  if (!inGame || !potg) return;
+  try {
+    const d = gameDisplay(), img = await captureDisplay(d); if (!img) return;
+    const cr = augCrop(img), file = path.join(os.tmpdir(), 'tn-aug.png'); fs.writeFileSync(file, cr.img.toPNG());
+    const r = config.augRank ? await ocrRead(file) : { err: 'off' };
+    const sz = img.getSize(), name = `${dayKey()}-${Date.now().toString(36)}-${sz.width}x${sz.height}`;
+    const jpg = img.toJPEG(88);
+    const ok1 = await potg.uploadShot(`aug-shots/${name}.jpg`, jpg);
+    const ok2 = await potg.uploadShot(`aug-shots/${name}.json`, Buffer.from(JSON.stringify({ app: app.getVersion(), who: config.myName, display: { w: sz.width, h: sz.height, sf: d.scaleFactor }, crop: { x: cr.x, y: cr.y, k: cr.k }, ocr: r, log: _augLog.slice(-40) }, null, 1)));
+    showToast(ok1 && ok2 ? '증강 화면을 보냈어요' : '보내기 실패', ok1 && ok2 ? '개발용 저장소 · 위치 맞추는 데 써요' : '인터넷·저장소 설정 확인');
+  } catch (e) { augLog('보내기 오류 ' + e.message); }
+}
 
 // ── 폴링 루프 ──────────────────────────────────────────────────────────────
 async function pollGame() {
@@ -631,7 +809,8 @@ async function pollGame() {
     if (inGame) { hideOverlay(); hideLeftPanel(); _slotDoneFormed = lastFormed; hideSlotMarker(); closePotg(); if (potg) potg.startCollect(bridge.getGameId()); }   // 🎬 팟지 수집 시작   // 게임 시작 → 양쪽 패널 완전히 숨김(전투 중 정보 미노출, 새 폼 재설계 예정) · 좌측 내 정보 패널도 숨김(클라 창 사라지며 floatPanels가 잠깐 띄우는 레이스 차단) · applyRaise/floatPanels가 inGame return이라 재등장 없음
     else { setTimeout(tryInstallUpdate, 90000); hideOverlay(); userHid = false; latestPlayers = []; _lastRaise = null; evalRaise(); recGameEnded(); if (potg) potg.stopCollect(bridge.getGameId()).catch(() => {}); }   // 🎬 수집 올림   // 게임 종료 → 로비 층위 재적용 · 📼 「기록 저장 중」 시작
     broadcast('state', { inGame, label: inGame ? '게임 중' : '대기' });
-    if (!inGame) { _rawPlayers = []; ingameHidden = false; hideIngame(); setTimeout(() => { if (!inGame) borderlessOff(); }, 4000); }   // 🖥️ 게임 끝 → 정보 창 닫고 화면 모드 원래대로
+    if (!inGame) { _rawPlayers = []; ingameHidden = false; hideIngame(); hideAugRank(); ocrStop(); augState.showing = null; setTimeout(() => { if (!inGame) borderlessOff(); }, 4000); }
+    else { _ingameAt = Date.now(); Object.assign(augState, { hot: 0, lastLv: 0, showing: null, champId: 0, n: 0 }); }   // 🎯 새 게임 → 증강 순위 처음부터   // 🖥️ 게임 끝 → 정보 창 닫고 화면 모드 원래대로
   }
   if (inGame && config.ingame && !ingameHidden) ingameUpdate(_rawPlayers);
   broadcast('players', { players: latestPlayers });
@@ -1238,6 +1417,13 @@ function showRecToast(sub) {
   recToastWin.on('closed', () => { recToastWin = null; });
   recToastWin.loadFile('desktop/rec.html');
 }
+function showToast(title, sub, ms) {   // 짧은 안내(녹화 안내 창 재사용 · 녹화 중이면 안 띄움)
+  if (_recLocal) return;
+  _recToastMsg = { title, sub }; showRecToast();
+  setTimeout(() => { if (!_recLocal) hideRecToast(); }, ms || 3000);
+}
+const AUG_SHOT_KEY = 'Shift+F8';
+function regAugShot() { try { if (!globalShortcut.isRegistered(AUG_SHOT_KEY)) globalShortcut.register(AUG_SHOT_KEY, () => { sendAugShot().catch(() => {}); }); } catch (_) {} }
 function hideRecToast() { if (recToastWin && !recToastWin.isDestroyed()) { try { recToastWin.destroy(); } catch (_) {} } recToastWin = null; }
 // 🔴 팀원에게도(v0.1.57) — 녹화하는 앱이 단계마다 today/potgRec {at, who, players, sub}를 적고 끝나면 지움 → 그 판에 있던 사람 앱은 pollSession(3초)에서 읽어 같은 안내
 let _recLocal = false, _recPlayers = [], potgRecRaw = null;
@@ -1651,7 +1837,13 @@ function cleanGuideEntry(c) {   // 저장 전에 모양·길이 정리(누가 �
   const out = plans.length ? { plans } : {};
   const top = cleanTop(c && c.top); if (top) out.top = top;
   const avoid = cleanAvoid(c && c.avoid); if (avoid) out.avoid = avoid;
+  const tiers = cleanTiers(c && c.tiers); if (tiers) out.tiers = tiers;
   return out;
+}
+function cleanTiers(t) {   // 🎯 그 챔피언 이번 패치 증강 등급 전부 {patch, t:{증강 id: 등급}}(증강 순위용 · 자료에서만)
+  if (!t || !/^\d{1,2}\.\d{1,2}$/.test(t.patch) || !t.t || typeof t.t !== 'object') return null;
+  const o = {}; let n = 0; for (const [k, v] of Object.entries(t.t)) if (Number(k) > 0 && /^[SABCD][+-]?$/.test(v) && n++ < 60) o[k] = v;
+  return n ? { patch: t.patch, t: o } : null;
 }
 function cleanAvoid(v) { const a = [...new Set((Array.isArray(v) ? v : []).map(Number).filter(x => x > 0))].slice(0, 6); return a.length ? a : null; }   // 피하면 좋은 증강(자료 사이트 「함정」 표시)
 // 이번 패치 잘 나오는 증강(v0.1.75) = 자료 사이트의 챔피언별 증강 등급(그 패치 승률 기준) {patch, augs:[{id, tier}]} — 사람이 고치는 칸 아님(저장할 때 그대로 둠)
@@ -1728,11 +1920,11 @@ async function augGuideWrite(id, guide, opt) {   // opt = {baseAt?, sum?, force?
     after = (want.plans || []).map(p => { const o = prevBySig[planSig(p)]; return o ? { ...p, by: o.by, at: o.at } : opt.restore ? { ...p } : { ...p, by: me, at: now }; });   // 안 바뀐 플랜은 원래 고친 사람 그대로 · 되돌리기는 그 버전의 고친 사람 그대로(되돌린 사람은 기록에)
     for (const p of after) if (!p.by) delete p.by;
     const v = { plans: after, at: now, by: me };
-    const top = cleanTop(cur.top), av = cleanAvoid(cur.avoid);   // 이번 패치 등급·함정 표시는 자료에서만
-    if (top) v.top = top; if (av) v.avoid = av;
+    const top = cleanTop(cur.top), av = cleanAvoid(cur.avoid), tiers = cleanTiers(cur.tiers);   // 이번 패치 등급·함정 표시는 자료에서만
+    if (top) v.top = top; if (av) v.avoid = av; if (tiers) v.tiers = tiers;
     if (cur.src) v.src = cur.src;
     if (!opt.force && JSON.stringify(before) === JSON.stringify(after)) return { err: 'same' };
-    return { value: after.length || top || av ? v : null };
+    return { value: after.length || top || av || tiers ? v : null };
   });
   if (!r.ok) {
     if (r.err === 'conflict') return { ok: false, conflict: true, by: (r.info && r.info.by) || '', err: '그사이 다른 사람이 먼저 고쳤어요' };
@@ -1930,7 +2122,7 @@ ipcMain.on('update-now', () => { app._quitting = true; try { autoUpdater.quitAnd
 ipcMain.handle('update-info', () => updView());
 ipcMain.on('update-check', () => checkUpdate());
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
-const settingsView = () => ({ ingame: !!config.ingame, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY });
+const settingsView = () => ({ ingame: !!config.ingame, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
 ipcMain.handle('settings-get', () => settingsView());
 ipcMain.handle('settings-set', (_e, { key, value }) => {
@@ -1939,9 +2131,14 @@ ipcMain.handle('settings-set', (_e, { key, value }) => {
   else if (key === 'dock') { if ((config.dock !== false) !== !!value) toggleDock(); }
   else if (key === 'sidePanel') { if ((config.sidePanel !== false) !== !!value) toggleSidePanel(); }
   else if (key === 'closeAsk') { config.closeAsk = !!value; refreshTrayMenu(); }
+  else if (key === 'augRank') {   // 🎯 증강 순위(베타) — 게임 위에 떠야 해서 테두리 없는 창도 같이
+    config.augRank = !!value;
+    if (!config.augRank) { hideAugRank(); ocrStop(); try { globalShortcut.unregister(AUG_SHOT_KEY); } catch (_) {} if (!inGame && !config.ingame) borderlessOff(); }
+    else { regAugShot(); if (lobbyPhase === 'ChampSelect') borderlessOn(); }
+  }
   else if (key === 'ingame') {   // 🖥️ 게임 중 정보 창 — 끄면 바꿔 둔 화면 모드도 원래대로(게임 중이면 끝나고)
     config.ingame = !!value;
-    if (!config.ingame) { hideIngame(); if (!inGame) borderlessOff(); }
+    if (!config.ingame) { hideIngame(); if (!inGame && !config.augRank) borderlessOff(); }
     else if (lobbyPhase === 'ChampSelect') borderlessOn();
   }
   else return settingsView();
@@ -2054,6 +2251,8 @@ else {
     globalShortcut.register(TOGGLE_HOTKEY, toggleOverlay);
     pollGame(); pollSession(); startDockStream();
     setInterval(pollGame, 2500);
+    setInterval(() => { augTick().catch(() => {}); }, 400);   // 🎯 증강 순위(켠 사람만 · 게임 중에만 실제로 읽음)
+    if (config.augRank) regAugShot();
     const runSession = coalesce(pollSession);
     setInterval(runSession, 3000);                       // 화면·방장 일 3초마다(📡 v0.1.63: 데이터는 스트림 사본 — 끊긴 노드만 서버에서 읽음)
     fbMirror('session', runSession);                     // ⚡ 팀 배정·투표·결과 = 바뀌는 즉시
