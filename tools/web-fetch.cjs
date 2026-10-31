@@ -36,8 +36,23 @@ const text = html => html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<
     console.log(r.status, url); await sleep(1500);
   };
   for (const c of top) await save('am-' + c.alias.toLowerCase(), `https://arammayhem.com/ko-kr/champions/${c.alias.toLowerCase()}`);
-  await save('gamesgg-sets', 'https://games.gg/league-of-legends/guides/aram-mayhem-augment-tier-list-set-combos/');
-  await save('wiki-augments', 'https://wiki.leagueoflegends.com/en-us/ARAM_Mayhem/Augments');
+  if (top.length) {
+    await save('gamesgg-sets', 'https://games.gg/league-of-legends/guides/aram-mayhem-augment-tier-list-set-combos/');
+    await save('wiki-augments', 'https://wiki.leagueoflegends.com/en-us/ARAM_Mayhem/Augments');
+  }
+  // 🖼️ 초안에 쓴 증강·챔피언 아이콘(화면 예시 캡처용 — 원격 세션은 CommunityDragon이 막혀 아이콘이 「?」로 나옴)
+  try {
+    const draft = JSON.parse(fs.readFileSync(path.join(__dirname, 'aug-draft.json'), 'utf8'));
+    const augIds = new Set(), champIds = Object.keys(draft.champs);
+    for (const g of Object.values(draft.champs)) for (const p of g.plans) for (const a of p.augs) augIds.add(a);
+    const byAug = {}; for (const a of augs) byAug[a.id] = a;
+    fs.mkdirSync(path.join(OUT, 'icons', 'aug'), { recursive: true }); fs.mkdirSync(path.join(OUT, 'icons', 'champ'), { recursive: true });
+    const dl = async (url, file) => { try { const r = await fetch(url); if (r.ok) fs.writeFileSync(file, Buffer.from(await r.arrayBuffer())); } catch (_) {} };
+    const BASE = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default';
+    for (const id of augIds) { const a = byAug[id]; if (a && a.augmentSmallIconPath) await dl(BASE + a.augmentSmallIconPath.replace('/lol-game-data/assets', '').toLowerCase(), path.join(OUT, 'icons', 'aug', id + '.png')); }
+    for (const id of champIds) await dl(`${BASE}/v1/champion-icons/${id}.png`, path.join(OUT, 'icons', 'champ', id + '.png'));
+    console.log('아이콘', augIds.size, '증강 ·', champIds.length, '챔피언');
+  } catch (e) { console.log('아이콘 건너뜀', e.message); }
   fs.writeFileSync(path.join(OUT, 'top.json'), JSON.stringify(top, null, 1));
   fs.writeFileSync(path.join(OUT, 'log.json'), JSON.stringify(log, null, 1));
 })();
