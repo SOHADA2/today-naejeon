@@ -19,7 +19,7 @@ async function run(name, opt) {
     if (p === '/lol-gameflow/v1/gameflow-phase') return { status: 200, data: st.phase };
     if (p === `/lol-replays/v1/metadata/${GID}`) return { status: 200, data: { state: st.meta } };
     if (m === 'POST' && p.endsWith('/download/graceful')) { setTimeout(() => st.meta = 'watch', 1500); return { status: 204 }; }
-    if (m === 'POST' && p.endsWith('/watch')) { st.cfgDuring = fs.readFileSync(path.join(lolDir, 'Config', 'game.cfg'), 'utf8'); st.phase = 'WatchInProgress'; if (!opt.noapi) setTimeout(() => st.api = true, 1200); return { status: 204 }; }
+    if (m === 'POST' && p.endsWith('/watch')) { st.cfgDuring = fs.readFileSync(path.join(lolDir, 'Config', 'game.cfg'), 'utf8'); st.phase = 'WatchInProgress'; if (opt.realGameAfter) setTimeout(() => { st.phase = 'GameStart'; }, opt.realGameAfter); if (!opt.noapi) setTimeout(() => st.api = true, 1200); return { status: 204 }; }
     return { status: 404 };
   };
   const srv = https.createServer(tls, async (req, res) => {
@@ -81,6 +81,10 @@ async function run(name, opt) {
   console.log('■ two — 팟지 + 숨은 영웅 두 장면을 리플레이 한 번에'); r = await run('two', { parts: [{ from: 644, to: 650, focus: 'ap렉사이서폿', champ: '볼리베어' }, { from: 600, to: 606, focus: '탱커왕', champ: '말파이트' }] });
   ok(Array.isArray(r.out) && r.out.length === 2 && r.out[0] && r.out[1] && r.out[0] !== r.out[1], `영상 2개 ${(r.out || []).map(p => p && path.basename(p)).join(', ')} (${r.sec}초)`);
   ok(r.st.recs.length === 2 && r.st.recs[1].startTime === 600 && r.st.render.selectionName === '탱커왕' && r.st.killed === 1 && r.calls.filter(c => c.endsWith('/watch')).length === 1, '리플레이는 한 번만 열고 닫음 · 둘째 장면은 그 사람 카메라');
+  console.log('■ fov — 장면마다 카메라 시야(v0.1.80)'); r = await run('fov', { parts: [{ from: 644, to: 650, focus: 'ap렉사이서폿', champ: '볼리베어', fov: 68 }] });
+  ok(r.st.render.fieldOfView === 68, `리플레이 카메라 시야 68로 바꿈(${r.st.render.fieldOfView})`);
+  console.log('■ realgame — 녹화 도중 실제 게임이 시작됨(v0.1.80)'); r = await run('realgame', { realGameAfter: 4500, parts: [{ from: 644, to: 650, focus: 'ap렉사이서폿', champ: '볼리베어' }, { from: 600, to: 606, focus: '탱커왕', champ: '말파이트' }] });
+  ok(Array.isArray(r.out) && r.out.every(x => x === null) && r.st.killed === 0, `녹화 멈추고 실제 게임은 안 끔(영상 ${JSON.stringify(r.out)} · 끈 횟수 ${r.st.killed})`);
   console.log('■ ingame — 실제 게임 중'); r = await run('ingame', { phase: 'InProgress' });
   ok(r.out === null && !r.calls.some(c => c.endsWith('/watch')) && r.st.killed === 0, '아무것도 안 열고 아무것도 안 닫음');
   console.log(fail ? `\n❌ ${fail}건 실패` : '\n✅ 전부 통과');

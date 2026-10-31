@@ -10,6 +10,7 @@
 //  ⑥ 리플레이 닫기(롤 상태가 리플레이 보는 중일 때만 게임 창 종료 — 실제 게임은 절대 안 건드림) → 파일 경로 돌려줌
 // ⚠️ 실기 미확인: 녹화 파일이 path 폴더에 생기는지(아니면 문서/League of Legends/Highlights) · selectionName이 게임 이름인지 → 둘 다 찾음/시도
 const fs = require('fs');
+const { execFile } = require('child_process');
 const path = require('path');
 const os = require('os');
 const https = require('https');
@@ -130,12 +131,16 @@ function makeReplayRec(d) {
   }
 
   // 리플레이 닫기 — 롤이 「리플레이 보는 중」이거나 리플레이 창구가 살아 있을 때만(실제 게임 창은 절대 안 닫음)
-  async function closeReplay() {
+  // ⚠️ v0.1.80: 예전엔 「League of Legends.exe」를 이름으로 다 끔 → 녹화하는 동안 시작된 실제 게임(방장이 관전하던 내전)까지 꺼져 「재접속」(2026-10-31 실제로 겪음)
+  //   → 리플레이 열 때 새로 생긴 프로세스 번호만 끔 · 번호를 모르면 롤이 「리플레이 보는 중」일 때만(실제 게임도 2999 /replay를 열 수 있어 그건 안 믿음)
+  const gamePids = () => new Promise(r => { if (process.platform !== 'win32') return r([]); execFile('tasklist', ['/FI', 'IMAGENAME eq League of Legends.exe', '/FO', 'CSV', '/NH'], { windowsHide: true }, (e, out) => r(String(out || '').split(/\r?\n/).map(l => (l.match(/^"League of Legends\.exe","(\d+)"/) || [])[1]).filter(Boolean).map(Number))); });
+  const REAL = ['ChampSelect', 'GameStart', 'InProgress', 'Reconnect', 'ReadyCheck', 'Matchmaking'];   // 이 상태가 되면 실제 게임·큐 → 녹화 그만
+  async function realGame() { const ph = await d.lcuRaw('GET', '/lol-gameflow/v1/gameflow-phase'); return ph.status === 200 && REAL.includes(ph.data) ? ph.data : null; }
+  async function closeReplay(pid) {
+    if (pid) { try { await d.kill(pid); log(`리플레이 닫음(프로세스 ${pid}만)`); } catch (_) {} return; }
     const ph = await d.lcuRaw('GET', '/lol-gameflow/v1/gameflow-phase');
-    const pb = await live('GET', '/replay/playback');
-    if ((ph.status === 200 && ph.data === 'WatchInProgress') || (pb.status === 200 && pb.data && typeof pb.data.length === 'number')) {
-      try { await d.kill(); log('리플레이 닫음'); } catch (_) {}
-    } else log(`리플레이 닫기 건너뜀(상태 ${ph.data})`);
+    if (ph.status === 200 && ph.data === 'WatchInProgress') { try { await d.kill(); log('리플레이 닫음'); } catch (_) {} }
+    else log(`리플레이 닫기 건너뜀(상태 ${ph.data})`);
   }
 
   // ⑥까지 한 번에 — 성공하면 webm 경로, 아니면 null(그땐 카드로 나옴)
@@ -156,17 +161,20 @@ function makeReplayRec(d) {
     log(`리플레이 준비됨 (${sec()}초)`);
     const cfg = cfgForRecord(); if (cfg) log(`창 모드 1920×1080 (원래 ${JSON.stringify(cfg.before)})`);
     const hid = d.hideWindow ? d.hideWindow() : null;   // 리플레이 창이 뜨면 바로 화면 밖으로
+    const before = await gamePids(); let replayPid = null, aborted = null;   // 리플레이 프로세스 = 열기 뒤 새로 생긴 것
     const w = await d.lcuRaw('POST', `/lol-replays/v1/rofls/${gameId}/watch`, { componentType: 'replay-button_match-history' });
     if (!(w.status >= 200 && w.status < 300)) { log('리플레이 열기 실패 HTTP ' + w.status); if (hid) hid.stop(); restoreCfg(cfg); return null; }
     try {
       let len = 0;   // ④ 리플레이 로딩(최대 120초)
       for (let i = 0; i < (d.loadWaitSec || 120) && !len; i++) { const p = await live('GET', '/replay/playback'); if (p.status === 200 && p.data && p.data.length > 0) len = p.data.length; else await sleep(1000); }
       if (!len) { log('리플레이 창구가 안 열림(EnableReplayApi?)'); return null; }
-      log(`리플레이 열림 · 길이 ${Math.round(len)}초 (${sec()}초)`);
+      replayPid = (await gamePids()).find(x => !before.includes(x)) || null;
+      log(`리플레이 열림 · 길이 ${Math.round(len)}초 · 프로세스 ${replayPid || '?'} (${sec()}초)`);
       const outs = [];
-      for (let pi = 0; pi < parts.length; pi++) outs.push(await recordOne(parts[pi], pi).catch(e => { log(`장면 ${pi + 1} 오류 ${e && e.message}`); return null; }));
+      for (let pi = 0; pi < parts.length; pi++) outs.push(aborted || (aborted = await realGame()) ? null : await recordOne(parts[pi], pi).catch(e => { log(`장면 ${pi + 1} 오류 ${e && e.message}`); return null; }));
+      if (aborted) log('실제 게임·큐가 시작돼 녹화 그만: ' + aborted);
       return outs;
-      async function recordOne({ from, to, focus, champ }, pi) {   // 장면 하나(되감기 → 카메라 → 녹화 → 파일)
+      async function recordOne({ from, to, focus, champ, fov }, pi) {   // 장면 하나(되감기 → 카메라 → 녹화 → 파일)
         if (pi) log(`── 장면 ${pi + 1} · ${from}~${to}초`);
           to = Math.min(to, len - 0.5); from = Math.max(0, Math.min(from, to - 3));
           // v0.1.34: 앞 구간(PRE초) 먼저 재생해 화면·카메라가 자리 잡은 뒤 녹화 — 전엔 되감기(seek)가 끝나기 전에 녹화가 시작돼
@@ -182,6 +190,8 @@ function makeReplayRec(d) {
           await live('POST', '/replay/render', Object.assign({ selectionName: focus }, view));
           const r = await live('GET', '/replay/render');
           if (champ && !(r.data && r.data.selectionName)) { await live('POST', '/replay/render', Object.assign({ selectionName: champ }, view)); log('카메라: 챔피언 이름으로 다시 지정'); }   // 게임 이름이 안 먹으면
+          if (fov) await live('POST', '/replay/render', { fieldOfView: fov });   // v0.1.80: 시야 넓히기(먼 사거리 · 주인공이 화면 끝에 걸리던 것)
+          { const c = (await live('GET', '/replay/render')).data || {}; log(`카메라 ${JSON.stringify({ sel: c.selectionName, att: c.cameraAttached, mode: c.cameraMode, fov: c.fieldOfView, off: c.selectionOffset, pos: c.cameraPosition, rot: c.cameraRotation })}`); }
           await sleep(1500);   // 장면 불러오기
           const outDir = d.outDir; fs.mkdirSync(outDir, { recursive: true });
           const since = Date.now();
@@ -193,6 +203,7 @@ function makeReplayRec(d) {
           const limit = Date.now() + ((to - startAt) * 4 + 30) * 1000;
           while (Date.now() < limit) {
             await sleep(1000);
+            if ((aborted = await realGame())) { log('녹화 중 실제 게임·큐 시작 → 이 장면 버림: ' + aborted); return null; }
             const [g, p] = await Promise.all([live('GET', '/replay/recording'), live('GET', '/replay/playback')]);
             const rec = g.data || {}, t = p.data ? p.data.time : null;
             if (rec.outputPath || rec.path) lastPath = rec.outputPath || rec.path;
@@ -216,7 +227,7 @@ function makeReplayRec(d) {
           return clip.p;
       }
     } finally {
-      await closeReplay();   // 열기 요청을 보냈으면 늘 정리(창구가 안 열렸어도 게임 창은 떴을 수 있음)
+      await closeReplay(replayPid);   // 열기 요청을 보냈으면 늘 정리(창구가 안 열렸어도 게임 창은 떴을 수 있음) · 리플레이 프로세스만
       if (hid) { const h = hid.stop(); if (h != null) log(`창 숨김 ${h}회`); }
       restoreCfg(cfg);   // 리플레이를 강제로 닫아서 롤이 설정을 덮어쓰지 않음 → 그 뒤에 되돌림
     }

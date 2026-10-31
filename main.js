@@ -1479,13 +1479,30 @@ function onRecLog(m) {   // replayrec 로그 → 안내 글
   else if (m.includes('녹화 중') && !_recToastMsg.sub.startsWith(`${sc()} 녹화 중`)) recStage(`${sc()} 녹화 중 · 들리는 소리는 리플레이예요`);
   else if (m.includes('리플레이 닫음')) recStage('영상 정리하고 올리는 중… (곧 끝나요)');
 }
+// 🎥 팟지 카메라 시야(v0.1.80) — 리플레이 기본 50 + 위에서 비스듬히(56°) 내려다봐 주인공이 화면 아래쪽에 놓이고, 1.15배로 잘라내 아래가 잘렸음
+//   (사장님: 본인이 잘 안 보일 때 · 먼 사거리) → 잘라내기 없앰 + 시야 60 · 사거리 500+(Data Dragon stats.attackrange)나 원거리로 바뀌는 챔피언은 68
+//   실측(자야 트리플킬 880~893 · 50/55/70 비교): 50은 둘째 킬 때 자야가 화면 맨 아래 가장자리(잘라낸 영역 밖) · 70은 화면 안
+const FOV_BASE = 60, FOV_RANGED = 68, RANGED_FORMS = new Set([126, 76, 10, 150, 60]);   // 제이스·니달리·케일·나르·엘리스(기본 사거리는 근접으로 나옴)
+let _ranges = null, _rangesAt = 0;
+async function champRanges() {
+  if (_ranges && Date.now() - _rangesAt < 12 * 3600e3) return _ranges;
+  try {
+    const v = ((await getJson('https://ddragon.leagueoflegends.com/api/versions.json')) || [])[0];
+    const d = v ? await getJson(`https://ddragon.leagueoflegends.com/cdn/${v}/data/en_US/champion.json`) : null, m = {};
+    for (const c of Object.values((d && d.data) || {})) m[Number(c.key)] = c.stats && c.stats.attackrange;
+    if (Object.keys(m).length) { _ranges = m; _rangesAt = Date.now(); }
+  } catch (_) {}
+  return _ranges || {};
+}
+async function potgFov(championId) { const r = (await champRanges())[championId]; return RANGED_FORMS.has(Number(championId)) || r >= 500 ? FOV_RANGED : FOV_BASE; }
 async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹화 기록 남길 경기 기록 경로 } → [팟지 영상 meta, 숨은 영웅 영상 meta] (실패한 쪽은 null)
   replayBusy = true; _recLog = [];
   const H = card.hero;   // v0.1.44: 숨은 영웅이 있으면 리플레이 한 번 열어 두 장면을 이어서 녹화
   _recParts = H ? 2 : 1; _recCur = 1; _recLocal = true;   // 🎬 방장(과 그 판 팀원)에게 녹화 중 안내
   _recPlayers = card.normal ? (card.normal.us || []) : [...((sessionData && sessionData.teamA) || []), ...((sessionData && sessionData.teamB) || [])];
   recStage('리플레이 준비 중…');
-  const parts = [{ from: card.clipFrom, to: card.clipTo, focus: card.name, champ: card.champ }].concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: H.champ }] : []);
+  const fov = async id => potgFov(id).catch(() => FOV_BASE);
+  const parts = [{ from: card.clipFrom, to: card.clipTo, focus: card.name, champ: card.champ, fov: await fov(card.championId) }].concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: H.champ, fov: await fov(H.championId) }] : []);
   const t0 = Date.now(), recP = replayRec.record({ gameId: g.id, parts });
   recP.catch(() => {}).finally(() => setTimeout(() => { replayBusy = false; }, 6000));   // 리플레이가 실제로 끝나고(닫히고) 조금 더 지나야 풀림(시간 초과로 먼저 카드를 보여줘도)
   const metas = [null, null], whys = [], secs = [null, null], LIMIT = H ? 260000 : 180000;
@@ -1496,7 +1513,7 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
       const file = files[i], tag = i ? '숨은 영웅' : '팟지';
       if (!file) { whys.push(tag + ' 녹화 안 됨'); continue; }
       let buf = fs.readFileSync(file);
-      const small = await shrinkClip(file).catch(e => { _recLog.push(tag + ' 줄이기 실패 ' + (e && e.message)); return null; });   // 가운데 16:9를 1.15배로 잘라 그 해상도 그대로(1920×1080 창 → 1670×938)·8Mbps
+      const small = await shrinkClip(file).catch(e => { _recLog.push(tag + ' 줄이기 실패 ' + (e && e.message)); return null; });   // 잘라내지 않고 1920×1080 그대로·8Mbps(v0.1.80: 1.15배로 자르면 화면 아래쪽 주인공이 잘림)
       if (small && Number.isFinite(small.sec)) secs[i] = small.sec;   // 롤 원본 영상 길이 → 영상 0초가 게임 몇 초인지 정확히(아래)
       // v0.1.71: 화질을 올려 원본보다 커질 수 있음 → 크기 비교 안 함(잘라 맞춘 화면 = 주인공 중심이 기준)
       if (small && small.buf.length > 100000 && small.buf.length <= CLIP_MAX) { _recLog.push(`${tag} 다시 녹화 ${(buf.length / 1048576).toFixed(1)}→${(small.buf.length / 1048576).toFixed(1)}MB ${small.w}×${small.h}`); buf = small.buf; }
@@ -1516,13 +1533,13 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   fbUpdate(g.path, { potgRec: { ok: !!metas[0], hero: H ? !!metas[1] : null, why: whys.join(' · ') || null, sec, mb: mb(metas[0]), mbHero: mb(metas[1]), lines: _recLog.slice(-40), at: Date.now() } }).catch(() => {});
   return metas;
 }
-// 🎬 녹화 영상 줄이기(v0.1.34~35) — 숨은 창에서 다시 재생하며 가운데 16:9를 1.15배로 잘라 다시 녹화(소리 포함) · 영상 길이만큼 걸림
+// 🎬 녹화 영상 줄이기(v0.1.34~35) — 숨은 창에서 다시 재생하며 다시 녹화(v0.1.80부터 잘라내기 없음)(소리 포함) · 영상 길이만큼 걸림
 //   v0.1.71(사장님: 화질 때문에 잘 안 보임): 1280×720·3.5Mbps → **최대 1920 폭(잘라낸 해상도 그대로, 늘리지 않음)·8Mbps** — 영상은 GitHub라 받는 양 걱정 없음
 async function shrinkClip(file) {
   const w = new BrowserWindow({ show: false, width: 320, height: 200, skipTaskbar: true, webPreferences: { backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required', contextIsolation: true } });
   try {
     await w.loadFile('potg/shrink.html');
-    const r = await Promise.race([w.webContents.executeJavaScript(`shrink(${JSON.stringify(pathToFileURL(file).href)}, 1920, 8000, 1.15)`), new Promise((_, no) => setTimeout(() => no(new Error('시간 초과')), 90000))]);
+    const r = await Promise.race([w.webContents.executeJavaScript(`shrink(${JSON.stringify(pathToFileURL(file).href)}, 1920, 8000, 1)`), new Promise((_, no) => setTimeout(() => no(new Error('시간 초과')), 90000))]);
     return r && r.b64 ? { buf: Buffer.from(r.b64, 'base64'), sec: r.sec, w: r.w, h: r.h } : null;
   } finally { try { w.destroy(); } catch (_) {} }
 }
@@ -2302,7 +2319,7 @@ else {
     setupAutoUpdate();
     replayRec = makeReplayRec(Object.assign(makeReplayRec.defaults(), {   // 🎬 방장 PC가 팟지 장면을 리플레이로 녹화
       lcuRaw: bridge.lcuRaw, lolDir: bridge.lolDir, outDir: path.join(app.getPath('userData'), 'replay-rec'),
-      kill: () => new Promise(r => require('child_process').execFile('taskkill', ['/IM', 'League of Legends.exe', '/F'], () => r())),
+      kill: (pid) => new Promise(r => require('child_process').execFile('taskkill', pid ? ['/PID', String(pid), '/F'] : ['/IM', 'League of Legends.exe', '/F'], () => r())),   // v0.1.80: 리플레이 프로세스 번호만(실제 게임까지 끄던 것)
       log: (m) => { _recLog.push(`${new Date().toTimeString().slice(0, 8)} ${m}`); try { onRecLog(m); } catch (_) {} try { console.log(m); } catch (_) {} },
       restoreFile: path.join(app.getPath('userData'), 'replay-cfg-restore.json'),
       borderlessFile: path.join(app.getPath('userData'), 'ingame-cfg-restore.json'),
