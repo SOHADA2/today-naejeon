@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('api', {
   updateNow: () => ipcRenderer.send('update-now'),
   // ⚙️ 설정 {sfxOn, sfxVol, dock, sidePanel, closeAsk, hotkey}
   getSettings: () => ipcRenderer.invoke('settings-get'),
+  openTutorial: () => ipcRenderer.send('tutorial-open'),                   // 📘 사용법 다시 보기
+  onTutorial: (cb) => ipcRenderer.on('tutorial', (_e, d) => cb(d)),
   setSetting: (key, value) => ipcRenderer.invoke('settings-set', { key, value }),
   onSettings: (cb) => ipcRenderer.on('settings', (_e, d) => cb(d)),
   quitApp: () => ipcRenderer.send('app-quit'),

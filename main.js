@@ -2191,11 +2191,16 @@ ipcMain.on('update-now', () => { app._quitting = true; try { autoUpdater.quitAnd
 ipcMain.handle('update-info', () => updView());
 ipcMain.on('update-check', () => checkUpdate());
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
-const settingsView = () => ({ ingame: !!config.ingame, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY });
+const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, ingame: !!config.ingame, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
 ipcMain.handle('settings-get', () => settingsView());
+ipcMain.on('tutorial-open', () => {   // 📘 ⚙ 설정 「사용법 다시 보기」 → 왼쪽 창에 튜토리얼
+  if (!overlayWin || overlayWin.isDestroyed()) return;
+  userHid = false; showOverlay(); try { overlayWin.webContents.send('tutorial', { step: 0 }); } catch (_) {}
+});
 ipcMain.handle('settings-set', (_e, { key, value }) => {
-  if (key === 'sfxOn') config.sfxOn = !!value;
+  if (key === 'tutorialSeen') config.tutorialSeen = !!value;   // 📘 사용법 튜토리얼 다 봄(v0.1.83)
+  else if (key === 'sfxOn') config.sfxOn = !!value;
   else if (key === 'sfxVol') config.sfxVol = Math.max(0, Math.min(1, +value || 0));
   else if (key === 'dock') { if ((config.dock !== false) !== !!value) toggleDock(); }
   else if (key === 'sidePanel') { if ((config.sidePanel !== false) !== !!value) toggleSidePanel(); }

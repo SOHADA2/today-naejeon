@@ -135,13 +135,12 @@ function renderLive() {
   if (s.phase === 'draft') {
     const team = (s.order || [])[s.pickIdx || 0], caps = s.captains || {};
     st = `<div class="td-state">드래프트 진행 중 · ${(s.pickIdx || 0)}/${(s.order || []).length} 뽑음 · 지금 <b>${team === 'teamA' ? '1팀' : '2팀'} 팀장 ${escH(caps[team] || '')}</b> 차례</div>`;
-    acts = `<div class="foot-hint">팀장이 왼쪽 창에서 뽑아요 · 팀장이 앱이 없으면 방장이 왼쪽 창에서 대신 뽑을 수 있어요 · 30초 지나면 무작위</div>`;
+    acts = '';   // v0.1.83: 드래프트 사용법은 튜토리얼로
   } else if (s.phase === 'teams') {
     if (s.pendingEog) {
       st = `<div class="td-alert">경기가 끝났는데 인게임 이름과 등록 이름이 달라 자동 판정을 못 했어요.<br>이긴 팀을 골라주세요${s.pendingEog.winSide ? ` (게임상 승리 진영: ${s.pendingEog.winSide === 'blue' ? '블루' : '레드'})` : ''}</div>`;
     } else st = `<div class="td-state">게임 중이거나 시작 전이에요 · 끝나면 자동으로 기록돼요</div>`;
-    acts = `<div class="td-acts"><button class="btn-ghost td-win" data-w="teamA">1팀 승리 기록</button><button class="btn-ghost td-win" data-w="teamB">2팀 승리 기록</button></div>`
-      + `<div class="foot-hint">자동 기록이 안 될 때만 눌러요(롤 클라 연결 없음 등)</div>`;
+    acts = `<div class="td-acts"><button class="btn-ghost td-win" data-w="teamA">1팀 승리 기록</button><button class="btn-ghost td-win" data-w="teamB">2팀 승리 기록</button></div>`;
   } else if (s.phase === 'vote') {
     const voters = [...s.teamA, ...s.teamB], votes = s.votes || {};
     const done = voters.filter(n => votes[nn(n).replace(/\s+/g, '_').replace(/[.#$\[\]\/]/g, '_')]).length;
@@ -154,7 +153,7 @@ function renderLive() {
   }
   box.innerHTML = `<div class="tb-result">${row('1팀', s.teamA, 'a')}${row('2팀', s.teamB, 'b')}${s.spectators && s.spectators.length ? row('관전', s.spectators, 's') : ''}</div>`
     + st + acts
-    + `<button class="btn-ghost td-new" id="td-new">대기실로 돌아가기</button><div class="foot-hint">지금 판을 접고 모두 대기실로 · 참가자·방식을 다시 정해요</div>`;
+    + `<button class="btn-ghost td-new" id="td-new">대기실로 돌아가기</button>`;
   box.querySelectorAll('.td-win').forEach(b => b.onclick = () => liveAct(() => window.api.hostResult(b.dataset.w)));
   const c = $('td-close'); if (c) c.onclick = () => liveAct(() => window.api.voteClose());
   const a = $('td-again'); if (a) a.onclick = () => liveAct(() => window.api.tbAgain());
@@ -186,7 +185,7 @@ async function renderToday() {
   $('td-day').textContent = (t.day === t.today ? '오늘 · ' : '') + `${Number(mm)}월 ${Number(dd)}일`;
   $('td-next').disabled = t.day >= t.today;
   const normals = t.normals || [];
-  if (!t.matches.length && !normals.length) { body.innerHTML = `<div class="td-empty">${t.day === t.today ? '오늘은 아직 경기가 없어요<br><small>방장이 팀을 짜고 게임이 끝나면 자동으로 쌓여요</small>' : '이 날은 경기가 없어요'}</div>`; return; }
+  if (!t.matches.length && !normals.length) { body.innerHTML = `<div class="td-empty">${t.day === t.today ? '오늘은 아직 경기가 없어요' : '이 날은 경기가 없어요'}</div>`; return; }
   const rows = t.standings.map(p => {
     const kda = p.d || p.k || p.a ? ((p.k + p.a) / Math.max(1, p.d)).toFixed(1) : '-';
     return `<tr class="${nn(p.name) === nn(_myName) ? 'me' : ''}"><td class="r">${p.rank}</td><td class="n"><a class="pf-link" data-name="${escH(p.name)}">${escH(p.name)}</a></td><td>${p.wins}-${p.losses}</td><td>${Math.round(p.wins / p.games * 100)}%</td><td>${p.mvp || ''}</td><td>${p.manner || ''}</td><td>${kda}</td></tr>`;

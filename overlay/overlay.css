@@ -426,3 +426,25 @@ header .phase, header .win-btn { flex-shrink:0; }
 .lb-upd > span:first-child { flex:1; min-width:0; }
 .lb-upd .lb-mini { flex:none; }
 .lb-upd-st { flex:none; font-family:var(--f-num); color:var(--gold-hi); }
+
+/* 📘 사용법 튜토리얼(v0.1.83 · overlay/tutorial.js) — 왼쪽 창 위 카드 · 화면에 줄줄이 붙어 있던 설명 글을 여기로 */
+.tut { position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center; padding:14px; background:rgba(1,6,12,0.82); -webkit-app-region:no-drag; }
+.tut-card { width:100%; max-width:380px; display:flex; flex-direction:column; gap:10px; padding:16px 16px 14px; background:linear-gradient(160deg, var(--bg-2), var(--bg-1)); border:1px solid var(--gold-line); clip-path:var(--cut); animation:tutIn .22s ease-out both; }
+.tut-hd { display:flex; align-items:center; gap:8px; }
+.tut-ic { font-size:20px; line-height:1; }
+.tut-en { flex:1; }
+.tut-no { font-size:13px; color:var(--dim); }
+.tut-t { font-size:17px; font-weight:800; color:var(--gold-hi); }
+.tut-l { list-style:none; display:flex; flex-direction:column; gap:7px; padding:0; margin:0; }
+.tut-l li { position:relative; padding-left:12px; font-size:12.5px; line-height:1.55; color:var(--ink-soft); word-break:keep-all; }
+.tut-l li::before { content:''; position:absolute; left:0; top:8px; width:4px; height:4px; background:var(--gold); }
+.tut-l b { color:#F0E6D2; font-weight:700; }
+.tut-dots { display:flex; gap:5px; justify-content:center; margin-top:2px; }
+.tut-dots i { width:6px; height:6px; background:var(--hair); } .tut-dots i.on { background:var(--gold-hi); }
+.tut-btns { display:flex; gap:6px; align-items:center; }
+.tut-btns button { padding:8px 12px; font-size:12.5px; font-weight:700; cursor:pointer; }
+.tut-skip { margin-right:auto; color:var(--dim); background:transparent; border:none; }
+.tut-prev { color:var(--ink-soft); background:var(--bg-3); border:1px solid var(--hair); clip-path:var(--cut-sm); }
+.tut-next { flex:none; min-width:84px; margin-left:auto; }
+.tut-skip + .tut-next { margin-left:0; }
+@keyframes tutIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }

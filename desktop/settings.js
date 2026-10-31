@@ -59,6 +59,8 @@
         ${tog('closeAsk', '✕ 누르면 「숨기기/종료」 묻기', '끄면 묻지 않고 숨기기만')}
         <div class="tn-sec">단축키</div>
         <div class="tn-row"><span class="tn-row-tx"><b>왼쪽 창 켜기/끄기</b><small>게임 중엔 정보 창</small></span><span class="tn-key num">${esc(S.hotkey)}</span></div>
+        <div class="tn-sec">도움말</div>
+        <button class="tn-btn tn-tut" data-act="tut">📘 사용법 다시 보기</button>
         <button class="tn-quit" data-act="quit">투데이 내전 완전히 종료</button>
       </div>`;
     panel.querySelector('.tn-set-x').onclick = closePanel;
@@ -66,7 +68,8 @@
     const r = panel.querySelector('.tn-range'), n = panel.querySelector('.tn-vol-n');
     if (r) { r.oninput = () => { n.textContent = r.value; S.sfxVol = r.value / 100; applyVol(); }; r.onchange = () => api.setSetting('sfxVol', r.value / 100); }
     panel.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
-      if (b.dataset.act === 'up') updateNow();
+      if (b.dataset.act === 'tut') { closePanel(); if (api.openTutorial) api.openTutorial(); }
+      else if (b.dataset.act === 'up') updateNow();
       else if (b.dataset.act === 'check') api.checkUpdate();
       else if (b.dataset.act === 'quit' && confirm('투데이 내전을 완전히 종료할까요?')) api.quitApp();
     });
