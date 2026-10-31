@@ -2320,6 +2320,7 @@ else {
     globalShortcut.register(TOGGLE_HOTKEY, toggleOverlay);
     pollGame(); pollSession(); startDockStream();
     setInterval(pollGame, 2500);
+    setInterval(autoLobbyMode, 3000);   // 🔀 v0.1.82: 대기방을 먼저 감지하고 방장이 나중에 된 경우(앱 재시작·방장 이어받기)도 판단 — 대기방 종류가 바뀐 때만 실제로 바꿈
     setInterval(() => { augTick().catch(() => {}); }, 400);   // 🎯 증강 순위(켠 사람만 · 게임 중에만 실제로 읽음)
     if (config.augRank) regAugShot();
     const runSession = coalesce(pollSession);
