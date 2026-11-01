@@ -88,6 +88,9 @@ contextBridge.exposeInMainWorld('api', {
   potgClip: (meta) => ipcRenderer.invoke('potg-clip', meta),
   potgSave: (meta, name, hero) => ipcRenderer.invoke('potg-save', { meta, name, hero: !!hero }),
   potgClose: () => ipcRenderer.send('potg-close'),
+  onPotgWait: (cb) => ipcRenderer.on('potg-wait', (_e, d) => cb(d)),           // ⏳ 팟지 기다림 화면
+  onPotgWaitProg: (cb) => ipcRenderer.on('potg-wait-prog', (_e, d) => cb(d)),
+  potgGuess: (i) => ipcRenderer.send('potg-guess', i),                          // 🔮 팟지 예측
   potgReplay: () => ipcRenderer.send('potg-replay'),
   potgOpen: (card) => ipcRenderer.send('potg-open', card),   // 🎮 「오늘」 탭 일반 판 팟지
 });

@@ -194,10 +194,30 @@ function autoLobbyMode() {
   const want = lobbyCustom ? (cur === 'normal' ? (config.lastTeamMode || 'random') : null) : (cur !== 'normal' ? 'normal' : null);
   if (want) { console.log('[lobby] 롤 대기방이', key === 'custom' ? '사용자 설정 방' : '일반 큐', '→ 방식', want); lobbySetMode(want, true).catch(() => {}); }
 }
+// 🪑 자동 자리 이동(2026-11-01 사장님: 팀이 정해지면 1팀/2팀으로 옮겨 줄 수 있나) — 롤 클라 「팀 참가/관전」 버튼과 같은 요청
+//   POST /lol-lobby/v2/lobby/team/TEAM1|TEAM2|SPECTATOR(rcp-fe-lol-parties teamToStringQueue · 1팀=customTeam100=왼쪽) · 각자 앱이 「내 자리만」 옮김
+//   조건: 사용자 설정 방(Lobby·커스텀) + 판 상태 teams + 내 팀이 정해짐 + 자리를 앎 · 팀 결성(lastFormed)마다 최대 5번(3초 간격 — 상대 팀 칸이 꽉 차 있으면 기다렸다 다시)
+//   한 번 맞게 앉으면 그 결성 동안은 다시 안 옮김(그 뒤 손으로 옮긴 건 그대로) · ⚙️ 설정 「팀 자리로 자동 이동」(기본 켬)
+//   ⚠️ 예전에 시험한 /lol-lobby/v1/lobby/custom/switch-teams는 404였음
+let _seatKey = null, _seatTries = 0, _seatAt = 0, _seatDone = null;
+function autoSeat() {
+  const s = sessionData, me = config.myName;
+  if (config.autoSeat === false || inGame || lobbyPhase !== 'Lobby' || lobbyCustom !== true || lobbySeat == null || !s || s.phase !== 'teams' || !lastFormed || !me) return;
+  const t = teamOf(s, me), want = t === 'teamA' ? 1 : t === 'teamB' ? 2 : (s.spectators || []).some(n => norm(n) === norm(me)) ? 'spec' : null;
+  if (want == null) return;
+  const key = String(lastFormed);
+  if (_seatDone === key) return;
+  if (lobbySeat === want) { _seatDone = key; return; }
+  if (_seatKey !== key) { _seatKey = key; _seatTries = 0; }
+  if (_seatTries >= 5 || Date.now() - _seatAt < 3000) return;
+  _seatTries++; _seatAt = Date.now();
+  const team = want === 1 ? 'TEAM1' : want === 2 ? 'TEAM2' : 'SPECTATOR';
+  bridge.lcuRaw('POST', `/lol-lobby/v2/lobby/team/${team}`).then(r => console.log('[seat] 자동 자리 이동', team, r && r.status)).catch(() => {});
+}
 function onLobbySeat(d) {
   const prevPhase = lobbyPhase;
   lobbyPhase = d && d.phase || null; lobbySeat = d ? d.seat : null; lobbyCustom = d ? d.custom : null;
-  autoLobbyMode();
+  autoLobbyMode(); autoSeat();
   if ((prevPhase === 'ChampSelect') !== (lobbyPhase === 'ChampSelect')) { if (lobbyPhase !== 'ChampSelect') { champSel = null; _champSelSig = ''; } pushAugGuide().catch(() => {}); }   // 🧭 증강 가이드 켜고 끄기
   if (lobbyPhase === 'ChampSelect' && prevPhase !== 'ChampSelect') borderlessOn();   // 🖥️ 게임 중 정보 창 켠 사람 = 게임 뜨기 전에 테두리 없는 창으로
   else if (prevPhase === 'ChampSelect' && ['Lobby', 'None', 'Matchmaking', 'ReadyCheck'].includes(lobbyPhase) && !inGame) borderlessOff();   // 닷지·취소 → 원래대로
@@ -1238,9 +1258,10 @@ async function fbPutIfAbsent(pathStr, value) {
 
 // ── 🧩 세션 폴링 — 팀 배정·투표·결과를 오버레이/패널로 ──────────────────────
 async function pollSession() {
-  const [s, lob, h, pres, np, pr] = await Promise.all([mirOr('session', fetchSession), mirOr('lobby', fetchLobby), mirOr('host', fetchHost), mirOr('presence', fetchPresence),
-    mirOr('normalLive', () => getJson(`${FIREBASE_DB}/${T}/normalLive.json`)), mirOr('potgRec', () => getJson(`${FIREBASE_DB}/${T}/potgRec.json`))]);   // 📡 스트림 사본(끊겼을 때만 서버에서)
-  normalLive = np || null; potgRecRaw = pr || null;
+  const [s, lob, h, pres, np, pr, pw] = await Promise.all([mirOr('session', fetchSession), mirOr('lobby', fetchLobby), mirOr('host', fetchHost), mirOr('presence', fetchPresence),
+    mirOr('normalLive', () => getJson(`${FIREBASE_DB}/${T}/normalLive.json`)), mirOr('potgRec', () => getJson(`${FIREBASE_DB}/${T}/potgRec.json`)),
+    mirOr('potgWait', () => getJson(`${FIREBASE_DB}/${T}/potgWait.json`))]);   // 📡 스트림 사본(끊겼을 때만 서버에서)
+  normalLive = np || null; potgRecRaw = pr || null; potgWaitRaw = pw || null;
   sessionData = s || null;
   lobbyRaw = lob || null; presenceRaw = pres || null;
   onHostRec(h);
@@ -1267,6 +1288,13 @@ async function pollSession() {
     if (on) showRecToast(`${R.who}님 PC에서 리플레이로 찍는 중 · 곧 팟지가 떠요`, R.pct ? { pct: R.pct, left: R.left } : null);
     else if (!_recLocal && recToastWin) hideRecToast();
   }
+  { // ⏳ 팟지 기다림 화면(2026-11-01) — 녹화하는 동안 그 판에 있던 사람(관전 포함)에게 가운데 창으로 예측 투표·이번 판 기록·킬 지도·증강·오늘 순위
+    const W = potgWaitRaw, me = config.myName;
+    const mine = W && W.gameId && me && Date.now() - (W.at || 0) < 300000 && !inGame && (W.players || []).some(n => norm(n) === norm(me));
+    if (mine) { _waitSeen = Date.now(); if (_potgMode !== 'play' && _waitClosed !== W.gameId) openPotgWait(W).catch(() => {}); }
+    else if (_potgMode === 'wait' && Date.now() - _waitSeen > 8000) closePotg();   // 팟지가 안 뜨고 끝났으면(카드 없음 등) 닫음 · 공개되면 openPotg가 이어받음
+  }
+  autoSeat();   // 🪑 팀이 정해진 순간·재시도(자리 감지는 바뀔 때만 와서 여기서도)
   if (config.isHost) runHost();
 }
 
@@ -1279,10 +1307,15 @@ function potgBounds() {
   const W = Math.round(Math.max(560, Math.min(960, cw * 0.66))), H = Math.round(Math.min(ch * 0.92, W * 9 / 16 + 36));   // 영상 칸 = 정확히 16:9(위 띠 34+테두리 2) · 2026-11-01: +136이라 칸이 1.51:1 → 영상이 1.17배 커지며 양옆 잘림
   return { x: Math.round(cx + (cw - W) / 2), y: Math.round(cy + (ch - H) / 2), width: W, height: H };
 }
+let _potgMode = null;   // 'wait'(⏳ 녹화 기다림 화면) · 'play'(팟지 재생)
 function openPotg(card, manual) {
   if (inGame || !card || card.none) return;
+  _potgMode = 'play';
   const send = () => { try { potgWin.webContents.send('potg', { card, manual: !!manual }); } catch (_) {} };
   if (potgWin && !potgWin.isDestroyed()) { potgWin.setBounds(potgBounds()); send(); potgWin.showInactive(); return; }
+  makePotgWin(send);
+}
+function makePotgWin(send) {
   potgWin = new BrowserWindow(Object.assign(potgBounds(), {
     show: false, frame: false, resizable: false, skipTaskbar: true, alwaysOnTop: true, roundedCorners: false, backgroundColor: '#060b10',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, autoplayPolicy: 'no-user-gesture-required' },
@@ -1290,9 +1323,93 @@ function openPotg(card, manual) {
   try { potgWin.setAlwaysOnTop(true, 'floating'); } catch (_) {}
   potgWin.webContents.on('did-finish-load', () => { send(); if (potgWin) potgWin.showInactive(); });
   potgWin.loadFile('potg/potg.html');
-  potgWin.on('closed', () => { potgWin = null; });
+  potgWin.on("closed", () => { potgWin = null; _potgMode = null; });
 }
-function closePotg() { if (potgWin && !potgWin.isDestroyed()) { try { potgWin.destroy(); } catch (_) {} } potgWin = null; }
+function closePotg() { if (potgWin && !potgWin.isDestroyed()) { try { potgWin.destroy(); } catch (_) {} } potgWin = null; _potgMode = null; }
+// ── ⏳ 팟지 기다림 화면(2026-11-01 사장님: 녹화하는 1~2분이 붕 뜸) ──────────────────────────────────────
+//   녹화하는 앱이 today/potgWait {gameId, path, kind, at, who, players, cands(후보 2~3 · 이름순이라 정답을 안 드러냄), hero, kills(롤 전적 타임라인 킬 위치·시각), guess/{키}:{i,name}} 를 쓰고
+//   공개할 때 맞힌 사람을 경기 기록 guess·카드 guess로 옮긴 뒤 지움 → 그 판 사람(관전 포함) 앱이 가운데 창에 기다림 화면 · ✕로 닫으면 그 판엔 다시 안 뜸(팟지는 그대로 뜸)
+let potgWaitRaw = null, _waitClosed = null, _waitSeen = 0, _waitCache = null;
+async function killTimeline(gameId) {   // 롤 전적 타임라인(게임 끝나고 바로 받아짐 · 실측 4판 모두 첫 시도) → 챔피언 킬 위치·시각
+  if (!bridge || !bridge.lcuRaw) return null;
+  const [tl, g] = await Promise.all([bridge.lcuRaw('GET', `/lol-match-history/v1/game-timelines/${gameId}`), bridge.lcuRaw('GET', `/lol-match-history/v1/games/${gameId}`)]);
+  if (!(tl && tl.status === 200 && tl.data && Array.isArray(tl.data.frames))) return null;
+  const part = {}; for (const p of ((g && g.data && g.data.participants) || [])) part[p.participantId] = { c: p.championId, tm: p.teamId };
+  const out = [];
+  for (const f of tl.data.frames) for (const e of (f.events || [])) if (e.type === 'CHAMPION_KILL' && e.position) {
+    const k = part[e.killerId] || {}, v = part[e.victimId] || {};
+    out.push({ t: Math.round((e.timestamp || 0) / 100) / 10, x: e.position.x, y: e.position.y, k: k.c || 0, v: v.c || 0, tm: k.tm || (v.tm === 100 ? 200 : 100) });
+  }
+  return out.slice(0, 120);
+}
+async function potgWaitStart(card, g) {   // 녹화하는 앱(방장) — 녹화 시작 때
+  const players = card.normal ? (card.normal.us || []) : [...((sessionData && sessionData.teamA) || []), ...((sessionData && sessionData.teamB) || []), ...((sessionData && sessionData.spectators) || [])];
+  const cands = [card].concat(card.alts || []).map(c => ({ name: c.name, champ: c.champ || '', championId: c.championId || 0, label: c.label || '', team: c.team || null }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'));   // 이름순 = 정답 위치를 안 드러냄
+  await fbSet(`${T}/potgWait`, { gameId: String(g.id), path: g.path, kind: card.normal ? 'normal' : 'match', at: Date.now(), who: config.myName || null, players, cands: cands.length >= 2 ? cands : null, hero: !!card.hero });
+  const k = await killTimeline(g.id).catch(() => null);
+  if (k && k.length) await fbSet(`${T}/potgWait/kills`, k).catch(() => {});
+}
+async function potgWaitFinish(card, recPath) {   // 공개 직전 — 예측 결과를 경기 기록·카드에 남기고 지움
+  const W = MIR.potgWait && MIR.potgWait.ready ? MIR.potgWait.data : await getJson(`${FIREBASE_DB}/${T}/potgWait.json`).catch(() => null);
+  if (!W || String(W.gameId) !== String(card.gameId)) return;
+  const picks = W.guess || {}, cands = W.cands || [];
+  if (cands.length >= 2 && Object.keys(picks).length) {
+    const ans = cands.findIndex(c => norm(c.name) === norm(card.name));
+    const right = Object.values(picks).filter(v => v && v.i === ans).map(v => v.name);
+    card.guess = { right, n: Object.keys(picks).length };
+    const pk = {}; for (const [k, v] of Object.entries(picks)) if (v && cands[v.i]) pk[k] = cands[v.i].name;
+    await fbUpdate(recPath, { guess: { answer: card.name, right, picks: pk } }).catch(() => {});
+  }
+  await fbSet(`${T}/potgWait`, null).catch(() => {});
+}
+async function waitToday(W) {   // 오늘 순위 변화(이 판 빼고 → 넣고) + 오늘의 예측왕 + (일반 판이면) 오늘 같이 한 일반 판
+  const day = String(W.path || '').split('/')[2];
+  const [raw, nraw] = await Promise.all([fetchDay(day), getJson(`${FIREBASE_DB}/${T}/days/${day}/normals.json`)]);
+  const after = computeToday(raw).standings, rest = {};
+  for (const [k, v] of Object.entries(raw || {})) if (String(k) !== String(W.gameId)) rest[k] = v;
+  const before = computeToday(rest).standings, pre = {}; before.forEach(p => { pre[p.name] = p.rank; });
+  const rows = after.map(p => ({ name: p.name, rank: p.rank, prev: pre[p.name] || null, w: p.wins, l: p.losses, streak: p.streak, mvp: p.mvp, here: (W.players || []).some(n => normName(n) === p.name) }));
+  const kings = {};
+  for (const m of [...Object.values(raw || {}), ...Object.values(nraw || {})]) for (const n of ((m && m.guess && m.guess.right) || [])) kings[n] = (kings[n] || 0) + 1;
+  const ns = Object.values(nraw || {}).filter(m => m && Array.isArray(m.us));
+  return { rows, kings: Object.entries(kings).map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n).slice(0, 5), normal: ns.length ? { w: ns.filter(m => m.win).length, l: ns.filter(m => !m.win).length } : null };
+}
+async function waitView(W) {
+  if (!_waitCache || _waitCache.id !== W.gameId) _waitCache = { id: W.gameId, rec: null, today: null, augs: null, at: 0 };
+  const C = _waitCache;
+  if ((!C.rec || !C.today) && Date.now() - C.at > 6000) {
+    C.at = Date.now();
+    const [rec, today, augs] = await Promise.all([getJson(`${FIREBASE_DB}/${W.path}.json`).catch(() => null), waitToday(W).catch(() => null), getAugments().catch(() => ({}))]);
+    if (rec) C.rec = rec; if (today) C.today = today; C.augs = augs;
+  }
+  const rec = C.rec || {}, used = {};
+  const stats = (rec.stats || []).map(p => {
+    for (const a of (p.augments || [])) if (C.augs && C.augs[a]) used[a] = { name: C.augs[a].name, icon: C.augs[a].icon, rarity: C.augs[a].rarity };
+    return { n: p.summonerName, c: p.championId, cn: p.championName, tm: p.teamId, win: !!p.isWin, k: p.kills || 0, d: p.deaths || 0, a: p.assists || 0, dmg: p.damage || 0,
+      tk: (p.taken || 0) + (p.mitig || 0), heal: (p.healMates || 0) + (p.shieldMates || 0), selfHeal: p.heal || 0, cc: p.cc || 0, gold: p.gold || 0, cs: p.cs || 0, fb: !!p.firstBlood,
+      multi: p.pentaKills ? 5 : p.quadraKills ? 4 : p.tripleKills ? 3 : p.doubleKills ? 2 : 0, aug: p.augments || [] };
+  });
+  const me = config.myName || '', g = W.guess || {}, counts = {};
+  for (const v of Object.values(g)) if (v && Number.isInteger(v.i)) counts[v.i] = (counts[v.i] || 0) + 1;
+  const mine = g[fbKeyOf(me)];
+  const P = _recLocal ? Object.assign({ sub: _recToastMsg.sub }, recProgNow() || {}) : potgRecRaw ? { pct: potgRecRaw.pct, left: potgRecRaw.left, sub: potgRecRaw.sub } : null;
+  const votes = W.kind === 'match' && sessionData && sessionData.game && String(sessionData.game.id) === String(W.gameId) ? { done: Object.keys(sessionData.votes || {}).length, all: [...(sessionData.teamA || []), ...(sessionData.teamB || [])].length } : null;
+  return { gameId: W.gameId, kind: W.kind, who: W.who, hero: !!W.hero, me, cands: W.cands || [], counts, mine: mine ? mine.i : null, voters: Object.keys(g).length,
+    kills: W.kills || [], gameTime: rec.gameTime || null, stats, augs: used, today: C.today, prog: P, votes, queue: rec.queue || null };
+}
+async function openPotgWait(W) {
+  const v = await waitView(W);
+  if (_potgMode === 'play' && potgWin && !potgWin.isDestroyed()) return;
+  _potgMode = 'wait';
+  const send = () => { try { potgWin.webContents.send('potg-wait', v); } catch (_) {} };
+  if (potgWin && !potgWin.isDestroyed()) { send(); if (!potgWin.isVisible()) { potgWin.setBounds(potgBounds()); potgWin.showInactive(); } return; }
+  makePotgWin(send);
+}
+function waitProgPush() {   // 0.5초마다(녹화하는 앱) — 진행 막대만
+  if (_potgMode !== 'wait' || !potgWin || potgWin.isDestroyed()) return;
+  const p = recProgNow(); try { potgWin.webContents.send('potg-wait-prog', Object.assign({ sub: _recToastMsg.sub }, p || {})); } catch (_) {}
+}
 
 // ── 👑 방장 담당: EOG → 오늘 기록 저장 / 전원 투표 → 결과 확정 ─────────────────
 let _hostBusy = false;
@@ -1317,6 +1434,7 @@ async function hostTick() {
   if ((s.phase === 'vote' || s.phase === 'result') && s.game && (!s.potg || s.potg.gameId !== String(s.game.id))) hostPotg(s).catch(() => {});   // 🎬
   if (s.potg && s.potg.pending && !replayBusy && Date.now() - (s.potg.pendingAt || 0) > (s.potg.hero ? 340000 : 260000)) {   // 🎬 녹화하던 방장 앱이 꺼졌거나 넘겨받음 → 카드로라도 보여줌
     const c = Object.assign({}, s.potg, { pending: null, pendingAt: null, showAt: Date.now() + 1500 });
+    if (s.game) await potgWaitFinish(c, `${T}/days/${s.game.day}/matches/${s.game.id}`).catch(() => {});
     await fbUpdate(`${T}/session`, { potg: c }); if (s.game) await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: c });
   }
   if (s.phase === 'vote' && s.game) {
@@ -1349,6 +1467,7 @@ async function hostPotg(s) {
       if (hero) { try { hero.splash = await potg.splashFor(hero.championId, hero.skin); } catch (_) {} card.hero = hero; }
     } catch (e) { console.log('[potg] 숨은 영웅 고르기 오류', e && e.message); }
     const publish = async () => {   // 모두에게 보여주기(showAt = 다 같이 시작할 시각)
+      await potgWaitFinish(card, `${T}/days/${s.game.day}/matches/${s.game.id}`).catch(() => {});   // 🔮 예측 결과
       card.pending = null; card.pendingAt = null; card.showAt = Date.now() + 1500;
       await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: card });
       const cur = sessionData && sessionData.game;   // 녹화하는 사이 다음 판이 기록됐으면 지금 판 팟지를 덮지 않음(경기 기록에만 남김)
@@ -1418,6 +1537,7 @@ async function normalPotg(rec) {
     if (hero) { hero.normal = card.normal; try { hero.splash = await potg.splashFor(hero.championId, hero.skin); } catch (_) {} card.hero = hero; }
   } catch (err) { console.log('[normal] 숨은 영웅 고르기 오류', err && err.message); }
   const publish = async () => {
+    await potgWaitFinish(card, path).catch(() => {});   // 🔮 예측 결과
     card.pending = null; card.pendingAt = null; card.showAt = Date.now() + 1500;
     await fbUpdate(path, { potg: card });
     await fbSet(`${T}/normalLive`, card);
@@ -1465,6 +1585,7 @@ function recToastBounds() {
 function showRecToast(sub, prog) {
   if (sub != null) _recToastMsg = Object.assign({}, _recToastMsg, { title: '팟지 녹화 중', sub });
   if (prog !== undefined) Object.assign(_recToastMsg, { pct: prog ? prog.pct : null, left: prog ? prog.left : null });
+  if (_potgMode === 'wait' && potgWin && !potgWin.isDestroyed() && potgWin.isVisible()) { hideRecToast(); return; }   // ⏳ 기다림 화면에 같은 막대가 있음
   if (recToastWin && !recToastWin.isDestroyed()) { try { recToastWin.webContents.send('rec-toast', _recToastMsg); } catch (_) {} return; }
   recToastWin = new BrowserWindow(Object.assign(recToastBounds(), {
     frame: false, transparent: true, resizable: false, movable: false, focusable: false, skipTaskbar: true, alwaysOnTop: true, show: false, hasShadow: false, roundedCorners: false,
@@ -1506,7 +1627,7 @@ function recProgStart(parts) {
   t += 0.5; marks.push(['close', t]); t += 2 + 4 * parts.length;
   _recProg = { total: t, marks, sec: 0, at: Date.now(), cap: marks[0][1] - 0.5 };
   clearInterval(_recProgTimer); let n = 0;
-  _recProgTimer = setInterval(() => { if (!_recLocal || !_recProg) return recProgStop(); showRecToast(null, recProgNow()); if (++n % 4 === 0) recPush(); }, 500);
+  _recProgTimer = setInterval(() => { if (!_recLocal || !_recProg) return recProgStop(); showRecToast(null, recProgNow()); waitProgPush(); if (++n % 4 === 0) recPush(); }, 500);
 }
 function recProgNow() {
   const P = _recProg; if (!P) return null;
@@ -1557,6 +1678,7 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   _recParts = H ? 2 : 1; _recCur = 1; _recLocal = true;   // 🎬 방장(과 그 판 팀원)에게 녹화 중 안내
   _recPlayers = card.normal ? (card.normal.us || []) : [...((sessionData && sessionData.teamA) || []), ...((sessionData && sessionData.teamB) || [])];
   recStage('리플레이 준비 중…');
+  potgWaitStart(card, g).catch(() => {});   // ⏳ 기다림 화면
   const fov = async id => potgFov(id).catch(() => FOV_BASE);
   // 🎥 연출 카메라(2026-11-01 · replayrec direct): 처음 2.4초 주인공 정면(누구 팟지인지) → 교전은 주인공 + 잡힐 상대가 다 보이게 · 팟지는 소개 몫으로 2초 앞부터
   //   이름이 안 잡히면 영문 챔피언 이름(alias)으로 — 한글 챔피언 이름은 리플레이가 못 알아들음(실측)
@@ -2249,7 +2371,7 @@ ipcMain.on('update-now', () => { app._quitting = true; try { autoUpdater.quitAnd
 ipcMain.handle('update-info', () => updView());
 ipcMain.on('update-check', () => checkUpdate());
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
-const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, ingame: !!config.ingame, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY });
+const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, autoSeat: config.autoSeat !== false, ingame: !!config.ingame, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
 ipcMain.handle('settings-get', () => settingsView());
 ipcMain.on('tutorial-open', () => {   // 📘 ⚙ 설정 「사용법 다시 보기」 → 왼쪽 창에 튜토리얼
@@ -2263,6 +2385,7 @@ ipcMain.handle('settings-set', (_e, { key, value }) => {
   else if (key === 'dock') { if ((config.dock !== false) !== !!value) toggleDock(); }
   else if (key === 'sidePanel') { if ((config.sidePanel !== false) !== !!value) toggleSidePanel(); }
   else if (key === 'closeAsk') { config.closeAsk = !!value; refreshTrayMenu(); }
+  else if (key === 'autoSeat') { config.autoSeat = !!value; if (value) { _seatDone = null; _seatKey = null; autoSeat(); } }   // 🪑
   else if (key === 'augRank') {   // 🎯 증강 순위(베타) — 게임 위에 떠야 해서 테두리 없는 창도 같이
     config.augRank = !!value;
     if (!config.augRank) { hideAugRank(); ocrStop(); try { globalShortcut.unregister(AUG_SHOT_KEY); } catch (_) {} if (!inGame && !config.ingame) borderlessOff(); }
@@ -2348,7 +2471,14 @@ ipcMain.handle('potg-save', async (_e, { meta, name, hero }) => {   // 🎬 「�
   if (r.canceled || !r.filePath) return { ok: false, canceled: true };
   try { fs.copyFileSync(p, r.filePath); return { ok: true, path: r.filePath }; } catch (_) { return { ok: false }; }
 });
-ipcMain.on('potg-close', () => closePotg());
+ipcMain.on('potg-close', () => { if (_potgMode === 'wait' && potgWaitRaw) _waitClosed = potgWaitRaw.gameId; closePotg(); });   // ⏳ 기다림 화면을 닫으면 그 판엔 다시 안 띄움
+ipcMain.on('potg-guess', (_e, i) => {   // 🔮 팟지 예측 한 표(바꿀 수 있음)
+  const W = potgWaitRaw, me = config.myName;
+  if (!W || !me || !Array.isArray(W.cands) || !Number.isInteger(i) || i < 0 || i >= W.cands.length) return;
+  W.guess = Object.assign({}, W.guess, { [fbKeyOf(me)]: { i, name: me, at: Date.now() } });   // 내 화면 먼저
+  openPotgWait(W).catch(() => {});
+  fbSet(`${T}/potgWait/guess/${fbKeyOf(me)}`, { i, name: me, at: Date.now() }).catch(() => {});
+});
 ipcMain.on('potg-open', (_e, card) => { if (card && !card.none) openPotg(card, true); });   // 「오늘」 탭 일반 판 「팟지」
 ipcMain.on('potg-replay', () => { const P = sessionData && sessionData.potg; if (P && !P.none) openPotg(P, true); });   // 결과 화면 「팟지 다시 보기」
 ipcMain.handle('rec-state', () => recState);   // 📼 기록 저장 진행 상태   // 👤 개인 내전 프로필
@@ -2393,6 +2523,7 @@ else {
     fbMirror('presence', d => { presenceRaw = d || null; broadcast('lobby', lobbyView()); }); // ⚡ 누가 들어오고 나감
     fbMirror('host', runSession);                        // ⚡ 방장 바뀜(넘겨받음·이어받음)
     fbMirror('normalLive', runSession);                  // 🎮 같이 한 일반 판 팟지
+    fbMirror('potgWait', runSession);                    // ⏳ 팟지 기다림 화면(예측 투표 실시간)
     fbMirror('potgRec', runSession);                     // 🔴 녹화 중 안내                  // ⚡ 방장 준비 중 배너
     fbStream(`${T}/bridge/eogStats`, () => { if (config.isHost) runHost(); });   // ⚡ 경기 종료 → 방장 앱이 바로 기록
     setupAutoUpdate();

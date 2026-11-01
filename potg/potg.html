@@ -42,6 +42,17 @@
       <div id="pg-wait" class="pg-wait" style="display:none;">영상 받는 중…</div>
       <div id="pg-card" class="pg-card" style="display:none;"></div>
     </section>
+    <!-- ⏳ 팟지 기다림 화면(2026-11-01) — 녹화하는 동안 · wait.js -->
+    <section id="pg-room" class="pg-room" style="display:none;">
+      <div class="wr-top">
+        <div class="wr-ttl"><b>팟지 준비 중</b><small id="wr-who"></small></div>
+        <div class="wr-pc"><b id="wr-pct" class="num"></b><small id="wr-left"></small></div>
+      </div>
+      <div class="wr-prog"><i id="wr-bar"></i></div>
+      <div id="wr-steps" class="wr-steps"></div>
+      <nav id="wr-tabs" class="wr-tabs"></nav>
+      <div id="wr-body" class="wr-body"></div>
+    </section>
     <footer id="pg-end" class="pg-end" style="display:none;">
       <div id="pg-sum" class="pg-sum"></div>
       <div class="pg-btns">
@@ -55,5 +66,6 @@
   </div>
   <script src="../desktop/settings.js"></script>
   <script src="potg.js"></script>
+  <script src="wait.js"></script>
 </body>
 </html>

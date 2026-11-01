@@ -511,7 +511,8 @@ function end(my) {
   const c = card;
   setTeam(c.team);
   el('pg-sum').innerHTML = `<b>${esc(c.name)}</b>${c.champ ? ' · ' + esc(c.champ) : ''} · ${esc(c.label)} · <span class="num">${mmss(c.t0)}</span>`
-    + (c.hero ? `<br><span class="hs">숨은 영웅</span> <b>${esc(c.hero.name)}</b> · ${esc(c.hero.label)} · <span class="num">${mmss(c.hero.peak)}</span>` : '');
+    + (c.hero ? `<br><span class="hs">숨은 영웅</span> <b>${esc(c.hero.name)}</b> · ${esc(c.hero.label)} · <span class="num">${mmss(c.hero.peak)}</span>` : '')
+    + (c.guess && c.guess.n ? `<br><span class="hs">🔮 예측</span> ${c.guess.right.length ? `맞힌 사람 <b>${c.guess.right.map(esc).join(', ')}</b>` : '아무도 못 맞혔어요'} · ${c.guess.right.length}/${c.guess.n}명` : '');   // ⏳ 기다림 화면 예측 결과
   el('pg-save').style.display = clipPath ? '' : 'none';
   el('pg-save2').style.display = heroPath ? '' : 'none';
   el('pg-end').style.display = '';

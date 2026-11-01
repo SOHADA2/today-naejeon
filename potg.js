@@ -130,15 +130,19 @@ module.exports = function makePotg(d) {
     }
     cands.sort((a, b) => b.score - a.score);
     const c = cands[0], p = players[norm(c.killer)] || {};
-    const label = c.kind === 'steal' ? c.tags[0] : (c.n === 1 && c.tags.includes('솔로킬') ? '솔로킬' : MULTI_LABEL[c.n]);
-    const name = (s.teamA || []).concat(s.teamB || []).find(x => norm(x) === norm(c.killer)) || String(c.killer).split('#')[0];
+    const labelOf = c => c.kind === 'steal' ? c.tags[0] : (c.n === 1 && c.tags.includes('솔로킬') ? '솔로킬' : MULTI_LABEL[c.n]);
+    const nameOf = k => (s.teamA || []).concat(s.teamB || []).find(x => norm(x) === norm(k)) || String(k).split('#')[0];
+    const label = labelOf(c), name = nameOf(c.killer);
+    // 🔮 팟지 예측(2026-11-01) — 녹화 기다리는 동안 「누가 팟지일까?」 후보 = 1위 + 다른 사람의 다음 장면 최대 2개
+    const alts = [], seen = new Set([norm(c.killer)]);
+    for (const x of cands.slice(1)) { if (alts.length >= 2 || seen.has(norm(x.killer))) continue; seen.add(norm(x.killer)); const q = players[norm(x.killer)] || {}; alts.push({ name: nameOf(x.killer), champ: q.champ || '', championId: champId(x.killer), label: labelOf(x), team: teamOfName(x.killer) }); }
     return {
       name, champ: p.champ || '', championId: champId(c.killer), team: teamOfName(c.killer), skin: p.skin == null ? null : p.skin,
       label, tags: c.tags.filter(t => t !== label), score: Math.round(c.score),
       t0: c.t0, t1: c.t1, clipFrom: Math.max(0, Math.floor(c.t0 - 5)), clipTo: Math.ceil(c.t1 + 2),   // 팟지 공식: 킬 5초 전부터(빌드업) · 끝은 마지막 킬 +2초(2026-11-01: +3초는 정지 화면 뒤 걸어가는 장면만 남음 → 팟지 창이 0.5배 여운 후 페이드) — v0.1.35 8→5초
       kills: c.ks.map(k => { const v = players[norm(k.v)] || {}; return { t: k.t, victim: String(k.v).split('#')[0], champ: v.champ || '', championId: champId(k.v), solo: !k.a || !k.a.length }; }),
       obj: c.obj ? { n: c.obj.n, t: c.obj.t } : null,
-      apps: list.length,
+      apps: list.length, alts,
     };
   }
   // ── ②-2 숨은 영웅(v0.1.44 · 방장) — 킬이 아닌 서포터·탱커 장면 하나 ─────────────────────
