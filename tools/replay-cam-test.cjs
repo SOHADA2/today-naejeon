@@ -1,13 +1,17 @@
 // 🎥 팟지 카메라 시험(v0.1.80) — 실제 롤 리플레이로 같은 장면을 시야(fov)만 바꿔 여러 번 녹화해 비교(replayrec.js 그대로 · 창 숨김·화면 설정 되돌림 포함)
-// 사용(리포 루트): node tools/replay-cam-test.cjs <게임번호> <시작초> <끝초> <주인공 게임 이름> <챔피언 이름> <시야,시야,…> [출력폴더]
-//   예: node tools/replay-cam-test.cjs 8440219574 880 893 애긔반달곰 자야 50,60,68
+// 사용(리포 루트): node tools/replay-cam-test.cjs <게임번호> <시작초> <끝초> <주인공 게임 이름> <챔피언 이름> <연출,…> [킬 시각,…] [출력폴더]
+//   연출 = 숫자(그 시야로 지금 시점) · top(지금 시점·시야 60) · tps(챔피언 등 뒤 3인칭 내내) · follow(fps+붙기 = 챔피언 추적 내내) · mix(지금 시점 → 첫 킬 1.5초 전 챔피언 추적 → 마지막 킬 1초 뒤 원래대로 · 킬 시각 필요)
+//   예: node tools/replay-cam-test.cjs 8440219574 880 893 애긔반달곰 자야 top,tps,mix 883.4,886.9,889.5
+//   (v0.1.80 시야 비교 = … 자야 50,60,68) · 직접 지정 = JSON을 ; 로 나눠서(아래 preset 참고)
+//   ⚠️ cameraMode 'tps'(3인칭)는 리플레이가 꺼짐(2026-11-01 실기 · SentryHandleException) → 쓰지 말 것
 //   ⚠️ 롤 클라가 그동안 리플레이를 열어(1~2분) 큐를 못 잡음 → 사장님께 먼저 묻기 · 설치된 투데이 내전 앱은 끄고(리플레이를 게임으로 착각) 끝나면 다시 켜기
 //   ⚠️ 리플레이는 그 판에 참가한 계정 PC에서만(관전한 판은 LCU metadata 404)
 //   결과 = 출력폴더의 webm(1920×1080) + 로그의 「카메라 {sel, att, mode, fov…}」 → ffmpeg로 킬 시각 프레임을 뽑아 비교(docs/screen-layout.md 3절)
 const fs = require('fs'), path = require('path'), os = require('os'), https = require('https'), { spawn, execFile } = require('child_process');
 const repo = path.join(__dirname, '..');
-const [gameId, from, to, focus, champ, fovs, outArg] = process.argv.slice(2);
-if (!gameId || !fovs) { console.log('사용: node tools/replay-cam-test.cjs <게임번호> <시작초> <끝초> <주인공 이름> <챔피언 이름> <시야,…> [출력폴더]'); process.exit(1); }
+const [gameId, from, to, focus, champ, fovs, killsArg, outArg] = process.argv.slice(2);
+if (!gameId || !fovs) { console.log('사용: node tools/replay-cam-test.cjs <게임번호> <시작초> <끝초> <주인공 이름> <챔피언 이름> <연출,…> [킬 시각,…] [출력폴더]'); process.exit(1); }
+const kills = String(killsArg || '').split(',').map(Number).filter(Number.isFinite).sort((a, b) => a - b);
 const out = outArg || fs.mkdtempSync(path.join(os.tmpdir(), 'replay-cam-'));
 const makeReplayRec = require(path.join(repo, 'replayrec.js'));
 const LOL = process.env.LOL_DIR || 'C:/Riot Games/League of Legends';
@@ -33,7 +37,23 @@ const rr = makeReplayRec(Object.assign(makeReplayRec.defaults(), {
 }));
 (async () => {
   const base = { from: +from, to: +to, focus, champ };
-  const parts = String(fovs).split(',').map(f => Object.assign({ fov: +f || undefined }, base));
+  const preset = v => {
+    if (v === 'top') return { fov: 60 };
+    if (v === 'tps') return { fov: 60, cam: { cameraMode: 'tps' } };   // ⚠️ 리플레이가 꺼짐(쓰지 말 것)
+    if (v === 'follow') return { fov: 60, cam: { cameraMode: 'fps', cameraAttached: true } };   // 챔피언 추적(2026-11-01 실기: top·focus는 붙기가 안 먹고 fps+붙기만 실제로 따라감)
+    if (v === 'mix') { if (!kills.length) throw new Error('mix는 킬 시각이 필요해요'); return { fov: 60, camAt: [{ t: kills[0] - 1.5, set: { cameraMode: 'fps', cameraAttached: true } }, { t: kills[kills.length - 1] + 1, set: { cameraMode: 'top', cameraAttached: true } }] }; }
+    if (v === 'zoom') {   // 3인칭 대신: 첫 킬 1.5초 전부터 0.1초마다 시야 60→42·주인공을 가운데로(selectionOffset z 0→700) · 마지막 킬 0.6초 뒤부터 되돌림
+      if (!kills.length) throw new Error('zoom은 킬 시각이 필요해요');
+      const camAt = [], ramp = (t0, dur, f0, f1, z0, z1) => { for (let i = 0; i <= 10; i++) { const k = i / 10, e = k * k * (3 - 2 * k); camAt.push({ t: +(t0 + dur * k).toFixed(2), set: { fieldOfView: +(f0 + (f1 - f0) * e).toFixed(1), selectionOffset: { x: 0, y: 0, z: Math.round(z0 + (z1 - z0) * e) } } }); } };
+      ramp(kills[0] - 1.5, 1.0, 60, 42, 0, 700); ramp(kills[kills.length - 1] + 0.6, 1.2, 42, 60, 700, 0);
+      return { fov: 60, camAt };
+    }
+    if (v.startsWith('{')) return JSON.parse(v);   // 직접 지정: {"fov":45,"cam":{"cameraRotation":{"x":0,"y":40,"z":0}},"from":883,"to":887}
+    return { fov: +v || undefined };
+  };
+  const names = String(fovs).includes('{') ? String(fovs).split(';') : String(fovs).split(',');   // JSON 연출은 ; 로 나눔
+  const parts = names.map(v => Object.assign({}, base, preset(v)));   // 연출에 from/to가 있으면 그 구간
+  console.log('연출', names.join(' / '), '· 킬', kills.join(', ') || '-', '· 출력', out);
   const files = await rr.record({ gameId: +gameId, parts });
   console.log('영상', JSON.stringify(files, null, 1));
 })();

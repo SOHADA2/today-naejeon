@@ -174,7 +174,7 @@ function makeReplayRec(d) {
       for (let pi = 0; pi < parts.length; pi++) outs.push(aborted || (aborted = await realGame()) ? null : await recordOne(parts[pi], pi).catch(e => { log(`장면 ${pi + 1} 오류 ${e && e.message}`); return null; }));
       if (aborted) log('실제 게임·큐가 시작돼 녹화 그만: ' + aborted);
       return outs;
-      async function recordOne({ from, to, focus, champ, fov }, pi) {   // 장면 하나(되감기 → 카메라 → 녹화 → 파일)
+      async function recordOne({ from, to, focus, champ, fov, cam, camAt }, pi) {   // cam = 처음 카메라에 덧붙일 render 값(예: {cameraMode:'tps'}) · camAt = [{t: 게임 초, set: render 값}] 녹화 중 그 시각에 바꿈(섞은 연출 · v0.1.87 시험)   // 장면 하나(되감기 → 카메라 → 녹화 → 파일)
         if (pi) log(`── 장면 ${pi + 1} · ${from}~${to}초`);
           to = Math.min(to, len - 0.5); from = Math.max(0, Math.min(from, to - 3));
           // v0.1.34: 앞 구간(PRE초) 먼저 재생해 화면·카메라가 자리 잡은 뒤 녹화 — 전엔 되감기(seek)가 끝나기 전에 녹화가 시작돼
@@ -189,12 +189,13 @@ function makeReplayRec(d) {
           //   → WARM초 더 앞으로 되감고, 녹화 없이 먼저 재생해 카메라가 따라붙은 뒤 startAt에 닿으면 녹화 시작(영상 0초는 길이로 실측하니 타이밍은 그대로)
           const WARM = 2, warmAt = Math.max(0, startAt - WARM);
           log(`되감기 ${warmAt}초 ${await seekTo(warmAt) ? '완료' : '확인 못 함'} (${sec()}초)`);
-          const view = { cameraAttached: true, cameraMode: 'top', interfaceScoreboard: false, interfaceChat: false, interfaceTimeline: false, interfaceReplay: false, interfaceMinimap: false, interfaceFrames: false, interfaceScore: false, interfaceTarget: false, interfaceQuests: false, interfaceKillCallouts: false, interfaceAnnounce: false };   // 화면 깨끗하게(체력바만 남김 · 롤 킬 알림은 확대하면 위가 잘려서 끄고 팟지 킬 피드로 대신)
+          const view = { cameraAttached: true, cameraMode: 'top', selectionOffset: { x: 0, y: 0, z: 0 }, fieldOfView: 50, interfaceScoreboard: false, interfaceChat: false, interfaceTimeline: false, interfaceReplay: false, interfaceMinimap: false, interfaceFrames: false, interfaceScore: false, interfaceTarget: false, interfaceQuests: false, interfaceKillCallouts: false, interfaceAnnounce: false };   // 화면 깨끗하게(체력바만 남김 · 롤 킬 알림은 확대하면 위가 잘려서 끄고 팟지 킬 피드로 대신)
           await live('POST', '/replay/render', Object.assign({ selectionName: focus }, view));
           const r = await live('GET', '/replay/render');
           if (champ && !(r.data && r.data.selectionName)) { await live('POST', '/replay/render', Object.assign({ selectionName: champ }, view)); log('카메라: 챔피언 이름으로 다시 지정'); }   // 게임 이름이 안 먹으면
+          if (cam) await live('POST', '/replay/render', cam);
           if (fov) await live('POST', '/replay/render', { fieldOfView: fov });   // v0.1.80: 시야 넓히기(먼 사거리 · 주인공이 화면 끝에 걸리던 것)
-          { const c = (await live('GET', '/replay/render')).data || {}; log(`카메라 ${JSON.stringify({ sel: c.selectionName, att: c.cameraAttached, mode: c.cameraMode, fov: c.fieldOfView, off: c.selectionOffset, pos: c.cameraPosition, rot: c.cameraRotation })}`); }
+          { const c = (await live('GET', '/replay/render')).data || {}; log(`카메라 ${JSON.stringify({ sel: c.selectionName, att: c.cameraAttached, mode: c.cameraMode, fov: c.fieldOfView, off: c.selectionOffset, move: c.cameraMoveSpeed, look: c.cameraLookSpeed, pos: c.cameraPosition, rot: c.cameraRotation })}`); }
           await sleep(800);   // 장면 불러오기
           if (warmAt < startAt) {   // 카메라 따라붙기(녹화 없이 재생)
             await live('POST', '/replay/playback', { time: warmAt, paused: false, speed: 1 });
@@ -208,9 +209,16 @@ function makeReplayRec(d) {
           // ⑤ 끝 = 리플레이 시간이 to를 지나고 녹화가 멈춤(녹화 쪽 값만 믿지 않음 — 리플레이 시간 기준) · 최대 (구간+앞부분)×4 + 30초
           let lastPath = null, last = 0, n = 0, moveAt = Date.now(), moveT = -1, shown = !hid;
           const limit = Date.now() + ((to - startAt) * 4 + 30) * 1000;
+          // 🎥 섞은 연출 — 0.1초마다 리플레이 시각을 보고 정한 시각이 되면 카메라 render 값을 바꿈(예: 킬 1.5초 전 3인칭 → 킬 뒤 원래대로)
+          const camQ = Array.isArray(camAt) ? camAt.slice().sort((x, y) => x.t - y.t) : [];
+          let camBusy = false;
+          const camTimer = camQ.length ? setInterval(async () => {
+            if (camBusy || !camQ.length) return; camBusy = true;
+            try { const q = await live('GET', '/replay/playback'), t = q.data && q.data.time; while (camQ.length && t != null && t >= camQ[0].t) { const c = camQ.shift(); await live('POST', '/replay/render', c.set); log(`카메라 바꿈 ${t.toFixed(1)}초 ${JSON.stringify(c.set)}`); } } finally { camBusy = false; }
+          }, 100) : null;
           while (Date.now() < limit) {
             await sleep(1000);
-            if ((aborted = await realGame())) { log('녹화 중 실제 게임·큐 시작 → 이 장면 버림: ' + aborted); return null; }
+            if ((aborted = await realGame())) { log('녹화 중 실제 게임·큐 시작 → 이 장면 버림: ' + aborted); if (camTimer) clearInterval(camTimer); return null; }
             const [g, p] = await Promise.all([live('GET', '/replay/recording'), live('GET', '/replay/playback')]);
             const rec = g.data || {}, t = p.data ? p.data.time : null;
             if (rec.outputPath || rec.path) lastPath = rec.outputPath || rec.path;
@@ -221,6 +229,7 @@ function makeReplayRec(d) {
             if (t != null && t >= to + 0.5 && !rec.recording) break;
             if (p.data && p.data.paused && t != null && t < to) await live('POST', '/replay/playback', { paused: false });   // 누가 멈췄으면 다시 재생
           }
+          if (camTimer) clearInterval(camTimer);
           log(`녹화 구간 끝 · 리플레이 ${last.toFixed(1)}초 (${sec()}초)`);
           await live('POST', '/replay/playback', { paused: true });
           let clip = null, prev = -1;   // 파일 다 써질 때까지(크기가 그대로면 끝)
