@@ -1642,8 +1642,8 @@ function recProgMark(key) {
 }
 function recProgStop() { clearInterval(_recProgTimer); _recProgTimer = null; _recProg = null; }
 function onRecLog(m) {   // replayrec 로그 → 안내 글
-  if (!recToastWin || !_recLocal) return;
-  const sc = () => _recParts > 1 ? `장면 ${_recCur}/${_recParts}` : '장면';
+  if (!_recLocal) return;   // ⚠️ v0.1.90: 안내 창(recToastWin) 유무로 막으면 안 됨 — 기다림 화면(v0.1.89)이 뜨면 안내 창을 닫아서 단계 맞춤이 전부 빠져 막대가 첫 단계 직전(몇 %)에서 멈춰 있었음
+  const sc =() => _recParts > 1 ? `장면 ${_recCur}/${_recParts}` : '장면';
   const mm = /── 장면 (\d+)/.exec(m); if (mm) _recCur = +mm[1];
   if (m.includes('리플레이 열림')) recProgMark('open');   // 📊 진행 퍼센트 단계 맞춤
   if (m.includes('연출 카메라: 주인공 위치') || m.includes('주인공 위치 기록 실패')) recProgMark('scout' + _recCur);
