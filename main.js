@@ -1264,7 +1264,7 @@ async function pollSession() {
     const R = potgRecRaw, me = config.myName;
     const on = !_recLocal && R && R.who && me && norm(R.who) !== norm(me) && Date.now() - (R.at || 0) < 150000 && !inGame
       && (R.players || []).some(n => norm(n) === norm(me)) && !(potgWin && !potgWin.isDestroyed() && potgWin.isVisible());
-    if (on) showRecToast(`${R.who}님 PC에서 리플레이로 찍는 중 · 곧 팟지가 떠요`);
+    if (on) showRecToast(`${R.who}님 PC에서 리플레이로 찍는 중 · 곧 팟지가 떠요`, R.pct ? { pct: R.pct, left: R.left } : null);
     else if (!_recLocal && recToastWin) hideRecToast();
   }
   if (config.isHost) runHost();
@@ -1457,13 +1457,14 @@ let _recLog = [];   // 🎬 녹화 기록(경기 기록 potgRec에 남김 → to
 //   → 롤 클라 위쪽 가운데(클라 없으면 화면 위쪽 가운데)에 작은 창 · 클릭 통과 · 녹화 로그(onRecLog)에 맞춰 단계 글만 바뀜
 let recToastWin = null, _recToastMsg = { title: '팟지 녹화 중', sub: '리플레이 준비 중…' }, _recParts = 1, _recCur = 1;
 function recToastBounds() {
-  const W = 400, H = 66, sf = (screen.getPrimaryDisplay().scaleFactor) || 1;
+  const W = 400, H = 80, sf = (screen.getPrimaryDisplay().scaleFactor) || 1;   // 80 = 퍼센트 막대 줄(2026-11-01)
   if (_lastRect && !_floating) { const cx = _lastRect[0] / sf, cy = _lastRect[1] / sf, cw = (_lastRect[2] - _lastRect[0]) / sf; return { x: Math.round(cx + (cw - W) / 2), y: Math.round(cy + 14), width: W, height: H }; }
   const wa = screen.getPrimaryDisplay().workArea;
   return { x: Math.round(wa.x + (wa.width - W) / 2), y: wa.y + 16, width: W, height: H };
 }
-function showRecToast(sub) {
-  if (sub != null) _recToastMsg = { title: '팟지 녹화 중', sub };
+function showRecToast(sub, prog) {
+  if (sub != null) _recToastMsg = Object.assign({}, _recToastMsg, { title: '팟지 녹화 중', sub });
+  if (prog !== undefined) Object.assign(_recToastMsg, { pct: prog ? prog.pct : null, left: prog ? prog.left : null });
   if (recToastWin && !recToastWin.isDestroyed()) { try { recToastWin.webContents.send('rec-toast', _recToastMsg); } catch (_) {} return; }
   recToastWin = new BrowserWindow(Object.assign(recToastBounds(), {
     frame: false, transparent: true, resizable: false, movable: false, focusable: false, skipTaskbar: true, alwaysOnTop: true, show: false, hasShadow: false, roundedCorners: false,
@@ -1476,7 +1477,7 @@ function showRecToast(sub) {
 }
 function showToast(title, sub, ms) {   // 짧은 안내(녹화 안내 창 재사용 · 녹화 중이면 안 띄움)
   if (_recLocal) return;
-  _recToastMsg = { title, sub }; showRecToast();
+  _recToastMsg = { title, sub, pct: null }; showRecToast();
   setTimeout(() => { if (!_recLocal) hideRecToast(); }, ms || 3000);
 }
 const AUG_SHOT_KEY = 'Shift+F8';
@@ -1485,17 +1486,52 @@ function hideRecToast() { if (recToastWin && !recToastWin.isDestroyed()) { try {
 // 🔴 팀원에게도(v0.1.57) — 녹화하는 앱이 단계마다 today/potgRec {at, who, players, sub}를 적고 끝나면 지움 → 그 판에 있던 사람 앱은 pollSession(3초)에서 읽어 같은 안내
 let _recLocal = false, _recPlayers = [], potgRecRaw = null;
 function recStage(sub) {   // 내 PC 녹화 단계 → 내 안내 + 서버
-  showRecToast(sub);
-  fbSet(`${T}/potgRec`, { at: Date.now(), who: config.myName || null, players: _recPlayers, sub }).catch(() => {});
+  showRecToast(sub, recProgNow());
+  recPush();
 }
-function recEnd() { _recLocal = false; hideRecToast(); fbSet(`${T}/potgRec`, null).catch(() => {}); }
+function recPush() { const p = recProgNow(); fbSet(`${T}/potgRec`, { at: Date.now(), who: config.myName || null, players: _recPlayers, sub: _recToastMsg.sub, pct: p ? p.pct : null, left: p ? p.left : null }).catch(() => {}); }
+function recEnd() { _recLocal = false; recProgStop(); hideRecToast(); fbSet(`${T}/potgRec`, null).catch(() => {}); }
+// 📊 녹화 진행 퍼센트(2026-11-01 사장님: 얼마나 걸리는지 보이게) — 시작 때 장면마다 예상 시간(실측 로그 기준: 열기 ~10초 · 연출 카메라 미리 보기 = 구간/2 + 상대마다 2.2초
+//   · 녹화 = 구간 실제 시간 + 2.5초 · 올리기 4초/영상)
+//   실측 맞춤(자야: 미리 보기 끝 22.2초·녹화 끝 42.2초 → 예상 23.0·44.0 / 제이스: 23.5·45.5 → 24.2·47.6)을 더해 total → 지난 시간으로 차오르되 다음 단계 표시(열림·미리 보기 끝·장면 끝·닫음) 전에는 그 직전에서 기다리고,
+//   단계가 실제로 오면 그 지점으로 맞춤(늦으면 멈춰 있다가 따라잡음 · 빠르면 건너뜀) · 0.5초마다 안내 창, 2초마다 서버(팀원 안내)
+let _recProg = null, _recProgTimer = null;
+function recProgStart(parts) {
+  const PRE = makeReplayRec.PRE || 3, marks = [['open', 6]]; let t = 6;   // 리플레이를 새로 받아야 하면 ~8초 더(그동안은 6초 직전에서 기다림)
+  parts.forEach((p, i) => {
+    const warm = Math.max(0, p.from - PRE - 2); t += 0.5;
+    if (p.direct) { t += (p.to + 0.6 - warm) / 2 + 0.5 + ((p.direct.victims || []).length) * 1.9; marks.push(['scout' + (i + 1), t]); }
+    t += (p.to - warm) + 1; marks.push(['rec' + (i + 1), t]);
+  });
+  t += 0.5; marks.push(['close', t]); t += 2 + 4 * parts.length;
+  _recProg = { total: t, marks, sec: 0, at: Date.now(), cap: marks[0][1] - 0.5 };
+  clearInterval(_recProgTimer); let n = 0;
+  _recProgTimer = setInterval(() => { if (!_recLocal || !_recProg) return recProgStop(); showRecToast(null, recProgNow()); if (++n % 4 === 0) recPush(); }, 500);
+}
+function recProgNow() {
+  const P = _recProg; if (!P) return null;
+  const est = Math.min(P.sec + (Date.now() - P.at) / 1000, P.cap);
+  return { pct: Math.max(1, Math.min(99, Math.round(est / P.total * 100))), left: Math.max(1, Math.round(P.total - est)) };
+}
+function recProgMark(key) {
+  const P = _recProg; if (!P) return; const m = P.marks.find(x => x[0] === key); if (!m) return;
+  const est = Math.min(P.sec + (Date.now() - P.at) / 1000, P.cap);
+  P.sec = Math.max(est, m[1]); P.at = Date.now();
+  const nx = P.marks.find(x => x[1] > P.sec + 0.01); P.cap = nx ? nx[1] - 0.5 : P.total - 0.5;
+}
+function recProgStop() { clearInterval(_recProgTimer); _recProgTimer = null; _recProg = null; }
 function onRecLog(m) {   // replayrec 로그 → 안내 글
   if (!recToastWin || !_recLocal) return;
   const sc = () => _recParts > 1 ? `장면 ${_recCur}/${_recParts}` : '장면';
   const mm = /── 장면 (\d+)/.exec(m); if (mm) _recCur = +mm[1];
+  if (m.includes('리플레이 열림')) recProgMark('open');   // 📊 진행 퍼센트 단계 맞춤
+  if (m.includes('연출 카메라: 주인공 위치') || m.includes('주인공 위치 기록 실패')) recProgMark('scout' + _recCur);
+  if (m.includes('녹화 구간 끝')) recProgMark('rec' + _recCur);
+  if (m.includes('리플레이 닫음')) recProgMark('close');
   if (m.includes('리플레이 받기')) recStage('리플레이 받는 중…');
   else if (m.includes('리플레이 준비됨')) recStage('리플레이 여는 중… (소리가 잠깐 나요)');
   else if (m.includes('되감기')) recStage(`${sc()} 준비 중…`);
+  else if (m.includes('연출 카메라: 주인공 위치')) recStage(`${sc()} 녹화 준비 중…`);
   else if (m.includes('녹화 중') && !_recToastMsg.sub.startsWith(`${sc()} 녹화 중`)) recStage(`${sc()} 녹화 중 · 들리는 소리는 리플레이예요`);
   else if (m.includes('리플레이 닫음')) recStage('영상 정리하고 올리는 중… (곧 끝나요)');
 }
@@ -1528,6 +1564,7 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   const victims = (card.kills || []).map(k => ({ name: k.victim, alias: alias(k.championId), t: k.t })).filter(v => v.name && Number.isFinite(v.t));
   const parts = [{ from: Math.max(0, card.clipFrom - 2), to: card.clipTo, focus: card.name, champ: alias(card.championId), fov: await fov(card.championId), direct: { victims } }]
     .concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: alias(H.championId), fov: await fov(H.championId), direct: { victims: [] } }] : []);
+  recProgStart(parts);
   const t0 = Date.now(), recP = replayRec.record({ gameId: g.id, parts });
   recP.catch(() => {}).finally(() => setTimeout(() => { replayBusy = false; }, 6000));   // 리플레이가 실제로 끝나고(닫히고) 조금 더 지나야 풀림(시간 초과로 먼저 카드를 보여줘도)
   const metas = [null, null], whys = [], secs = [null, null], LIMIT = H ? 260000 : 180000;
