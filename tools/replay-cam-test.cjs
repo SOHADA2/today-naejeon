@@ -46,6 +46,11 @@ const rr = makeReplayRec(Object.assign(makeReplayRec.defaults(), {
     const CAM = { far: { y: 1492, z: -1006, r: 56 }, near: { y: 1000, z: -675, r: 56 }, low: { y: 700, z: -835, r: 40 } };
     const follow = c => ({ cameraMode: 'fps', cameraAttached: true, selectionOffset: { x: 0, y: c.y, z: c.z }, cameraRotation: { x: 0, y: c.r, z: 0 } });
     if (v === 'far' || v === 'near' || v === 'low') return { fov: 60, cam: follow(CAM[v]) };
+    if (v === 'mixseq') {   // ② + 키프레임으로 시야만 60→40(확대)→60 — 롤이 매 프레임 부드럽게 이음(계단식 camAt 대신)
+      if (!kills.length) throw new Error('mixseq는 킬 시각이 필요해요');
+      const k0 = kills[0], kN = kills[kills.length - 1], kf = (time, value) => ({ time: +time.toFixed(2), value, blend: 'smoothStep' });
+      return { fov: 60, cam: follow(CAM.far), seq: { fieldOfView: [kf(k0 - 1.4, 60), kf(k0 - 0.3, 40), kf(kN + 0.6, 40), kf(kN + 1.8, 60)] } };
+    }
     if (v === 'mixnear' || v === 'mixlow') {
       if (!kills.length) throw new Error(v + '는 킬 시각이 필요해요');
       const B = CAM.far, N = CAM[v === 'mixnear' ? 'near' : 'low'], camAt = [];

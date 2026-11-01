@@ -25,7 +25,7 @@ app.whenReady().then(async () => {
   win.webContents.setAudioMuted(true);   // 스피커로 안 나감(재생·시각은 그대로)
   win.webContents.setFrameRate(FPS);
   const frames = []; let t0 = null;
-  win.webContents.on('paint', (_e, _d, img) => { if (t0 == null) return; frames.push({ t: (Date.now() - t0) / 1000, jpg: img.toJPEG(88) }); });
+  win.webContents.on('paint', (_e, _d, img) => { if (t0 == null) return; frames.push({ t: (Date.now() - t0) / 1000, jpg: img.toJPEG(+process.env.PREVIEW_Q || 88) }); });
   await win.loadFile(page);
   await new Promise(r => setTimeout(r, 1500));   // 소리·글꼴 미리 불러오기
   const card = JSON.parse(fs.readFileSync(cardFile, 'utf8'));

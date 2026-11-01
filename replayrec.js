@@ -174,7 +174,7 @@ function makeReplayRec(d) {
       for (let pi = 0; pi < parts.length; pi++) outs.push(aborted || (aborted = await realGame()) ? null : await recordOne(parts[pi], pi).catch(e => { log(`장면 ${pi + 1} 오류 ${e && e.message}`); return null; }));
       if (aborted) log('실제 게임·큐가 시작돼 녹화 그만: ' + aborted);
       return outs;
-      async function recordOne({ from, to, focus, champ, fov, cam, camAt }, pi) {   // cam = 처음 카메라에 덧붙일 render 값(예: {cameraMode:'tps'}) · camAt = [{t: 게임 초, set: render 값}] 녹화 중 그 시각에 바꿈(섞은 연출 · v0.1.87 시험)   // 장면 하나(되감기 → 카메라 → 녹화 → 파일)
+      async function recordOne({ from, to, focus, champ, fov, cam, camAt, seq }, pi) {   // cam = 처음 카메라에 덧붙일 render 값(예: {cameraMode:'tps'}) · camAt = [{t: 게임 초, set: render 값}] 녹화 중 그 시각에 바꿈(섞은 연출 · v0.1.87 시험)   // 장면 하나(되감기 → 카메라 → 녹화 → 파일)
         if (pi) log(`── 장면 ${pi + 1} · ${from}~${to}초`);
           to = Math.min(to, len - 0.5); from = Math.max(0, Math.min(from, to - 3));
           // v0.1.34: 앞 구간(PRE초) 먼저 재생해 화면·카메라가 자리 잡은 뒤 녹화 — 전엔 되감기(seek)가 끝나기 전에 녹화가 시작돼
@@ -194,6 +194,8 @@ function makeReplayRec(d) {
           const r = await live('GET', '/replay/render');
           if (champ && !(r.data && r.data.selectionName)) { await live('POST', '/replay/render', Object.assign({ selectionName: champ }, view)); log('카메라: 챔피언 이름으로 다시 지정'); }   // 게임 이름이 안 먹으면
           if (cam) await live('POST', '/replay/render', cam);
+          // seq = 키프레임 연출(롤이 매 프레임 이어 줌 · /replay/sequence 형식 {fieldOfView: [{time, value, blend}], …}) — camAt(0.1초마다 render 바꾸기)은 계단식이라 슬로모션에서 버벅여 보였음(2026-11-01)
+          await live('POST', '/replay/sequence', seq || {});   // 앞 장면 연출이 남지 않게 늘 새로
           if (fov) await live('POST', '/replay/render', { fieldOfView: fov });   // v0.1.80: 시야 넓히기(먼 사거리 · 주인공이 화면 끝에 걸리던 것)
           { const c = (await live('GET', '/replay/render')).data || {}; log(`카메라 ${JSON.stringify({ sel: c.selectionName, att: c.cameraAttached, mode: c.cameraMode, fov: c.fieldOfView, off: c.selectionOffset, move: c.cameraMoveSpeed, look: c.cameraLookSpeed, pos: c.cameraPosition, rot: c.cameraRotation })}`); }
           await sleep(800);   // 장면 불러오기
