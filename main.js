@@ -1712,7 +1712,9 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   } catch (e) { whys.push('오류 ' + (e && e.message)); }
   // 🎬 영상 0초 = 롤이 실제로 찍기 시작한 게임 시각 → 영상이 생긴 장면은 clipFrom을 거기로(안 하면 킬 자막·슬로가 어긋남 · v0.1.58)
   //   = 녹화 끝(clipTo) − 원본 영상 길이(실측 540~556 요청 → 18.94초 → 537.06) · 길이를 모르거나 이상하면 되감기 지점(clipFrom − 3)
-  const vStart = (c, sec) => { const g = makeReplayRec.videoStart(c.clipFrom, c.clipTo), m = sec != null ? c.clipTo - sec : null; return m != null && Math.abs(m - g) <= 2 ? +m.toFixed(2) : g; };
+  //   ⚠️ v0.1.90: 연출 카메라(키프레임) 녹화는 롤이 startTime(= from)부터 찍음(11/1 실기 9장면 모두 clipTo − 길이 = from ±0.11)
+  //   → 옛 「되감기 지점 ±2초」 검사에 걸려(차이 3초) 되감기 지점으로 떨어져 킬 자막·슬로가 3초 늦었음 → 되감기 지점 −1 ~ from +1 사이면 실측을 믿음
+  const vStart = (c, sec) => { const g = makeReplayRec.videoStart(c.clipFrom, c.clipTo), f = Math.max(0, Math.min(c.clipFrom, c.clipTo - 3)), m = sec != null ? c.clipTo - sec : null; return m != null && m >= g - 1 && m <= f + 1 ? +m.toFixed(2) : g; };
   if (metas[0]) { const v0 = vStart({ clipFrom: parts[0].from, clipTo: card.clipTo }, secs[0]); card.clipLead = +(card.clipFrom - v0).toFixed(2); card.clipFrom = v0; card.directed = true; }   // directed = 연출 카메라 영상(팟지 창이 확대 안 함)
   if (metas[1] && H) { const v0 = vStart(H, secs[1]); H.clipLead = +(H.clipFrom - v0).toFixed(2); H.clipFrom = v0; H.directed = true; }
   if (metas[0] || metas[1]) _recLog.push(`영상 시작 = 게임 ${metas[0] ? card.clipFrom : '-'}초${H && metas[1] ? ` · 숨은 영웅 ${H.clipFrom}초` : ''} (원본 길이 ${secs.map(x => x == null ? '?' : x.toFixed(2)).join('/')}초)`);
