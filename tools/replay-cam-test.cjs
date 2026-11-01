@@ -42,6 +42,17 @@ const rr = makeReplayRec(Object.assign(makeReplayRec.defaults(), {
     if (v === 'tps') return { fov: 60, cam: { cameraMode: 'tps' } };   // ⚠️ 리플레이가 꺼짐(쓰지 말 것)
     if (v === 'follow') return { fov: 60, cam: { cameraMode: 'fps', cameraAttached: true } };   // 챔피언 추적(2026-11-01 실기: top·focus는 붙기가 안 먹고 fps+붙기만 실제로 따라감)
     if (v === 'mix') { if (!kills.length) throw new Error('mix는 킬 시각이 필요해요'); return { fov: 60, camAt: [{ t: kills[0] - 1.5, set: { cameraMode: 'fps', cameraAttached: true } }, { t: kills[kills.length - 1] + 1, set: { cameraMode: 'top', cameraAttached: true } }] }; }
+    // 🎥 섞은 연출(2026-11-01 실기로 찾은 진짜 따라가기 = fps+붙기+selectionOffset): 평소 ②(같은 거리·주인공 가운데) → 첫 킬 1.2초 전부터 0.9초 동안 ③(더 가까이)/④(가깝고 낮게)로 다가감 → 마지막 킬 0.8초 뒤부터 1초 동안 ②로 빠짐
+    const CAM = { far: { y: 1492, z: -1006, r: 56 }, near: { y: 1000, z: -675, r: 56 }, low: { y: 700, z: -835, r: 40 } };
+    const follow = c => ({ cameraMode: 'fps', cameraAttached: true, selectionOffset: { x: 0, y: c.y, z: c.z }, cameraRotation: { x: 0, y: c.r, z: 0 } });
+    if (v === 'far' || v === 'near' || v === 'low') return { fov: 60, cam: follow(CAM[v]) };
+    if (v === 'mixnear' || v === 'mixlow') {
+      if (!kills.length) throw new Error(v + '는 킬 시각이 필요해요');
+      const B = CAM.far, N = CAM[v === 'mixnear' ? 'near' : 'low'], camAt = [];
+      const ramp = (t0, dur, A, Z) => { for (let i = 1; i <= 12; i++) { const k = i / 12, e = k * k * (3 - 2 * k), m = (x, y) => Math.round(x + (y - x) * e); camAt.push({ t: +(t0 + dur * k).toFixed(2), set: { selectionOffset: { x: 0, y: m(A.y, Z.y), z: m(A.z, Z.z) }, cameraRotation: { x: 0, y: +(A.r + (Z.r - A.r) * e).toFixed(1), z: 0 } } }); } };
+      ramp(kills[0] - 1.2, 0.9, B, N); ramp(kills[kills.length - 1] + 0.8, 1.0, N, B);
+      return { fov: 60, cam: follow(B), camAt };
+    }
     if (v === 'zoom') {   // 3인칭 대신: 첫 킬 1.5초 전부터 0.1초마다 시야 60→42·주인공을 가운데로(selectionOffset z 0→700) · 마지막 킬 0.6초 뒤부터 되돌림
       if (!kills.length) throw new Error('zoom은 킬 시각이 필요해요');
       const camAt = [], ramp = (t0, dur, f0, f1, z0, z1) => { for (let i = 0; i <= 10; i++) { const k = i / 10, e = k * k * (3 - 2 * k); camAt.push({ t: +(t0 + dur * k).toFixed(2), set: { fieldOfView: +(f0 + (f1 - f0) * e).toFixed(1), selectionOffset: { x: 0, y: 0, z: Math.round(z0 + (z1 - z0) * e) } } }); } };
