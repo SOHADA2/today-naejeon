@@ -164,18 +164,28 @@ function makeReplayRec(d) {
     const before = await gamePids(); let replayPid = null, aborted = null;   // 리플레이 프로세스 = 열기 뒤 새로 생긴 것
     const w = await d.lcuRaw('POST', `/lol-replays/v1/rofls/${gameId}/watch`, { componentType: 'replay-button_match-history' });
     if (!(w.status >= 200 && w.status < 300)) { log('리플레이 열기 실패 HTTP ' + w.status); if (hid) hid.stop(); restoreCfg(cfg); return null; }
+    // 🔇 v0.1.92: 방장 스피커에서만 리플레이 소리 끔(d.muteAudio = main gameAudioMute · 녹화 영상엔 소리 그대로 · 실측) — 리플레이 프로세스 번호만
+    let muted = false;
+    const mute = async on => {
+      if (!d.muteAudio || !replayPid || (!on && !muted)) return;
+      const r = await d.muteAudio([replayPid], on).catch(() => null);
+      if (on && r && r.muted) { if (!muted) log(`리플레이 소리 끔(방장 스피커만 · 영상엔 소리 있음)`); muted = true; }
+      if (!on) { log(`리플레이 소리 다시 켬 ${r ? `세션 ${r.sessions} · 음소거 ${r.muted}` : '실패(다음 게임 때 다시 풂)'}`); if (r && !r.muted) muted = false; }
+    };
     try {
       let len = 0;   // ④ 리플레이 로딩(최대 120초)
       for (let i = 0; i < (d.loadWaitSec || 120) && !len; i++) { const p = await live('GET', '/replay/playback'); if (p.status === 200 && p.data && p.data.length > 0) len = p.data.length; else await sleep(1000); }
       if (!len) { log('리플레이 창구가 안 열림(EnableReplayApi?)'); return null; }
       replayPid = (await gamePids()).find(x => !before.includes(x)) || null;
       log(`리플레이 열림 · 길이 ${Math.round(len)}초 · 프로세스 ${replayPid || '?'} (${sec()}초)`);
+      await mute(true);
       const outs = [];
       for (let pi = 0; pi < parts.length; pi++) outs.push(aborted || (aborted = await realGame()) ? null : await recordOne(parts[pi], pi).catch(e => { log(`장면 ${pi + 1} 오류 ${e && e.message}`); return null; }));
       if (aborted) log('실제 게임·큐가 시작돼 녹화 그만: ' + aborted);
       return outs;
       async function recordOne({ from, to, focus, champ, fov, cam, camAt, camRamp, seq, direct }, pi) {   // cam = 처음 카메라에 덧붙일 render 값(예: {cameraMode:'tps'}) · camAt = [{t: 게임 초, set: render 값}] 녹화 중 그 시각에 바꿈(섞은 연출 · v0.1.87 시험)   // 장면 하나(되감기 → 카메라 → 녹화 → 파일)
         if (pi) log(`── 장면 ${pi + 1} · ${from}~${to}초`);
+        if (!muted) await mute(true);   // 열 때 소리 세션이 아직 없었으면 여기서
           to = Math.min(to, len - 0.5); from = Math.max(0, Math.min(from, to - 3));
           // v0.1.34: 앞 구간(PRE초) 먼저 재생해 화면·카메라가 자리 잡은 뒤 녹화 — 전엔 되감기(seek)가 끝나기 전에 녹화가 시작돼
           //   첫 몇 초가 멈춘 기지 화면이었고, 녹화도 7~10초 만에 끊겨 정작 킬 장면이 빠졌음(실제 판 8436676738·8436741245)
@@ -364,6 +374,7 @@ function makeReplayRec(d) {
           return clip.p;
       }
     } finally {
+      await mute(false);   // ⚠️ 닫기 전에 꼭 — 윈도우가 음소거를 기억해 다음 실제 게임까지 소리가 안 날 수 있음
       await closeReplay(replayPid);   // 열기 요청을 보냈으면 늘 정리(창구가 안 열렸어도 게임 창은 떴을 수 있음) · 리플레이 프로세스만
       if (hid) { const h = hid.stop(); if (h != null) log(`창 숨김 ${h}회`); }
       restoreCfg(cfg);   // 리플레이를 강제로 닫아서 롤이 설정을 덮어쓰지 않음 → 그 뒤에 되돌림

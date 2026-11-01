@@ -318,6 +318,9 @@ function handleDockLine(line) {
   }
   const p = raw.split(/\s+/).map(Number);
   const valid = p.length >= 4 && p.slice(0, 4).every(Number.isFinite) && (p[2] - p[0]) >= 700 && (p[3] - p[1]) >= 400;
+  // 🎬 v0.1.92: 팟지 녹화(리플레이) 중엔 롤이 클라 창을 최소화함 → 예전엔 「클라 없음」으로 보고 좌우 창을 화면 가운데로 모아(플로팅)
+  //   방장 화면만 배치가 뒤집혔음(사장님: 다른 사람이 방장이면 어리둥절) → 녹화 중 최소화는 무시하고 붙어 있던 자리 그대로(기다림 화면도 그 클라 자리 가운데)
+  if (config.dock !== false && !valid && replayBusy && _lastRect && !_floating) { hideSlotMarker(); keepClientShown(); return; }
   if (config.dock === false || !valid) {   // 도킹 끔 or 최소화/숨김 → 독립 창(플로팅)으로 (종료 아님)
     hideSlotMarker(); floatPanels();
     if (clientFg) { clientFg = false; evalRaise(); }
@@ -864,7 +867,7 @@ async function pollGame() {
   if (replayBusy) return;   // 🎬 팟지 리플레이 녹화 중 = 리플레이 게임 창이라 실제 게임 아님(패널 숨김·「기록 저장 중」·수집이 잘못 켜지지 않게)
   const list = await liveClientPlayerList();
   const nowIn = Array.isArray(list);
-  if (nowIn) sampleActive = false;          // 실게임 시작 → 미리보기 해제
+  if (nowIn) { sampleActive = false; unmuteLeftover(); }   // 실게임 시작 → 미리보기 해제 · 🔇 지난 녹화에서 못 푼 리플레이 음소거가 있으면 풂
   else if (sampleActive) return;            // 미리보기 유지 중(실게임 아님) → 건드리지 않음
   if (nowIn) {
     _rawPlayers = list;
@@ -1778,6 +1781,89 @@ function hideReplayWindow() {
   const stop = () => { try { ps.kill(); } catch (_) {} return moved; };
   return { stop, show: () => { stop(); try { run('show', 10).on('error', () => {}); } catch (_) {} } };
 }
+// 🔇 v0.1.92: 녹화하는 동안 리플레이 소리를 방장 스피커에서만 끔(사장님: 소리가 계속 나서 별로) — 윈도우 볼륨 믹서의 그 프로세스 세션 음소거(Core Audio)
+//   실측(2026-11-02 8442329573): 꺼도 롤이 녹화하는 영상엔 소리가 그대로(평균 −28.4dB · 음소거 안 한 어제 녹화 −30.5dB)
+//   ⚠️ 윈도우가 앱별 음소거를 「League of Legends.exe」 전체로 기억함(시험 때 실제로 남아 다음 게임까지 음소거될 뻔) → 리플레이 닫기 전에 꼭 풀고,
+//   그 전에 앱이 꺼졌으면(replay-mute.json 남음) 다음 실제 게임 중에 그 게임 프로세스 세션을 풂(unmuteLeftover)
+const MUTE_PS = `
+Add-Type @'
+using System;using System.Runtime.InteropServices;
+[ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class TNMMDE {}
+[Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] interface ITNMMDE { int N1(); [PreserveSig] int GetDefaultAudioEndpoint(int f, int r, out ITNMMD d); }
+[Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] interface ITNMMD { [PreserveSig] int Activate(ref Guid iid, int ctx, IntPtr p, [MarshalAs(UnmanagedType.IUnknown)] out object o); }
+[Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] interface ITNASM2 { int N1(); int N2(); [PreserveSig] int GetSessionEnumerator(out ITNASE e); }
+[Guid("E2F5BB11-0570-40CA-ACDD-3AA01277DEE8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] interface ITNASE { [PreserveSig] int GetCount(out int n); [PreserveSig] int GetSession(int i, out ITNASC2 s); }
+[Guid("bfb7ff88-7239-4fc9-8fa2-07c950be9c6d"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] interface ITNASC2 { int N0(); int N1(); int N2(); int N3(); int N4(); int N5(); int N6(); int N7(); int N8(); int N9(); int N10(); [PreserveSig] int GetProcessId(out uint p); }
+[Guid("87CE5498-68D6-44E5-9215-6DA47EF883D8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] interface ITNSAV { [PreserveSig] int SetMasterVolume(float v, ref Guid g); [PreserveSig] int GetMasterVolume(out float v); [PreserveSig] int SetMute(bool m, ref Guid g); [PreserveSig] int GetMute(out bool m); }
+public class TNMute {
+  public static string Run(string pids, bool mute) {
+    var want = new System.Collections.Generic.HashSet<uint>(); foreach (var x in pids.Split(',')) { uint v; if (uint.TryParse(x, out v)) want.Add(v); }
+    var en = (ITNMMDE)(new TNMMDE()); int hit = 0, muted = 0;
+    for (int role = 0; role < 3; role++) {
+      ITNMMD d; if (en.GetDefaultAudioEndpoint(0, role, out d) != 0) continue;
+      object m; var iid = typeof(ITNASM2).GUID; d.Activate(ref iid, 23, IntPtr.Zero, out m); ITNASE e; ((ITNASM2)m).GetSessionEnumerator(out e); int n; e.GetCount(out n);
+      for (int i = 0; i < n; i++) { ITNASC2 s; e.GetSession(i, out s); uint p; s.GetProcessId(out p); if (!want.Contains(p)) continue; var g = Guid.Empty; ((ITNSAV)s).SetMute(mute, ref g); bool mm; ((ITNSAV)s).GetMute(out mm); hit++; if (mm) muted++; }
+    }
+    return "sessions=" + hit + " muted=" + muted;
+  }
+}
+'@
+[TNMute]::Run($args[0], $args[1] -eq '1')`;
+const MUTE_FLAG = () => path.join(app.getPath('userData'), 'replay-mute.json');
+function gameAudioMute(pids, on) {   // → {sessions, muted} · 실패면 null
+  return new Promise(r => {
+    const ids = [].concat(pids || []).filter(Boolean).join(','); if (!ids || process.platform !== 'win32') return r(null);
+    if (on) try { fs.writeFileSync(MUTE_FLAG(), JSON.stringify({ at: Date.now(), pids: ids })); } catch (_) {}
+    require('child_process').execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(`& {${MUTE_PS}} ${ids} ${on ? 1 : 0}`, 'utf16le').toString('base64')], { windowsHide: true, timeout: 15000 }, (e, out) => {
+      const m = /sessions=(\d+) muted=(\d+)/.exec(String(out || '')); if (!m) return r(null);
+      const res = { sessions: +m[1], muted: +m[2] };
+      if (!on && res.muted === 0) try { fs.unlinkSync(MUTE_FLAG()); } catch (_) {}   // 다 풀림(세션이 없으면 애초에 안 걸린 것)
+      r(res);
+    });
+  });
+}
+let _unmuteAt = 0;
+function unmuteLeftover() {   // 실제 게임 중 · 지난번에 못 푼 음소거가 남았으면 그 게임 세션을 풂(세션이 생길 때까지 10초마다)
+  if (Date.now() - _unmuteAt < 10000 || !fs.existsSync(MUTE_FLAG())) return; _unmuteAt = Date.now();
+  require('child_process').execFile('tasklist', ['/FI', 'IMAGENAME eq League of Legends.exe', '/FO', 'CSV', '/NH'], { windowsHide: true }, (e, out) => {
+    const pids = String(out || '').split(/\r?\n/).map(l => (l.match(/^"League of Legends\.exe","(\d+)"/) || [])[1]).filter(Boolean);
+    gameAudioMute(pids, false).then(res => { if (res && res.sessions) console.log('[mute] 남은 리플레이 음소거 풂', JSON.stringify(res)); }).catch(() => {});
+  });
+}
+// 🪟 v0.1.92: 리플레이가 열리면 롤이 클라 창을 최소화함(실측: RCLIENT 창이 −32000 · 같은 이름의 136×39 보조 창이 여럿이라 FindWindow는 보조 창을 잡음)
+//   → 녹화 중엔 최소화된 클라를 포커스 없이 제자리로 되살림(SW_SHOWNOACTIVATE · 실측 20초 동안 다시 안 내려가고 리플레이도 1배속 그대로)
+//   방장 화면도 팀원처럼 클라 + 좌우 창 + 가운데 기다림 화면 그대로 · ⚠️ 보이지 않는 보조 창은 절대 띄우지 말 것(왼쪽 위에 빈 창이 뜸 — 시험 때 겪음)
+const RESTORE_PS = `
+Add-Type @'
+using System;using System.Runtime.InteropServices;using System.Text;
+public class TNCR {
+  public delegate bool P(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(P p, IntPtr l);
+  [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] public static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
+  public static int Run() { int n = 0; EnumWindows((h, l) => { var s = new StringBuilder(64); GetWindowText(h, s, 64); var c = new StringBuilder(64); GetClassName(h, c, 64);
+    if (s.ToString() == "League of Legends" && c.ToString() == "RCLIENT" && IsWindowVisible(h) && IsIconic(h)) { ShowWindow(h, 4); n++; } return true; }, IntPtr.Zero); return n; }
+}
+'@
+[TNCR]::Run()`;
+let _restoreBusy = false, _restoreN = 0, _restoreRec = null;
+function keepClientShown() {   // 도킹 줄이 「클라 없음」으로 바뀔 때 1번 불림(줄은 바뀔 때만 옴) → 최소화 애니메이션이 끝날 때를 놓치지 않게 0.3·1.5·4초 뒤 확인
+  if (!replayBusy || process.platform !== 'win32') return;
+  for (const ms of [300, 1500, 4000]) setTimeout(restoreClientOnce, ms);
+}
+function restoreClientOnce() {   // 녹화 중에만 · 녹화 한 번에 최대 8번(롤이 계속 다시 내리면 그만)
+  if (!replayBusy || _restoreBusy) return;
+  if (_restoreRec !== _recLog) { _restoreRec = _recLog; _restoreN = 0; }
+  if (_restoreN >= 8) return; _restoreBusy = true;
+  require('child_process').execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(`& {${RESTORE_PS}}`, 'utf16le').toString('base64')], { windowsHide: true, timeout: 15000 }, (e, out) => {
+    _restoreBusy = false;
+    const n = +((/(\d+)\s*$/.exec(String(out || '')) || [])[1] || 0);   // ⚠️ 출력 앞에 PowerShell 진행 표시(#< CLIXML …)가 붙을 수 있음 → 끝 숫자만
+    if (n > 0) { _restoreN++; _recLog.push(`${new Date().toTimeString().slice(0, 8)} [replay] 최소화된 롤 클라 되살림(${_restoreN})`); }
+  });
+}
 const runHost = coalesce(async () => { if (_hostBusy) return; _hostBusy = true; try { await hostTick(); } finally { _hostBusy = false; } });
 
 // EOG 승리 진영 → 1팀/2팀 판정(인게임 이름 ↔ 등록 이름 매칭). 애매하면 null(방장이 직접 선택)
@@ -2536,6 +2622,7 @@ else {
       restoreFile: path.join(app.getPath('userData'), 'replay-cfg-restore.json'),
       borderlessFile: path.join(app.getPath('userData'), 'ingame-cfg-restore.json'),
       hideWindow: process.platform === 'win32' ? hideReplayWindow : null,
+      muteAudio: process.platform === 'win32' ? gameAudioMute : null,   // 🔇 v0.1.92
     }));
     try { replayRec.restorePending(); } catch (_) {}   // 지난번에 녹화하다 앱이 꺼졌으면 game.cfg 창 설정 되돌림
     setTimeout(() => { if (!inGame && lobbyPhase !== 'ChampSelect') borderlessOff(); }, 15000);   // 🖥️ 지난번 게임 중 앱이 꺼졌으면 화면 모드 원래대로(롤이 게임 중이면 기다림)

@@ -157,7 +157,7 @@
     const first = !V;
     V = v; room.style.display = '';
     if (first) { autoAt = Date.now(); $('wr-steps').innerHTML = STEPS(v).map(s => `<span>${E(s)}</span>`).join(''); }
-    $('wr-who').textContent = v.who ? `${v.who}님 PC에서 리플레이로 찍는 중` : '리플레이로 찍는 중';
+    $('wr-who').textContent = v.who && v.me && v.who === v.me ? '내 PC에서 리플레이로 찍는 중' : v.who ? `${v.who}님 PC에서 리플레이로 찍는 중` : '리플레이로 찍는 중';   // v0.1.92: 방장 본인은 자기 PC가 찍는 걸 알게
     prog(); render();
     clearInterval(timer); timer = setInterval(() => render(), 1000);   // 자동 넘김 확인(그리는 건 바뀔 때만)
   }

@@ -30,8 +30,10 @@ function hideWindow() {   // main.js hideReplayWindow와 같음
   const stop = () => { try { ps.kill(); } catch (_) {} return moved; };
   return { stop, show: () => { stop(); run('show', 10); } };
 }
+const b2 = src.indexOf('const MUTE_PS = `') + 17, MUTE_PS = src.slice(b2, src.indexOf('`;', b2));
+const muteAudio = (pids, on) => new Promise(r => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(`& {${MUTE_PS}} ${pids.join(',')} ${on ? 1 : 0}`, 'utf16le').toString('base64')], { windowsHide: true }, (e, o) => { const m = /sessions=(\d+) muted=(\d+)/.exec(String(o || '')); r(m ? { sessions: +m[1], muted: +m[2] } : null); }));   // main.js gameAudioMute와 같음(플래그 파일 없이)
 const rr = makeReplayRec(Object.assign(makeReplayRec.defaults(), {
-  lcuRaw, lolDir: () => LOL, outDir: out,
+  lcuRaw, lolDir: () => LOL, outDir: out, muteAudio,
   kill: (pid) => new Promise(r => execFile('taskkill', pid ? ['/PID', String(pid), '/F'] : ['/IM', 'League of Legends.exe', '/F'], () => r())),
   log: m => console.log(new Date().toTimeString().slice(0, 8), m), restoreFile: path.join(out, 'restore.json'), borderlessFile: path.join(out, 'bl.json'), hideWindow,
 }));
