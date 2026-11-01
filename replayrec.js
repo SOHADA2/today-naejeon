@@ -174,7 +174,7 @@ function makeReplayRec(d) {
       for (let pi = 0; pi < parts.length; pi++) outs.push(aborted || (aborted = await realGame()) ? null : await recordOne(parts[pi], pi).catch(e => { log(`장면 ${pi + 1} 오류 ${e && e.message}`); return null; }));
       if (aborted) log('실제 게임·큐가 시작돼 녹화 그만: ' + aborted);
       return outs;
-      async function recordOne({ from, to, focus, champ, fov, cam, camAt, seq }, pi) {   // cam = 처음 카메라에 덧붙일 render 값(예: {cameraMode:'tps'}) · camAt = [{t: 게임 초, set: render 값}] 녹화 중 그 시각에 바꿈(섞은 연출 · v0.1.87 시험)   // 장면 하나(되감기 → 카메라 → 녹화 → 파일)
+      async function recordOne({ from, to, focus, champ, fov, cam, camAt, camRamp, seq, direct }, pi) {   // cam = 처음 카메라에 덧붙일 render 값(예: {cameraMode:'tps'}) · camAt = [{t: 게임 초, set: render 값}] 녹화 중 그 시각에 바꿈(섞은 연출 · v0.1.87 시험)   // 장면 하나(되감기 → 카메라 → 녹화 → 파일)
         if (pi) log(`── 장면 ${pi + 1} · ${from}~${to}초`);
           to = Math.min(to, len - 0.5); from = Math.max(0, Math.min(from, to - 3));
           // v0.1.34: 앞 구간(PRE초) 먼저 재생해 화면·카메라가 자리 잡은 뒤 녹화 — 전엔 되감기(seek)가 끝나기 전에 녹화가 시작돼
@@ -188,12 +188,105 @@ function makeReplayRec(d) {
           // v0.1.81: 첫 장면이 빈 곳으로 시작하던 것(사장님) — 멈춘 채 카메라를 붙이면 주인공 쪽으로 다 못 옮긴 채 녹화가 시작됨
           //   → WARM초 더 앞으로 되감고, 녹화 없이 먼저 재생해 카메라가 따라붙은 뒤 startAt에 닿으면 녹화 시작(영상 0초는 길이로 실측하니 타이밍은 그대로)
           const WARM = 2, warmAt = Math.max(0, startAt - WARM);
+          // 🎥 연출 카메라(2026-11-01 사장님: 시작은 이 사람의 팟지라는 걸 알게 정면/등 뒤 모습 → 교전은 상대가 안 보이는 일이 없게)
+          //   롤 3인칭(tps)은 리플레이가 꺼져서 카메라를 직접 계산: ① 미리 보기 = 주인공(2배속)·잡힐 상대들(4배속, 킬 4초 전~0.5초 뒤만)을
+          //   위에서 붙어 따라가는 카메라(fps+붙기·offset O)로 재생하며 「카메라 위치 − O」 = 그 챔피언 위치를 기록
+          //   ② 0.1초마다 카메라 위치·바라볼 곳 계산 → ③ /replay/sequence 키프레임(롤이 매 프레임 이어 줌 · 붙기는 끔)
+          //   소개(from부터 intro초) = 주인공 얼굴 쪽 낮은 곳에서 75° 돎(예시 12) → 1.2초 동안 위로 빠지며
+          //   교전 = 주인공 + 곧(4초 안) 잡힐 상대들 가운데를 늘 보던 각도(위에서 55°)로 보고, 다 들어오게 거리를 자동(1700~3200) · ±0.6초 평균으로 흔들림 없이
+          const scout = async (name, t0, t1, speed, alias) => {
+            const O = { x: 0, y: 1492, z: -1006 };
+            await live('POST', '/replay/sequence', {});   // 앞 키프레임이 남아 있으면 카메라가 안 붙음(실측)
+            await live('POST', '/replay/render', { selectionName: name, cameraMode: 'fps', cameraAttached: true, selectionOffset: O, cameraRotation: { x: 0, y: 56, z: 0 } });
+            const sel = ((await live('GET', '/replay/render')).data || {}).selectionName;
+            if (!sel && alias) await live('POST', '/replay/render', { selectionName: alias });   // 게임 이름이 안 먹으면 영문 챔피언 이름(실측: 「스몰더」 못 찾음)
+            if (!sel && !((await live('GET', '/replay/render')).data || {}).selectionName) { log(`연출 카메라: ${name}${alias ? '/' + alias : ''} 못 찾음`); return null; }
+            await seekTo(Math.max(0, t0));
+            await live('POST', '/replay/playback', { time: Math.max(0, t0), paused: false, speed });
+            const pts = [], st = Date.now(), lim = st + (t1 - t0) / speed * 1000 + 15000;
+            while (Date.now() < lim) {
+              const [p, r] = await Promise.all([live('GET', '/replay/playback'), live('GET', '/replay/render')]);
+              const t = p.data && p.data.time, cp = r.data && r.data.cameraPosition;
+              if (t != null && cp && Date.now() - st > 250) pts.push({ t, x: cp.x - O.x, y: cp.y - O.y, z: cp.z - O.z });   // 붙는 동안(처음 0.25초)은 버림
+              if (t != null && t >= t1) break;
+              await sleep(30);
+            }
+            await live('POST', '/replay/playback', { paused: true, speed: 1 });
+            return pts.length >= 5 ? pts : null;
+          };
+          // 🗺️ 칼바람 나락 다리 지도(2026-11-01 · 이 PC 전적의 칼바람 20판 타임라인 위치 4,068개): 중심 (6534, 6335) · 다리 방향 43.7°
+          //   [다리 방향 위치 s, 걸어 다닌 곳의 옆 위치 2%, 98%] — 600 간격 · 리플레이 x,z = 타임라인 x,y
+          const LANE12 = [[-7200,-840,334],[-6600,-1121,1344],[-6000,-1040,935],[-5400,-1251,1085],[-4800,-1308,872],[-4200,-691,779],[-3600,-621,845],[-3000,-544,819],[-2400,-608,791],[-1800,-623,793],[-1200,-559,763],[-600,-583,658],[0,-603,544],[600,-540,722],[1200,-569,771],[1800,-579,741],[2400,-530,825],[3000,-589,617],[3600,-486,678],[4200,-698,701],[4800,-1071,969],[5400,-1143,1005],[6000,-1058,837],[6600,-1138,400],[7200,-607,256]];
+          const laneIn = (x, z, m) => {   // 다리 안쪽에서 m 이상 떨어져 있나
+            const A = 43.7 * Math.PI / 180, dx = x - 6534, dz = z - 6335, sl = dx * Math.cos(A) + dz * Math.sin(A), pp = -dx * Math.sin(A) + dz * Math.cos(A);
+            const i = Math.max(0, Math.min(LANE12.length - 2, Math.floor((sl + 7200) / 600))), k = Math.max(0, Math.min(1, (sl + 7200) / 600 - i)), a = LANE12[i], b = LANE12[i + 1];
+            const lo = a[1] + (b[1] - a[1]) * k, hi = a[2] + (b[2] - a[2]) * k;
+            return pp > lo + m && pp < hi - m;
+          };
+          // 🗼 다리 위 포탑·억제기(타임라인 파괴 기록 위치) — 낮은 카메라와 주인공 사이에 끼면 가림(제이스 실기: 포탑 기둥에 2초 가림) · 부서져도 잔해가 있어 늘 피함
+          const TOWERS12 = [[4950, 4950], [3850, 3850], [3100, 3200], [2050, 2600], [2500, 2100], [7900, 7750], [9000, 8850], [9700, 9550], [10350, 10550], [10800, 10100]];
+          const nearTower = (c, h) => TOWERS12.some(([x, z]) => {   // 카메라가 포탑 300 안이거나, 카메라→주인공 선이 포탑 260 안을 지나면
+            const vx = h.x - c.x, vz = h.z - c.z, L2 = vx * vx + vz * vz || 1, k = Math.max(0, Math.min(1, ((x - c.x) * vx + (z - c.z) * vz) / L2));
+            return Math.hypot(x - c.x, z - c.z) < 300 || Math.hypot(x - (c.x + vx * k), z - (c.z + vz * k)) < 260;
+          });
+          const at = (pts, t) => { if (!pts || t < pts[0].t - 0.3 || t > pts[pts.length - 1].t + 0.3) return null; let i = pts.findIndex(q => q.t >= t); if (i <= 0) return pts[i < 0 ? pts.length - 1 : 0]; const a = pts[i - 1], b = pts[i], k = (t - a.t) / Math.max(1e-3, b.t - a.t); return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, z: a.z + (b.z - a.z) * k }; };
+          const directSeq = async (c, t0, t1) => {
+            const hero = await scout(focus, t0, t1, 2, champ);
+            if (!hero) { log('연출 카메라: 주인공 위치 기록 실패 → 위에서 보기'); return {}; }
+            const vs = [];
+            for (const v of c.victims || []) { const pts = await scout(v.name, Math.max(t0, v.t - 4.5), Math.min(t1, v.t + 0.6), 4, v.alias); if (pts) vs.push({ k: v.t, pts }); }
+            await live('POST', '/replay/render', { cameraAttached: false, cameraMode: 'fps' });
+            const intro = c.intro == null ? 2.4 : c.intro, i0 = from, i1 = from + intro, BL = 1.2, P = 55 * Math.PI / 180, STEP = 0.1;
+            const ts = []; for (let t = t0; t <= t1 + 1e-6; t += STEP) ts.push(+t.toFixed(2));
+            // 교전 화면: 주인공 + 곧 잡힐 상대 → 가운데·필요한 거리
+            const raw = ts.map(t => {
+              const h = at(hero, t) || at(hero, Math.min(Math.max(t, hero[0].t), hero[hero.length - 1].t)), ps = [h];
+              for (const v of vs) if (t >= v.k - 4 && t <= v.k + 0.4) { const q = at(v.pts, t); if (q && Math.hypot(q.x - h.x, q.z - h.z) < 2200) ps.push(q); }
+              const xs = ps.map(q => q.x), zs = ps.map(q => q.z), cx = (Math.min(...xs) + Math.max(...xs)) / 2, cz = (Math.min(...zs) + Math.max(...zs)) / 2;
+              const s = Math.max(...ps.map(q => Math.hypot(q.x - cx, q.z - cz))) + 300;
+              return { x: cx, y: h.y, z: cz, d: Math.min(3200, Math.max(1700, s * 2.6)), h };   // 사장님 2026-11-01 「완벽」(예시 12) 값 그대로
+            });
+            const sm = ts.map((_, i) => { let x = 0, y = 0, z = 0, d = 0, w = 0; for (let j = -6; j <= 6; j++) { const r = raw[Math.min(raw.length - 1, Math.max(0, i + j))], g = Math.exp(-(j * j) / 18); x += r.x * g; y += r.y * g; z += r.z * g; d += r.d * g; w += g; } return { x: x / w, y: y / w, z: z / w, d: d / w }; });
+            // 소개 카메라(사장님 「가장 멋있음」 = 예시 12): 얼굴이 향하는 쪽(첫 상대 쪽, 없으면 움직이는 쪽) 낮은 곳(높이 260·거리 430)에서 바라보며 75° 돎
+            //   ⚠️ 주인공·카메라가 다리 가장자리(얼음 덤불·벽)에 걸리면 가림(말파이트·초가스 실기 · nearClip으로 카메라 앞을 지워도 안 됨)
+            //   → 칼바람 다리 지도(LANE12)로 도는 방향 두 가지(+75°/−75°)를 미리 따져 카메라·주인공·그 사이가 소개 내내 다리 안쪽인 쪽을 고름
+            //   → 둘 다 걸리면 롤 기본 방향(남→북)으로 가까이(예시 13) — 롤 맵은 이 방향에선 거의 안 가림
+            const hA = at(hero, i0) || hero[0], v0 = vs.length ? at(vs[0].pts, Math.max(i0, vs[0].pts[0].t)) : null, hB = at(hero, i0 + 1.5) || hA;
+            let ux = v0 ? v0.x - hA.x : hB.x - hA.x, uz = v0 ? v0.z - hA.z : hB.z - hA.z; const ul = Math.hypot(ux, uz); if (ul < 50) { ux = 0; uz = -1; } else { ux /= ul; uz /= ul; }
+            const ease = t => { const k = Math.min(1, Math.max(0, (t - i0) / Math.max(0.1, intro))); return k * k * (3 - 2 * k); };
+            const lowCam = sg => t => {   // 예시 12
+              const h = at(hero, t) || hA, a = sg * ease(t) * 75 * Math.PI / 180, rx = ux * Math.cos(a) - uz * Math.sin(a), rz = ux * Math.sin(a) + uz * Math.cos(a);
+              return { pos: { x: h.x + rx * 430, y: h.y + 260, z: h.z + rz * 430 }, tgt: { x: h.x, y: h.y + 90, z: h.z } };
+            };
+            const safeCam = t => {   // 예시 13: 롤 기본 방향으로 가까이(거리 760·50°) ±20°
+              const h = at(hero, t) || hA, a = (ease(t) * 40 - 20) * Math.PI / 180, D = 760, IP = 50 * Math.PI / 180, hz = D * Math.cos(IP);
+              return { pos: { x: h.x - Math.sin(a) * hz, y: h.y + 90 + D * Math.sin(IP), z: h.z - Math.cos(a) * hz }, tgt: { x: h.x, y: h.y + 90, z: h.z } };
+            };
+            const clear = cam => { for (let t = i0; t <= i1 + 1e-6; t += 0.2) { const c = cam(t), h = c.tgt; if (!laneIn(h.x, h.z, 200) || !laneIn(c.pos.x, c.pos.z, 150) || !laneIn((h.x + c.pos.x) / 2, (h.z + c.pos.z) / 2, 150) || nearTower(c.pos, h)) return false; } return true; };
+            const L1 = lowCam(1), L2 = lowCam(-1), introCam = intro <= 0 ? safeCam : clear(L1) ? L1 : clear(L2) ? L2 : safeCam;
+            log(`연출 카메라: 소개 = ${introCam === L1 ? '낮게 돌기 +75°' : introCam === L2 ? '낮게 돌기 −75°' : '기본 방향 가까이(낮은 카메라는 다리 가장자리·포탑에 가릴 수 있음)'}`);
+            const kp = [], kr = []; let yawPrev = null;
+            ts.forEach((t, i) => {
+              const f = sm[i], fight = { pos: { x: f.x, y: f.y + f.d * Math.sin(P), z: f.z - f.d * Math.cos(P) }, tgt: { x: f.x, y: f.y, z: f.z } };
+              const k = Math.min(1, Math.max(0, (t - i1) / BL)), w = intro > 0 ? k * k * (3 - 2 * k) : 1, ic = w < 1 ? introCam(t) : fight;
+              const L = (a, b) => ({ x: a.x + (b.x - a.x) * w, y: a.y + (b.y - a.y) * w, z: a.z + (b.z - a.z) * w });
+              const pos = L(ic.pos, fight.pos), tgt = L(ic.tgt, fight.tgt), dx = tgt.x - pos.x, dz = tgt.z - pos.z;
+              let yaw = Math.atan2(dx, dz) * 180 / Math.PI; if (yawPrev != null) { while (yaw - yawPrev > 180) yaw -= 360; while (yaw - yawPrev < -180) yaw += 360; } yawPrev = yaw;   // 359→0 튀지 않게
+              const pitch = Math.atan2(pos.y - tgt.y, Math.hypot(dx, dz)) * 180 / Math.PI;
+              kp.push({ time: t, value: { x: +pos.x.toFixed(1), y: +pos.y.toFixed(1), z: +pos.z.toFixed(1) }, blend: 'linear' });
+              kr.push({ time: t, value: { x: +yaw.toFixed(2), y: +pitch.toFixed(2), z: 0 }, blend: 'linear' });
+            });
+            log(`연출 카메라: 주인공 위치 ${hero.length}개 · 상대 ${vs.length}/${(c.victims || []).length}명 · 키프레임 ${kp.length}개 (${sec()}초)`);
+            await seekTo(t0);
+            return { cameraPosition: kp, cameraRotation: kr };
+          };
           log(`되감기 ${warmAt}초 ${await seekTo(warmAt) ? '완료' : '확인 못 함'} (${sec()}초)`);
           const view = { cameraAttached: true, cameraMode: 'top', selectionOffset: { x: 0, y: 0, z: 0 }, fieldOfView: 50, interfaceScoreboard: false, interfaceChat: false, interfaceTimeline: false, interfaceReplay: false, interfaceMinimap: false, interfaceFrames: false, interfaceScore: false, interfaceTarget: false, interfaceQuests: false, interfaceKillCallouts: false, interfaceAnnounce: false };   // 화면 깨끗하게(체력바만 남김 · 롤 킬 알림은 확대하면 위가 잘려서 끄고 팟지 킬 피드로 대신)
           await live('POST', '/replay/render', Object.assign({ selectionName: focus }, view));
           const r = await live('GET', '/replay/render');
           if (champ && !(r.data && r.data.selectionName)) { await live('POST', '/replay/render', Object.assign({ selectionName: champ }, view)); log('카메라: 챔피언 이름으로 다시 지정'); }   // 게임 이름이 안 먹으면
           if (cam) await live('POST', '/replay/render', cam);
+          if (direct) seq = Object.assign({}, seq, await directSeq(direct, warmAt, to + 0.6));   // 🎥 연출 카메라(소개 → 교전)
           // seq = 키프레임 연출(롤이 매 프레임 이어 줌 · /replay/sequence 형식 {fieldOfView: [{time, value, blend}], …}) — camAt(0.1초마다 render 바꾸기)은 계단식이라 슬로모션에서 버벅여 보였음(2026-11-01)
           await live('POST', '/replay/sequence', seq || {});   // 앞 장면 연출이 남지 않게 늘 새로
           if (fov) await live('POST', '/replay/render', { fieldOfView: fov });   // v0.1.80: 시야 넓히기(먼 사거리 · 주인공이 화면 끝에 걸리던 것)
@@ -218,9 +311,34 @@ function makeReplayRec(d) {
             if (camBusy || !camQ.length) return; camBusy = true;
             try { const q = await live('GET', '/replay/playback'), t = q.data && q.data.time; while (camQ.length && t != null && t >= camQ[0].t) { const c = camQ.shift(); await live('POST', '/replay/render', c.set); log(`카메라 바꿈 ${t.toFixed(1)}초 ${JSON.stringify(c.set)}`); } } finally { camBusy = false; }
           }, 100) : null;
+          // 🎥 카메라 이어 옮기기(camRamp = [{t0, t1, from, to}] · from/to = render 값, 숫자만 사이를 smoothStep으로 채움) — selectionOffset·cameraRotation은 /replay/sequence 키프레임이 안 돼서
+          //   camAt 12단계(0.1초 계단)는 슬로모션에서 버벅여 보였음(사장님 2026-11-01) → 리플레이 시각을 0.25초마다 맞추고 그 사이는 시계로 이어 매 ~16ms 바꿈(앞 요청이 끝나야 다음)
+          const ramps = Array.isArray(camRamp) ? camRamp.slice().sort((x, y) => x.t0 - y.t0) : [];
+          let rampOn = ramps.length > 0;
+          const lerpObj = (A, Z, e) => { if (typeof A === 'number' && typeof Z === 'number') return +(A + (Z - A) * e).toFixed(2); if (A && typeof A === 'object') { const o = {}; for (const k of Object.keys(A)) o[k] = lerpObj(A[k], Z ? Z[k] : undefined, e); return o; } return A; };
+          const rampLoop = rampOn ? (async () => {
+            let pt = null, pAt = 0, polled = 0, done = new Set();
+            while (rampOn) {
+              const nw = Date.now();
+              if (nw - polled > 250) { polled = nw; const q = await live('GET', '/replay/playback'); if (q.data && q.data.time != null) { pt = q.data.time; pAt = Date.now(); } }
+              if (pt != null) {
+                const t = pt + (Date.now() - pAt) / 1000;
+                for (let i = 0; i < ramps.length; i++) {
+                  const r = ramps[i];
+                  if (t < r.t0 || done.has(i)) continue;
+                  const k = Math.min(1, (t - r.t0) / Math.max(0.01, r.t1 - r.t0)), e = k * k * (3 - 2 * k);
+                  await live('POST', '/replay/render', lerpObj(r.from, r.to, e));
+                  if (k >= 1) { done.add(i); log(`카메라 이동 끝 ${t.toFixed(1)}초`); }
+                  break;
+                }
+                if (done.size === ramps.length) break;
+              }
+              await sleep(16);
+            }
+          })() : null;
           while (Date.now() < limit) {
             await sleep(1000);
-            if ((aborted = await realGame())) { log('녹화 중 실제 게임·큐 시작 → 이 장면 버림: ' + aborted); if (camTimer) clearInterval(camTimer); return null; }
+            if ((aborted = await realGame())) { log('녹화 중 실제 게임·큐 시작 → 이 장면 버림: ' + aborted); if (camTimer) clearInterval(camTimer); rampOn = false; return null; }
             const [g, p] = await Promise.all([live('GET', '/replay/recording'), live('GET', '/replay/playback')]);
             const rec = g.data || {}, t = p.data ? p.data.time : null;
             if (rec.outputPath || rec.path) lastPath = rec.outputPath || rec.path;
@@ -232,6 +350,7 @@ function makeReplayRec(d) {
             if (p.data && p.data.paused && t != null && t < to) await live('POST', '/replay/playback', { paused: false });   // 누가 멈췄으면 다시 재생
           }
           if (camTimer) clearInterval(camTimer);
+          rampOn = false; if (rampLoop) await rampLoop;
           log(`녹화 구간 끝 · 리플레이 ${last.toFixed(1)}초 (${sec()}초)`);
           await live('POST', '/replay/playback', { paused: true });
           let clip = null, prev = -1;   // 파일 다 써질 때까지(크기가 그대로면 끝)

@@ -1276,7 +1276,7 @@ function potgBounds() {
   let cx, cy, cw, ch;
   if (_lastRect && !_floating) { const sf = screen.getPrimaryDisplay().scaleFactor || 1; cx = _lastRect[0] / sf; cy = _lastRect[1] / sf; cw = (_lastRect[2] - _lastRect[0]) / sf; ch = (_lastRect[3] - _lastRect[1]) / sf; }
   else { const wa = screen.getPrimaryDisplay().workArea; cx = wa.x; cy = wa.y; cw = wa.width; ch = wa.height; }
-  const W = Math.round(Math.max(560, Math.min(960, cw * 0.66))), H = Math.round(Math.min(ch * 0.92, W * 9 / 16 + 136));
+  const W = Math.round(Math.max(560, Math.min(960, cw * 0.66))), H = Math.round(Math.min(ch * 0.92, W * 9 / 16 + 36));   // 영상 칸 = 정확히 16:9(위 띠 34+테두리 2) · 2026-11-01: +136이라 칸이 1.51:1 → 영상이 1.17배 커지며 양옆 잘림
   return { x: Math.round(cx + (cw - W) / 2), y: Math.round(cy + (ch - H) / 2), width: W, height: H };
 }
 function openPotg(card, manual) {
@@ -1522,7 +1522,12 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   _recPlayers = card.normal ? (card.normal.us || []) : [...((sessionData && sessionData.teamA) || []), ...((sessionData && sessionData.teamB) || [])];
   recStage('리플레이 준비 중…');
   const fov = async id => potgFov(id).catch(() => FOV_BASE);
-  const parts = [{ from: card.clipFrom, to: card.clipTo, focus: card.name, champ: card.champ, fov: await fov(card.championId) }].concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: H.champ, fov: await fov(H.championId) }] : []);
+  // 🎥 연출 카메라(2026-11-01 · replayrec direct): 처음 2.4초 주인공 정면(누구 팟지인지) → 교전은 주인공 + 잡힐 상대가 다 보이게 · 팟지는 소개 몫으로 2초 앞부터
+  //   이름이 안 잡히면 영문 챔피언 이름(alias)으로 — 한글 챔피언 이름은 리플레이가 못 알아들음(실측)
+  const champs = await getChamps().catch(() => ({})), alias = id => (champs[id] && champs[id].alias) || '';
+  const victims = (card.kills || []).map(k => ({ name: k.victim, alias: alias(k.championId), t: k.t })).filter(v => v.name && Number.isFinite(v.t));
+  const parts = [{ from: Math.max(0, card.clipFrom - 2), to: card.clipTo, focus: card.name, champ: alias(card.championId), fov: await fov(card.championId), direct: { victims } }]
+    .concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: alias(H.championId), fov: await fov(H.championId), direct: { victims: [] } }] : []);
   const t0 = Date.now(), recP = replayRec.record({ gameId: g.id, parts });
   recP.catch(() => {}).finally(() => setTimeout(() => { replayBusy = false; }, 6000));   // 리플레이가 실제로 끝나고(닫히고) 조금 더 지나야 풀림(시간 초과로 먼저 카드를 보여줘도)
   const metas = [null, null], whys = [], secs = [null, null], LIMIT = H ? 260000 : 180000;
@@ -1533,7 +1538,11 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
       const file = files[i], tag = i ? '숨은 영웅' : '팟지';
       if (!file) { whys.push(tag + ' 녹화 안 됨'); continue; }
       let buf = fs.readFileSync(file);
-      const small = await shrinkClip(file).catch(e => { _recLog.push(tag + ' 줄이기 실패 ' + (e && e.message)); return null; });   // 잘라내지 않고 1920×1080 그대로·8Mbps(v0.1.80: 1.15배로 자르면 화면 아래쪽 주인공이 잘림)
+      // 🔍 2026-11-01(사장님: 화질이 아직도 떨어짐): 롤 원본(1920×1080·VP8 ~6.7Mbps)을 실시간으로 한 번 더 압축(VP9 8Mbps)하면 그만큼 뭉개짐 → 1920 폭 이하·40MB 이하면 **원본 그대로** 올림(길이만 읽음)
+      const pr = buf.length <= CLIP_MAX ? await probeClip(file).catch(() => null) : null;
+      const orig = pr && pr.w > 0 && pr.w <= 1920 && pr.sec > 0;
+      if (orig) { secs[i] = pr.sec; _recLog.push(`${tag} 원본 그대로 ${(buf.length / 1048576).toFixed(1)}MB ${pr.w}×${pr.h} ${pr.sec.toFixed(2)}초`); }
+      const small = orig ? null : await shrinkClip(file).catch(e => { _recLog.push(tag + ' 줄이기 실패 ' + (e && e.message)); return null; });   // 잘라내지 않고 1920×1080 그대로·8Mbps(v0.1.80: 1.15배로 자르면 화면 아래쪽 주인공이 잘림)
       if (small && Number.isFinite(small.sec)) secs[i] = small.sec;   // 롤 원본 영상 길이 → 영상 0초가 게임 몇 초인지 정확히(아래)
       // v0.1.71: 화질을 올려 원본보다 커질 수 있음 → 크기 비교 안 함(잘라 맞춘 화면 = 주인공 중심이 기준)
       if (small && small.buf.length > 100000 && small.buf.length <= CLIP_MAX) { _recLog.push(`${tag} 다시 녹화 ${(buf.length / 1048576).toFixed(1)}→${(small.buf.length / 1048576).toFixed(1)}MB ${small.w}×${small.h}`); buf = small.buf; }
@@ -1545,8 +1554,8 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   // 🎬 영상 0초 = 롤이 실제로 찍기 시작한 게임 시각 → 영상이 생긴 장면은 clipFrom을 거기로(안 하면 킬 자막·슬로가 어긋남 · v0.1.58)
   //   = 녹화 끝(clipTo) − 원본 영상 길이(실측 540~556 요청 → 18.94초 → 537.06) · 길이를 모르거나 이상하면 되감기 지점(clipFrom − 3)
   const vStart = (c, sec) => { const g = makeReplayRec.videoStart(c.clipFrom, c.clipTo), m = sec != null ? c.clipTo - sec : null; return m != null && Math.abs(m - g) <= 2 ? +m.toFixed(2) : g; };
-  if (metas[0]) { const v0 = vStart(card, secs[0]); card.clipLead = +(card.clipFrom - v0).toFixed(2); card.clipFrom = v0; }
-  if (metas[1] && H) { const v0 = vStart(H, secs[1]); H.clipLead = +(H.clipFrom - v0).toFixed(2); H.clipFrom = v0; }
+  if (metas[0]) { const v0 = vStart({ clipFrom: parts[0].from, clipTo: card.clipTo }, secs[0]); card.clipLead = +(card.clipFrom - v0).toFixed(2); card.clipFrom = v0; card.directed = true; }   // directed = 연출 카메라 영상(팟지 창이 확대 안 함)
+  if (metas[1] && H) { const v0 = vStart(H, secs[1]); H.clipLead = +(H.clipFrom - v0).toFixed(2); H.clipFrom = v0; H.directed = true; }
   if (metas[0] || metas[1]) _recLog.push(`영상 시작 = 게임 ${metas[0] ? card.clipFrom : '-'}초${H && metas[1] ? ` · 숨은 영웅 ${H.clipFrom}초` : ''} (원본 길이 ${secs.map(x => x == null ? '?' : x.toFixed(2)).join('/')}초)`);
   const sec = Math.round((Date.now() - t0) / 1000), mb = m => m ? +(m.size / 1048576).toFixed(1) : null;
   recEnd(); setTimeout(tryInstallUpdate, 8000);   // 녹화 끝 → 안내 닫기 · 업데이트 기다리던 중이면 이제 설치
@@ -1555,6 +1564,13 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
 }
 // 🎬 녹화 영상 줄이기(v0.1.34~35) — 숨은 창에서 다시 재생하며 다시 녹화(v0.1.80부터 잘라내기 없음)(소리 포함) · 영상 길이만큼 걸림
 //   v0.1.71(사장님: 화질 때문에 잘 안 보임): 1280×720·3.5Mbps → **최대 1920 폭(잘라낸 해상도 그대로, 늘리지 않음)·8Mbps** — 영상은 GitHub라 받는 양 걱정 없음
+async function probeClip(file) {   // 원본 영상 길이·크기(다시 녹화 없이)
+  const w = new BrowserWindow({ show: false, width: 320, height: 200, skipTaskbar: true, webPreferences: { backgroundThrottling: false, contextIsolation: true } });
+  try {
+    await w.loadFile('potg/shrink.html');
+    return await Promise.race([w.webContents.executeJavaScript(`probe(${JSON.stringify(pathToFileURL(file).href)})`), new Promise((_, no) => setTimeout(() => no(new Error('시간 초과')), 15000))]);
+  } finally { try { w.destroy(); } catch (_) {} }
+}
 async function shrinkClip(file) {
   const w = new BrowserWindow({ show: false, width: 320, height: 200, skipTaskbar: true, webPreferences: { backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required', contextIsolation: true } });
   try {

@@ -6,6 +6,13 @@
 // 큰 파일(10초에 8MB)이 됨 → 가로 W로 줄여 다시 녹화(소리 포함). 실제 시간만큼 걸림(20초 영상 = 약 20초).
 // v0.1.35: 가운데를 16:9로 잘라 zoom배 확대(카메라가 주인공을 화면 가운데에 두므로 주인공 중심) — 21:9 모니터는 양옆, 16:9는 둘레가 잘림.
 // 메인이 executeJavaScript('shrink(src, W, kbps, zoom)')로 부르고 base64(webm)를 돌려받음.
+// 원본 그대로 올릴 수 있나 보기(2026-11-01) — 길이·크기만 읽음(다시 녹화 안 함)
+async function probe(src) {
+  const v = document.createElement('video'); v.src = src; v.preload = 'metadata';
+  await new Promise((ok, no) => { v.onloadedmetadata = ok; v.onerror = () => no(new Error('영상 열기 실패')); });
+  if (!Number.isFinite(v.duration)) { v.currentTime = 1e9; await new Promise(r => { v.ondurationchange = r; setTimeout(r, 3000); }); }   // 길이 정보 없는 webm
+  return { w: v.videoWidth, h: v.videoHeight, sec: Number.isFinite(v.duration) ? v.duration : null };
+}
 async function shrink(src, W, kbps, zoom) {
   const v = document.createElement('video');
   v.src = src; v.preload = 'auto'; v.playsInline = true;

@@ -51,6 +51,15 @@ const rr = makeReplayRec(Object.assign(makeReplayRec.defaults(), {
       const k0 = kills[0], kN = kills[kills.length - 1], kf = (time, value) => ({ time: +time.toFixed(2), value, blend: 'smoothStep' });
       return { fov: 60, cam: follow(CAM.far), seq: { fieldOfView: [kf(k0 - 1.4, 60), kf(k0 - 0.3, 40), kf(kN + 0.6, 40), kf(kN + 1.8, 60)] } };
     }
+    if (v.startsWith("direct:")) {   // 🎥 연출 카메라(replayrec direct) · direct:<잡힌 상대 게임 이름>@<킬 시각>[@영문 챔피언 이름]|… · 소개 2.4초를 위해 시작을 2초 앞당김
+      const victims = v.slice(7).split('|').map(x => { const [name, t, alias] = x.split('@'); return { name, t: +t, alias }; }).filter(x => x.name && Number.isFinite(x.t));   // direct: 만 쓰면 상대 없음(숨은 영웅)
+      return { fov: 60, from: +from - 2, direct: { victims } };
+    }
+    if (v === 'rampnear' || v === 'ramplow') {   // mixnear/mixlow와 같은 움직임을 매 프레임 이어서(camRamp) — 계단식 버벅임 없앰
+      if (!kills.length) throw new Error(v + '는 킬 시각이 필요해요');
+      const B = follow(CAM.far), N = follow(CAM[v === 'rampnear' ? 'near' : 'low']), pick = c => ({ selectionOffset: c.selectionOffset, cameraRotation: c.cameraRotation });
+      return { fov: 60, cam: B, camRamp: [{ t0: kills[0] - 1.2, t1: kills[0] - 0.3, from: pick(B), to: pick(N) }, { t0: kills[kills.length - 1] + 0.8, t1: kills[kills.length - 1] + 1.8, from: pick(N), to: pick(B) }] };
+    }
     if (v === 'mixnear' || v === 'mixlow') {
       if (!kills.length) throw new Error(v + '는 킬 시각이 필요해요');
       const B = CAM.far, N = CAM[v === 'mixnear' ? 'near' : 'low'], camAt = [];

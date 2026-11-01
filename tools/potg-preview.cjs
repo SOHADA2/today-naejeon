@@ -8,8 +8,8 @@
 const { app, BrowserWindow } = require('electron');
 const fs = require('fs'), path = require('path');
 const [clipFile, cardFile, outDir] = process.argv.slice(-3);
-const W = +process.env.PREVIEW_W || 960, H = Math.round(W * 9 / 16 + 136), FPS = 30;   // PREVIEW_W=560 = 가장 좁은 팟지 창
-app.disableHardwareAcceleration();
+const W = +process.env.PREVIEW_W || 960, H = Math.round(W * 9 / 16 + 36), FPS = 30;   // 앱 potgBounds와 같게(영상 칸 16:9)   // PREVIEW_W=560 = 가장 좁은 팟지 창
+if (!process.env.PREVIEW_GPU) app.disableHardwareAcceleration();   // PREVIEW_GPU=1 = 그래픽카드로(큰 창에서도 효과가 안 꺼짐)
 app.whenReady().then(async () => {
   const repo = path.join(__dirname, '..');
   fs.mkdirSync(path.join(outDir, 'frames'), { recursive: true });
@@ -40,7 +40,7 @@ app.whenReady().then(async () => {
     window.__MR = new MediaRecorder(dest.stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 192000 });
     __MR.ondataavailable = e => { if (e.data && e.data.size) __AP.push(e.data); }; __AC.resume(); __MR.start(500); window.__REC_T0 = Date.now();
     (function loop() { const v = el('pg-video'); __L.s.push([now(), v.currentTime, v.paused || v.ended || !v.src ? 0 : 1, v.volume, v.playbackRate, bgm.a.currentTime, bgm.a.paused ? 0 : 1, bgm.a.volume, /_preview_clip2/.test(v.src) ? 1 : 0]); requestAnimationFrame(loop); })();
-    window.__cb({ card: ${JSON.stringify(card)}, manual: true }); return 1; })()`);
+    ${process.env.PREVIEW_NOFX ? '_glSlow = true;' : ''}window.__cb({ card: ${JSON.stringify(card)}, manual: true }); return 1; })()`);
   for (let i = 0; i < 120; i++) { await new Promise(r => setTimeout(r, 500)); if (await win.webContents.executeJavaScript(`document.getElementById('pg-end').style.display === ''`)) break; }
   await new Promise(r => setTimeout(r, 5600));   // 끝 화면 + BGM 페이드
   const log = JSON.parse(await win.webContents.executeJavaScript('JSON.stringify(__L)'));
