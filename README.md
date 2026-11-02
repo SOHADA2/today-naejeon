@@ -2,7 +2,7 @@
 
 하루 안에 끝나는 인스턴트 내전 데스크톱 앱입니다. 팀짜기 → 게임 결과 자동 기록 → MVP·매너왕 투표 → 오늘 순위까지 한 번에 진행합니다.
 
-- 설치: [내전 홈페이지](https://sohada2.github.io/aram/) 맨 아래 「투데이 내전 다운로드」, 또는 [Releases](https://github.com/SOHADA2/today-naejeon/releases/latest)의 `today-naejeon-setup-x.y.z.exe`
+- 소개·설치: **[투데이 내전 홈페이지](https://sohada2.github.io/today-naejeon/)**, 또는 [Releases](https://github.com/SOHADA2/today-naejeon/releases/latest)의 `today-naejeon-setup-x.y.z.exe`
 - 롤 클라이언트에 로그인하면 그 라이엇 계정으로 자동 입장합니다(아이디 선택 없음). 같은 PC에서 다른 사람이 자기 계정으로 로그인하면 자동으로 바뀝니다.
 - 왼쪽 창 = **대기실**: 접속한 사람이 모두 보이고 각자 「참가/관전」을 누릅니다. 방장이 방식(랜덤/드래프트)을 정하고 시작하면 모두의 화면에 팀이 뜹니다.
 - 처음 실행할 때 Windows 「PC 보호」 창이 뜨면 **추가 정보 → 실행**을 누르세요(서명되지 않은 앱이라 뜨는 경고입니다).

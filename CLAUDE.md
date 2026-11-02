@@ -3,7 +3,8 @@
 하루 안에 끝나는 **인스턴트 내전** 데스크톱 앱(Electron). 기존 `aram-overlay`(사이트 프로그램 버전·시즌 LP/골드 연동)를 **그대로 두고 따로 만든 두 번째 앱**이다. 사장님 의도 = "새로 만들다 별로면 다시 돌아간다" → **사이트 데이터와 완전 분리**가 최우선 원칙.
 
 - 리포: `SOHADA2/today-naejeon`(public — 사이트 다운로드·자동 업데이트용) · 로컬 `Desktop/today-naejeon`(다른 PC) · `C:\Users\so\today-naejeon`(롤 설치된 PC — 실기 확인 가능)
-- 배포: 사이트(sohada2.github.io/aram) **최하단**에 「투데이 내전 다운로드」 버튼(기존 「내전 오버레이 다운로드」 옆)
+- 🌐 **전용 홈페이지(2026-11-02)** = `docs/index.html` → GitHub Pages(main `/docs`) **https://sohada2.github.io/today-naejeon/** — 소개·진행 순서·기능(실제 앱 화면)·설치(SmartScreen)·FAQ·라이엇 고지 · 다운로드 버튼은 GitHub API로 최신 setup.exe 주소·버전을 채움(실패하면 releases/latest) · 이미지 = docs/img(앱 화면은 tools/ui-shot.cjs로 가짜 이름 장면 · 팟지/동전은 옛 레퍼런스) · ⚠️ 기능이 바뀌면 이 페이지 문구도
+- 배포(옛): 사이트(sohada2.github.io/aram) **최하단**에 「투데이 내전 다운로드」 버튼(기존 「내전 오버레이 다운로드」 옆)
 - 출발점: aram-overlay v0.1.55 코드에서 도킹·창·트레이·자동 업데이트·내장 브릿지·팀짜기 알고리즘만 가져오고, 복권·대장간·상점·가챠·패스·프로필·LP·막고라·아이템 페이즈·숨은 라이브 계정은 전부 걷어냄
 
 ## 🔒 데이터 분리 원칙 (절대 규칙)
