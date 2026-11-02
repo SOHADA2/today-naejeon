@@ -844,19 +844,29 @@ async function augTick() {
     //   ay = 배지 아래 끝(이름 줄 0.40H − 0.207H) · u = 화면 높이 1%(DIP) · cw = 카드 폭(0.296H)
     const top = Math.max(0, oy - Math.round(pr.height * 0.21)), lift = oy - top;
     const aug = await getAugments();
-    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, ax: (c.x + c.w / 2) / sf, ay: Math.max(60, lift + c.y - pr.height * 0.207) / sf, u: pr.height / sf / 100, cw: pr.height * 0.296 / sf, rank: ranks[i].rank, why: ranks[i].why, tier: ranks[i].tier, scope: ranks[i].scope, extra: ranks[i].extra, wr: ranks[i].wr, pr: ranks[i].pr, name: (aug[c.id] || {}).name || '', combo: augCombo(c.id, gg, aug, ids) }));   // 띠 기준
+    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, ax: (c.x + c.w / 2) / sf, ay: Math.max(60, lift + c.y - pr.height * 0.207) / sf, u: pr.height / sf / 100, cw: pr.height * 0.296 / sf, rank: ranks[i].rank, why: ranks[i].why, tier: ranks[i].tier, scope: ranks[i].scope, extra: ranks[i].extra, wr: ranks[i].wr, pr: ranks[i].pr, name: (aug[c.id] || {}).name || '', combo: augCombo(c.id, gg, aug, ids, (guide[champId] && guide[champId].plans) || []) }));   // 띠 기준
     augState.showing = { sig };
     augLog(`증강 ${found.cards.map((c, i) => `${cards[i].name}(${c.score.toFixed(2)})=${ranks[i].rank}위`).join(' · ')} · 캡처 ${r.cap}ms · 읽기 ${r.ms}ms`);
     showAugRank(d, cards, { x: ox / sf, y: top / sf, width: band.w / sf, height: (lift + band.h) / sf });
   } catch (e) { augLog('오류 ' + e.message); } finally { augState.busy = false; }
 }
 // 🔗 v0.1.101: 이 카드와 조합이 좋은 증강(사장님: 실시간 추적 말고 「뜬 증강이 어떤 증강이랑 조합이 좋다」만 — 이미 뽑았으면 본인이 알고, 아니면 다음에 뜰 때 노림)
-//   = aramgg 그 챔피언 3개 조합(승률순) 중 이 증강이 든 조합의 나머지 둘
-//   v0.1.104: 짝이 **지금 같이 뜬 다른 카드**인 조합은 뺌(사장님: 셋 중 하나만 고르니 의미 없음) · 그런 것밖에 없으면 조합 칸 없음
-function augCombo(id, gg, aug, ids) {
-  const cs = ((gg && gg.c) || []).filter(c => c[0].includes(id)); if (!cs.length) return null;
-  const c = cs.find(x => !x[0].some(a => a !== id && ids.includes(a))); if (!c) return null;
-  return { with: c[0].filter(a => a !== id).map(a => ({ id: a, name: (aug[a] || {}).name || '', icon: (aug[a] || {}).icon || '', rarity: (aug[a] || {}).rarity || '' })), wr: c[1], n: c[2], p: (gg && gg.p) || '' };
+//   v0.1.104: 짝이 **지금 같이 뜬 다른 카드**인 조합은 뺌(사장님: 셋 중 하나만 고르니 의미 없음)
+//   자료 두 곳(사장님: 정보가 부족하면 있는 데서 가져와야지) —
+//     ① aramgg 3개 조합 승률(그 챔피언 · 사이트가 판 수 151+ 조합을 **챔피언당 5개만** 줌 = 2026-11-02 받기 기록으로 확인)
+//     ② 그게 없으면 증강 가이드 플랜(arammayhem 편집 추천 조합 S~C · 사람이 고친 플랜 포함 · 증강 2개+) — 짝은 앞에서 2개, 나머지는 「+n」
+function augCombo(id, gg, aug, ids, plans) {
+  const meta = a => ({ id: a, name: (aug[a] || {}).name || '', icon: (aug[a] || {}).icon || '', rarity: (aug[a] || {}).rarity || '' });
+  const onScreen = a => a !== id && ids.includes(a);
+  const t = ((gg && gg.c) || []).find(c => c[0].includes(id) && !c[0].some(onScreen));
+  if (t) return { src: 'aramgg', with: t[0].filter(a => a !== id).map(meta), wr: t[1], n: t[2], p: (gg && gg.p) || '' };
+  const TSC = { 'S+': 10, S: 9, 'S-': 8, 'A+': 7, A: 6, 'A-': 5, 'B+': 4, B: 3, 'B-': 2, C: 1, D: 0 };
+  const ps = (plans || []).filter(p => Array.isArray(p.augs) && p.augs.includes(id))
+    .map(p => ({ p, rest: p.augs.filter(a => a !== id && !ids.includes(a)) })).filter(x => x.rest.length)
+    .sort((x, y) => (TSC[y.p.tier] != null ? TSC[y.p.tier] : 5) - (TSC[x.p.tier] != null ? TSC[x.p.tier] : 5));
+  if (!ps.length) return null;
+  const x = ps[0], am = /arammayhem\.com/.test(String(x.p.link || ''));
+  return { src: am ? 'arammayhem' : 'guide', with: x.rest.slice(0, 2).map(meta), more: Math.max(0, x.rest.length - 2), tier: x.p.tier || '', date: x.p.date || '', by: am ? '' : (x.p.by || '') };
 }
 function showAugRank(d, cards, area) {   // area = 띠(그 모니터 기준 DIP) — 투명 창을 띠 크기로만(v0.1.80: 예전엔 화면 전체 3440×1440 투명 창이 게임 위에 떠 합성 부담)
   const b = area ? { x: Math.round(d.bounds.x + area.x), y: Math.round(d.bounds.y + area.y), width: Math.round(area.width), height: Math.round(area.height) } : d.bounds;

@@ -45,6 +45,16 @@ function compactChamp(d, st) {
 (async () => {
   fs.mkdirSync(path.join(OUT, 'c'), { recursive: true });
   const html = await get('/ko/augments'); const g = html ? parseGlobal(html) : {};
+  // 🔎 증강 하나짜리 페이지에 「같이 고른 증강」 같은 짝 자료가 있는지(2026-11-02 · 조합 자료가 챔피언당 5개뿐이라)
+  for (const u of ['/ko/augments/1373', '/data/augment-details/1373.json', '/data/augments/1373.json', '/data/augment-pairs.json', '/data/augment-trios.json']) {
+    await sleep(1200);
+    try {
+      const r = await fetch(BASE + u, { headers: UA }); const t = r.ok ? await r.text() : '';
+      const hits = [...t.matchAll(/(trio|pair|duo|synerg|combo|together|함께|조합|시너지|같이)/gi)].slice(0, 6).map(m => JSON.stringify(t.slice(Math.max(0, m.index - 80), m.index + 120)));
+      const js = [...t.matchAll(/["'](\/data\/[^"']+)["']/g)].map(m => m[1]).filter((v, i, a) => a.indexOf(v) === i).slice(0, 20);
+      console.log(`🔎 ${u} → ${r.status} · ${t.length}자 · data 주소 ${js.join(' ')}`); for (const h of hits) console.log('   ', h);
+    } catch (e) { console.log(`🔎 ${u} → 오류 ${e.message}`); }
+  }
   console.log('전체 증강 등급', Object.keys(g).length);
   const stats = await get('/data/champions-stats.json', true);
   if (!Array.isArray(stats) || !stats.length) { console.log('챔피언 목록 못 받음 — 그만'); process.exit(1); }

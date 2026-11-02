@@ -41,6 +41,8 @@
     .cb .hd b { font-family:var(--f-num); font-size:calc(var(--u) * 2.5); font-weight:700; line-height:1; color:#7fe0c9; }
     .cb .hd b small { font-family:var(--f-body); font-size:.5em; font-weight:800; color:#9fb3ae; margin-right:.2em; }
     .cb .ics { display:flex; justify-content:space-around; gap:calc(var(--u) * .6); }
+    .cb .hd b.rec-t { color:#f2c25a; }
+    .cb .more { align-self:center; font-family:var(--f-num); font-weight:700; font-size:calc(var(--u) * 1.6); color:#aeb6bf; }
     .pa { display:flex; flex-direction:column; align-items:center; gap:calc(var(--u) * .25); width:calc(var(--u) * 7.2); min-width:0; }
     .pa .ic { position:relative; width:calc(var(--u) * 3.9); height:calc(var(--u) * 3.9); border-radius:50%; background:#1c2632 center/cover; border:calc(var(--u) * .22) solid #8a96a3; }
     .pa .ic.gold { border-color:#e2b65a; } .pa .ic.prismatic { border-color:#c98bff; } .pa .ic.silver { border-color:#c9d1da; }
@@ -84,8 +86,13 @@
           + `<span class="sc">${c.tier ? `<b>${esc(c.scope)}</b> 기준` : c.rank ? '' : '등급 자료 없음'}</span>`
           + (trap ? `<span class="warn"${tip('많이 고르지만 이 챔피언에게는 등급이 낮은 증강이에요.')}>⚠ 함정</span>` : '')
           + (rec ? `<span class="rec"${tip(`우리 내전·같이 한 일반 판에서 지금 챔피언과 이 증강을 같이 고른 기록이에요.`)}>${esc(rec)}</span>` : '') + '</span>';
-        const cb = c.combo && c.combo.with && c.combo.with.length
-          ? `<span class="cb"><span class="hd"${tip(`<b>${esc(c.scope || '이 챔피언')}</b> 기준 · 이 카드와 아래 두 증강을 <b>셋 다</b> 고른 판의 승률이에요.<br>${esc(c.combo.n)}판 · aramgg${c.combo.p ? ' · 패치 ' + esc(c.combo.p) : ''}`)}><span>🔗 같이 가면 좋은</span><b><small>승률</small>${Math.round((c.combo.wr || 0) * 100)}%</b></span><span class="ics">${c.combo.with.map(a => pair(a, c)).join('')}</span></span>` : '';
+        const cm = c.combo, gg = cm && cm.src === 'aramgg';
+        const cbTip = !cm ? '' : gg
+          ? `<b>${esc(c.scope || '이 챔피언')}</b> 기준 · 이 카드와 아래 두 증강을 <b>셋 다</b> 고른 판의 승률이에요.<br>${esc(cm.n)}판 · aramgg${cm.p ? ' · 패치 ' + esc(cm.p) : ''}`
+          : `${cm.src === 'arammayhem' ? 'arammayhem 편집진이 추천한' : esc(cm.by || '누군가') + '님이 증강 가이드에 적은'} 조합이에요${cm.tier ? ` (등급 <b>${esc(cm.tier)}</b>)` : ''}.<br>승률 통계는 아니고, 이 카드와 같이 노리면 좋은 증강${cm.more ? ` · 이 밖에 ${cm.more}개 더` : ''}${cm.date ? ` · ${esc(cm.date.slice(0, 7))} 자료` : ''}`;
+        const cbHead = !cm ? '' : gg ? `<b><small>승률</small>${Math.round((cm.wr || 0) * 100)}%</b>` : `<b class="rec-t"><small>추천</small>${esc(cm.tier || '')}</b>`;
+        const cb = cm && cm.with && cm.with.length
+          ? `<span class="cb"><span class="hd"${tip(cbTip)}><span>🔗 같이 가면 좋은</span>${cbHead}</span><span class="ics">${cm.with.map(a => pair(a, c)).join('')}${cm.more ? `<span class="more">+${cm.more}</span>` : ''}</span></span>` : '';
         const u = c.u || 10;
         document.documentElement.style.setProperty('--tu', u + 'px');
         return `<div class="bd r${r}" style="--u:${u}px;left:${Math.round(c.ax)}px;top:${Math.round(c.ay)}px;width:${Math.round((c.cw || u * 29.6) + u * 1.2)}px">${left}${cb}</div>`;
