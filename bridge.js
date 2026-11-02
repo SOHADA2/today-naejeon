@@ -12,6 +12,7 @@ const { EventEmitter } = require('events');
 const { execFile }     = require('child_process');
 
 const FIREBASE_URL      = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app';   // 🗄️ v0.1.64 투데이 내전 전용 프로젝트
+const FIXED_ROOT        = 'today/bridge';   // 🚪 v0.1.95: 방과 상관없는 것(접속·5초 하트비트·점검 기록 — 타임라인 원본은 1.5MB까지)은 늘 여기 · 방 스트림 하나로 합치면서 방 안에 두면 모두가 받게 돼서
 let BRIDGE_ROOT         = 'today/bridge';   // ⚠️ 사이트 bridge/ 와 분리(시즌2 데이터 오염 방지) · 🚪 v0.1.94: 방에 들어가면 today/rooms/{방}/bridge(setRoot) — 방마다 경기 결과(eogStats)가 따로
 
 // 주입 옵션(startBridge에서 세팅)
@@ -180,7 +181,7 @@ async function lcuRaw(method, pathStr, body) {
 function startHeartbeat() {
   if (heartbeatTimer) return;
   const beat = () => {
-    fbSet(`${BRIDGE_ROOT}/operators/${OPERATOR_ID}`, _operatorPayload());  // 다중 진행자 표시
+    fbSet(`${FIXED_ROOT}/operators/${OPERATOR_ID}`, _operatorPayload());  // 다중 진행자 표시
   };
   beat();
   heartbeatTimer = setInterval(beat, 5000);
@@ -377,7 +378,7 @@ function startTimelineProbe(gameId) {
   _tlProbed.add(String(gameId));
   const t0 = Date.now(), sec = () => Math.round((Date.now() - t0) / 1000);
   const rec = { name: _getOpName() || '', appVer: _appVer, at: t0, tries: [], ok: false };
-  const key = `${BRIDGE_ROOT}/timelineProbe/${gameId}`;
+  const key = `${FIXED_ROOT}/timelineProbe/${gameId}`;
   let n = 0;
   log(`🧭 게임 ${gameId} 타임라인 확인 시작`);
   const tick = async () => {
@@ -411,7 +412,7 @@ function startReplayProbe(gameId) {
   _probed.add(String(gameId));
   const t0 = Date.now(), sec = () => Math.round((Date.now() - t0) / 1000);
   const rec = { name: _getOpName() || '', appVer: _appVer, host: !!_isHost(), at: t0, steps: [], result: 'checking' };
-  const key = `${BRIDGE_ROOT}/replayProbe/${gameId}/${OPERATOR_ID}`;
+  const key = `${FIXED_ROOT}/replayProbe/${gameId}/${OPERATOR_ID}`;
   const save = () => fbSet(key, rec).catch(() => {});
   let tries = 0, created = false, asked = false, last = null;
   log(`🎬 게임 ${gameId} 리플레이 확인 시작`);
@@ -633,7 +634,7 @@ function lobbyProbe(lb, seat) {
     if (sig === _probeSig) return; _probeSig = sig;
     const mk = (a) => Array.isArray(a) && a[0] ? Object.keys(a[0]).slice(0, 40) : null;
     const meIn = (a) => Array.isArray(a) && a.some(m => m && me.puuid && m.puuid === me.puuid);
-    fbSet(`${BRIDGE_ROOT}/lobbyProbe/${OPERATOR_ID}`, {
+    fbSet(`${FIXED_ROOT}/lobbyProbe/${OPERATOR_ID}`, {
       at: Date.now(), appVer: _appVer, name: _getOpName() || null, seat: seat == null ? null : seat,
       lbKeys: Object.keys(lb).slice(0, 40), gcKeys: Object.keys(gc).slice(0, 60), localKeys: Object.keys(me).slice(0, 40),
       team100: cnt(gc.customTeam100), team200: cnt(gc.customTeam200), spec: cnt(gc.customSpectators),
@@ -652,7 +653,7 @@ connector.on('connect', async data => {
   try { const me = await lcu('/lol-summoner/v1/current-summoner'); log(`접속 계정: ${me.displayName || me.gameName || ''}`); } catch (_) {}
   pollAccount();
   if (!_acctTimer) _acctTimer = setInterval(pollAccount, 5000);   // 로그인 직후엔 계정이 늦게 잡힐 수 있어 5초마다 재확인
-  await fbSet(`${BRIDGE_ROOT}/connected`, true);
+  await fbSet(`${FIXED_ROOT}/connected`, true);
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(poll, 3000); poll();
   if (!_seatTimer) _seatTimer = setInterval(pollSeat, 1000);
@@ -667,7 +668,7 @@ connector.on('disconnect', async () => {
   gameInProgress = false; activeGameId = null; activeIsCustom = null;
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   if (_seatTimer) { clearInterval(_seatTimer); _seatTimer = null; } pollSeat();   // 클라 종료 → 자리 없음
-  await fbSet(`${BRIDGE_ROOT}/connected`, false);
+  await fbSet(`${FIXED_ROOT}/connected`, false);
   await fbSet(`${BRIDGE_ROOT}/inGame`, null);
 });
 
@@ -699,9 +700,9 @@ function stop() {
   if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
   if (_acctTimer) { clearInterval(_acctTimer); _acctTimer = null; }
   if (_seatTimer) { clearInterval(_seatTimer); _seatTimer = null; }
-  fbSet(`${BRIDGE_ROOT}/connected`, false);
+  fbSet(`${FIXED_ROOT}/connected`, false);
   fbSet(`${BRIDGE_ROOT}/inGame`, null);
-  fbSet(`${BRIDGE_ROOT}/operators/${OPERATOR_ID}`, null);
+  fbSet(`${FIXED_ROOT}/operators/${OPERATOR_ID}`, null);
 }
 
 module.exports = { _summarizeTimeline: summarizeTimeline, start, stop, setRoot: (r) => { BRIDGE_ROOT = r || 'today/bridge'; }, getGameId: () => activeGameId || lastSavedGameId || null,   // 🎬 팟지 수집이 어느 게임인지

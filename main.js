@@ -920,7 +920,7 @@ function teamOf(s, name) {
 //   today/rooms/{방}/{session·lobby·host·normalLive·potgWait·potgRec·bridge} = 예전 today/ 아래 그 노드들 그대로(방마다)
 //   방에 있는 사람 = presence.room · 기록(days)은 그대로 한곳 + roomName → 「오늘」 순위는 방 이름별(이름 없는 옛 기록은 모든 방에) · 프로필은 합침
 //   ⚠️ 비공개 = 목록 자물쇠 + 앱의 비밀번호 확인까지(서버 읽기는 누구나 — 규칙 참고)
-let room = null, roomListRaw = null, runSession = null, _eogStream = null, _autoHostAt = 0, _gcAt = 0;   // room = { id, name, priv, h }
+let room = null, roomListRaw = null, runSession = null, _autoHostAt = 0, _gcAt = 0;   // room = { id, name, priv, h }
 const RP = () => `${T}/rooms/${room ? room.id : '_none'}`;   // 방 밖이면 쓰지 않음(각 함수가 room 확인 · _none은 규칙상 쓰기 거절)
 const roomGet = name => room ? getJson(`${FIREBASE_DB}/${T}/rooms/${room.id}/${name}.json`) : Promise.resolve(null);
 const ROOM_GONE_MS = 90000, ROOM_GRACE_MS = 120000;   // 방 사람 앱이 90초 넘게 소식 없으면 사라짐(업데이트로 다 같이 다시 켜는 30초는 버팀) · 막 만든 방은 2분 봐줌
@@ -941,22 +941,24 @@ function roomsView() {
   return { rooms, room: room ? { id: room.id, name: room.name, priv: room.priv } : null, me: config.myName || '', ready: !!(MIR.roomList && MIR.roomList.ready) };
 }
 const broadcastRooms = () => broadcast('rooms', roomsView());
-function roomStreams() {   // 방 바뀜 → 방 노드 스트림 다시(예전 방 데이터는 버림)
-  for (const n of ['session', 'lobby', 'host', 'normalLive', 'potgWait', 'potgRec']) mirClose(n);
-  if (_eogStream) { _eogStream.close(); _eogStream = null; }
+// ⚡ v0.1.95: 방 노드 스트림 7개(session·lobby·host·normalLive·potgWait·potgRec·eogStats) → **방 하나에 스트림 1개**(rooms/{방})
+//   무료 요금제 동시 연결 100개 — 앱당 9개(약 11명) → 3개(접속 표시·방 목록·방 · 약 33명) · 받는 건 똑같이 바뀐 칸만
+//   바뀐 칸 가르기 = 사본은 바뀐 길만 새 객체(mirSet)라 안 바뀐 칸은 같은 객체 → 이전과 === 비교 · 큰 점검 기록·5초 하트비트는 브릿지 FIXED_ROOT(방 밖)로
+let _roomPrev = null;
+const roomPart = (name, fetcher) => MIR.room && MIR.room.ready ? Promise.resolve(((MIR.room.data || {})[name]) || null) : fetcher();
+function roomStreams() {   // 방 바뀜 → 방 스트림 다시(예전 방 데이터는 버림)
+  mirClose('room'); _roomPrev = null;
   sessionData = null; lobbyRaw = null; lastFormed = 0; normalLive = null; potgRecRaw = null; potgWaitRaw = null;
   onHostRec(null);
   try { bridge.setRoot(room ? `${RP()}/bridge` : `${T}/bridge`); } catch (_) {}
   broadcast('lobby', lobbyView()); broadcast('session', { session: null, myName: config.myName || '' });
   if (!room || !runSession) return;
-  const base = RP();
-  fbMirror('session', runSession, `${base}/session`);                                                          // ⚡ 팀 배정·투표·결과
-  fbMirror('lobby', d => { lobbyRaw = d || null; broadcast('lobby', lobbyView()); }, `${base}/lobby`);           // ⚡ 대기실(참가·방식·팀장)
-  fbMirror('host', runSession, `${base}/host`);                                                                // ⚡ 방장 바뀜
-  fbMirror('normalLive', runSession, `${base}/normalLive`);                                                    // 🎮 같이 한 일반 판 팟지
-  fbMirror('potgWait', runSession, `${base}/potgWait`);                                                        // ⏳ 팟지 기다림 화면
-  fbMirror('potgRec', runSession, `${base}/potgRec`);                                                          // 🔴 녹화 중 안내
-  _eogStream = fbStream(`${base}/bridge/eogStats`, () => { if (config.isHost) runHost(); });                   // ⚡ 경기 종료 → 방장 앱이 바로 기록
+  fbMirror('room', d => {
+    const p = _roomPrev || {}, c = d || {}; _roomPrev = c;
+    if (p.lobby !== c.lobby) { lobbyRaw = c.lobby || null; broadcast('lobby', lobbyView()); }               // ⚡ 대기실(참가·방식·팀장)
+    if (['session', 'host', 'normalLive', 'potgWait', 'potgRec'].some(k => p[k] !== c[k])) runSession();     // ⚡ 판·방장·팟지(일반 판·기다림·녹화 안내)
+    if ((p.bridge && p.bridge.eogStats) !== (c.bridge && c.bridge.eogStats) && config.isHost) runHost();      // ⚡ 경기 종료 → 방장 앱이 바로 기록
+  }, RP());
 }
 async function roomJoin(id, pw, hash) {
   if (!account) return { ok: false, err: '롤에 로그인하면 방에 들어갈 수 있어요' };
@@ -1378,9 +1380,9 @@ async function fbPutIfAbsent(pathStr, value) {
 
 // ── 🧩 세션 폴링 — 팀 배정·투표·결과를 오버레이/패널로 ──────────────────────
 async function pollSession() {
-  const [s, lob, h, pres, np, pr, pw] = await Promise.all([mirOr('session', fetchSession), mirOr('lobby', fetchLobby), mirOr('host', fetchHost), mirOr('presence', fetchPresence),
-    mirOr('normalLive', () => roomGet('normalLive')), mirOr('potgRec', () => roomGet('potgRec')),
-    mirOr('potgWait', () => roomGet('potgWait'))]);   // 📡 스트림 사본(끊겼을 때만 서버에서)
+  const [s, lob, h, pres, np, pr, pw] = await Promise.all([roomPart('session', fetchSession), roomPart('lobby', fetchLobby), roomPart('host', fetchHost), mirOr('presence', fetchPresence),
+    roomPart('normalLive', () => roomGet('normalLive')), roomPart('potgRec', () => roomGet('potgRec')),
+    roomPart('potgWait', () => roomGet('potgWait'))]);   // 📡 스트림 사본(끊겼을 때만 서버에서)
   normalLive = np || null; potgRecRaw = pr || null; potgWaitRaw = pw || null;
   sessionData = s || null;
   lobbyRaw = lob || null; presenceRaw = pres || null;
@@ -1472,7 +1474,7 @@ async function potgWaitStart(card, g) {   // 녹화하는 앱(방장) — 녹화
   if (k && k.length) await fbSet(`${RP()}/potgWait/kills`, k).catch(() => {});
 }
 async function potgWaitFinish(card, recPath) {   // 공개 직전 — 예측 결과를 경기 기록·카드에 남기고 지움
-  const W = MIR.potgWait && MIR.potgWait.ready ? MIR.potgWait.data : await roomGet('potgWait').catch(() => null);
+  const W = await roomPart('potgWait', () => roomGet('potgWait')).catch(() => null);
   if (!W || String(W.gameId) !== String(card.gameId)) return;
   const picks = W.guess || {}, cands = W.cands || [];
   if (cands.length >= 2 && Object.keys(picks).length) {
