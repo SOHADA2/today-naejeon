@@ -57,12 +57,12 @@ function rankAugs(ids, g, globalT, rec, globalR, opt) {
   const avoid = new Set(g.avoid || []);
   const rows = ids.map(id => {
     // tier = 등급 글자(S+…D) · scope = 그 등급의 기준(챔피언 이름/전체) · extra = 덧붙임(콤보·함정·우리 기록) — 배지는 순위(크게)·등급 칩·기준 순(v0.1.85)
-    let score, tier = null, scope = '', known = true;
+    let score, tier = null, scope = '', known = true, wr = null, pr = null;   // wr·pr = 마우스 올림 설명용(v0.1.103)
     const extra = [];
     const gc = opt && opt.gg && opt.gg.a && opt.gg.a[id], gg = opt && opt.ggG && opt.ggG[id];
     const wrAdj = w => w != null ? Math.max(-0.4, Math.min(0.4, (w - 0.5) * 4)) : 0;
-    if (gc && gc[0] >= 1 && gc[0] <= 5) { score = 10 + (5 - gc[0]) * 2 + wrAdj(gc[1]) - (gc[3] || 999) / 100000; tier = 'T' + gc[0]; scope = champName; }
-    else if (gg && gg[0] >= 1 && gg[0] <= 5) { score = (5 - gg[0]) * 2 + wrAdj(gg[1]); tier = 'T' + gg[0]; scope = '전체'; }
+    if (gc && gc[0] >= 1 && gc[0] <= 5) { score = 10 + (5 - gc[0]) * 2 + wrAdj(gc[1]) - (gc[3] || 999) / 100000; tier = 'T' + gc[0]; scope = champName; wr = gc[1]; pr = gc[2]; }
+    else if (gg && gg[0] >= 1 && gg[0] <= 5) { score = (5 - gg[0]) * 2 + wrAdj(gg[1]); tier = 'T' + gg[0]; scope = '전체'; wr = gg[1]; }
     else if (TS[champT[id]] != null) { score = 10 + TS[champT[id]]; tier = champT[id]; scope = champName; }
     else if (globalT && TS[globalT[id]] != null) { score = TS[globalT[id]]; tier = globalT[id]; scope = '전체'; }
     else { score = 3; known = false; }
@@ -72,7 +72,7 @@ function rankAugs(ids, g, globalT, rec, globalR, opt) {
     const r = rec && rec[id]; if (r && r.g >= 2) { score += (r.w / r.g - 0.5) * 4; extra.push(`우리 ${r.g}판 ${r.w}승`); known = true; }
     if (globalR && globalR[id]) score -= globalR[id] / 10000;   // 동점이면 사이트 전체 순위가 높은 쪽(1~204위)
     const why = [tier ? `${scope} ${tier}` : known ? '' : '등급 없음'].concat(extra).filter(Boolean).join(' · ');
-    return { id, score: Math.round(score * 10000) / 10000, why, known, tier, scope, extra };
+    return { id, score: Math.round(score * 10000) / 10000, why, known, tier, scope, extra, wr, pr };
   });
   const order = rows.filter(r => r.known).sort((a, b) => b.score - a.score);
   for (const r of rows) r.rank = r.known ? order.findIndex(o => o.score === r.score) + 1 : null;   // 점수가 같으면 같은 등수 · 자료 없으면 순위 없음

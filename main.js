@@ -844,7 +844,7 @@ async function augTick() {
     //   ay = 배지 아래 끝(이름 줄 0.40H − 0.207H) · u = 화면 높이 1%(DIP) · cw = 카드 폭(0.296H)
     const top = Math.max(0, oy - Math.round(pr.height * 0.21)), lift = oy - top;
     const aug = await getAugments();
-    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, ax: (c.x + c.w / 2) / sf, ay: Math.max(60, lift + c.y - pr.height * 0.207) / sf, u: pr.height / sf / 100, cw: pr.height * 0.296 / sf, rank: ranks[i].rank, why: ranks[i].why, tier: ranks[i].tier, scope: ranks[i].scope, extra: ranks[i].extra, name: (aug[c.id] || {}).name || '', combo: augCombo(c.id, gg, aug, ids) }));   // 띠 기준
+    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, ax: (c.x + c.w / 2) / sf, ay: Math.max(60, lift + c.y - pr.height * 0.207) / sf, u: pr.height / sf / 100, cw: pr.height * 0.296 / sf, rank: ranks[i].rank, why: ranks[i].why, tier: ranks[i].tier, scope: ranks[i].scope, extra: ranks[i].extra, wr: ranks[i].wr, pr: ranks[i].pr, name: (aug[c.id] || {}).name || '', combo: augCombo(c.id, gg, aug, ids) }));   // 띠 기준
     augState.showing = { sig };
     augLog(`증강 ${found.cards.map((c, i) => `${cards[i].name}(${c.score.toFixed(2)})=${ranks[i].rank}위`).join(' · ')} · 캡처 ${r.cap}ms · 읽기 ${r.ms}ms`);
     showAugRank(d, cards, { x: ox / sf, y: top / sf, width: band.w / sf, height: (lift + band.h) / sf });
@@ -856,7 +856,7 @@ function augCombo(id, gg, aug, ids) {
   const cs = ((gg && gg.c) || []).filter(c => c[0].includes(id)); if (!cs.length) return null;
   const c = cs.find(x => x[0].some(a => a !== id && ids.includes(a))) || cs[0];
   const me = ids.indexOf(id);
-  return { with: c[0].filter(a => a !== id).map(a => ({ id: a, name: (aug[a] || {}).name || '', icon: (aug[a] || {}).icon || '', rarity: (aug[a] || {}).rarity || '', here: ids.includes(a), dir: ids.includes(a) ? Math.sign(ids.indexOf(a) - me) : 0 })), wr: c[1], n: c[2] };
+  return { with: c[0].filter(a => a !== id).map(a => ({ id: a, name: (aug[a] || {}).name || '', icon: (aug[a] || {}).icon || '', rarity: (aug[a] || {}).rarity || '', here: ids.includes(a), dir: ids.includes(a) ? Math.sign(ids.indexOf(a) - me) : 0 })), wr: c[1], n: c[2], p: (gg && gg.p) || '' };
 }
 function showAugRank(d, cards, area) {   // area = 띠(그 모니터 기준 DIP) — 투명 창을 띠 크기로만(v0.1.80: 예전엔 화면 전체 3440×1440 투명 창이 게임 위에 떠 합성 부담)
   const b = area ? { x: Math.round(d.bounds.x + area.x), y: Math.round(d.bounds.y + area.y), width: Math.round(area.width), height: Math.round(area.height) } : d.bounds;
@@ -866,7 +866,7 @@ function showAugRank(d, cards, area) {   // area = 띠(그 모니터 기준 DIP)
     frame: false, transparent: true, resizable: false, movable: false, focusable: false, skipTaskbar: true, alwaysOnTop: true, show: false, hasShadow: false, roundedCorners: false,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   }));
-  augWin.setAlwaysOnTop(true, 'screen-saver'); augWin.setIgnoreMouseEvents(true);
+  augWin.setAlwaysOnTop(true, 'screen-saver'); augWin.setIgnoreMouseEvents(true, { forward: true });   // v0.1.103: 클릭은 게임으로 · 마우스 움직임만 받아 배지에 올리면 설명
   augWin.webContents.on('did-finish-load', () => { if (augWin && !augWin.isDestroyed()) { send(); augWin.showInactive(); } });
   augWin.on('closed', () => { augWin = null; });
   augWin.loadFile('desktop/augrank.html');

@@ -11,7 +11,7 @@
          · 자리 = 카드 **위쪽 빈 곳**(아래 끝이 카드 위 테두리에 살짝 걸침) → 카드 아이콘·이름·설명을 하나도 안 가림 · 폭 = 카드 폭 정도
          · 왼쪽 = 순위(가장 크게) + 등급 칩 + 「럭스 기준」 · 함정이면 빨간 「⚠ 함정」
          · 오른쪽(조합 자료 있을 때) = 「같이 가면 좋은」 + 짝 증강 **아이콘 2개**(이름 아래) + 큰 승률 — 글 대신 그림이라 한눈에
-           짝이 지금 옆 카드면 아이콘에 청록 테두리 + 「◀ 옆 카드」(방향 화살표)
+           v0.1.103: 「옆 카드」 표시 뺌(사장님: 직관적이지 않음) → 자세한 설명은 전부 **마우스 올림**(순위·등급·승률·고른 비율 · 조합 판 수·패치 · 짝 증강이 지금 다른 카드에도 떠 있는지 · 함정·우리 기록)
          · 크기 = 화면 높이(u) 기준 → 해상도가 달라도 카드 대비 같은 크기
        ⚠️ 무한 애니메이션 금지 — 뜰 때 한 번만 */
     .bd { position:absolute; transform:translate(-50%, -100%); display:flex; align-items:stretch;
@@ -46,34 +46,66 @@
     .pa .ic.gold { border-color:#e2b65a; } .pa .ic.prismatic { border-color:#c98bff; } .pa .ic.silver { border-color:#c9d1da; }
     .pa .ic i { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-style:normal; font-weight:900; font-size:calc(var(--u) * 1.8); color:#c9d1da; }
     .pa .nm { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:calc(var(--u) * 1.3); font-weight:800; color:#f5efe2; }
-    .pa.here .ic { border-color:#5fd3b8; box-shadow:0 0 0 calc(var(--u) * .2) rgba(95,211,184,.35); }
-    .pa.here .nm { color:#7fe0c9; }
-    .pa .tg { font-size:calc(var(--u) * 1.15); font-weight:900; color:#0b1a14; background:#5fd3b8; padding:0 .35em; white-space:nowrap; }
+    /* 💬 마우스 올림 설명(v0.1.103) — 창은 클릭 통과 + 움직임만 받음(main forward) · 설명 붙은 곳은 올리면 살짝 밝아짐 */
+    [data-tip] { cursor:help; }
+    [data-tip]:hover { background:rgba(255,255,255,.08); }
+    #tip { position:fixed; z-index:9; max-width:min(44vw, calc(var(--tu, 10px) * 34)); padding:calc(var(--tu, 10px) * .7) calc(var(--tu, 10px) * 1); display:none;
+      background:#0b121b; border:1px solid rgba(242,194,90,.55); box-shadow:0 calc(var(--tu, 10px) * .4) calc(var(--tu, 10px) * 1.4) rgba(0,0,0,.8);
+      font-family:var(--f-body); font-size:max(12px, calc(var(--tu, 10px) * 1.45)); line-height:1.45; font-weight:600; color:#e8edf2; pointer-events:none; }
+    #tip b { color:#f2c25a; font-weight:900; }
+    #tip.on { display:block; }
     @keyframes in { from { opacity:0; transform:translate(-50%, -80%); } to { opacity:1; transform:translate(-50%, -100%); } }
   </style>
 </head>
 <body>
   <div id="root"></div>
+  <div id="tip"></div>
   <script>
     const tcls = t => { const m = /^T([1-5])$/.exec(t || ''); return m ? ' SABCC'[m[1]] : String(t || '')[0]; };   // aramgg T1~T5 → S·A·B·C 색
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    function pair(a) {
-      const tg = a.here ? `<span class="tg">${a.dir < 0 ? '◀ 옆 카드' : a.dir > 0 ? '옆 카드 ▶' : '옆 카드'}</span>` : '';
-      return `<span class="pa${a.here ? ' here' : ''}"><span class="ic ${esc(a.rarity)}"${a.icon ? ` style="background-image:url('${esc(a.icon)}')"` : ''}>${a.icon ? '' : `<i>${esc(String(a.name || '?')[0])}</i>`}</span><span class="nm">${esc(a.name || '?')}</span>${tg}</span>`;
+    const pct = x => x == null ? '' : Math.round(x * 1000) / 10 + '%';
+    const TIPS = [];   // data-tip 번호 → 설명 HTML(그릴 때마다 새로)
+    const tip = h => { TIPS.push(h); return ` data-tip="${TIPS.length - 1}"`; };
+    function pair(a, c) {
+      const where = a.here ? `<br>지금 <b>${a.dir < 0 ? '왼쪽' : a.dir > 0 ? '오른쪽' : '다른'} 카드</b>에도 떠 있어요 — 이번엔 하나만 고를 수 있으니 다음에 다시 뜨면 노려 보세요.` : '';
+      return `<span class="pa"${tip(`<b>${esc(a.name || '?')}</b>${where}`)}><span class="ic ${esc(a.rarity)}"${a.icon ? ` style="background-image:url('${esc(a.icon)}')"` : ''}>${a.icon ? '' : `<i>${esc(String(a.name || '?')[0])}</i>`}</span><span class="nm">${esc(a.name || '?')}</span></span>`;
     }
     function set(d) {
       const cards = (d && d.cards) || [];
+      TIPS.length = 0;
       document.getElementById('root').innerHTML = cards.map(c => {
         const r = c.rank ? Math.min(3, c.rank) : 0, ex = c.extra || [];
         const trap = ex.includes('함정'), rec = ex.find(x => /^우리 /.test(x));
-        const left = `<span class="rk"><span class="row"><span class="n">${c.rank ? `${c.rank}<small>위</small>` : '?'}</span>${c.tier ? `<span class="tr t${esc(tcls(c.tier))}">${esc(c.tier)}</span>` : ''}</span>`
+        const rkTip = c.tier
+          ? (c.scope === '전체' ? '이 챔피언 자료가 없어 <b>모든 챔피언</b> 기준이에요.<br>' : `<b>${esc(c.scope)}</b> 기준 · `) + `이 증강의 등급 <b>${esc(c.tier)}</b> — T1이 가장 좋고 T5가 가장 낮아요.`
+            + (c.wr != null ? `<br>승률 ${pct(c.wr)}` : '') + (c.pr != null ? ` · 고른 비율 ${pct(c.pr)}` : '')
+            + `<br>지금 뜬 카드 중 <b>${c.rank}위</b> · 자료 aramgg`
+          : c.rank ? `지금 뜬 카드 중 <b>${c.rank}위</b>` : '이 증강은 등급 자료가 아직 없어서 순위에서 빠졌어요.';
+        const left = `<span class="rk"${tip(rkTip)}><span class="row"><span class="n">${c.rank ? `${c.rank}<small>위</small>` : '?'}</span>${c.tier ? `<span class="tr t${esc(tcls(c.tier))}">${esc(c.tier)}</span>` : ''}</span>`
           + `<span class="sc">${c.tier ? `<b>${esc(c.scope)}</b> 기준` : c.rank ? '' : '등급 자료 없음'}</span>`
-          + (trap ? '<span class="warn">⚠ 함정</span>' : '') + (rec ? `<span class="rec">${esc(rec)}</span>` : '') + '</span>';
-        const cb = c.combo && c.combo.with && c.combo.with.length ? `<span class="cb"><span class="hd"><span>🔗 같이 가면 좋은</span><b><small>승률</small>${Math.round((c.combo.wr || 0) * 100)}%</b></span><span class="ics">${c.combo.with.map(pair).join('')}</span></span>` : '';
+          + (trap ? `<span class="warn"${tip('많이 고르지만 이 챔피언에게는 등급이 낮은 증강이에요.')}>⚠ 함정</span>` : '')
+          + (rec ? `<span class="rec"${tip(`우리 내전·같이 한 일반 판에서 지금 챔피언과 이 증강을 같이 고른 기록이에요.`)}>${esc(rec)}</span>` : '') + '</span>';
+        const cb = c.combo && c.combo.with && c.combo.with.length
+          ? `<span class="cb"><span class="hd"${tip(`<b>${esc(c.scope || '이 챔피언')}</b> 기준 · 이 카드와 아래 두 증강을 <b>셋 다</b> 고른 판의 승률이에요.<br>${esc(c.combo.n)}판 · aramgg${c.combo.p ? ' · 패치 ' + esc(c.combo.p) : ''}`)}><span>🔗 같이 가면 좋은</span><b><small>승률</small>${Math.round((c.combo.wr || 0) * 100)}%</b></span><span class="ics">${c.combo.with.map(a => pair(a, c)).join('')}</span></span>` : '';
         const u = c.u || 10;
-        return `<div class="bd r${r}" style="--u:${u}px;left:${Math.round(c.ax)}px;top:${Math.round(c.ay)}px;width:${Math.round((c.cw || u * 29.6) + u * 1.2)}px" title="${esc(c.combo ? c.combo.n + '판' : '')}">${left}${cb}</div>`;
+        document.documentElement.style.setProperty('--tu', u + 'px');
+        return `<div class="bd r${r}" style="--u:${u}px;left:${Math.round(c.ax)}px;top:${Math.round(c.ay)}px;width:${Math.round((c.cw || u * 29.6) + u * 1.2)}px">${left}${cb}</div>`;
       }).join('');
+      hideTip();
     }
+    // 💬 설명 띄우기 — 올린 칸 바로 아래(창 밖으로 안 나가게)
+    const tipEl = document.getElementById('tip');
+    function hideTip() { tipEl.className = ''; }
+    document.addEventListener('mousemove', e => {
+      const t = e.target.closest && e.target.closest('[data-tip]');
+      if (!t) return hideTip();
+      tipEl.innerHTML = TIPS[+t.dataset.tip] || ''; tipEl.className = 'on';
+      const r = t.getBoundingClientRect(), bd = (t.closest('.bd') || t).getBoundingClientRect(), w = tipEl.offsetWidth, h = tipEl.offsetHeight;   // 배지 전체 아래에(배지 글자를 안 가리게)
+      const x = Math.max(4, Math.min(innerWidth - w - 4, r.left + r.width / 2 - w / 2));
+      const y = bd.bottom + 6 + h > innerHeight ? Math.max(4, bd.top - h - 6) : bd.bottom + 6;
+      tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px';
+    });
+    document.addEventListener('mouseleave', hideTip);
     window.__set = set;
     if (window.api && window.api.onAugRank) window.api.onAugRank(set);
   </script>
