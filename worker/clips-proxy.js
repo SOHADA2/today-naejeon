@@ -36,6 +36,9 @@ async function upload(env, rel, name, type, buf) {
 async function route(req, env) {
   const u = new URL(req.url);
   if (req.headers.get('x-tn-app') !== 'today-naejeon') return json({ err: 'forbidden' }, 403);
+  // 🛡️ 같은 IP 1분에 올리기 10번·받기 40번까지(Cloudflare 무료 rate limit · 남이 계속 올려 저장소를 채우는 것 막기)
+  const lim = req.method === 'POST' ? env.UP_LIMIT : env.GET_LIMIT;
+  if (lim && !(await lim.limit({ key: req.headers.get('cf-connecting-ip') || 'ip' })).success) return json({ err: 'too many' }, 429);
   const len = Number(req.headers.get('content-length')) || 0, type = (req.headers.get('content-type') || '').split(';')[0];
   if (req.method === 'POST' && u.pathname === '/upload') {
     const day = u.searchParams.get('day'), name = u.searchParams.get('name');

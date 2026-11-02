@@ -9,3 +9,16 @@ REPO = "SOHADA2/today-naejeon-clips"
 
 [triggers]
 crons = ["0 21 * * *"]   # 매일 한국 새벽 6시 = 3일 지난 영상 정리
+
+# 🛡️ 같은 IP 1분 제한(clips-proxy.js route) — 올리기 10번 · 받기 40번
+[[unsafe.bindings]]
+name = "UP_LIMIT"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
+
+[[unsafe.bindings]]
+name = "GET_LIMIT"
+type = "ratelimit"
+namespace_id = "1002"
+simple = { limit = 40, period = 60 }

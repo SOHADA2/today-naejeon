@@ -1044,7 +1044,16 @@ async function roomGc() {   // 🧹 아무도 없는 방 지우기(아무 앱이
     await fbSet(`${T}/roomList/${id}`, null).catch(() => {});
     await fbSet(`${T}/rooms/${id}`, null).catch(() => {});
   }
+  if (Date.now() - _orphanAt < 300000) return;   // 🛡️ v0.1.97: 방 목록에 없는 방 데이터(목록 밖에 만든 쓰레기 등) 5분마다 정리
+  _orphanAt = Date.now();
+  const all = await getJson(`${FIREBASE_DB}/${T}/rooms.json?shallow=true`).catch(() => null);
+  for (const id of Object.keys(all || {})) {
+    if ((roomListRaw || {})[id] || (room && room.id === id)) continue;
+    if (await getJson(`${FIREBASE_DB}/${T}/roomList/${id}.json`).catch(() => 1) !== null) continue;   // 막 만든 방(목록 스트림이 아직 안 옴)은 서버에서 한 번 더 확인
+    await fbSet(`${T}/rooms/${id}`, null).catch(() => {});
+  }
 }
+let _orphanAt = Date.now();
 function roomRejoin() {   // 앱을 다시 켜면(업데이트 등) 있던 방으로 — 그 방이 아직 있으면
   const L = config.lastRoom;
   if (room || !account || !L || !L.id || !(MIR.roomList && MIR.roomList.ready)) return;
@@ -1386,6 +1395,8 @@ async function lobbyReopen() {   // 👑 지금 판을 접고 대기실로(팀�
 }
 
 // 없을 때만 생성(조건부 PUT) — 같은 경기를 두 기기가 동시에 기록해도 한 번만 저장(412=이미 있음)
+// 🛡️ v0.1.97: 새 경기 기록엔 서버 시각 sv — 규칙이 sv 6시간 안에만 투표·팟지 칸 쓰기 허용(지난 경기 결과 못 바꿈 · PC 시계가 틀려도 정확)
+const withSv = rec => Object.assign({}, rec, { sv: { '.sv': 'timestamp' } });
 async function fbPutIfAbsent(pathStr, value) {
   const tok = await fbToken();
   if (!tok) return { ok: false, err: '인증 실패(네트워크 확인)' };
@@ -1656,7 +1667,7 @@ async function recordNormal(e) {
   const ids = {}; for (const p of us) ids[fbKeyOf(p.summonerName)] = p.puuid;
   const rec = { gameId: gid, day, ts: Date.now(), source: e.source || 'eog', queueId: e.queueId == null ? null : e.queueId, gameMode: e.gameMode || null, queue: queueName(e.queueId, e.gameMode),
     side: Number(side), win, us: us.map(p => p.summonerName), ids, gameTime: e.gameTime || 0, stats: e.players, by: config.myName || '', roomName: room.name, roomId: room.id };
-  const w = await fbPutIfAbsent(`${T}/days/${day}/normals/${gid}`, rec);
+  const w = await fbPutIfAbsent(`${T}/days/${day}/normals/${gid}`, withSv(rec));
   if (w.ok) { console.log(`[normal] 같이 한 판 저장 ${rec.queue} ${win ? '승' : '패'} · ${rec.us.join(', ')}`); _profIdx = null; }
   else console.log('[normal] ' + (w.conflict ? '다른 친구 앱이 먼저 저장' : w.err));
   // 🎬 팟지 담당 = 내전처럼 **방장 PC**(그 판에 방장이 있으면) · 방장이 그 판에 없거나 방장이 없으면 기록을 먼저 저장한 앱
@@ -2048,7 +2059,7 @@ async function recordGame(winner, eog) {
     ids: s.ids || null,   // 👤 이름→puuid(프로필이 닉변해도 같은 사람으로 묶음)
     roomName: room ? room.name : null, roomId: room ? room.id : null,   // 🚪 「오늘」 순위 = 방 이름별
   };
-  const w = await fbPutIfAbsent(`${T}/days/${day}/matches/${gid}`, rec);
+  const w = await fbPutIfAbsent(`${T}/days/${day}/matches/${gid}`, withSv(rec));
   _profIdx = null;
   if (!w.ok && !w.conflict) return { ok: false, err: w.err };
   const u = await fbUpdate(`${RP()}/session`, { phase: 'vote', game: { id: gid, day, winner, at: Date.now() }, votes: null, result: null, lastGameId: gid, pendingEog: null, potg: null });
