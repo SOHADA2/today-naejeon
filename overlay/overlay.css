@@ -476,6 +476,7 @@ header .phase, header .win-btn { flex-shrink:0; }
 .rm-pwrow .rm-in { flex:1; min-width:0; padding:7px 9px; font-size:13px; }
 .rm-empty { display:flex; flex-direction:column; align-items:center; gap:12px; padding:28px 10px; text-align:center; color:var(--dim); font-size:13px; line-height:1.6; }
 .rm-empty .ui-btn-gold { width:100%; max-width:260px; }
+.rm-full-t { font-size:15px; color:var(--ink); }
 .lb-leave { flex:none; margin-left:0; color:var(--dim); background:transparent; border-color:var(--hair); }
 .lb-head .lb-title { min-width:0; }
 .lb-rname { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }

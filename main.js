@@ -925,6 +925,30 @@ const RP = () => `${T}/rooms/${room ? room.id : '_none'}`;   // 방 밖이면 �
 const roomGet = name => room ? getJson(`${FIREBASE_DB}/${T}/rooms/${room.id}/${name}.json`) : Promise.resolve(null);
 const ROOM_GONE_MS = 90000, ROOM_GRACE_MS = 120000;   // 방 사람 앱이 90초 넘게 소식 없으면 사라짐(업데이트로 다 같이 다시 켜는 30초는 버팀) · 막 만든 방은 2분 봐줌
 const pwHash = (id, pw) => require('crypto').createHash('sha256').update(`${id}:${pw}`).digest('hex');
+// 🚦 v0.1.96: 자리 — 무료 요금제 동시 연결 100개(앱당 실시간 연결 3개 = 약 33명 · 짧은 요청은 안 셈 · 실측) → 켤 때 자리부터 보고 꽉 찼으면 실시간 연결을 아예 안 엶
+//   이미 들어와 있는 사람은 그대로(다시 확인 안 함) · 30초마다 다시 보고 자리 나면 들어감
+//   세는 것 = today/conns/{기기} = 마지막 신호 시각(롤 로그인 안 한 앱도 연결은 쓰니 접속 표시 대신 기기 단위) · 기준 = config/connCap(기본 30 · 동시에 켜는 사람 여유)
+const CONN_CAP = 30, CONN_MS = 20000, CONN_STALE_MS = 10 * 60 * 1000;
+let seatFull = null, _live = false, _connN = 0;   // seatFull = { n, cap } = 꽉 차서 기다리는 중
+function connBeat() {
+  fbSet(`${T}/conns/${config.deviceId}`, Date.now()).catch(() => {});
+  if (++_connN % 15) return;   // 5분마다 오래된 기기 정리(앱이 갑자기 꺼진 것)
+  getJson(`${FIREBASE_DB}/${T}/conns.json`).then(c => { for (const [k, v] of Object.entries(c || {})) if (!(Date.now() - v < CONN_STALE_MS)) fbSet(`${T}/conns/${k}`, null).catch(() => {}); }).catch(() => {});
+}
+function startLive() {   // 실시간 연결 3개(접속 표시·방 목록·방)
+  _live = true;
+  fbMirror('presence', d => { presenceRaw = d || null; broadcast('lobby', lobbyView()); broadcastRooms(); }); // ⚡ 누가 들어오고 나감(어느 방에)
+  fbMirror('roomList', d => { roomListRaw = d || null; broadcastRooms(); roomRejoin(); });                    // 🚪 방 목록
+  roomStreams();                                       // 🚪 방 노드(session·lobby·host·normalLive·potgWait·potgRec·eogStats) = 방에 들어가면 그 방 것만
+  connBeat(); setInterval(connBeat, CONN_MS);
+}
+async function seatGate() {
+  const [c, capRaw] = await Promise.all([getJson(`${FIREBASE_DB}/${T}/conns.json`), getJson(`${FIREBASE_DB}/${T}/config/connCap.json`)]);
+  const cap = Number.isInteger(capRaw) && capRaw > 0 ? capRaw : CONN_CAP, now = Date.now();
+  const n = Object.entries(c || {}).filter(([k, v]) => k !== config.deviceId && now - v < ONLINE_MS).length;   // 나는 빼고(업데이트로 다시 켠 건 내 자리 그대로)
+  if (n >= cap) { seatFull = { n, cap }; broadcastRooms(); setTimeout(seatGate, 30000); return; }
+  seatFull = null; startLive(); broadcastRooms();
+}
 function roomMembers(id) {
   const now = Date.now();
   return Object.entries(presenceRaw || {}).filter(([, p]) => p && p.room === id && p.name && now - (p.at || 0) < ONLINE_MS).map(([key, p]) => ({ key, name: normName(p.name), icon: p.icon || null }));
@@ -938,7 +962,7 @@ function roomsView() {
     rooms.push({ id, name: r.name, priv: !!r.priv, host: r.host || null, n: mem.length, members: mem.map(m => m.name).slice(0, 10), at: r.at || 0, mine: !!(room && room.id === id) });
   }
   rooms.sort((a, b) => b.mine - a.mine || b.n - a.n || b.at - a.at);
-  return { rooms, room: room ? { id: room.id, name: room.name, priv: room.priv } : null, me: config.myName || '', ready: !!(MIR.roomList && MIR.roomList.ready) };
+  return { rooms, room: room ? { id: room.id, name: room.name, priv: room.priv } : null, me: config.myName || '', ready: !!(MIR.roomList && MIR.roomList.ready), full: seatFull };
 }
 const broadcastRooms = () => broadcast('rooms', roomsView());
 // ⚡ v0.1.95: 방 노드 스트림 7개(session·lobby·host·normalLive·potgWait·potgRec·eogStats) → **방 하나에 스트림 1개**(rooms/{방})
@@ -962,6 +986,7 @@ function roomStreams() {   // 방 바뀜 → 방 스트림 다시(예전 방 데
 }
 async function roomJoin(id, pw, hash) {
   if (!account) return { ok: false, err: '롤에 로그인하면 방에 들어갈 수 있어요' };
+  if (!_live) return { ok: false, err: '지금은 자리가 꽉 찼어요' };
   const r = (roomListRaw || {})[id] || await getJson(`${FIREBASE_DB}/${T}/roomList/${id}.json`);
   if (!r || !r.name) return { ok: false, err: '없어진 방이에요' };
   let h = null;
@@ -980,6 +1005,7 @@ async function roomJoin(id, pw, hash) {
 }
 async function roomCreate(name, priv, pw) {
   if (!account) return { ok: false, err: '롤에 로그인하면 방을 만들 수 있어요' };
+  if (!_live) return { ok: false, err: '지금은 자리가 꽉 찼어요' };
   const nm = normName(String(name || '')).slice(0, 20) || `${account.gameName}의 방`, p = String(pw || '').trim();
   if (priv && !p) return { ok: false, err: '비밀번호를 정해주세요' };
   const id = 'r' + Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 6), now = Date.now();
@@ -1380,6 +1406,7 @@ async function fbPutIfAbsent(pathStr, value) {
 
 // ── 🧩 세션 폴링 — 팀 배정·투표·결과를 오버레이/패널로 ──────────────────────
 async function pollSession() {
+  if (!_live) return;   // 🚦 자리 기다리는 중(서버에서 읽지도 않음)
   const [s, lob, h, pres, np, pr, pw] = await Promise.all([roomPart('session', fetchSession), roomPart('lobby', fetchLobby), roomPart('host', fetchHost), mirOr('presence', fetchPresence),
     roomPart('normalLive', () => roomGet('normalLive')), roomPart('potgRec', () => roomGet('potgRec')),
     roomPart('potgWait', () => roomGet('potgWait'))]);   // 📡 스트림 사본(끊겼을 때만 서버에서)
@@ -2735,9 +2762,7 @@ else {
     if (config.augRank) regAugShot();
     runSession = coalesce(pollSession);
     setInterval(runSession, 3000);                       // 화면·방장 일 3초마다(📡 v0.1.63: 데이터는 스트림 사본 — 끊긴 노드만 서버에서 읽음)
-    fbMirror('presence', d => { presenceRaw = d || null; broadcast('lobby', lobbyView()); broadcastRooms(); }); // ⚡ 누가 들어오고 나감(어느 방에)
-    fbMirror('roomList', d => { roomListRaw = d || null; broadcastRooms(); roomRejoin(); });                    // 🚪 방 목록
-    roomStreams();                                       // 🚪 방 노드(session·lobby·host·normalLive·potgWait·potgRec·eogStats) = 방에 들어가면 그 방 것만
+    seatGate();                                          // 🚦 자리 있으면 실시간 연결(접속 표시·방 목록·방) · 꽉 찼으면 안내하고 30초마다 다시
     setupAutoUpdate();
     replayRec = makeReplayRec(Object.assign(makeReplayRec.defaults(), {   // 🎬 방장 PC가 팟지 장면을 리플레이로 녹화
       lcuRaw: bridge.lcuRaw, lolDir: bridge.lolDir, outDir: path.join(app.getPath('userData'), 'replay-rec'),
@@ -2804,6 +2829,7 @@ app.on('before-quit', (e) => {
   // 접속 표시·방장 자리를 지우고 끝냄(안 지우면 다른 사람이 1분 기다려야 방장을 이어받음) — 최대 3초
   _cleanedUp = true;
   const jobs = [];
+  if (_live) jobs.push(fbSet(`${T}/conns/${config.deviceId}`, null));   // 🚦 내 자리 비움
   if (account) jobs.push(fbSet(`${T}/presence/${account.puuid}`, null));
   if (account) jobs.push(fbSet(`${RP()}/lobby/join/${account.puuid}`, null));
   if (config.isHost) jobs.push(fbCas(`${RP()}/host`, cur => cur && account && cur.puuid === account.puuid ? { value: null } : { err: 'not mine' }));

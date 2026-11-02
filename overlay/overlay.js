@@ -74,6 +74,14 @@ async function rmJoin(id, pw) {
     setTimeout(() => { const i = el('rm-pw-in'); if (i) i.focus(); }, 0);
   }
 }
+function renderFull() {   // 🚦 v0.1.96: 자리 꽉 참(무료 서버 동시 연결 한도) — 실시간 연결 안 열고 기다림 · 자리 나면 앱이 알아서 들어감
+  const F = roomData.full;
+  el('rm-new').style.display = 'none'; rmForm(false); rmErr('');
+  const sig = 'full:' + F.cap;
+  if (sig === _rmSig) return;
+  _rmSig = sig;
+  el('rm-list').innerHTML = `<div class="rm-empty"><b class="rm-full-t">지금은 자리가 꽉 찼어요</b><span>무료 서버라 한 번에 ${F.cap}명까지 쓸 수 있어요<br>누가 나가면 자동으로 들어가요</span><span class="lb-wait">자리 확인 중</span></div>`;
+}
 function renderRooms() {
   const D = roomData || { rooms: [] }, R = D.rooms || [];
   el('rm-new').style.display = myName && R.length ? '' : 'none';
@@ -839,6 +847,7 @@ function renderRoster() {
 }
 
 function render() {
+  if (roomData && roomData.full) { renderFull(); showView('rooms'); el('phase').textContent = '자리 없음'; return; }   // 🚦 서버 자리 꽉 참
   const s = sessionData, ph = s && s.phase;
   if (ph === 'draft' && !inGame) { maybePick(s); loadToday(); renderDraft(); updateDraftTimer(); showView('draft'); el('phase').textContent = '드래프트'; maybeCoin(s); return; }   // 픽 먼저(뽑힌 칸을 연출 끝까지 비워둠)
   if (ph === 'vote' && hasTeams() && s.game) {

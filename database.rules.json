@@ -97,6 +97,12 @@
       },
       "roomList": {
         ".write": true
+      },
+      "conns": {
+        "$dev": {
+          ".write": true,
+          ".validate": "newData.isNumber() && $dev.length <= 40"
+        }
       }
     }
   }
