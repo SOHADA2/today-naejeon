@@ -4,6 +4,8 @@
 //  · 이름 줄 찾기(findCards): 읽은 줄마다 증강 이름과 비교(공백·기호 빼고 · 글자 1~2개 틀려도 · 줄에 다른 글이 붙어도) →
 //    같은 높이(화면 높이 6% 안)에 서로 다른 증강 2~3개가 가로로 떨어져 있으면 「증강 고르는 화면」 · 리롤로 하나 바뀌면 다음 읽기에서 바로 반영
 //  · 순위(rankAugs): 그 챔피언 이번 패치 등급 > 전체 등급 > 모름 · 콤보 +·함정 −·우리 기록 ± → 1·2·3위와 짧은 이유
+//    v0.1.100: 등급 = **aramgg 위주**(opt.gg = 그 챔피언 {a:{증강:[T1~5, 승률, 픽률, 사이트 순위]}} · opt.ggG = 전체 {증강:[T, 승률]}) → 없을 때만 예전 arammayhem 글자 등급(S+…D)
+//    같은 T 안에서는 승률(±0.4점 · 등급 한 칸 = 2점이라 안 넘음) → 사이트 순위
 const clean = s => String(s || '').replace(/[\s.,!?·:;'"`~()[\]{}<>\-_/\\|+*=]/g, '').toLowerCase();
 function lev(a, b) {
   if (a === b) return 0; const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
@@ -57,7 +59,11 @@ function rankAugs(ids, g, globalT, rec, globalR, opt) {
     // tier = 등급 글자(S+…D) · scope = 그 등급의 기준(챔피언 이름/전체) · extra = 덧붙임(콤보·함정·우리 기록) — 배지는 순위(크게)·등급 칩·기준 순(v0.1.85)
     let score, tier = null, scope = '', known = true;
     const extra = [];
-    if (TS[champT[id]] != null) { score = 10 + TS[champT[id]]; tier = champT[id]; scope = champName; }
+    const gc = opt && opt.gg && opt.gg.a && opt.gg.a[id], gg = opt && opt.ggG && opt.ggG[id];
+    const wrAdj = w => w != null ? Math.max(-0.4, Math.min(0.4, (w - 0.5) * 4)) : 0;
+    if (gc && gc[0] >= 1 && gc[0] <= 5) { score = 10 + (5 - gc[0]) * 2 + wrAdj(gc[1]) - (gc[3] || 999) / 100000; tier = 'T' + gc[0]; scope = champName; }
+    else if (gg && gg[0] >= 1 && gg[0] <= 5) { score = (5 - gg[0]) * 2 + wrAdj(gg[1]); tier = 'T' + gg[0]; scope = '전체'; }
+    else if (TS[champT[id]] != null) { score = 10 + TS[champT[id]]; tier = champT[id]; scope = champName; }
     else if (globalT && TS[globalT[id]] != null) { score = TS[globalT[id]]; tier = globalT[id]; scope = '전체'; }
     else { score = 3; known = false; }
     const combo = (g.plans || []).find(p => (p.augs || []).includes(id) && (p.augs || []).length > 1);

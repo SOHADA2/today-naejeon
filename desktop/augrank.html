@@ -30,6 +30,7 @@
 <body>
   <div id="root"></div>
   <script>
+    const tcls = t => { const m = /^T([1-5])$/.exec(t || ''); return m ? ' SABCC'[m[1]] : String(t || '')[0]; };   // aramgg T1~T5(v0.1.100) → 예전 S·A·B·C 색
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     function set(d) {
       const cards = (d && d.cards) || [];
@@ -38,7 +39,7 @@
         const scope = c.tier ? `<b>${esc(c.scope)}</b> 기준` : c.rank ? '' : '등급 자료 없음';
         const extra = (c.extra || []).map(x => `<em>${esc(x)}</em>`).join(' · ');
         return `<div class="bd r${r}" style="left:${Math.round(c.ax)}px;top:${Math.round(c.ay)}px">
-          <span class="top"><span class="rk">${c.rank ? `${c.rank}<small>위</small>` : '?'}</span>${c.tier ? `<span class="tr t${esc(String(c.tier)[0])}">${esc(c.tier)}</span>` : ''}</span>
+          <span class="top"><span class="rk">${c.rank ? `${c.rank}<small>위</small>` : '?'}</span>${c.tier ? `<span class="tr t${esc(tcls(c.tier))}">${esc(c.tier)}</span>` : ''}</span>
           <span class="sc">${[scope, extra].filter(Boolean).join(' · ') || esc(c.why || '')}</span></div>`;
       }).join('');
     }

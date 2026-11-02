@@ -1,0 +1,25 @@
+# 🧭 aramgg.com 증강 통계를 매일 받아 docs/data/aramgg에 올림(홈페이지 GitHub Pages → 앱 증강 가이드·증강 순위가 읽음)
+# 하루 한 번 · 요청 사이 1.2초(tools/aramgg-fetch.cjs) · 바뀐 게 없으면 커밋 안 함
+name: aramgg
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 19 * * *'   # 매일 한국 새벽 4시 30분(aramgg는 한국 새벽 2시쯤 갱신)
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 받기
+        run: node tools/aramgg-fetch.cjs
+      - name: 올리기(바뀐 것만)
+        run: |
+          git add docs/data/aramgg
+          if git diff --cached --quiet -- docs/data/aramgg/c; then echo "챔피언 자료 그대로 — 커밋 안 함"; exit 0; fi
+          git -c user.name=bot -c user.email=bot@users.noreply.github.com commit -qm "🧭 aramgg 증강 통계 $(date -u +%F)"
+          git pull -q --rebase origin main && git push -q origin HEAD:main

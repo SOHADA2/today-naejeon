@@ -78,6 +78,7 @@ contextBridge.exposeInMainWorld('api', {
   getAugments: () => ipcRenderer.invoke('augments'),
   getAugGuide: () => ipcRenderer.invoke('augguide'),                       // 🧭 챔피언 선택 화면 증강 가이드(내 챔피언+벤치)
   onAugGuide: (cb) => ipcRenderer.on('augguide', (_e, d) => cb(d)),
+  getAugGG: (champId) => ipcRenderer.invoke('augguide-gg', champId),         // 🧭 v0.1.100: 그 챔피언 가이드(aramgg 합친 것 · 편집 시작용)
   getAugGuideAll: () => ipcRenderer.invoke('augguide-all'),                // 🧭 편집용 전체(카테고리·챔피언·증강·우리 기록에 나온 증강)
   saveAugGuide: (champId, guide, baseAt, sum) => ipcRenderer.invoke('augguide-save', { champId, guide, baseAt, sum }),   // ✍️ baseAt = 편집 시작 때 버전(남이 먼저 고쳤으면 충돌 알림) · sum = 무엇을 바꿨는지
   getAugGuideHist: (champId) => ipcRenderer.invoke('augguide-hist', champId),            // ✍️ 그 챔피언 고친 기록

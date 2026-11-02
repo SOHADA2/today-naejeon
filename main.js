@@ -833,12 +833,12 @@ async function augTick() {
     const ids = found.cards.map(c => c.id), sig = ids.join(',');
     if (augState.showing && augState.showing.sig === sig) return;   // 같은 카드면 그대로
     const champId = augState.champId || (augState.champId = await myChampId());
-    const [guide, glob, rec] = await Promise.all([getGuide(), augGlobal(), augRecords().catch(() => ({}))]);
+    const [guide, glob, rec, gg, ggi] = await Promise.all([getGuide(), augGlobal(), augRecords().catch(() => ({})), ggChamp(champId).catch(() => null), ggIndex().catch(() => null)]);
     const recMy = {}; for (const id of ids) { const x = rec[champId + ':' + id]; if (x) recMy[id] = x; }
     // 기준 이름 = 지금 하고 있는 챔피언(사장님: 「이 챔피언」 말고 실제 이름 · 신뢰성) — 라이브 클라 championName, 없으면 챔피언 번호로 찾은 이름
     let champName = (me && me.championName) || '';
     if (!champName && champId) { try { const ch = (await getChamps()) || {}; champName = (ch[champId] && ch[champId].name) || ''; } catch (_) {} }
-    const ranks = augscan.rankAugs(ids, guide[champId], glob, recMy, augState.globalR, { champName });
+    const ranks = augscan.rankAugs(ids, guideFor(champId, guide[champId], gg).guide, glob, recMy, augState.globalR, { champName, gg, ggG: ggi && ggi.g });   // 🧭 v0.1.100: aramgg 챔피언 등급 > aramgg 전체 > (없을 때만) arammayhem
     const sf = d.scaleFactor || 1, ox = band.x - pr.x, oy = band.y - pr.y;   // 띠 좌표(실제 픽셀) → 그 모니터 기준 화면 좌표(DIP)
     // v0.1.86: 배지 = 카드 맨 위 가장자리 가운데(이름 줄 − 화면 높이 0.232 · 실측 docs/screen-layout.md) → 창을 위로 0.16H 늘림
     const top = Math.max(0, oy - Math.round(pr.height * 0.16)), lift = oy - top;
@@ -2306,7 +2306,8 @@ const fetchAllDays = () => getJson(`${FIREBASE_DB}/${T}/days.json`);
 // 데이터 = today/augGuide/champs/{championId} = {plans:[{title, augs:[증강 id…], why, tier?, patch?, date?, link?}], top?:{patch, augs:[{id,tier}]}, avoid?:[증강 id], draft?(초안 표시), src?, at, by}
 //   앱 업데이트 없이 오른쪽 창 「증강」 탭에서 채우면 모두에게 바로 반영 · 증강 이름·아이콘은 getAugments(패치되면 자동 최신)
 const PLAN_MAX = 6, PLAN_AUGS = 6, TITLE_MAX = 20, WHY_MAX = 80;
-const GUIDE_LINK = 'https://arammayhem.com/';   // 플랜 원문 링크로 열 수 있는 곳(이 주소로 시작할 때만)
+const GUIDE_LINKS = ['https://aramgg.com/', 'https://arammayhem.com/'];   // 플랜 원문 링크로 열 수 있는 곳(이 주소로 시작할 때만)
+const guideLinkOk = u => typeof u === 'string' && u.length < 200 && GUIDE_LINKS.some(p => u.startsWith(p));
 const CHAMP_URL = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1/champion-summary.json';
 let _champs = null, _champsAt = 0;
 async function getChamps() {   // 챔피언 번호 → {name, alias} (편집 화면 목록·챔피언 선택 화면 이름)
@@ -2330,6 +2331,37 @@ async function getGuide(force) {   // 2분 캐시(챔피언 선택 1~2분 동안
   try { const g = await getJson(`${FIREBASE_DB}/${T}/augGuide/champs.json`); _guide = g || {}; _guideAt = Date.now(); } catch (_) { if (!_guide) _guide = {}; }
   return _guide;
 }
+// 🧭 v0.1.100: aramgg.com 증강 통계 = 증강 가이드·증강 순위의 **기본 자료**(사장님: arammayhem보다 적절 · 칸은 따로 안 늘림)
+//   매일 GitHub Actions(aramgg.yml → tools/aramgg-fetch.cjs)가 받아 홈페이지 docs/data/aramgg에 올린 파일을 읽음(Firebase 안 씀 · 3시간 캐시)
+//   index.json = {p 패치, d 날짜, g:{증강:[등급 1~5, 승률]}} · c/{챔피언}.json = {p, d, t, a:{증강:[등급, 승률, 픽률, 사이트 순위]}, c:[[[증강 3개], 승률, 게임 수]]}
+const GG_URL = 'https://sohada2.github.io/today-naejeon/data/aramgg', GG_PAGE = 'https://aramgg.com/ko/champion-stats/', GG_TTL = 3 * 3600e3;
+const _gg = { idx: null, idxAt: 0, c: {} };
+async function ggIndex() {
+  if (_gg.idx && Date.now() - _gg.idxAt < GG_TTL) return _gg.idx;
+  const j = await getJson(`${GG_URL}/index.json`).catch(() => null);
+  if (j && j.g) { _gg.idx = j; _gg.idxAt = Date.now(); }
+  return _gg.idx;
+}
+async function ggChamp(id) {
+  id = Number(id); if (!(id > 0)) return null;
+  const x = _gg.c[id]; if (x && Date.now() - x.at < GG_TTL) return x.v;
+  const v = await getJson(`${GG_URL}/c/${id}.json`).catch(() => null);
+  if (v && v.a) { _gg.c[id] = { v, at: Date.now() }; return v; }
+  return (x && x.v) || null;
+}
+// 가이드 한 챔피언 = Firebase 칸(사람이 고친 플랜 · 옛 arammayhem 초안) + aramgg(있으면 위주)
+//   「이번 패치 상위 증강」 = aramgg 이 챔피언 순위 1~6위 · 「추천 콤보」 = aramgg 3개 조합 승률 TOP 5(사람이 고친 플랜이 있으면 그것) · 「피하면 좋은」 = 많이 고르지만(픽률 2%+) T5
+function guideFor(id, raw, gg) {
+  const g = cleanGuideEntry(raw || {});
+  if (!gg || !gg.a) return { guide: g, draft: !!(raw && raw.draft), src: (raw && raw.src) || '' };
+  const human = !!(raw && !raw.draft && g.plans && g.plans.length);
+  const A = Object.entries(gg.a);
+  const out = Object.assign({}, g, { gg: { p: gg.p, d: gg.d }, top: { patch: gg.p, src: 'aramgg', augs: A.filter(([, v]) => v[3] > 0).sort((p, q) => p[1][3] - q[1][3]).slice(0, 6).map(([a, v]) => ({ id: +a, tier: 'T' + v[0], wr: v[1] })) } });
+  if (!human) out.plans = (gg.c || []).map(c => ({ title: '', augs: c[0], why: '', wr: c[1], games: c[2], patch: gg.p, link: GG_PAGE + id, src: 'aramgg' }));
+  const av = A.filter(([, v]) => v[0] === 5 && v[2] >= 0.02).sort((p, q) => q[1][2] - p[1][2]).slice(0, 3).map(([a]) => +a);
+  if (av.length) out.avoid = av; else delete out.avoid;
+  return { guide: out, draft: false, src: human ? (raw.src || '') : 'aramgg' };
+}
 function cleanGuideEntry(c) {   // 저장 전에 모양·길이 정리(누가 써도 같은 모양)
   const plans = [];
   for (const p of (Array.isArray(c && c.plans) ? c.plans : [])) {
@@ -2337,10 +2369,12 @@ function cleanGuideEntry(c) {   // 저장 전에 모양·길이 정리(누가 �
     if (!augs.length) continue;
     const x = { title: String((p && p.title) || '').trim().slice(0, TITLE_MAX), augs, why: String((p && p.why) || '').trim().slice(0, WHY_MAX) };
     // 자료에서 가져온 플랜(v0.1.75) = 사이트가 매긴 등급·그 자료의 패치·원문 링크(설명은 원문에서 보기 — 남의 글을 옮겨 쓰지 않음)
-    if (/^[SABCD][+-]?$/.test(p && p.tier)) x.tier = p.tier;
+    if (/^([SABCD][+-]?|T[1-5])$/.test(p && p.tier)) x.tier = p.tier;
+    if (Number(p && p.wr) > 0 && Number(p.wr) < 1) x.wr = Math.round(Number(p.wr) * 10000) / 10000;   // aramgg 조합 승률·게임 수(v0.1.100)
+    if (Number(p && p.games) > 0) x.games = Math.round(Number(p.games));
     if (/^\d{1,2}\.\d{1,2}$/.test(p && p.patch)) x.patch = p.patch;
     if (/^\d{4}-\d{2}(-\d{2})?$/.test(p && p.date)) x.date = p.date;   // 패치 기록이 없는 자료 = 등록 날짜라도(얼마나 오래된 자료인지 보이게)
-    if (typeof (p && p.link) === 'string' && p.link.startsWith(GUIDE_LINK) && p.link.length < 200) x.link = p.link;
+    if (guideLinkOk(p && p.link)) x.link = p.link;
     if (p && p.by) { x.by = String(p.by).slice(0, 24); if (Number(p.at) > 0) x.at = Number(p.at); }   // 이 플랜을 마지막으로 고친 사람(위키처럼 · v0.1.76)
     plans.push(x);
     if (plans.length >= PLAN_MAX) break;
@@ -2390,17 +2424,18 @@ async function augGuideView() {
   if (!champSel || lobbyPhase !== 'ChampSelect') return { active: false };
   const [guide, champs, rec] = await Promise.all([getGuide(), getChamps(), augRecords().catch(() => ({}))]);
   const ids = [...new Set([champSel.mine, ...(champSel.bench || [])].filter(x => x > 0))];
-  const list = ids.map(id => {
-    const g = guide[id] || {}, r = {};
-    const guideC = cleanGuideEntry(g);
+  const ggs = await Promise.all(ids.map(id => ggChamp(id).catch(() => null)));
+  const list = ids.map((id, i) => {
+    const f = guideFor(id, guide[id], ggs[i]), guideC = f.guide, r = {};
     for (const a of [...(guideC.plans || []).flatMap(p => p.augs), ...((guideC.top && guideC.top.augs) || []).map(x => x.id), ...(guideC.avoid || [])]) { const x = rec[id + ':' + a]; if (x) r[a] = x; }
-    return { id, name: (champs[id] && champs[id].name) || '', mine: id === champSel.mine, guide: guideC, draft: !!g.draft, src: g.src || '', rec: r };
+    return { id, name: (champs[id] && champs[id].name) || '', mine: id === champSel.mine, guide: guideC, draft: f.draft, src: f.src, rec: r };
   });
   return { active: true, list };
 }
 async function pushAugGuide() { const v = await augGuideView(); broadcast('augguide', v); }
 ipcMain.handle('augguide', () => augGuideView());
-ipcMain.on('augguide-link', (_e, url) => { if (typeof url === 'string' && url.startsWith(GUIDE_LINK)) shell.openExternal(url); });   // 플랜 원문 보기(기본 브라우저)
+ipcMain.handle('augguide-gg', async (_e, champId) => { const id = Number(champId) || 0; const [guide, gg] = await Promise.all([getGuide(), ggChamp(id).catch(() => null)]); return guideFor(id, guide[id], gg); });   // ✎ 편집 시작 = 보이는 것(aramgg 조합)부터
+ipcMain.on('augguide-link', (_e, url) => { if (guideLinkOk(url)) shell.openExternal(url); });   // 플랜 원문 보기(기본 브라우저)
 // 편집(오른쪽 창 「증강」 탭) — 누구나 채울 수 있음 · 저장 = 그 챔피언 칸 통째로 교체(마지막 저장이 이김)
 ipcMain.handle('augguide-all', async () => {
   const [guide, champs, augs, rec] = await Promise.all([getGuide(true), getChamps(), getAugments(), augRecords().catch(() => ({}))]);
