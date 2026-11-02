@@ -2798,7 +2798,7 @@ else {
     }));
     try { replayRec.restorePending(); } catch (_) {}   // 지난번에 녹화하다 앱이 꺼졌으면 game.cfg 창 설정 되돌림
     setTimeout(() => { if (!inGame && lobbyPhase !== 'ChampSelect') borderlessOff(); }, 15000);   // 🖥️ 지난번 게임 중 앱이 꺼졌으면 화면 모드 원래대로(롤이 게임 중이면 기다림)
-    potg = makePotg({ T, FIREBASE_DB, fbSet, fbDelete, getJson, dayKey, normName, userData: app.getPath('userData'), getPlayers: () => latestPlayers, log: (m) => { try { console.log(m); } catch (_) {} } });
+    potg = makePotg({ T, FIREBASE_DB, fbSet, fbDelete, getJson, getToken: fbToken, dayKey, normName, userData: app.getPath('userData'), getPlayers: () => latestPlayers, log: (m) => { try { console.log(m); } catch (_) {} } });
     setTimeout(() => potg.cleanup().catch(() => {}), 8000); setInterval(() => potg.cleanup().catch(() => {}), 30 * 60 * 1000);   // 🎬 3일 지난 영상·수집 지우기
     bridge.start({ getToken: fbToken, getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, onLobbySeat, onChampSelect, onNormal: (e) => recordNormal(e).catch(err => console.log('[normal] 오류', err && err.message)), fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
     // 🧪 개발용: 롤 없이 테스트 — TN_FAKE_ACCOUNT="이름#태그" (배포본에선 안 씀) · TN_FAKE_DELAY=ms(기본 1500 · 50이면 창 로딩 도중 계정이 잡히는 경우 재현)

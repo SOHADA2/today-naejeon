@@ -107,23 +107,6 @@
           "$id": {
             ".write": true
           }
-        },
-        "lobbyProbe": {
-          "$id": {
-            ".write": true
-          }
-        },
-        "timelineProbe": {
-          "$gid": {
-            ".write": true
-          }
-        },
-        "replayProbe": {
-          "$gid": {
-            "$pc": {
-              ".write": true
-            }
-          }
         }
       },
       "potg": {

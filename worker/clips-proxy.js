@@ -5,8 +5,11 @@
 // 못 하는 것 = 지우기·덮어쓰기·다른 파일 읽기(지우기는 매일 정리 cron만 · 3일 지난 clips- 릴리스)
 // 경로: POST /upload?day=&name= (video/webm|mp4 · 45MB 이하) → {id} · GET /clip/{id} → 302 · POST /shot?name= (jpg·json 8MB 이하) → {id}
 // x-tn-app 머리말은 지나가는 요청 거르기용일 뿐(앱 코드에 공개) — 보안 장치 아님
+// 🔐 2026-11-02(앱 v0.1.99~): Authorization: Bearer <Firebase 익명 로그인 표식> 확인(구글 공개키로 서명·프로젝트·만료) — 표식이 있는데 가짜면 401
+//   표식 없는 요청 = 옛 앱(전환 중) → vars REQUIRE_AUTH="1"이면 거절(친구들 업데이트 뒤 · DB 2단계 규칙과 같이)
 const DAY = /^\d{4}-\d\d-\d\d$/, CLIP = /^[\w-]{1,80}\.(webm|mp4)$/, SHOT = /^[\w.-]{1,120}\.(jpg|json)$/;
 const MAX_CLIP = 45 * 1048576, MAX_SHOT = 8 * 1048576, KEEP_DAYS = 3;
+const PROJECT = 'today-naejeon-sohada';
 
 export default {
   async fetch(req, env) {
@@ -33,12 +36,33 @@ async function upload(env, rel, name, type, buf) {
   return r.ok && j && j.id ? json({ id: j.id }) : json({ err: 'upload', status: r.status }, 502);
 }
 
+let _jwk = null;
+async function jwks() {   // 구글 표식 서명 공개키(1시간 보관)
+  if (_jwk && Date.now() - _jwk.at < 3600e3) return _jwk.keys;
+  const j = await (await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')).json();
+  _jwk = { at: Date.now(), keys: j.keys || [] }; return _jwk.keys;
+}
+const b64u = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4)), c => c.charCodeAt(0));
+async function verifyIdToken(tok) {   // 맞으면 uid · 아니면 null
+  const [h, p, sig] = String(tok || '').split('.'); if (!sig) return null;
+  let H, P; try { H = JSON.parse(new TextDecoder().decode(b64u(h))); P = JSON.parse(new TextDecoder().decode(b64u(p))); } catch (_) { return null; }
+  const now = Date.now() / 1000;
+  if (H.alg !== 'RS256' || P.aud !== PROJECT || P.iss !== `https://securetoken.google.com/${PROJECT}` || !(P.exp > now) || !(P.iat <= now + 300) || !P.sub) return null;
+  const jwk = (await jwks()).find(k => k.kid === H.kid); if (!jwk) return null;
+  const key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
+  return (await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64u(sig), new TextEncoder().encode(`${h}.${p}`))) ? P.sub : null;
+}
+
 async function route(req, env) {
   const u = new URL(req.url);
   if (req.headers.get('x-tn-app') !== 'today-naejeon') return json({ err: 'forbidden' }, 403);
-  // 🛡️ 같은 IP 1분에 올리기 10번·받기 40번까지(Cloudflare 무료 rate limit · 남이 계속 올려 저장소를 채우는 것 막기)
+  const auth = req.headers.get('authorization') || '';
+  const uid = auth.startsWith('Bearer ') ? await verifyIdToken(auth.slice(7)) : null;
+  if (auth && !uid) return json({ err: 'bad token' }, 401);
+  if (!uid && env.REQUIRE_AUTH === '1') return json({ err: 'login required' }, 401);
+  // 🛡️ 1분에 올리기 10번·받기 40번까지(Cloudflare 무료 rate limit · 근사치) — 표식 있으면 사람(uid)별(같은 집·PC방 친구끼리 안 나눠 씀), 없으면 IP별
   const lim = req.method === 'POST' ? env.UP_LIMIT : env.GET_LIMIT;
-  if (lim && !(await lim.limit({ key: req.headers.get('cf-connecting-ip') || 'ip' })).success) return json({ err: 'too many' }, 429);
+  if (lim && !(await lim.limit({ key: uid ? `u:${uid}` : `ip:${req.headers.get('cf-connecting-ip') || ''}` })).success) return json({ err: 'too many' }, 429);
   const len = Number(req.headers.get('content-length')) || 0, type = (req.headers.get('content-type') || '').split(';')[0];
   if (req.method === 'POST' && u.pathname === '/upload') {
     const day = u.searchParams.get('day'), name = u.searchParams.get('name');

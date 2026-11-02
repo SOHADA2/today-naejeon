@@ -357,6 +357,8 @@ function scheduleNormalBackfill(gameId) {
 //   어떤 정보가 들어 있는지(1분 단위 딜량? 킬마다 누가 어떤 스킬로 얼마나 딜? 위치?) 요약 + 원본을 서버에 남김. 화면엔 아무것도 안 띄움
 // 기록: today/bridge/timelineProbe/{gameId} = { name, appVer, at, tries:[{t,status}], ok, sum:{…}, raw(JSON 문자열, 1.5MB 이하면) }
 //   → node tools/potg-report.cjs 로 확인 · 커스텀 게임에서도 나오는지 / 형식이 일반 게임(match-v5)과 같은지가 핵심
+// 🧹 v0.1.99: 조사용 기록(타임라인·리플레이·대기실) 수집 끔 — 조사 끝남 · 누구나 읽는 서버에 경기 원본이 쌓이던 것 · 다시 조사할 땐 true(규칙 bridge/*Probe도 다시 열 것)
+const PROBES = false;
 const TL_PATHS = gid => [`/lol-match-history/v1/game-timelines/${gid}`];
 const _tlProbed = new Set();
 function summarizeTimeline(d) {
@@ -377,6 +379,7 @@ function summarizeTimeline(d) {
   return sum;
 }
 function startTimelineProbe(gameId) {
+  if (!PROBES) return;
   if (!gameId || _tlProbed.has(String(gameId)) || !_isHost()) return;
   _tlProbed.add(String(gameId));
   const t0 = Date.now(), sec = () => Math.round((Date.now() - t0) / 1000);
@@ -411,6 +414,7 @@ function startTimelineProbe(gameId) {
 const _probed = new Set();
 const REPLAY_DONE = ['watch', 'missingOrExpired', 'unsupported', 'incompatible', 'error'];
 function startReplayProbe(gameId) {
+  if (!PROBES) return;
   if (!gameId || _probed.has(String(gameId))) return;
   _probed.add(String(gameId));
   const t0 = Date.now(), sec = () => Math.round((Date.now() - t0) / 1000);
@@ -630,6 +634,7 @@ async function pollSeat() {
 // 🔎 실제 롤 대기방 응답 모양 기록(v0.1.51) — 필드 이름을 실기 없이 짐작해 넣었기 때문. 롤에서 사용자 설정 게임 방만 만들면 됨(게임 안 해도 됨)
 // today/bridge/lobbyProbe/{PC id} = {at, appVer, seat, gcKeys, team100/200/spec 인원·멤버 키, localKeys, hasPuuid} — 이름·puuid 값은 안 남김. 확인 = tools/lobby-report.cjs
 function lobbyProbe(lb, seat) {
+  if (!PROBES) return;
   try {
     const gc = lb.gameConfig || {}, me = lb.localMember || {};
     const cnt = (a) => Array.isArray(a) ? a.length : (a == null ? null : typeof a);

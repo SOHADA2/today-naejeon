@@ -331,9 +331,10 @@ module.exports = function makePotg(d) {
     return _px.url;
   }
   const PX_HEAD = { 'x-tn-app': 'today-naejeon' };
+  const pxHead = async () => { const t = d.getToken ? await d.getToken().catch(() => null) : null; return Object.assign({}, PX_HEAD, t && t !== 'noauth' ? { authorization: `Bearer ${t}` } : {}); };   // 🔐 v0.1.99: 로그인 표식(중계가 Firebase 표식 확인)
   async function pxUpload(route, name, buf, type, timeout) {   // → 파일 id 또는 null
     const base = await proxy(); if (!base) { log('영상 중계 주소 없음(today/config/clipProxy)'); return null; }
-    const r = await fetch(`${base}${route}${route.includes('?') ? '&' : '?'}name=${encodeURIComponent(name)}`, { method: 'POST', body: buf, headers: Object.assign({ 'Content-Type': type }, PX_HEAD), signal: AbortSignal.timeout(timeout) });
+    const r = await fetch(`${base}${route}${route.includes('?') ? '&' : '?'}name=${encodeURIComponent(name)}`, { method: 'POST', body: buf, headers: Object.assign({ 'Content-Type': type }, await pxHead()), signal: AbortSignal.timeout(timeout) });
     const j = await r.json().catch(() => null);
     if (r.ok && j && j.id) return j.id;
     log(`중계 올리기 실패 ${r.status} ${JSON.stringify(j || {}).slice(0, 120)}`);
@@ -369,9 +370,11 @@ module.exports = function makePotg(d) {
     log(`영상 올림 ✅ ${(buf.length / 1048576).toFixed(1)}MB · Firebase 예비 조각 ${n}`);
     return meta;
   }
-  async function getGh(meta) {   // 중계가 서명된 임시 주소(GitHub)로 넘겨줌 → 그 주소는 토큰 없이 받음(따라가기 자동)
+  async function getGh(meta) {   // 중계가 서명된 임시 주소(GitHub)로 넘겨줌 → 그 주소는 표식 없이 직접 따라감(표식이 GitHub로 따라가지 않게)
     const base = await proxy(); if (!base) { log('영상 중계 주소 없음 → 영상 못 받음'); return null; }
-    const res = await fetch(`${base}/clip/${Number(meta.gh)}`, { headers: PX_HEAD, signal: AbortSignal.timeout(90000) });
+    let res = await fetch(`${base}/clip/${Number(meta.gh)}`, { headers: await pxHead(), redirect: 'manual', signal: AbortSignal.timeout(30000) });
+    const to = res.status >= 300 && res.status < 400 && res.headers.get('location');
+    if (to) res = await fetch(to, { signal: AbortSignal.timeout(90000) });
     if (!res.ok) { log(`영상 받기 실패 ${res.status}`); return null; }
     return Buffer.from(await res.arrayBuffer());
   }
