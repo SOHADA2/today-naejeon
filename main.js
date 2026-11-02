@@ -820,17 +820,19 @@ async function augTick() {
   if (me && me.level !== augState.lastLv) { if (augState.lastLv) augState.hot = now + 60000; augState.lastLv = me.level; }
   const hot = now < augState.hot || now - _ingameAt < 150000 || augState.showing;
   if (!hot && now - augState.lastScan < 5000) return;
-  if (hot && now - augState.lastScan < 1200) return;
+  if (hot && now - augState.lastScan < (augState.showing ? 700 : 1200)) return;   // v0.1.108: 배지가 떠 있는 동안은 더 자주(고른 뒤 빨리 지우려고)
   augState.busy = true; augState.lastScan = now;
   try {
     const d = gameDisplay(), pr = screen.dipToScreenRect(null, d.bounds), band = augBand(pr);
     const r = await ocrRead(augCap(band.x, band.y, band.w, band.h, 1)); if (r.err) { if (augState.n++ < 5) augLog('읽기 실패 ' + r.err); return; }
     const ix = await augNames(); if (!ix) return;
     const found = augscan.findCards(ix, r.lines, pr.height);
-    if (!found) { if (augState.showing && now - augState.lastSeen > 2500) { augState.showing = null; hideAugRank(); } return; }
+    // v0.1.108: 카드가 안 보인 지 2.5초 → 1.5초(사장님: 이미 골랐는데 배지가 남아 있음 · 실제 지움은 대부분 아래 클릭 감지가 먼저)
+    if (!found) { if (augState.showing && now - augState.lastSeen > 1500) augHide(); return; }
     if (found.cards.length === 2) { const c3 = await augThird(band, found, ix, pr.height).catch(() => null); if (c3) found.cards = found.cards.concat(c3).sort((p, q) => p.x - q.x); }
     augState.lastSeen = now;
     const ids = found.cards.map(c => c.id), sig = ids.join(',');
+    if (augState.picked && now < augState.picked.until && ids.some(id => augState.picked.ids.includes(id))) return;   // 방금 고른 카드가 사라지는 중(애니메이션)에 다시 읽힘 → 다시 안 띄움
     if (augState.showing && augState.showing.sig === sig) return;   // 같은 카드면 그대로
     const champId = augState.champId || (augState.champId = await myChampId());
     const [guide, glob, rec, gg, ggi] = await Promise.all([getGuide(), augGlobal(), augRecords().catch(() => ({})), ggChamp(champId).catch(() => null), ggIndex().catch(() => null)]);
@@ -845,7 +847,10 @@ async function augTick() {
     const top = Math.max(0, oy - Math.round(pr.height * 0.21)), lift = oy - top;
     const aug = await getAugments();
     const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, ax: (c.x + c.w / 2) / sf, ay: Math.max(60, lift + c.y - pr.height * 0.207) / sf, u: pr.height / sf / 100, cw: pr.height * 0.296 / sf, rank: ranks[i].rank, why: ranks[i].why, tier: ranks[i].tier, scope: ranks[i].scope, extra: ranks[i].extra, wr: ranks[i].wr, pr: ranks[i].pr, name: (aug[c.id] || {}).name || '', combo: augCombo(c.id, gg, aug, ids, (guide[champId] && guide[champId].plans) || []) }));   // 띠 기준
-    augState.showing = { sig };
+    augState.showing = { sig, ids };
+    // 🖱️ 카드 영역(실제 픽셀 · docs/screen-layout.md: 카드 너비 0.296H · 위 0.178H ~ 아래 0.66H · 리롤 버튼은 그 아래 0.69~0.73H라 안 겹침)
+    augState.rects = found.cards.map(c => { const cx = band.x + c.x + c.w / 2; return [cx - pr.height * 0.148, pr.y + pr.height * 0.178, cx + pr.height * 0.148, pr.y + pr.height * 0.66]; });
+    augClickWatch();
     augLog(`증강 ${found.cards.map((c, i) => `${cards[i].name}(${c.score.toFixed(2)})=${ranks[i].rank}위`).join(' · ')} · 캡처 ${r.cap}ms · 읽기 ${r.ms}ms`);
     showAugRank(d, cards, { x: ox / sf, y: top / sf, width: band.w / sf, height: (lift + band.h) / sf });
   } catch (e) { augLog('오류 ' + e.message); } finally { augState.busy = false; }
@@ -881,7 +886,40 @@ function showAugRank(d, cards, area) {   // area = 띠(그 모니터 기준 DIP)
   augWin.on('closed', () => { augWin = null; });
   augWin.loadFile('desktop/augrank.html');
 }
-function hideAugRank() { if (augWin && !augWin.isDestroyed()) { try { augWin.destroy(); } catch (_) {} } augWin = null; }
+function hideAugRank() { augClickStop(); if (augWin && !augWin.isDestroyed()) { try { augWin.destroy(); } catch (_) {} } augWin = null; }
+function augHide() { augState.showing = null; hideAugRank(); }
+// 🖱️ v0.1.108: 증강을 고르면 배지를 바로 지움(사장님: 고른 뒤에도 배지가 잠깐 남음 — 예전엔 화면 읽기 1.2초 간격 + 안 보인 지 2.5초라 최대 ~4초)
+//   배지가 떠 있는 동안만 작은 PowerShell이 마우스 왼쪽 버튼을 25ms마다 봄(GetAsyncKeyState · 누르는 순간 「d x y」 = 실제 픽셀) → 카드 영역 안이면 고른 것
+//   고른 카드 묶음은 4초 동안 다시 안 띄움(사라지는 애니메이션 중에 또 읽힘) · 리롤 버튼(카드 아래)·다른 곳 클릭은 무시 · 2분 지나면 스스로 끝남
+const CLICK_PS = `
+$ProgressPreference = 'SilentlyContinue'
+Add-Type -AssemblyName System.Drawing
+Add-Type -Name Ms -Namespace Tn -MemberDefinition '[DllImport("user32.dll")] public static extern short GetAsyncKeyState(int k); [DllImport("user32.dll")] public static extern bool GetCursorPos(out System.Drawing.Point p); [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();' -ReferencedAssemblies System.Drawing
+[void][Tn.Ms]::SetProcessDPIAware()
+$was = $true; $end = (Get-Date).AddSeconds(120)
+while ((Get-Date) -lt $end) {
+  $down = ([Tn.Ms]::GetAsyncKeyState(1) -band 0x8000) -ne 0
+  if ($down -and -not $was) { $p = New-Object System.Drawing.Point; [void][Tn.Ms]::GetCursorPos([ref]$p); [Console]::Out.WriteLine("d $($p.X) $($p.Y)"); [Console]::Out.Flush() }
+  $was = $down; Start-Sleep -Milliseconds 25
+}`;
+let _augClick = null;
+function augClickWatch() {
+  if (_augClick || process.platform !== 'win32') return;
+  const p = _augClick = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(CLICK_PS, 'utf16le').toString('base64')], { windowsHide: true });
+  let buf = '';
+  p.stdout.setEncoding('utf8');
+  p.stdout.on('data', c => {
+    buf += c; let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const m = /d (-?\d+) (-?\d+)$/.exec(buf.slice(0, i).trim()); buf = buf.slice(i + 1); if (!m || !augState.showing) continue;   // 줄 끝 기준(PowerShell 진행 표시 #< CLIXML이 앞에 붙어도)
+      const x = +m[1], y = +m[2], hit = (augState.rects || []).some(r => x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]);
+      if (hit) { augState.picked = { ids: augState.showing.ids || [], until: Date.now() + 4000 }; augLog('카드 클릭 → 배지 지움'); augHide(); }
+    }
+  });
+  p.on('error', () => {});
+  p.on('exit', () => { if (_augClick === p) _augClick = null; });
+}
+function augClickStop() { if (_augClick) { try { _augClick.kill(); } catch (_) {} _augClick = null; } }
 async function sendAugShot() {   // Shift+F8 — 지금 게임 화면 + 읽은 글자 → 개발용 비공개 저장소(위치·글자 맞추기)
   if (!inGame || !potg) return;
   try {
