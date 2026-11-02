@@ -12,6 +12,13 @@
 - 내장 브릿지(`bridge.js`)도 `today/bridge/*`에만 기록. 일반게임(비커스텀)은 기록 안 함.
 - 두 앱을 같은 PC에 같이 깔아도 충돌 없음: appId `gg.aram.today` · userData `%APPDATA%\today-naejeon` · 업데이트 캐시 `today-naejeon-updater` · 단축키 **Shift+F7**(기존 앱은 Shift+F5) · 파란 아이콘(기존은 금색).
 
+## 🛡️ 서버 규칙 (2026-11-02 · `database.rules.json` = 실제 적용본)
+- 인증이 없어(익명 로그인 = 결제 필요) 누구나 읽고 쓰는 구조 → **경로별로 지우기·덮어쓰기를 막음**: 경기 기록(`days/*/*/{gid}`)은 **처음 만들기만**(조건부 PUT) + 나중에 붙는 칸(potg·potgRec·guess·mvp·svp·manner·votes)만 쓰기 · 계정(`accounts`)은 갱신만(지우기 X) · `config`(GitHub 토큰)는 쓰기 X · 증강 고친 기록(`augGuide/hist·recent`)은 만들기만(3일 지난 것만 지우기 — 앱의 pruneKeys가 최근 것은 조용히 실패) · `today` 통째·`days` 통째 지우기 X. 나머지(session·lobby·presence·host·normalLive·potgWait·potgRec·bridge·potg·clips·augGuide/champs·global)는 그대로 자유.
+- ⚠️ **앱이 새 경로에 쓰게 되면 규칙에도 추가할 것**(없으면 그 쓰기가 401로 조용히 실패). 기존 기록을 고쳐야 하면 관리자 토큰으로(작업 scratchpad `gapi.cjs` = firebase CLI 로그인 토큰 · 규칙 무시).
+- 적용 = `node gapi.cjs PUT https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app/.settings/rules.json "$(cat database.rules.json)"` · 시험 29건(인증 없는 요청: 기록 만들기·붙는 칸 = 허용 / 기록 덮어쓰기·지우기·선수 기록 바꾸기·하루/전체/today 지우기·토큰 설정 바꾸기·계정 지우기·증강 기록 지우기 = 401) + 숨김 실행 앱(가짜 계정) 접속 표시·계정 쓰기 정상.
+- 백업: 바꾸기 전 전체 = 이 PC `문서\today-naejeon-backup\today-2026-11-02.json`(경기 27판·계정 10).
+- 남은 구멍: 읽기는 누구나(토큰도 읽힘 — 문제 2) · 자유 경로(대기실·판 진행)는 장난칠 수 있음(지나가는 데이터라 기록엔 영향 없음) · 가짜 경기 기록을 새로 만드는 건 막지 못함(지우기는 관리자 토큰).
+
 ## ⚡ 성능 규칙 (v0.1.5 실측 근거)
 - **무한 애니메이션 금지**(`animation: ... infinite`·숨쉬는 빛·깜빡이는 점). 왼쪽 오버레이·내 팀 마커는 **투명 창**이라 점 하나만 움직여도 창 전체를 매 프레임 다시 그림 → 9px 점 깜빡임 하나가 **CPU 코어 1개의 33%**(끄면 0.4%). 「버벅거림」의 주원인이었음. 한 번만 재생되는 짧은 효과는 OK.
 - **같은 내용은 다시 안 보냄**: `broadcast`가 session·lobby를 직전과 비교해 바뀐 것만 렌더러로(3초 폴링마다 화면 전체 다시 그리던 것 제거).

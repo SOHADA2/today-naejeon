@@ -1,0 +1,49 @@
+{
+  "rules": {
+    "today": {
+      ".read": true,
+      "session": { ".write": true },
+      "lobby": { ".write": true },
+      "presence": { ".write": true },
+      "host": { ".write": true },
+      "normalLive": { ".write": true },
+      "potgWait": { ".write": true },
+      "potgRec": { ".write": true },
+      "bridge": { ".write": true },
+      "potg": { ".write": true },
+      "clips": { ".write": true },
+      "accounts": {
+        "$puuid": { ".write": "newData.exists()" }
+      },
+      "augGuide": {
+        "champs": { ".write": true },
+        "global": { ".write": true },
+        "hist": {
+          "$id": {
+            "$k": { ".write": "!data.exists() || (!newData.exists() && data.child('at').val() < now - 259200000)" }
+          }
+        },
+        "recent": {
+          "$k": { ".write": "!data.exists() || (!newData.exists() && data.child('at').val() < now - 259200000)" }
+        }
+      },
+      "days": {
+        "$day": {
+          "$kind": {
+            "$gid": {
+              ".write": "!data.exists() && newData.exists()",
+              "potg": { ".write": true },
+              "potgRec": { ".write": true },
+              "guess": { ".write": true },
+              "mvp": { ".write": true },
+              "svp": { ".write": true },
+              "manner": { ".write": true },
+              "votes": { ".write": true }
+            }
+          }
+        }
+      },
+      "config": { ".write": false }
+    }
+  }
+}
