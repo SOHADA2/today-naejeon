@@ -37,7 +37,7 @@ function compactChamp(d, st) {
   const a = {};
   for (const [id, v] of Object.entries(x.augments)) { const t = num(v.tier); if (t >= 1 && t <= 5) a[id] = [t, r4(num(v.win_rate)), r4(num(v.pick_rate)), num(v.rank)]; }
   const c = Object.entries(x.augment_trios || {}).map(([k, v]) => [k.split(':').map(Number), r4(num(v.win_rate)), num(v.num_games)])
-    .filter(t => t[0].length === 3 && t[1] != null && t[2] >= 1).sort((p, q) => q[1] - p[1]).slice(0, 30);   // v0.1.101: 5 → 30(증강 순위 배지 「🔗 조합」이 카드마다 찾아 씀 · 가이드 「추천 콤보」는 main이 앞 5개만)
+    .filter(t => t[0].length === 3 && t[1] != null && t[2] >= 1).sort((p, q) => q[1] - p[1]).slice(0, 30);   // 사이트가 주는 만큼 전부(지금 5개 · 늘면 30개까지) · 가이드 「추천 콤보」는 main이 앞 5개만
   compactChamp.trios = (compactChamp.trios || 0) + Object.keys(x.augment_trios || {}).length;
   const mh = x.match_history || {};
   return { p: patchOf(mh.game_patch || (st && st.version)), d: mh.date || (st && st.date) || '', t: st ? [num(st.tier), r4(num(st.winRate)), r4(num(st.pickRate)), num(st.rank)] : null, a, c };
@@ -45,16 +45,7 @@ function compactChamp(d, st) {
 (async () => {
   fs.mkdirSync(path.join(OUT, 'c'), { recursive: true });
   const html = await get('/ko/augments'); const g = html ? parseGlobal(html) : {};
-  // 🔎 증강 하나짜리 페이지에 「같이 고른 증강」 같은 짝 자료가 있는지(2026-11-02 · 조합 자료가 챔피언당 5개뿐이라)
-  for (const u of ['/ko/augments/1373', '/data/augment-details/1373.json', '/data/augments/1373.json', '/data/augment-pairs.json', '/data/augment-trios.json']) {
-    await sleep(1200);
-    try {
-      const r = await fetch(BASE + u, { headers: UA }); const t = r.ok ? await r.text() : '';
-      const hits = [...t.matchAll(/(trio|pair|duo|synerg|combo|together|함께|조합|시너지|같이)/gi)].slice(0, 6).map(m => JSON.stringify(t.slice(Math.max(0, m.index - 80), m.index + 120)));
-      const js = [...t.matchAll(/["'](\/data\/[^"']+)["']/g)].map(m => m[1]).filter((v, i, a) => a.indexOf(v) === i).slice(0, 20);
-      console.log(`🔎 ${u} → ${r.status} · ${t.length}자 · data 주소 ${js.join(' ')}`); for (const h of hits) console.log('   ', h);
-    } catch (e) { console.log(`🔎 ${u} → 오류 ${e.message}`); }
-  }
+  // ℹ️ 2026-11-02 확인: 증강 짝 자료는 champion-details의 augment_trios(챔피언당 판 수 151+ 조합 5개)뿐 · /ko/augments/{id}엔 챔피언 궁합만 · 짝 전용 data 파일 없음(404)
   console.log('전체 증강 등급', Object.keys(g).length);
   const stats = await get('/data/champions-stats.json', true);
   if (!Array.isArray(stats) || !stats.length) { console.log('챔피언 목록 못 받음 — 그만'); process.exit(1); }
@@ -63,15 +54,6 @@ function compactChamp(d, st) {
   for (const id of ONLY.length ? ONLY : [...byId.keys()]) {
     await sleep(1200);
     const d = await get(`/data/champion-details/${id}.json`, true);
-    if (!globalThis._probed && d) {   // 🔎 자료 구조를 한 번 로그로(사이트가 조합 말고 다른 짝 자료를 주는지 · Actions 기록에서 확인)
-      globalThis._probed = 1;
-      const raw = d.championAugments && d.championAugments[0] && d.championAugments[0][1], x = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      const shape = (o, dep = 0) => o && typeof o === 'object' ? (Array.isArray(o) ? `[${o.length}]` + (o.length ? shape(o[0], dep + 1) : '') : dep > 2 ? '{…}' : '{' + Object.keys(o).slice(0, 12).map(k => k + ':' + shape(o[k], dep + 1)).join(', ') + (Object.keys(o).length > 12 ? ` …+${Object.keys(o).length - 12}` : '') + '}') : typeof o;
-      console.log('🔎 champion-details 맨 위:', Object.keys(d).join(', '));
-      console.log('🔎 championAugments[0][1] 칸:', x ? Object.keys(x).map(k => `${k}(${x[k] && typeof x[k] === 'object' ? Object.keys(x[k]).length : typeof x[k]})`).join(', ') : '없음');
-      for (const k of Object.keys(x || {})) if (k !== 'augments') console.log(`🔎 ${k} =`, JSON.stringify(x[k]).slice(0, 600));
-      console.log('🔎 구조:', shape(d).slice(0, 1500));
-    }
     const c = d && compactChamp(d, byId.get(id));
     if (!c || !Object.keys(c.a).length) { fail++; continue; }
     patch = patch || c.p; date = c.d > date ? c.d : date;
