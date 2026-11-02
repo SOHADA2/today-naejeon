@@ -3,6 +3,9 @@
 name: aramgg
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['tools/aramgg-fetch.cjs']   # 받는 도구를 고치면 바로 한 번 다시 받음
   schedule:
     - cron: '30 19 * * *'   # 매일 한국 새벽 4시 30분(aramgg는 한국 새벽 2시쯤 갱신)
 jobs:

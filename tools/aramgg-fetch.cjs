@@ -53,6 +53,15 @@ function compactChamp(d, st) {
   for (const id of ONLY.length ? ONLY : [...byId.keys()]) {
     await sleep(1200);
     const d = await get(`/data/champion-details/${id}.json`, true);
+    if (!globalThis._probed && d) {   // 🔎 자료 구조를 한 번 로그로(사이트가 조합 말고 다른 짝 자료를 주는지 · Actions 기록에서 확인)
+      globalThis._probed = 1;
+      const raw = d.championAugments && d.championAugments[0] && d.championAugments[0][1], x = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      const shape = (o, dep = 0) => o && typeof o === 'object' ? (Array.isArray(o) ? `[${o.length}]` + (o.length ? shape(o[0], dep + 1) : '') : dep > 2 ? '{…}' : '{' + Object.keys(o).slice(0, 12).map(k => k + ':' + shape(o[k], dep + 1)).join(', ') + (Object.keys(o).length > 12 ? ` …+${Object.keys(o).length - 12}` : '') + '}') : typeof o;
+      console.log('🔎 champion-details 맨 위:', Object.keys(d).join(', '));
+      console.log('🔎 championAugments[0][1] 칸:', x ? Object.keys(x).map(k => `${k}(${x[k] && typeof x[k] === 'object' ? Object.keys(x[k]).length : typeof x[k]})`).join(', ') : '없음');
+      for (const k of Object.keys(x || {})) if (k !== 'augments') console.log(`🔎 ${k} =`, JSON.stringify(x[k]).slice(0, 600));
+      console.log('🔎 구조:', shape(d).slice(0, 1500));
+    }
     const c = d && compactChamp(d, byId.get(id));
     if (!c || !Object.keys(c.a).length) { fail++; continue; }
     patch = patch || c.p; date = c.d > date ? c.d : date;
