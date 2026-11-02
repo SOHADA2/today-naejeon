@@ -1,0 +1,11 @@
+# 투데이 내전 영상 중계 — 배포: cd worker && npx wrangler deploy · 토큰: npx wrangler secret put GH_TOKEN
+name = "today-naejeon-clips"
+main = "clips-proxy.js"
+compatibility_date = "2024-09-23"
+workers_dev = true
+
+[vars]
+REPO = "SOHADA2/today-naejeon-clips"
+
+[triggers]
+crons = ["0 21 * * *"]   # 매일 한국 새벽 6시 = 3일 지난 영상 정리
