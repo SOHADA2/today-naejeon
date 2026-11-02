@@ -55,24 +55,27 @@ function httpReq(method, url, body, extraHeaders) {
 
 // ── Firebase (인증 없는 PUT/GET — 실브릿지와 동일) ───────────────────────────
 let fbOk = null, fbErrorLogged = false;
+// 🔐 v0.1.98: 익명 로그인 표식(main.js fbToken) — start(opts.getToken)로 받음 · 없거나 실패면 표식 없이(규칙이 아직 공개)
+let _getToken = async () => null;
+const fbUrl = async p => { const t = await _getToken().catch(() => null); return `${FIREBASE_URL}/${p}.json${t && t !== 'noauth' ? `?auth=${t}` : ''}`; };
 async function fbSet(p, data) {
-  const r = await httpReq('PUT', `${FIREBASE_URL}/${p}.json`, typeof data === 'string' ? JSON.stringify(data) : data);   // 문자열도 JSON으로(안 하면 HTTP 400 — gamePhase가 계속 실패했음)
+  const r = await httpReq('PUT', await fbUrl(p), typeof data === 'string' ? JSON.stringify(data) : data);   // 문자열도 JSON으로(안 하면 HTTP 400 — gamePhase가 계속 실패했음)
   if (r.status >= 200 && r.status < 300) { fbOk = true; fbErrorLogged = false; return true; }
   fbOk = false;
   if (!fbErrorLogged) { log(`⚠️ Firebase 쓰기 실패(${p} · HTTP ${r.status})`); fbErrorLogged = true; }
   return false;
 }
 async function fbGet(p) {
-  const r = await httpReq('GET', `${FIREBASE_URL}/${p}.json`);
+  const r = await httpReq('GET', await fbUrl(p));
   return r.data;
 }
 // ETag 기반 조건부 GET/PUT — 다른 브릿지/오버레이 동시 실행 시 atomic CAS(중복 EOG 저장 차단)
 async function fbGetWithEtag(p) {
-  const r = await httpReq('GET', `${FIREBASE_URL}/${p}.json`, undefined, { 'X-Firebase-ETag': 'true' });
+  const r = await httpReq('GET', await fbUrl(p), undefined, { 'X-Firebase-ETag': 'true' });
   return { data: r.data, etag: r.etag };
 }
 async function fbSetIfMatch(p, data, etag) {
-  const r = await httpReq('PUT', `${FIREBASE_URL}/${p}.json`, data === null ? null : data, { 'if-match': etag || 'null_etag' });
+  const r = await httpReq('PUT', await fbUrl(p), data === null ? null : data, { 'if-match': etag || 'null_etag' });
   if (r.status === 412) return { ok: false, conflict: true };
   if (r.status >= 200 && r.status < 300) { fbOk = true; return { ok: true }; }
   throw new Error('fb ' + r.status);
@@ -679,6 +682,7 @@ async function start(opts) {
   _log       = (opts && opts.log)            || (() => {});
   _getOpName = (opts && opts.getOperatorName) || (() => null);
   _appVer    = (opts && opts.appVer)          || '';
+  if (opts && opts.getToken) _getToken = opts.getToken;
   _onAccount = (opts && opts.onAccount)       || (() => {});
   _fakeLcu   = (opts && opts.fakeLcu)         || null;
   _onEog     = (opts && opts.onEog)           || (() => {});

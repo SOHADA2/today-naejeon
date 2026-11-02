@@ -15,9 +15,9 @@ const { spawn } = require('child_process');
 
 const WEB_URL = 'https://sohada2.github.io/aram/';
 // 🗄️ v0.1.64: 투데이 내전 전용 Firebase 프로젝트(today-naejeon-sohada · 무료 Spark · 싱가포르) — 사이트 DB(aramchaos)와 한도(저장 1GB·내려받기 월 10GB) 분리
-//   규칙 = today/ 읽기·쓰기 공개(브릿지는 원래 인증 없이 씀) · 익명 로그인은 이 프로젝트에서 못 켬(Identity Platform = 결제 필요) → 인증 없이 씀
+//   🔐 v0.1.98: 익명 로그인(사장님이 콘솔에서 켬 · 무료) — 모든 읽기·쓰기·실시간 연결·브릿지에 표식(?auth=) · 규칙은 아직 공개(옛 앱 업데이트 뒤 auth != null로)
 const FIREBASE_DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app';
-const FIREBASE_API_KEY = null;   // 인증 안 씀(위 참고) — 이 프로젝트 웹 앱 키: AIzaSyDhVbSzNQ306LUTcPo44Ru9G4_RqV9Dl_E
+const FIREBASE_API_KEY = 'AIzaSyDhVbSzNQ306LUTcPo44Ru9G4_RqV9Dl_E';   // 웹 앱 키(공개용 식별자 — 비밀 아님)
 const TOGGLE_HOTKEY = 'Shift+F7';   // 기존 오버레이(Shift+F5)와 겹치지 않게
 const T = 'today';                  // ⚠️ 이 앱의 모든 쓰기 루트 — 사이트 노드(session·lobby·bridge·matches…)에 절대 쓰지 않음
 const { buildTeams, normName } = require('./teams');   // ⚔️ 홈페이지 makeTeams 1:1 이식(밸런스 계산)
@@ -374,7 +374,13 @@ function startDockStream() {
 function stopDockStream() { if (dockProc) { try { dockProc.kill(); } catch (_) {} dockProc = null; } }
 
 // ── HTTPS GET (JSON) ────────────────────────────────────────────────────
+// 🔐 우리 Firebase 주소(문자열)면 로그인 표식을 붙여 읽음(v0.1.98)
 function getJson(opts) {
+  if (typeof opts === 'string' && opts.startsWith(FIREBASE_DB + '/')) return fbToken().then(tok => getJsonRaw(withAuth(opts, tok)));
+  return getJsonRaw(opts);
+}
+const withAuth = (url, tok) => !tok || tok === NOAUTH ? url : `${url}${url.includes('?') ? '&' : '?'}auth=${tok}`;
+function getJsonRaw(opts) {
   return new Promise(resolve => {
     const req = https.get(opts, res => {
       let d = ''; res.setEncoding('utf8'); res.on('data', c => d += c);
@@ -388,10 +394,11 @@ function getJson(opts) {
 //   끊기면 자동 재연결(1→30초 백오프). 폴링은 안전망으로 그대로 유지.
 function fbStream(pathStr, onChange, onDown) {   // onChange(ev, {path, data}) · onDown() = 끊김(다시 연결하면 처음에 전체가 'put /'로 다시 옴) · 반환 = { close() }(🚪 방 바꿀 때)
   let retry = 1000, closed = false, cur = null;
+  const start = () => fbToken().then(tok => open(withAuth(`${FIREBASE_DB}/${pathStr}.json`, tok), 0));   // 🔐 표식 1시간 → 만료되면 서버가 auth_revoked → 다시 연결하며 새 표식
   const open = (url, hops) => {
     if (app._quitting || closed) return;
     let lastBeat = Date.now(), buf = '', done = false;
-    const again = () => { if (done) return; done = true; clearInterval(idle); if (closed) return; try { if (onDown) onDown(); } catch (_) {} setTimeout(() => open(`${FIREBASE_DB}/${pathStr}.json`, 0), retry); retry = Math.min(retry * 2, 30000); };
+    const again = () => { if (done) return; done = true; clearInterval(idle); if (closed) return; try { if (onDown) onDown(); } catch (_) {} setTimeout(start, retry); retry = Math.min(retry * 2, 30000); };
     const req = cur = https.get(url, { headers: { Accept: 'text/event-stream' } }, res => {
       if ((res.statusCode === 307 || res.statusCode === 302) && res.headers.location && hops < 3) {   // 샤드 호스트로 리다이렉트
         done = true; clearInterval(idle); res.resume(); open(res.headers.location, hops + 1); return;
@@ -417,7 +424,7 @@ function fbStream(pathStr, onChange, onDown) {   // onChange(ev, {path, data}) �
     req.on('error', again);
     const idle = setInterval(() => { if (Date.now() - lastBeat > 90000) { req.destroy(); again(); } }, 30000);   // keep-alive(30초) 끊김 감지
   };
-  open(`${FIREBASE_DB}/${pathStr}.json`, 0);
+  start();
   return { close() { closed = true; try { if (cur) cur.destroy(); } catch (_) {} } };
 }
 // 📡 스트림 사본(v0.1.63 · 내려받기 절약) — 처음 연결 때 전체 1번 + 그 뒤엔 바뀐 부분만 받아 사본에 적용 · 다시 읽기(REST) 없음
@@ -474,15 +481,20 @@ function reqJson(method, url, body) {
 }
 
 // 🔑 Firebase 익명 인증 — 쓰기 규칙(auth != null)용. 홈페이지 signInAnonymously와 동일한 신뢰모델.
-let _fbTok = null, _fbTokAt = 0;
+let _fbTok = null, _fbTokAt = 0, _fbTokP = null;
 const NOAUTH = 'noauth';
 const authQ = tok => tok === NOAUTH ? '' : `?auth=${tok}`;
 async function fbToken() {
   if (!FIREBASE_API_KEY) return NOAUTH;
   if (_fbTok && Date.now() - _fbTokAt < 50 * 60 * 1000) return _fbTok;   // idToken 수명 1h → 50분 캐시
-  const r = await reqJson('POST', `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`, { returnSecureToken: true });
-  if (r.json && r.json.idToken) { _fbTok = r.json.idToken; _fbTokAt = Date.now(); return _fbTok; }
-  return null;
+  if (!_fbTokP) _fbTokP = (async () => {   // 🔐 v0.1.98: 처음 한 번만 익명 가입 → 갱신 토큰(config.fbRefresh)으로 계속 같은 사람(uid) · 동시에 불러도 한 번만
+    let tok = null, rt = null;
+    if (config.fbRefresh) { const r = await reqJson('POST', `https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`, { grant_type: 'refresh_token', refresh_token: config.fbRefresh }); tok = r.json && r.json.id_token; rt = r.json && r.json.refresh_token; }
+    if (!tok) { const r = await reqJson('POST', `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`, { returnSecureToken: true }); tok = r.json && r.json.idToken; rt = r.json && r.json.refreshToken; }
+    if (tok) { _fbTok = tok; _fbTokAt = Date.now(); if (rt && rt !== config.fbRefresh) { config.fbRefresh = rt; saveConfig(); } }
+    return tok;
+  })().catch(() => null).finally(() => { _fbTokP = null; });
+  return (await _fbTokP) || (_fbTok && Date.now() - _fbTokAt < 55 * 60 * 1000 ? _fbTok : NOAUTH);   // 실패하면 아직 안 끝난 옛 표식, 그것도 없으면 표식 없이(규칙이 공개인 동안 앱이 멈추지 않게 · 만료 표식은 공개 규칙에서도 401)
 }
 // session 등 노드 전체 교체(set) — 홈페이지 set(ref(db,'session'), ...)과 동일 시맨틱
 async function fbSet(pathStr, value) {
@@ -2788,7 +2800,7 @@ else {
     setTimeout(() => { if (!inGame && lobbyPhase !== 'ChampSelect') borderlessOff(); }, 15000);   // 🖥️ 지난번 게임 중 앱이 꺼졌으면 화면 모드 원래대로(롤이 게임 중이면 기다림)
     potg = makePotg({ T, FIREBASE_DB, fbSet, fbDelete, getJson, dayKey, normName, userData: app.getPath('userData'), getPlayers: () => latestPlayers, log: (m) => { try { console.log(m); } catch (_) {} } });
     setTimeout(() => potg.cleanup().catch(() => {}), 8000); setInterval(() => potg.cleanup().catch(() => {}), 30 * 60 * 1000);   // 🎬 3일 지난 영상·수집 지우기
-    bridge.start({ getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, onLobbySeat, onChampSelect, onNormal: (e) => recordNormal(e).catch(err => console.log('[normal] 오류', err && err.message)), fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
+    bridge.start({ getToken: fbToken, getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, onLobbySeat, onChampSelect, onNormal: (e) => recordNormal(e).catch(err => console.log('[normal] 오류', err && err.message)), fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
     // 🧪 개발용: 롤 없이 테스트 — TN_FAKE_ACCOUNT="이름#태그" (배포본에선 안 씀) · TN_FAKE_DELAY=ms(기본 1500 · 50이면 창 로딩 도중 계정이 잡히는 경우 재현)
     if (!app.isPackaged && process.env.TN_FAKE_ACCOUNT) { const [g, t] = process.env.TN_FAKE_ACCOUNT.split('#'); setTimeout(() => setAccount({ puuid: 'fake-' + g, gameName: g, tagLine: t || 'KR1', iconId: 29 }), +(process.env.TN_FAKE_DELAY || 1500)); }
   });
