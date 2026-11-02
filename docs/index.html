@@ -7,7 +7,7 @@
 <meta name="description" content="친구들과 하는 롤 내전을 팀 나누기부터 결과 기록, MVP 투표, 오늘 순위까지 한 번에. Windows용 무료 앱.">
 <meta property="og:title" content="투데이 내전">
 <meta property="og:description" content="친구들과 하는 롤 내전을 팀 나누기부터 결과 기록, MVP 투표, 오늘 순위까지 한 번에.">
-<meta property="og:image" content="https://sohada2.github.io/today-naejeon/img/lobby.png">
+<meta property="og:image" content="https://sohada2.github.io/today-naejeon/img/potg-poster.jpg">
 <meta name="color-scheme" content="dark">
 <link rel="icon" href="img/icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
@@ -30,7 +30,7 @@
 * { box-sizing:border-box; margin:0; padding:0; }
 html { scroll-behavior:smooth; }
 body { background:var(--bg-0); color:var(--ink); font-family:var(--f-body); line-height:1.65; letter-spacing:-0.01em; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
-img, video { display:block; max-width:100%; }
+img, video { display:block; max-width:100%; height:auto; }
 a { color:inherit; }
 .wrap { max-width:1080px; margin:0 auto; padding:0 20px; }
 code { font-family:var(--f-body); font-size:0.95em; color:var(--gold-hi); background:var(--gold-soft); padding:1px 6px; overflow-wrap:anywhere; }
@@ -67,6 +67,16 @@ nav a:hover { color:var(--gold-hi); }
 .shot { position:absolute; width:300px; border:1px solid var(--line-2); box-shadow:0 30px 60px rgba(0,0,0,0.55); }
 .shot.back { top:0; left:0; opacity:0.55; }
 .shot.front { top:54px; right:0; }
+
+/* 최고의 장면(팟지) — 첫 화면 바로 아래 */
+.potg { padding:20px 0 76px; }
+.potg .frame { position:relative; border:1px solid var(--line-2); box-shadow:0 30px 70px rgba(0,0,0,0.6); background:#000; }
+.potg video { width:100%; aspect-ratio:960 / 576; }
+.potg .cap { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 20px; margin-top:14px; }
+.potg .cap b { color:var(--ink); font-weight:700; }
+.potg .lead2 { display:grid; grid-template-columns:1fr 1fr; gap:24px 48px; margin-bottom:28px; align-items:end; }
+.potg .lead2 h2 { font-size:32px; font-weight:800; letter-spacing:-0.025em; margin-top:8px; }
+.potg .lead2 p { color:var(--ink-soft); }
 
 /* 공통 구역 */
 section.block { padding:76px 0; border-top:1px solid var(--hair); }
@@ -141,6 +151,7 @@ footer p + p { margin-top:6px; }
   .feat, .feat.flip { grid-template-columns:1fr; gap:24px; }
   .feat .media, .feat.flip .media { order:0; max-width:320px; }
   .install { grid-template-columns:minmax(0, 1fr); }
+  .potg .lead2 { grid-template-columns:1fr; }
   .install > div, .feat > div { min-width:0; }
 }
 @media (max-width:560px) {
@@ -151,7 +162,7 @@ footer p + p { margin-top:6px; }
   .hero p.lead { font-size:16px; }
   .btn-lg { width:100%; min-width:0; }
   .steps { grid-template-columns:1fr; }
-  .head h2, .cta h2 { font-size:25px; }
+  .head h2, .cta h2, .potg .lead2 h2 { font-size:25px; }
   section.block { padding:56px 0; }
 }
 </style>
@@ -161,7 +172,7 @@ footer p + p { margin-top:6px; }
 <header>
   <div class="wrap">
     <a class="brand" href="#top"><img src="img/icon.png" alt=""><span><span class="en">Today Naejeon</span><b>투데이 내전</b></span></a>
-    <nav><a href="#how">진행 순서</a><a href="#features">기능</a><a href="#install">설치</a><a href="#faq">자주 묻는 질문</a></nav>
+    <nav><a href="#potg">최고의 장면</a><a href="#how">진행 순서</a><a href="#features">기능</a><a href="#install">설치</a><a href="#faq">자주 묻는 질문</a></nav>
     <a class="btn btn-gold btn-sm js-dl" href="https://github.com/SOHADA2/today-naejeon/releases/latest">다운로드</a>
   </div>
 </header>
@@ -182,6 +193,19 @@ footer p + p { margin-top:6px; }
         <img class="shot back" src="img/rooms.png" alt="" width="400" height="720">
         <img class="shot front" src="img/lobby.png" alt="" width="400" height="720">
       </div>
+    </div>
+  </section>
+
+  <section class="potg" id="potg">
+    <div class="wrap">
+      <div class="lead2">
+        <div><span class="en">Play of the Game</span><h2>판이 끝나면 최고의 장면을 같이 봐요</h2></div>
+        <p>방장 PC가 리플레이에서 그 판의 결정적인 장면을 찾아 영상으로 만들고, 모두의 화면 가운데에 띄워 줘요. 킬 장면은 <b>팟지</b>, 서포터·탱커의 활약은 <b>숨은 영웅</b>으로 따로 뽑아요.</p>
+      </div>
+      <div class="frame">
+        <video src="img/potg.mp4" poster="img/potg-poster.jpg" controls muted autoplay loop playsinline preload="metadata" aria-label="실제 내전 팟지 영상: 자야 트리플킬, 이어서 숨은 영웅 니달리"></video>
+      </div>
+      <p class="cap"><span>실제 내전에서 앱이 만든 영상 · <b>자야 트리플킬</b> → 숨은 영웅 <b>니달리</b></span><span>소리는 영상의 스피커 버튼으로 켤 수 있어요</span></p>
     </div>
   </section>
 
@@ -257,14 +281,6 @@ footer p + p { margin-top:6px; }
         </div>
       </div>
 
-      <div class="feat wide">
-        <div>
-          <span class="en">Play of the Game</span>
-          <h3>판이 끝나면 최고의 장면을 같이 봐요</h3>
-          <p>방장 PC가 리플레이로 그 판의 결정적인 장면을 찾아 영상으로 만들어, 모두의 화면 가운데에 띄워 줘요. 킬 장면은 <b>팟지</b>, 서포터·탱커의 활약은 <b>숨은 영웅</b>으로 따로 뽑아요.</p>
-        </div>
-        <div class="media"><img src="img/potg.jpg" alt="팟지 화면: 원딜왕, 1팀 사미라, 트리플킬" loading="lazy" width="960" height="676"></div>
-      </div>
     </div>
   </section>
 
