@@ -7,6 +7,24 @@
 - 배포(옛): 사이트(sohada2.github.io/aram) **최하단**에 「투데이 내전 다운로드」 버튼(기존 「내전 오버레이 다운로드」 옆)
 - 출발점: aram-overlay v0.1.55 코드에서 도킹·창·트레이·자동 업데이트·내장 브릿지·팀짜기 알고리즘만 가져오고, 복권·대장간·상점·가챠·패스·프로필·LP·막고라·아이템 페이즈·숨은 라이브 계정은 전부 걷어냄
 
+## 🔄 다른 PC에서 이어받기 (2026-11-02 · v0.1.100)
+1. **`git pull` 먼저** — 여러 PC가 main에 직접 푸시 + **aramgg 봇이 매일 한국 4:30 main에 커밋**(`docs/data/aramgg`) → 안 받고 푸시하면 거절됨.
+2. `npm install` · ⚠️ 셸에 `ELECTRON_RUN_AS_NODE=1`이 있으면 `env -u ELECTRON_RUN_AS_NODE ./node_modules/electron/dist/electron.exe .` · 테스트는 창 숨김(`TN_HIDDEN=1`, 아래 「실행 / 배포」).
+3. **관리자 도구(서버 규칙·시험 데이터 정리·사용량 조회)** = `npm i -g firebase-tools` → `firebase login`(사장님 계정 shm2644) → `node tools/gapi.cjs <메서드> <URL> [본문]` · 규칙 확인 = `node tools/rules-test.cjs`(70건 · 인증 없는 요청 허용/차단 + 끝나면 정리). ⚠️ 이 PC 임시 폴더(scratchpad) 도구는 다른 PC에 없음 — 필요한 건 `tools/`에 있음.
+4. **영상 중계(worker/)** 고칠 때만 = `cd worker && npx wrangler@3 login`(사장님 Cloudflare shm2644) → `npx wrangler@3 deploy` · GitHub 토큰은 Cloudflare 비밀값 `GH_TOKEN`에 이미 있음(다시 안 넣어도 됨 · 저장소·채팅에 절대 쓰지 말 것). Windows PowerShell은 실행 정책 때문에 `npx.cmd`.
+5. **홈페이지(docs/)** = main에 푸시하면 GitHub Pages가 1~2분 뒤 반영 · 화면 확인 = Edge 헤드리스(390px는 창 최소 폭 때문에 iframe 틀로) · 영상 변환 ffmpeg(이 PC = `pip install imageio-ffmpeg` 경로).
+6. 앱 배포 = package.json 버전↑ → main 푸시(release.yml 자동 빌드 · 켜면 3분 안에 받으면 바로 설치·재시작).
+
+## ⏳ 남은 일 (2026-11-02 기준 · 중요한 순)
+- 🔐 **인증 2단계**(먼저 하면 옛 앱 전부 401): ① 친구들 앱이 전부 v0.1.98+인지(`today/presence/*/app`) ② 1시간 넘게 켜 둬도 표식 교체·재연결 되는지 실기 ③ `node tools/rules-auth.cjs > rules.auth.json` → gapi로 적용 + 중계 `wrangler.toml` `REQUIRE_AUTH = "1"` 다시 deploy ④ 표식 없이 서버에 붙는 개발 도구(`tools/potg-seed.mjs`·`lobby-report.cjs` 등) 손보기.
+- 🗑️ **옛 사이트 DB(aramchaos) `today/` 삭제** — 새 DB로 다 옮겨진 것 확인 + 45MB 백업(`문서	oday-naejeon-backupold-site-db-today-2026-11-02.json`, 그 PC에만) · 대량 삭제라 자동 권한 검사가 막음 → 사장님이 Firebase 콘솔에서 `today`만 직접(했는지 = `curl …aramchaos…/today.json?shallow=true`가 null).
+- ⚠️ **홈페이지(aramchaos) DB 규칙이 루트 `.read/.write: true` 완전 공개**(2026-11-02 발견) — 누구나 사이트 전체 삭제 가능 · aram 리포 작업(투데이 내전 아님).
+- ❓ 기존 홈페이지(sohada2.github.io/aram) 맨 아래 「투데이 내전 다운로드」 버튼 = 새 홈페이지로 연결 / 빼기 / 그대로 — 사장님 답 대기.
+- 🎮 **다음 내전 실기 확인**: 방(여러 PC) · 자리 꽉 참 · 영상 중계(표식) · 증강 탭(aramgg) 챔피언 선택 화면 · 1시간 넘는 연결 · (예전 목록) vStart 타이밍·소리 복구·클라 복구·진행 막대·자리 이동/예측.
+- 📈 사용자 늘면: 접속 표시·방 목록 전역 방송 + 「오늘 순위」 하루 전체 읽기 = 사람 수 제곱으로 늘어남 → 방 단위로(유료 전환 전에 · 2026-11-02 비용 추정: 지금 구조 100명×매일 3시간 ≈ 월 28만 원, 고치면 2~3만 원).
+- 배포 위험 점검 남은 항목 #5~#11(증강 순위 정책·game.cfg 수정·패치 대응·백신/서명·실기·리플레이·개인정보).
+- 결정해 둔 것: 광고 안 붙임 · 사미라 3D 동전·챔피언 그림 유지(라이엇 정책상 회색 · 친구용 무료) · 비공개 방 비밀번호 = 「잠금」 수준으로 충분.
+
 ## 🔒 데이터 분리 원칙 (절대 규칙)
 - **쓰기는 전부 Firebase `today/` 아래만.** 사이트 노드(`session`·`lobby`·`bridge`·`matches`·`gold`·`season2`·`normal_matches`…)에 쓰는 코드를 추가하지 말 것.
 - **v0.1.2부터 사이트 데이터를 읽지도 않음**(완전 독립). 입장 = 라이엇 계정, 밸런스 = 새 로직 설계 전까지 비활성.
@@ -18,8 +36,8 @@
 - **🔐 익명 로그인(v0.1.98 · 2026-11-02)** — 사장님이 콘솔 Authentication에서 「시작하기→익명 사용」(무료 Spark 그대로 · API `identityPlatform:initializeAuth`는 결제 필요라 콘솔로만). 앱 = 처음 한 번 `accounts:signUp` → 갱신 토큰 `config.fbRefresh`로 계속 같은 uid(`securetoken` · 50분 캐시 · 동시 호출 한 번) · **모든 요청에 `?auth=`**: fbSet/Update/Delete/Cas/PutIfAbsent(authQ) · `getJson`(우리 DB 문자열 주소면 `withAuth`) · `fbStream`(열 때마다 표식 · 만료 시 서버 auth_revoked → 다시 연결하며 새 표식) · 브릿지(`start({getToken})`→`fbUrl`). 표식 실패 시 표식 없이(공개 규칙 동안 안 멈춤 · 만료 표식은 공개 규칙에서도 401이라 55분 넘은 건 안 씀). **2단계(아직 안 함)** = 친구들 앱 전부 v0.1.98+ 확인 뒤 `node tools/rules-auth.cjs > rules.auth.json` 적용(모든 읽기·쓰기 auth != null). 시험: 2단계 규칙을 잠깐 걸고(접속자 0명) 표식 없는 읽기·쓰기 401 · 새 앱 한 판 7단계 통과 · 브릿지 하트비트 4초 안 갱신 · 경기 기록 sv → 공개 규칙 복구. presence는 접속자 목록에서 앱 버전 확인 가능.
 - **v0.1.97 보안 강화(2026-11-02)** — ① **통째 지우기 막음**: 쓰기 허락을 칸 단위(`presence/$k`·`roomList/$rid`·`conns/$dev`·`bridge/*` 이름별·`potg/raw/$day/$gid/$k`·`clips/$day/$gid`)로 내려 `DELETE today/presence` 같은 한 방 삭제 불가(지난 날 `potg/raw/$day`·`clips/$day`는 정리용으로 지우기만 허용) ② **지난 경기 결과 못 바꿈**: 새 기록은 `sv`(서버 시각 `{.sv:timestamp}`·앱 `withSv`)가 `now`일 때만 만들어지고, potg·potgRec·guess·mvp·svp·manner·votes는 **sv 6시간 안에만** 쓰기(PC 시계 무관 · sv 없는 옛 기록은 고정) ③ **모양·크기 검사**: presence·roomList·accounts = 아는 칸만(`$other` 거절)·글자 길이 제한 · rooms/$rid 안 = session·lobby·host·normalLive·potgWait·potgRec·bridge만 · 영상 예비 조각 80만 자 이하 · days 날짜/종류 칸 형식 ④ **닫음**: 옛 전역 칸(session·lobby·host·normalLive·potgWait·potgRec — v0.1.93 이하 앱용)·`augGuide/global`(앱은 읽기만) ⑤ 앱 빈 방 정리에 **목록에 없는 방 데이터**도 5분마다 지움 ⑥ 영상 중계 = 같은 IP 1분에 올리기 10·받기 40(Cloudflare ratelimit · 근사치라 느슨함 — 120번 몰아치면 2번 막힘). 시험 = `tools/rules-test.cjs` 70건 전부 통과 + 실제 앱 한 판(방 만들기→시작→경기 기록 sv→투표 마감 SVP 저장) 통과. ⚠️ 정규식은 `d` 대신 `[0-9]`(역슬래시가 도구를 거치며 사라져 `d{4}`가 됐던 함정). 남은 구멍 = 읽기 누구나(월 내려받기 한도 소진 공격은 로그인 없인 못 막음)·6시간 안의 판·대기실 장난·가짜 경기 만들기.
 - 인증이 없어(익명 로그인 = 결제 필요) 누구나 읽고 쓰는 구조 → **경로별로 지우기·덮어쓰기를 막음**: 경기 기록(`days/*/*/{gid}`)은 **처음 만들기만**(조건부 PUT) + 나중에 붙는 칸(potg·potgRec·guess·mvp·svp·manner·votes)만 쓰기 · 계정(`accounts`)은 갱신만(지우기 X) · `config`(GitHub 토큰)는 쓰기 X · 증강 고친 기록(`augGuide/hist·recent`)은 만들기만(3일 지난 것만 지우기 — 앱의 pruneKeys가 최근 것은 조용히 실패) · `today` 통째·`days` 통째 지우기 X. 나머지(session·lobby·presence·host·normalLive·potgWait·potgRec·bridge·potg·clips·augGuide/champs·global)는 그대로 자유.
-- ⚠️ **앱이 새 경로에 쓰게 되면 규칙에도 추가할 것**(없으면 그 쓰기가 401로 조용히 실패). 기존 기록을 고쳐야 하면 관리자 토큰으로(작업 scratchpad `gapi.cjs` = firebase CLI 로그인 토큰 · 규칙 무시).
-- 적용 = `node gapi.cjs PUT https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app/.settings/rules.json "$(cat database.rules.json)"` · 시험 29건(인증 없는 요청: 기록 만들기·붙는 칸 = 허용 / 기록 덮어쓰기·지우기·선수 기록 바꾸기·하루/전체/today 지우기·토큰 설정 바꾸기·계정 지우기·증강 기록 지우기 = 401) + 숨김 실행 앱(가짜 계정) 접속 표시·계정 쓰기 정상.
+- ⚠️ **앱이 새 경로에 쓰게 되면 규칙에도 추가할 것**(없으면 그 쓰기가 401로 조용히 실패). 기존 기록을 고쳐야 하면 관리자 토큰으로(`tools/gapi.cjs` = firebase CLI 로그인 토큰 · 규칙 무시).
+- 적용 = `node tools/gapi.cjs PUT https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app/.settings/rules.json "$(cat database.rules.json)"` · 시험 29건(인증 없는 요청: 기록 만들기·붙는 칸 = 허용 / 기록 덮어쓰기·지우기·선수 기록 바꾸기·하루/전체/today 지우기·토큰 설정 바꾸기·계정 지우기·증강 기록 지우기 = 401) + 숨김 실행 앱(가짜 계정) 접속 표시·계정 쓰기 정상.
 - 백업: 바꾸기 전 전체 = 이 PC `문서\today-naejeon-backup\today-2026-11-02.json`(경기 27판·계정 10).
 - 남은 구멍: 읽기는 누구나(토큰도 읽힘 — 문제 2) · 자유 경로(대기실·판 진행)는 장난칠 수 있음(지나가는 데이터라 기록엔 영향 없음) · 가짜 경기 기록을 새로 만드는 건 막지 못함(지우기는 관리자 토큰).
 

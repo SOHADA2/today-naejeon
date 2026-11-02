@@ -1,7 +1,7 @@
 // 서버 규칙 시험(v0.1.97 · 70건) — 인증 없는 요청(= 누구나)으로 허용/차단 확인 · 시험 경로 = 2000-01-01·rt_ 접두 · 끝나면 관리자로 정리(GAPI=관리자 토큰 스크립트 경로 · CLAUDE.md 서버 규칙)
 const { execFileSync } = require('child_process');
 const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app';
-const admin = (m, p, body) => execFileSync('node', [process.env.GAPI || __dirname + '/gapi.cjs', m, `${DB}/${p}.json`].concat(body ? [JSON.stringify(body)] : [])).toString().trim();
+const admin = (m, p, body) => execFileSync('node', [process.env.GAPI || require('path').join(__dirname, 'gapi.cjs'), m, `${DB}/${p}.json`].concat(body ? [JSON.stringify(body)] : [])).toString().trim();
 const req = async (method, p, body, h) => (await fetch(`${DB}/${p}.json`, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: h })).status;
 let pass = 0, fail = 0;
 const t = async (name, want, method, p, body, h) => { const s = await req(method, p, body, h); const ok = want === 'ok' ? s === 200 : s === 401 || s === 403 || s === 412; ok ? pass++ : fail++; console.log(ok ? '✅' : '❌', want === 'ok' ? '허용' : '차단', name, s); };
