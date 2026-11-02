@@ -448,3 +448,34 @@ header .phase, header .win-btn { flex-shrink:0; }
 .tut-next { flex:none; min-width:84px; margin-left:auto; }
 .tut-skip + .tut-next { margin-left:0; }
 @keyframes tutIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+/* ═══ 🚪 방 목록(v0.1.94) ═══ */
+.rm-form { display:flex; flex-direction:column; gap:8px; padding:12px; margin:-4px 0 12px; background:var(--bg-1); border:1px solid var(--gold-line); clip-path:var(--cut); }
+.rm-in { -webkit-app-region:no-drag; width:100%; box-sizing:border-box; padding:9px 10px; font-size:13.5px; color:var(--ink); background:var(--bg-2); border:1px solid var(--line); outline:none; -webkit-user-select:text; user-select:text; }
+.rm-in::placeholder { color:var(--mute); }
+.rm-in:focus { border-color:var(--gold-line); }
+.rm-priv { display:flex; gap:6px; }
+.rm-seg { -webkit-app-region:no-drag; flex:1; padding:8px 4px; font-size:13px; font-weight:700; cursor:pointer; color:var(--dim); background:var(--bg-2); border:1px solid var(--hair); clip-path:var(--cut-sm); }
+.rm-seg.on { color:#1a1206; background:linear-gradient(180deg, var(--gold-hi), var(--gold)); border-color:var(--gold); }
+.rm-actions { display:flex; align-items:center; gap:8px; }
+.rm-actions .lb-mini { margin-left:0; padding:9px 12px; font-size:12px; }
+.rm-go { flex:1; padding:10px; font-size:14px; white-space:nowrap; }
+.rm-list { display:flex; flex-direction:column; gap:8px; }
+.rm-card { display:flex; flex-direction:column; gap:6px; padding:10px 12px; background:var(--bg-2); border:1px solid var(--line); clip-path:var(--cut-sm); }
+.rm-card.mine { border-color:var(--gold-line); }
+.rm-row { display:flex; align-items:center; gap:8px; min-width:0; }
+.rm-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.rm-nm { display:block; min-width:0; font-size:14.5px; font-weight:800; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rm-sub { display:block; min-width:0; font-size:11.5px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rm-sub b { font-weight:700; color:var(--gold-hi); }
+.rm-tag { flex:none; padding:1px 6px; font-size:10.5px; font-weight:700; color:var(--ink-soft); border:1px solid var(--line-2); }
+.rm-n { flex:none; font-size:13px; font-weight:700; color:var(--ink-soft); white-space:nowrap; }
+.rm-n b { font-family:var(--f-num); font-size:16px; color:var(--ink); }
+.rm-join { -webkit-app-region:no-drag; flex:none; padding:7px 12px; font-size:12.5px; font-weight:800; cursor:pointer; white-space:nowrap; color:#1a1206; background:linear-gradient(180deg, var(--gold-hi), var(--gold)); border:none; clip-path:var(--cut-sm); }
+.rm-pwrow { display:flex; gap:6px; }
+.rm-pwrow .rm-in { flex:1; min-width:0; padding:7px 9px; font-size:13px; }
+.rm-empty { display:flex; flex-direction:column; align-items:center; gap:12px; padding:28px 10px; text-align:center; color:var(--dim); font-size:13px; line-height:1.6; }
+.rm-empty .ui-btn-gold { width:100%; max-width:260px; }
+.lb-leave { flex:none; margin-left:0; color:var(--dim); background:transparent; border-color:var(--hair); }
+.lb-head .lb-title { min-width:0; }
+.lb-rname { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }

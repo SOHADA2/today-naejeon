@@ -30,7 +30,73 @@ window.api.onLobby(d => { lobbyData = d || null; if (d) myIsHost = !!d.isHost; r
 window.api.onDocked(v => { document.body.classList.toggle('docked', !!v); });
 
 function showView(v) {
-  for (const k of ['lobby', 'rec', 'team', 'draft', 'vote', 'result', 'roster']) el('view-' + k).style.display = v === k ? (k === 'team' ? 'flex' : 'block') : 'none';
+  for (const k of ['rooms', 'lobby', 'rec', 'team', 'draft', 'vote', 'result', 'roster']) el('view-' + k).style.display = v === k ? (k === 'team' ? 'flex' : 'block') : 'none';
+}
+
+// ── 🚪 방 목록(v0.1.94) — 방에 들어가기 전 화면 · 방 만들기(만든 사람 = 방장) · 비공개 방 = 비밀번호 ─────────
+let roomData = null, _roomId = null, _rmSig = '', _pwFor = null, _rmPriv = false;
+window.api.onRooms(applyRooms);
+function applyRooms(d) {
+  roomData = d || null;
+  const id = d && d.room ? d.room.id : null;
+  if (id !== _roomId) { _roomId = id; _today = null; _todayAt = 0; _pwFor = null; _rmSig = ''; }   // 방 바뀜 → 오늘 순위(방 이름별) 새로
+  render();
+}
+function rmErr(msg) { const e = el('rm-err'); e.textContent = msg || ''; e.style.display = msg ? '' : 'none'; }
+async function rmAct(fn) {
+  rmErr('');
+  const r = await fn().catch(e => ({ ok: false, err: String(e && e.message || e) }));
+  if (r && !r.ok) { if (r.needPw) return r; rmErr(r.err || '잠깐 문제가 생겼어요'); }
+  return r;
+}
+function rmForm(open) {
+  el('rm-form').style.display = open ? '' : 'none';
+  if (open) { el('rm-name').value = ''; el('rm-name').placeholder = myName ? `${myName}의 방` : '방 이름'; el('rm-pw').value = ''; setPriv(false); setTimeout(() => el('rm-name').focus(), 0); }
+}
+function setPriv(p) { _rmPriv = !!p; document.querySelectorAll('.rm-seg').forEach(b => b.classList.toggle('on', (b.dataset.priv === '1') === _rmPriv)); el('rm-pw').style.display = _rmPriv ? '' : 'none'; }
+document.querySelectorAll('.rm-seg').forEach(b => b.onclick = () => { setPriv(b.dataset.priv === '1'); if (_rmPriv) el('rm-pw').focus(); });
+el('rm-new').onclick = () => rmForm(el('rm-form').style.display === 'none');
+el('rm-cancel').onclick = () => { rmForm(false); rmErr(''); };
+async function rmCreate() {
+  const go = el('rm-go'); if (go.disabled) return;
+  go.disabled = true;
+  const r = await rmAct(() => window.api.roomCreate(el('rm-name').value.trim(), _rmPriv, el('rm-pw').value));
+  go.disabled = false;
+  if (r && r.ok) rmForm(false);
+}
+el('rm-go').onclick = rmCreate;
+['rm-name', 'rm-pw'].forEach(id => el(id).addEventListener('keydown', e => { if (e.key === 'Enter') rmCreate(); }));
+async function rmJoin(id, pw) {
+  const r = await rmAct(() => window.api.roomJoin(id, pw));
+  if (r && r.needPw) {
+    if (_pwFor === id && pw !== undefined) rmErr(r.err);
+    _pwFor = id; _rmSig = ''; renderRooms();
+    setTimeout(() => { const i = el('rm-pw-in'); if (i) i.focus(); }, 0);
+  }
+}
+function renderRooms() {
+  const D = roomData || { rooms: [] }, R = D.rooms || [];
+  el('rm-new').style.display = myName && R.length ? '' : 'none';
+  const sig = JSON.stringify([myName, R, _pwFor, D.ready]);
+  if (sig === _rmSig) return;   // 같은 내용이면 다시 안 그림(입력 중인 비밀번호가 지워지지 않게)
+  _rmSig = sig;
+  const list = el('rm-list');
+  if (!myName) { list.innerHTML = '<div class="rm-empty"><span class="lb-wait">롤 클라이언트에 로그인하면 방에 들어갈 수 있어요</span></div>'; return; }
+  if (!R.length) {
+    list.innerHTML = D.ready === false ? '<div class="rm-empty">방 목록을 불러오는 중이에요</div>'
+      : '<div class="rm-empty"><span>아직 만들어진 방이 없어요</span><button id="rm-new2" class="ui-btn-gold">방 만들기</button></div>';
+    const b = el('rm-new2'); if (b) b.onclick = () => rmForm(true);
+    return;
+  }
+  list.innerHTML = R.map(r => `<div class="rm-card${r.mine ? ' mine' : ''}"><div class="rm-row">`
+    + `<span class="rm-main"><b class="rm-nm" title="${esc(r.name)}">${esc(r.name)}</b><small class="rm-sub">${r.host ? `방장 <b>${esc(r.host)}</b>` : '방장 없음'}${r.members.length ? ' · ' + esc(r.members.join(', ')) : ''}</small></span>`
+    + (r.priv ? '<span class="rm-tag">비공개</span>' : '')
+    + `<span class="rm-n"><b>${r.n}</b>명</span><button class="rm-join" data-room="${esc(r.id)}">들어가기</button></div>`
+    + (_pwFor === r.id ? `<div class="rm-pwrow"><input id="rm-pw-in" class="rm-in" type="password" maxlength="20" placeholder="비밀번호"><button class="rm-join" data-pwgo="${esc(r.id)}">확인</button></div>` : '')
+    + '</div>').join('');
+  list.querySelectorAll('[data-room]').forEach(b => b.onclick = () => rmJoin(b.dataset.room));
+  const pg = list.querySelector('[data-pwgo]');
+  if (pg) { const go = () => rmJoin(pg.dataset.pwgo, el('rm-pw-in').value); pg.onclick = go; el('rm-pw-in').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
 }
 function myTeam() {
   const s = sessionData; if (!s) return 0;
@@ -613,9 +679,11 @@ function renderLobby() {
   const sA = ins.filter(m => sides[m.name] === 'teamA'), sB = ins.filter(m => sides[m.name] === 'teamB'), sNone = ins.filter(m => !sides[m.name]);   // 🧩 직접
   const me = M.find(m => m.me);
   el('lb-head').innerHTML = !myName ? '<span class="lb-wait"><span class="lobby-pulse"></span>롤 클라이언트에 로그인하면 자동으로 입장돼요</span>'
-    : `<span class="lb-title"><span class="lb-en">LOBBY</span><b>대기실</b></span>`
+    : `<span class="lb-title"><span class="lb-en">${L.room && L.room.priv ? 'PRIVATE ROOM' : 'ROOM'}</span><b class="lb-rname" title="${esc(L.room ? L.room.name : '')}">${esc(L.room ? L.room.name : '대기실')}</b></span>`
       + (myIsHost ? '<button id="lb-hostme" class="lb-hostme">👑 내가 방장 <i>▾</i></button>'
-        : `<span class="lb-host">${L.hostName ? `<em>방장</em><span class="lb-hn">${esc(L.hostName)}</span>` : '<em class="no">방장 없음</em>'}</span>`);
+        : `<span class="lb-host">${L.hostName ? `<em>방장</em><span class="lb-hn">${esc(L.hostName)}</span>` : '<em class="no">방장 없음</em>'}</span>`)
+      + (L.room ? '<button id="lb-leave" class="lb-mini lb-leave" title="방에서 나가 방 목록으로">나가기</button>' : '');
+  { const lv = el('lb-leave'); if (lv) lv.onclick = () => { if (myIsHost && !confirm('방에서 나갈까요?\n방장은 방에 남은 사람에게 넘어가요.')) return; lbAct(() => window.api.roomLeave()); }; }
   { // 👑 방장 자리 — 아무도 없으면(또는 응답 없으면) 대기실 맨 위에 큰 버튼
     const cta = el('lb-hostcta'), need = myName && !myIsHost && !L.hostName;
     cta.style.display = need ? '' : 'none';
@@ -782,12 +850,14 @@ function render() {
   if (recData && !inGame && ph === 'teams') { renderRec(); showView('rec'); el('phase').textContent = '기록 저장 중'; return; }
   if (!inGame && ph === 'teams' && hasTeams()) { loadToday(); renderTeam(); showView('team'); el('phase').textContent = _gamePlayed ? '결과 대기' : '팀 배정'; if (sessionData.mode === 'draft') maybePick(sessionData); return; }   // 마지막 픽은 바로 팀 화면이 되므로 여기서도
   if (inGame || roster.length) { renderRoster(); showView('roster'); el('phase').textContent = '게임 중'; return; }
+  if (myName && roomData && !roomData.room) { renderRooms(); showView('rooms'); el('phase').textContent = '방 목록'; return; }   // 🚪 방에 들어가기 전
   renderLobby(); showView('lobby'); el('phase').textContent = '대기실';
 }
 // 🩹 v0.1.28: 켤 때 내 이름·판 상태를 직접 받아옴 — 롤이 이미 켜져 있으면 계정이 창 로딩 중(듣기 전)에 잡혀 이름 알림을 놓치고,
 // 같은 내용은 다시 안 보내서(broadcast 중복 차단) 이름이 끝까지 비어 「관전할게요」 버튼·안내가 사라지던 버그(특정 사람만 = 롤 먼저 켠 사람·느린 PC)
 window.api.getPlayers().then(d => { if (d) applySession({ session: d.session, myName: d.myName, isHost: d.isHost }); }).catch(() => {});
 window.api.getLobby().then(d => { if (d) { lobbyData = d; myIsHost = !!d.isHost; render(); } }).catch(() => {});
+window.api.getRooms().then(d => { if (d) applyRooms(d); }).catch(() => {});
 render();
 
 // 🔄 업데이트 상태(내 안내 줄 「새 버전 받기 / 받는 중 n% / 지금 업데이트」)

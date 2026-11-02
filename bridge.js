@@ -12,7 +12,7 @@ const { EventEmitter } = require('events');
 const { execFile }     = require('child_process');
 
 const FIREBASE_URL      = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app';   // 🗄️ v0.1.64 투데이 내전 전용 프로젝트
-const BRIDGE_ROOT       = 'today/bridge';   // ⚠️ 사이트 bridge/ 와 분리(시즌2 데이터 오염 방지)
+let BRIDGE_ROOT         = 'today/bridge';   // ⚠️ 사이트 bridge/ 와 분리(시즌2 데이터 오염 방지) · 🚪 v0.1.94: 방에 들어가면 today/rooms/{방}/bridge(setRoot) — 방마다 경기 결과(eogStats)가 따로
 
 // 주입 옵션(startBridge에서 세팅)
 let _log        = () => {};
@@ -704,5 +704,5 @@ function stop() {
   fbSet(`${BRIDGE_ROOT}/operators/${OPERATOR_ID}`, null);
 }
 
-module.exports = { _summarizeTimeline: summarizeTimeline, start, stop, getGameId: () => activeGameId || lastSavedGameId || null,   // 🎬 팟지 수집이 어느 게임인지
+module.exports = { _summarizeTimeline: summarizeTimeline, start, stop, setRoot: (r) => { BRIDGE_ROOT = r || 'today/bridge'; }, getGameId: () => activeGameId || lastSavedGameId || null,   // 🎬 팟지 수집이 어느 게임인지
   lcuRaw: (m, p, b) => basePort ? lcuRaw(m, p, b) : Promise.resolve({ status: 0, data: null }), lolDir: () => _lolDir };   // 🎬 팟지 리플레이 녹화(replayrec.js)   // 🎬 팟지 수집이 어느 게임인지

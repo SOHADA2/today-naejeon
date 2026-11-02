@@ -118,6 +118,19 @@
       <div id="lb-gobar" class="lb-gobar" style="display:none;"><button id="lb-start" class="ui-btn-gold lb-start" disabled>시작</button></div>
     </section>
 
+    <!-- 🚪 방 목록(v0.1.94) — 방에 들어가기 전 · 방 만들기(만든 사람 = 방장) · 비공개 = 비밀번호 -->
+    <section id="view-rooms" class="view ui-scroll" style="display:none;">
+      <div class="lb-head"><span class="lb-title"><span class="lb-en">ROOMS</span><b>방 목록</b></span><button id="rm-new" class="lb-mini">＋ 방 만들기</button></div>
+      <div id="rm-form" class="rm-form" style="display:none;">
+        <input id="rm-name" class="rm-in" maxlength="20" placeholder="방 이름">
+        <div class="rm-priv"><button class="rm-seg on" data-priv="0">공개</button><button class="rm-seg" data-priv="1">비공개</button></div>
+        <input id="rm-pw" class="rm-in" maxlength="20" placeholder="비밀번호" type="password" style="display:none;">
+        <div class="rm-actions"><button id="rm-cancel" class="lb-mini plain">취소</button><button id="rm-go" class="ui-btn-gold rm-go">만들고 들어가기</button></div>
+      </div>
+      <div id="rm-err" class="dr-err" style="display:none;"></div>
+      <div id="rm-list" class="rm-list"></div>
+    </section>
+
     <!-- 게임 중 명단 -->
     <section id="view-roster" class="view ui-scroll">
       <div id="status" class="status"></div>

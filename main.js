@@ -386,13 +386,13 @@ function getJson(opts) {
 }
 // ⚡ Firebase 실시간 스트림(REST SSE) — 노드가 바뀌는 즉시 onChange 호출(3초 폴링 지연 제거·v0.1.55).
 //   끊기면 자동 재연결(1→30초 백오프). 폴링은 안전망으로 그대로 유지.
-function fbStream(pathStr, onChange, onDown) {   // onChange(ev, {path, data}) · onDown() = 끊김(다시 연결하면 처음에 전체가 'put /'로 다시 옴)
-  let retry = 1000;
+function fbStream(pathStr, onChange, onDown) {   // onChange(ev, {path, data}) · onDown() = 끊김(다시 연결하면 처음에 전체가 'put /'로 다시 옴) · 반환 = { close() }(🚪 방 바꿀 때)
+  let retry = 1000, closed = false, cur = null;
   const open = (url, hops) => {
-    if (app._quitting) return;
+    if (app._quitting || closed) return;
     let lastBeat = Date.now(), buf = '', done = false;
-    const again = () => { if (done) return; done = true; clearInterval(idle); try { if (onDown) onDown(); } catch (_) {} setTimeout(() => open(`${FIREBASE_DB}/${pathStr}.json`, 0), retry); retry = Math.min(retry * 2, 30000); };
-    const req = https.get(url, { headers: { Accept: 'text/event-stream' } }, res => {
+    const again = () => { if (done) return; done = true; clearInterval(idle); if (closed) return; try { if (onDown) onDown(); } catch (_) {} setTimeout(() => open(`${FIREBASE_DB}/${pathStr}.json`, 0), retry); retry = Math.min(retry * 2, 30000); };
+    const req = cur = https.get(url, { headers: { Accept: 'text/event-stream' } }, res => {
       if ((res.statusCode === 307 || res.statusCode === 302) && res.headers.location && hops < 3) {   // 샤드 호스트로 리다이렉트
         done = true; clearInterval(idle); res.resume(); open(res.headers.location, hops + 1); return;
       }
@@ -406,7 +406,7 @@ function fbStream(pathStr, onChange, onDown) {   // onChange(ev, {path, data}) �
           if (ev === 'put' || ev === 'patch') {
             retry = 1000; let msg = null;
             try { msg = JSON.parse((block.match(/^data: *(.*)$/m) || [])[1] || 'null'); } catch (_) {}
-            try { onChange(ev, msg); } catch (_) {}
+            if (!closed) try { onChange(ev, msg); } catch (_) {}
           }
           else if (ev === 'cancel' || ev === 'auth_revoked') { req.destroy(); again(); return; }
         }
@@ -418,6 +418,7 @@ function fbStream(pathStr, onChange, onDown) {   // onChange(ev, {path, data}) �
     const idle = setInterval(() => { if (Date.now() - lastBeat > 90000) { req.destroy(); again(); } }, 30000);   // keep-alive(30초) 끊김 감지
   };
   open(`${FIREBASE_DB}/${pathStr}.json`, 0);
+  return { close() { closed = true; try { if (cur) cur.destroy(); } catch (_) {} } };
 }
 // 📡 스트림 사본(v0.1.63 · 내려받기 절약) — 처음 연결 때 전체 1번 + 그 뒤엔 바뀐 부분만 받아 사본에 적용 · 다시 읽기(REST) 없음
 //   예전 = 3초마다 session·lobby·host·presence·normalLive·potgRec를 통째로 다시 읽음(앱 하나 시간당 ~6MB · 무료 한도 월 10GB를 사이트와 나눠 씀)
@@ -430,16 +431,18 @@ function mirSet(root, ks, val) {
   if (v == null) delete o[ks[0]]; else o[ks[0]] = v;
   return Object.keys(o).length ? o : null;
 }
-function fbMirror(name, onData) {
+function fbMirror(name, onData, pathStr) {   // pathStr 없으면 today/{name} · 🚪 방 노드는 rooms/{방}/{name}(방 바꾸면 close 후 다시)
   const m = MIR[name] = { ready: false, data: null };
-  fbStream(`${T}/${name}`, (ev, msg) => {
-    if (!msg || typeof msg.path !== 'string') return;
+  m.stream = fbStream(pathStr || `${T}/${name}`, (ev, msg) => {
+    if (MIR[name] !== m || !msg || typeof msg.path !== 'string') return;
     const ks = msg.path.split('/').filter(Boolean);
     if (ev === 'put') { m.data = mirSet(m.data, ks, msg.data); if (!ks.length) m.ready = true; }
     else if (ev === 'patch' && msg.data && typeof msg.data === 'object') for (const [k, v] of Object.entries(msg.data)) m.data = mirSet(m.data, ks.concat(k.split('/').filter(Boolean)), v);
     if (m.ready) onData(m.data);
   }, () => { m.ready = false; });
+  return m;
 }
+function mirClose(name) { const m = MIR[name]; if (m && m.stream) m.stream.close(); delete MIR[name]; }
 const mirOr = (name, fetcher) => MIR[name] && MIR[name].ready ? Promise.resolve(MIR[name].data) : fetcher();
 // 같은 폴러가 겹쳐 돌지 않게(스트림 이벤트+타이머 동시 호출) — 실행 중이면 끝난 뒤 1번만 다시
 function coalesce(fn) {
@@ -911,11 +914,121 @@ function teamOf(s, name) {
   return null;
 }
 
-const fetchSession   = () => getJson(`${FIREBASE_DB}/${T}/session.json`);
-const fetchLobby     = () => getJson(`${FIREBASE_DB}/${T}/lobby.json`);
-const fetchEog       = () => getJson(`${FIREBASE_DB}/${T}/bridge/eogStats.json`);
+// ── 🚪 방(v0.1.94 · 사장님: 방 만들기 = 만든 사람이 방장 · 방 목록에서 들어가기 · 공개/비공개(비밀번호) · 아무도 없으면 사라짐) ──────────
+//   예전엔 대기실·판·방장이 서버 전체에 하나라 다른 무리가 앱을 깔면 같은 방에 섞였음(배포 위험 점검 3번)
+//   today/roomList/{방} = { name, priv, pw(비공개 = sha256(방:비밀번호)), host(방장 이름), at(만든 시각), seen(방 사람 앱이 20초마다), by }
+//   today/rooms/{방}/{session·lobby·host·normalLive·potgWait·potgRec·bridge} = 예전 today/ 아래 그 노드들 그대로(방마다)
+//   방에 있는 사람 = presence.room · 기록(days)은 그대로 한곳 + roomName → 「오늘」 순위는 방 이름별(이름 없는 옛 기록은 모든 방에) · 프로필은 합침
+//   ⚠️ 비공개 = 목록 자물쇠 + 앱의 비밀번호 확인까지(서버 읽기는 누구나 — 규칙 참고)
+let room = null, roomListRaw = null, runSession = null, _eogStream = null, _autoHostAt = 0, _gcAt = 0;   // room = { id, name, priv, h }
+const RP = () => `${T}/rooms/${room ? room.id : '_none'}`;   // 방 밖이면 쓰지 않음(각 함수가 room 확인 · _none은 규칙상 쓰기 거절)
+const roomGet = name => room ? getJson(`${FIREBASE_DB}/${T}/rooms/${room.id}/${name}.json`) : Promise.resolve(null);
+const ROOM_GONE_MS = 90000, ROOM_GRACE_MS = 120000;   // 방 사람 앱이 90초 넘게 소식 없으면 사라짐(업데이트로 다 같이 다시 켜는 30초는 버팀) · 막 만든 방은 2분 봐줌
+const pwHash = (id, pw) => require('crypto').createHash('sha256').update(`${id}:${pw}`).digest('hex');
+function roomMembers(id) {
+  const now = Date.now();
+  return Object.entries(presenceRaw || {}).filter(([, p]) => p && p.room === id && p.name && now - (p.at || 0) < ONLINE_MS).map(([key, p]) => ({ key, name: normName(p.name), icon: p.icon || null }));
+}
+function roomsView() {
+  const now = Date.now(), rooms = [];
+  for (const [id, r] of Object.entries(roomListRaw || {})) {
+    if (!r || !r.name) continue;
+    const mem = roomMembers(id);
+    if (!(room && room.id === id) && !mem.length && now - Math.max(r.seen || 0, r.at || 0) > ROOM_GONE_MS) continue;   // 사라지는 중
+    rooms.push({ id, name: r.name, priv: !!r.priv, host: r.host || null, n: mem.length, members: mem.map(m => m.name).slice(0, 10), at: r.at || 0, mine: !!(room && room.id === id) });
+  }
+  rooms.sort((a, b) => b.mine - a.mine || b.n - a.n || b.at - a.at);
+  return { rooms, room: room ? { id: room.id, name: room.name, priv: room.priv } : null, me: config.myName || '', ready: !!(MIR.roomList && MIR.roomList.ready) };
+}
+const broadcastRooms = () => broadcast('rooms', roomsView());
+function roomStreams() {   // 방 바뀜 → 방 노드 스트림 다시(예전 방 데이터는 버림)
+  for (const n of ['session', 'lobby', 'host', 'normalLive', 'potgWait', 'potgRec']) mirClose(n);
+  if (_eogStream) { _eogStream.close(); _eogStream = null; }
+  sessionData = null; lobbyRaw = null; lastFormed = 0; normalLive = null; potgRecRaw = null; potgWaitRaw = null;
+  onHostRec(null);
+  try { bridge.setRoot(room ? `${RP()}/bridge` : `${T}/bridge`); } catch (_) {}
+  broadcast('lobby', lobbyView()); broadcast('session', { session: null, myName: config.myName || '' });
+  if (!room || !runSession) return;
+  const base = RP();
+  fbMirror('session', runSession, `${base}/session`);                                                          // ⚡ 팀 배정·투표·결과
+  fbMirror('lobby', d => { lobbyRaw = d || null; broadcast('lobby', lobbyView()); }, `${base}/lobby`);           // ⚡ 대기실(참가·방식·팀장)
+  fbMirror('host', runSession, `${base}/host`);                                                                // ⚡ 방장 바뀜
+  fbMirror('normalLive', runSession, `${base}/normalLive`);                                                    // 🎮 같이 한 일반 판 팟지
+  fbMirror('potgWait', runSession, `${base}/potgWait`);                                                        // ⏳ 팟지 기다림 화면
+  fbMirror('potgRec', runSession, `${base}/potgRec`);                                                          // 🔴 녹화 중 안내
+  _eogStream = fbStream(`${base}/bridge/eogStats`, () => { if (config.isHost) runHost(); });                   // ⚡ 경기 종료 → 방장 앱이 바로 기록
+}
+async function roomJoin(id, pw, hash) {
+  if (!account) return { ok: false, err: '롤에 로그인하면 방에 들어갈 수 있어요' };
+  const r = (roomListRaw || {})[id] || await getJson(`${FIREBASE_DB}/${T}/roomList/${id}.json`);
+  if (!r || !r.name) return { ok: false, err: '없어진 방이에요' };
+  let h = null;
+  if (r.priv) {
+    h = hash || (pw ? pwHash(id, String(pw).trim()) : null);
+    if (h !== r.pw) return { ok: false, needPw: true, err: pw || hash ? '비밀번호가 틀렸어요' : '비밀번호를 넣어주세요' };
+  }
+  if (room && room.id === id) return { ok: true };
+  if (room) await roomLeave(true);
+  room = { id, name: r.name, priv: !!r.priv, h };
+  config.lastRoom = { id, h }; saveConfig();
+  roomStreams();
+  await beatPresence();
+  broadcastRooms(); if (runSession) runSession();
+  return { ok: true };
+}
+async function roomCreate(name, priv, pw) {
+  if (!account) return { ok: false, err: '롤에 로그인하면 방을 만들 수 있어요' };
+  const nm = normName(String(name || '')).slice(0, 20) || `${account.gameName}의 방`, p = String(pw || '').trim();
+  if (priv && !p) return { ok: false, err: '비밀번호를 정해주세요' };
+  const id = 'r' + Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 6), now = Date.now();
+  const meta = { name: nm, priv: !!priv, pw: priv ? pwHash(id, p) : null, host: account.gameName, at: now, seen: now, by: account.gameName };
+  const w = await fbSet(`${T}/roomList/${id}`, meta); if (!w.ok) return w;
+  await fbSet(`${T}/rooms/${id}/host`, { puuid: account.puuid, name: account.gameName, at: now });   // 👑 만든 사람 = 방장(방 스트림이 받아 자동으로 방장이 됨)
+  roomListRaw = Object.assign({}, roomListRaw, { [id]: meta });
+  return roomJoin(id, null, meta.pw);
+}
+async function roomLeave(quiet) {
+  if (!room) return { ok: true };
+  const id = room.id;
+  if (config.isHost) {   // 👑 남은 사람에게 넘김(없으면 비움)
+    const next = roomMembers(id).filter(m => !account || m.key !== account.puuid).sort((a, b) => a.key.localeCompare(b.key))[0];
+    if (next) await handHost(next.key).catch(() => {}); else await releaseHost().catch(() => {});
+  }
+  if (account) fbSet(`${T}/rooms/${id}/lobby/join/${account.puuid}`, null).catch(() => {});
+  room = null; config.lastRoom = null; saveConfig();
+  roomStreams();
+  await beatPresence();
+  broadcastRooms();
+  if (!quiet) try { showMainPanel(); } catch (_) {}
+  return { ok: true };
+}
+function roomAutoHost() {   // 👑 방장이 없거나 1분 넘게 응답 없으면 → 방에 남은 사람 중 첫째(계정 번호순)가 자동으로 이어받음(사장님: 방장이 나가면 남은 사람에게)
+  if (!room || !account || config.isHost || (hostRec && hostAlive(hostRec)) || Date.now() - _autoHostAt < 10000) return;
+  const first = roomMembers(room.id).sort((a, b) => a.key.localeCompare(b.key))[0];
+  if (first && first.key === account.puuid) { _autoHostAt = Date.now(); claimHost().catch(() => {}); }
+}
+async function roomGc() {   // 🧹 아무도 없는 방 지우기(아무 앱이나 · 30초마다)
+  if (Date.now() - _gcAt < 30000 || !(MIR.roomList && MIR.roomList.ready) || !(MIR.presence && MIR.presence.ready)) return;
+  _gcAt = Date.now();
+  for (const [id, r] of Object.entries(roomListRaw || {})) {
+    if (room && room.id === id) continue;
+    if (r && r.name && (roomMembers(id).length || Date.now() - Math.max(r.seen || 0, r.at || 0) < ROOM_GONE_MS)) continue;
+    await fbSet(`${T}/roomList/${id}`, null).catch(() => {});
+    await fbSet(`${T}/rooms/${id}`, null).catch(() => {});
+  }
+}
+function roomRejoin() {   // 앱을 다시 켜면(업데이트 등) 있던 방으로 — 그 방이 아직 있으면
+  const L = config.lastRoom;
+  if (room || !account || !L || !L.id || !(MIR.roomList && MIR.roomList.ready)) return;
+  const r = (roomListRaw || {})[L.id];
+  if (!r || !r.name) { config.lastRoom = null; saveConfig(); return; }
+  roomJoin(L.id, null, L.h).then(x => { if (!x.ok) { config.lastRoom = null; saveConfig(); } }).catch(() => {});
+}
+const fetchSession   = () => roomGet('session');
+const fetchLobby     = () => roomGet('lobby');
+const fetchEog       = () => roomGet('bridge/eogStats');
 const fetchDay       = (day) => getJson(`${FIREBASE_DB}/${T}/days/${day}/matches.json`);
-const fetchPresence  = () => getJson(`${FIREBASE_DB}/${T}/presence.json`);        // 👤 지금 앱 켜고 롤 로그인한 사람들
+const fetchPresence  = () => getJson(`${FIREBASE_DB}/${T}/presence.json`);        // 👤 지금 앱 켜고 롤 로그인한 사람들(presence.room = 있는 방)
 
 // ── 👤 라이엇 계정 = 나 (롤 클라에 로그인된 계정으로 자동 입장 · 사이트 닉네임 안 씀) ──
 // 표시 이름 = 라이엇 게임 이름. 저장 키 = puuid(계정 고유 ID·닉변해도 유지).
@@ -925,11 +1038,13 @@ const PRESENCE_MS = 20000, ONLINE_MS = 60000;
 let _presenceTimer = null;
 async function beatPresence() {
   if (!account) {   // 클라 잠깐 꺼짐 — 방장 자리만 살아있게(2분)
-    if (_away && config.isHost) fbCas(`${T}/host`, cur => cur && cur.puuid === _away.puuid ? { value: { puuid: cur.puuid, name: cur.name, at: Date.now() } } : { err: 'not mine' }).catch(() => {});
+    if (_away && config.isHost && room) fbCas(`${RP()}/host`, cur => cur && cur.puuid === _away.puuid ? { value: { puuid: cur.puuid, name: cur.name, at: Date.now() } } : { err: 'not mine' }).catch(() => {});
     return;
   }
-  await fbSet(`${T}/presence/${account.puuid}`, { name: account.gameName, tag: account.tagLine || null, icon: account.iconId || null, at: Date.now(), host: !!config.isHost, app: app.getVersion() }).catch(() => {});
-  if (config.isHost) fbCas(`${T}/host`, cur => cur && cur.puuid === account.puuid ? { value: { puuid: cur.puuid, name: cur.name, at: Date.now() } } : { err: 'not mine' }).catch(() => {});   // 👑 방장 살아있음 표시
+  await fbSet(`${T}/presence/${account.puuid}`, { name: account.gameName, tag: account.tagLine || null, icon: account.iconId || null, at: Date.now(), host: !!config.isHost, app: app.getVersion(), room: room ? room.id : null }).catch(() => {});
+  if (!room) return;
+  fbUpdate(`${T}/roomList/${room.id}`, Object.assign({ name: room.name, priv: !!room.priv, pw: room.priv ? room.h : null, seen: Date.now() }, config.isHost ? { host: account.gameName } : {})).catch(() => {});   // 🚪 방 살아있음(+방장 이름)
+  if (config.isHost) fbCas(`${RP()}/host`, cur => cur && cur.puuid === account.puuid ? { value: { puuid: cur.puuid, name: cur.name, at: Date.now() } } : { err: 'not mine' }).catch(() => {});   // 👑 방장 살아있음 표시
 }
 // 🔌 롤 클라를 잠깐 끈 것(게임 끝나고 껐다 켜기 등)은 로그아웃으로 치지 않음 — 같은 계정이 2분 안에 돌아오면 방장·참가 그대로
 //    (전엔 클라를 끄는 순간 방장이 풀려서, 롤을 다시 켜 전적에서 결과를 복구해도 기록해 줄 방장이 없었음)
@@ -937,8 +1052,8 @@ const AWAY_GRACE_MS = 2 * 60 * 1000;
 let _away = null, _awayTimer = null;   // 클라 꺼짐으로 잠깐 없는 내 계정
 function releaseAccount(prev) {   // 이전 계정의 접속 표시·방장·대기실 참가 정리
   fbSet(`${T}/presence/${prev.puuid}`, null).catch(() => {});
-  if (config.isHost) { config.isHost = false; fbSet(`${T}/host`, null).catch(() => {}); broadcast('account', { account, isHost: false }); broadcast('host', hostView()); }
-  fbSet(`${T}/lobby/join/${prev.puuid}`, null).catch(() => {});
+  if (config.isHost) { config.isHost = false; fbSet(`${RP()}/host`, null).catch(() => {}); broadcast('account', { account, isHost: false }); broadcast('host', hostView()); }
+  fbSet(`${RP()}/lobby/join/${prev.puuid}`, null).catch(() => {});
 }
 function setAccount(acc) {
   const prev = account;
@@ -968,7 +1083,7 @@ function setAccount(acc) {
 async function getRoster() {   // 방장 참가자 목록 = 지금 접속 중 + 오늘 뛴 사람
   const [pres, t] = await Promise.all([fetchPresence(), getToday()]);
   const now = Date.now(), online = [];
-  for (const [puuid, p] of Object.entries(pres || {})) if (p && p.name && now - (p.at || 0) < ONLINE_MS) online.push({ puuid, name: normName(p.name), tag: p.tag || '', host: !!p.host });
+  for (const [puuid, p] of Object.entries(pres || {})) if (p && p.name && now - (p.at || 0) < ONLINE_MS && room && p.room === room.id) online.push({ puuid, name: normName(p.name), tag: p.tag || '', host: !!p.host });
   online.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   const onSet = new Set(online.map(o => o.name));
   const recent = (t.standings || []).map(p => p.name).filter(n => !onSet.has(n));
@@ -1032,7 +1147,7 @@ async function recTick(s) {   // pollSession마다: 서버 상태로 단계 맞�
 // 방장 앱이 20초마다 at 갱신. 60초 넘게 끊기면 다른 사람이 「방장 이어받기」 가능.
 // 내 계정이 방장으로 적혀 있으면(넘겨받음·재시작) 자동으로 방장이 되고, 남의 이름이면 자동으로 내려옴.
 let hostRec = null;   // { puuid, name, at, from }
-const fetchHost = () => getJson(`${FIREBASE_DB}/${T}/host.json`);
+const fetchHost = () => roomGet('host');
 const hostAlive = h => !!(h && h.puuid && Date.now() - (h.at || 0) < ONLINE_MS);
 function hostView(note) {
   const me = account || _away;
@@ -1062,8 +1177,9 @@ function onHostRec(h) {
 }
 async function claimHost() {
   if (!account) return { ok: false, err: '롤에 로그인해야 방장을 할 수 있어요' };
+  if (!room) return { ok: false, err: '먼저 방에 들어가거나 방을 만들어요' };
   const me = account;
-  const r = await fbCas(`${T}/host`, cur => {
+  const r = await fbCas(`${RP()}/host`, cur => {
     if (cur && cur.puuid && cur.puuid !== me.puuid && hostAlive(cur)) return { err: `${cur.name}님이 이미 방장이에요` };
     return { value: { puuid: me.puuid, name: me.gameName, at: Date.now() } };
   });
@@ -1072,19 +1188,20 @@ async function claimHost() {
   return { ok: true };
 }
 async function releaseHost() {
-  if (account) await fbCas(`${T}/host`, cur => cur && cur.puuid === account.puuid ? { value: null } : { err: 'not mine' }).catch(() => {});
+  if (account) await fbCas(`${RP()}/host`, cur => cur && cur.puuid === account.puuid ? { value: null } : { err: 'not mine' }).catch(() => {});
   hostRec = null; setHostLocal(false);
   return { ok: true };
 }
 async function handHost(puuid) {
   if (!config.isHost || !account) return { ok: false, err: '방장만 넘겨줄 수 있어요' };
   const p = ((await fetchPresence()) || {})[puuid];
-  if (!p || !p.name || Date.now() - (p.at || 0) >= ONLINE_MS) return { ok: false, err: '지금 접속 중인 사람에게만 넘길 수 있어요' };
+  if (!p || !p.name || Date.now() - (p.at || 0) >= ONLINE_MS || !room || p.room !== room.id) return { ok: false, err: '지금 이 방에 있는 사람에게만 넘길 수 있어요' };
   const me = account;
-  const r = await fbCas(`${T}/host`, cur => cur && cur.puuid === me.puuid
+  const r = await fbCas(`${RP()}/host`, cur => cur && cur.puuid === me.puuid
     ? { value: { puuid, name: normName(p.name), at: Date.now(), from: me.gameName } } : { err: '방장이 아니에요' });
   if (!r.ok) return r;
   hostRec = r.value; setHostLocal(false, `${normName(p.name)}님에게 방장을 넘겼어요`);
+  fbUpdate(`${T}/roomList/${room.id}`, { host: normName(p.name) }).catch(() => {});   // 🚪 방 목록 방장 이름 바로
   return { ok: true };
 }
 
@@ -1100,10 +1217,10 @@ function lobbyView() {
   const stOf = k => { const j = join[k]; return j && j.day === today && (j.st === 'in' || j.st === 'spec') ? j.st : null; };
   const members = [];
   for (const [puuid, p] of Object.entries(presenceRaw || {})) {
-    if (!p || !p.name || now - (p.at || 0) >= ONLINE_MS) continue;
+    if (!p || !p.name || now - (p.at || 0) >= ONLINE_MS || !room || p.room !== room.id) continue;   // 🚪 이 방 사람만
     members.push({ key: puuid, name: normName(p.name), tag: p.tag || '', icon: p.icon || null, ver: p.app || null, online: true, host: !!(hostRec && hostRec.puuid === puuid && hostAlive(hostRec)), me: !!(account && account.puuid === puuid), st: stOf(puuid) || 'in' });   // 접속하면 바로 자리에(고르는 중 없음) · 관전은 본인/방장이 바꿈
   }
-  for (const [k, j] of Object.entries(join)) if (j && j.guest && j.day === today && !members.some(m => m.name === normName(j.name))) members.push({ key: k, name: normName(j.name), guest: true, online: false, st: stOf(k) });
+  if (room) for (const [k, j] of Object.entries(join)) if (j && j.guest && j.day === today && !members.some(m => m.name === normName(j.name))) members.push({ key: k, name: normName(j.name), guest: true, online: false, st: stOf(k) });
   const ord = { in: 0, null: 1, spec: 2 };
   members.sort((a, b) => (ord[a.st] - ord[b.st]) || (b.online - a.online) || a.name.localeCompare(b.name, 'ko'));
   const caps = L.captains || {};
@@ -1111,7 +1228,7 @@ function lobbyView() {
   const sd = L.sides || {}, sides = {};
   for (const n of inNames) { const t = sd[fbKeyOf(n)]; if (t === 'teamA' || t === 'teamB') sides[n] = t; }
   return { members, sides, mode: ['draft', 'manual', 'normal'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
-    hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members) };
+    hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members), room: room ? { id: room.id, name: room.name, priv: room.priv } : null };
 }
 // 🔄 버전 비교(v0.1.56) — 대기실 내 자리 「업데이트 필요」·내 안내 줄
 const verCmp = (a, b) => { const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return 0; };
@@ -1136,7 +1253,7 @@ function lobbyJoin(key, st, extra) {
   if (!k) return Promise.resolve({ ok: false, err: '잘못된 사람' });
   const val = st ? { ...(extra || {}), st, at: Date.now(), day: dayKey() } : null;
   lobbyLocal(L => { L.join = L.join || {}; if (val) L.join[k] = val; else delete L.join[k]; });
-  return lobbyWrite(fbSet(`${T}/lobby/join/${k}`, val));
+  return lobbyWrite(fbSet(`${RP()}/lobby/join/${k}`, val));
 }
 // ⚡ 대기실 스트림 → 바뀐 노드만 다시 읽음(세션·방장까지 4개 다 읽던 것 대신)
 const refreshLobby = coalesce(async () => { const L = await fetchLobby(); if (L !== undefined) { lobbyRaw = L || null; broadcast('lobby', lobbyView()); } });
@@ -1167,7 +1284,7 @@ async function lobbySetMode(mode, auto) {
   const m = ['draft', 'manual', 'normal'].includes(mode) ? mode : 'random';   // normal = 🎮 일반판 진행(v0.1.60 · 팀짜기 없음)
   if (!auto && m !== 'normal' && config.lastTeamMode !== m) { config.lastTeamMode = m; saveConfig(); }   // 일반판에서 내전으로 돌아올 때 쓸 방식
   lobbyLocal(L => { L.mode = m; });
-  return lobbyWrite(fbUpdate(`${T}/lobby`, { mode: m }));
+  return lobbyWrite(fbUpdate(`${RP()}/lobby`, { mode: m }));
 }
 async function lobbyCaptain(name, rand) {   // 🎯 팀장 지정/해제(누르면 빈 자리에, 다시 누르면 해제) · rand=무작위 2명
   if (!config.isHost) return { ok: false, err: '방장만 팀장을 정할 수 있어요' };
@@ -1182,7 +1299,7 @@ async function lobbyCaptain(name, rand) {   // 🎯 팀장 지정/해제(누르�
   }
   const caps = (teamA || teamB) ? { teamA, teamB } : null;
   lobbyLocal(L => { L.captains = caps; });
-  return lobbyWrite(fbSet(`${T}/lobby/captains`, caps));
+  return lobbyWrite(fbSet(`${RP()}/lobby/captains`, caps));
 }
 // 🧩 직접 팀 짜기(v0.1.47) — 방장이 한 명씩 1팀/2팀/빼기(team=null) · 한 팀 5명까지
 async function lobbySide(name, team) {
@@ -1193,25 +1310,25 @@ async function lobbySide(name, team) {
   if (t && v.sides[n] !== t && Object.values(v.sides).filter(x => x === t).length >= 5) return { ok: false, err: `${t === 'teamA' ? '1' : '2'}팀은 5명까지예요` };
   const k = fbKeyOf(n);
   lobbyLocal(L => { L.sides = L.sides || {}; if (t) L.sides[k] = t; else delete L.sides[k]; });
-  return lobbyWrite(fbSet(`${T}/lobby/sides/${k}`, t));
+  return lobbyWrite(fbSet(`${RP()}/lobby/sides/${k}`, t));
 }
 async function lobbySidesPrev() {   // 지난 판 팀 그대로(지금 판 → 없으면 오늘 마지막 경기 기록)
   if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
   let A = sessionData && sessionData.teamA, B = sessionData && sessionData.teamB;
   if (!(A && A.length && B && B.length)) {
     const ms = await getJson(`${FIREBASE_DB}/${T}/days/${dayKey()}/matches.json`);
-    const last = Object.values(ms || {}).filter(m => m && m.teamA && m.teamB).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+    const last = Object.values(ms || {}).filter(m => m && m.teamA && m.teamB && (!room || !m.roomName || m.roomName === room.name)).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
     if (last) { A = last.teamA; B = last.teamB; }
   }
   if (!(A && A.length && B && B.length)) return { ok: false, err: '오늘 지난 판 팀이 없어요' };
   const sides = {}; for (const n of A) sides[fbKeyOf(n)] = 'teamA'; for (const n of B) sides[fbKeyOf(n)] = 'teamB';
   lobbyLocal(L => { L.sides = sides; L.mode = 'manual'; });
-  return lobbyWrite(fbUpdate(`${T}/lobby`, { sides, mode: 'manual' }));
+  return lobbyWrite(fbUpdate(`${RP()}/lobby`, { sides, mode: 'manual' }));
 }
 async function lobbySidesClear() {
   if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
   lobbyLocal(L => { L.sides = null; });
-  return lobbyWrite(fbSet(`${T}/lobby/sides`, null));
+  return lobbyWrite(fbSet(`${RP()}/lobby/sides`, null));
 }
 async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(대기실에서 정한 방식)
   if (!config.isHost) return { ok: false, err: '방장만 시작할 수 있어요' };
@@ -1235,7 +1352,7 @@ async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(�
 async function lobbyReopen() {   // 👑 지금 판을 접고 대기실로(팀은 남겨둬서 「같은 팀으로 한 판 더」 가능)
   if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
   if (!sessionData) return { ok: true };
-  const r = await fbUpdate(`${T}/session`, { phase: 'lobby', pendingEog: null });
+  const r = await fbUpdate(`${RP()}/session`, { phase: 'lobby', pendingEog: null });
   pollSession();
   return r;
 }
@@ -1262,12 +1379,13 @@ async function fbPutIfAbsent(pathStr, value) {
 // ── 🧩 세션 폴링 — 팀 배정·투표·결과를 오버레이/패널로 ──────────────────────
 async function pollSession() {
   const [s, lob, h, pres, np, pr, pw] = await Promise.all([mirOr('session', fetchSession), mirOr('lobby', fetchLobby), mirOr('host', fetchHost), mirOr('presence', fetchPresence),
-    mirOr('normalLive', () => getJson(`${FIREBASE_DB}/${T}/normalLive.json`)), mirOr('potgRec', () => getJson(`${FIREBASE_DB}/${T}/potgRec.json`)),
-    mirOr('potgWait', () => getJson(`${FIREBASE_DB}/${T}/potgWait.json`))]);   // 📡 스트림 사본(끊겼을 때만 서버에서)
+    mirOr('normalLive', () => roomGet('normalLive')), mirOr('potgRec', () => roomGet('potgRec')),
+    mirOr('potgWait', () => roomGet('potgWait'))]);   // 📡 스트림 사본(끊겼을 때만 서버에서)
   normalLive = np || null; potgRecRaw = pr || null; potgWaitRaw = pw || null;
   sessionData = s || null;
   lobbyRaw = lob || null; presenceRaw = pres || null;
   onHostRec(h);
+  roomRejoin(); roomAutoHost(); roomGc().catch(() => {});   // 🚪 다시 켰으면 있던 방으로 · 방장 없으면 남은 사람이 이어받음 · 빈 방 정리
   const formed = (s && s.teamsFormedAt) || 0;
   if (formed && formed !== lastFormed) {          // 새 팀 배정 → 오버레이 자동 표시
     const first = lastFormed === 0;
@@ -1349,12 +1467,12 @@ async function potgWaitStart(card, g) {   // 녹화하는 앱(방장) — 녹화
   const players = card.normal ? (card.normal.us || []) : [...((sessionData && sessionData.teamA) || []), ...((sessionData && sessionData.teamB) || []), ...((sessionData && sessionData.spectators) || [])];
   const cands = [card].concat(card.alts || []).map(c => ({ name: c.name, champ: c.champ || '', championId: c.championId || 0, label: c.label || '', team: c.team || null }))
     .sort((a, b) => a.name.localeCompare(b.name, 'ko'));   // 이름순 = 정답 위치를 안 드러냄
-  await fbSet(`${T}/potgWait`, { gameId: String(g.id), path: g.path, kind: card.normal ? 'normal' : 'match', at: Date.now(), who: config.myName || null, players, cands: cands.length >= 2 ? cands : null, hero: !!card.hero });
+  await fbSet(`${RP()}/potgWait`, { gameId: String(g.id), path: g.path, kind: card.normal ? 'normal' : 'match', at: Date.now(), who: config.myName || null, players, cands: cands.length >= 2 ? cands : null, hero: !!card.hero });
   const k = await killTimeline(g.id).catch(() => null);
-  if (k && k.length) await fbSet(`${T}/potgWait/kills`, k).catch(() => {});
+  if (k && k.length) await fbSet(`${RP()}/potgWait/kills`, k).catch(() => {});
 }
 async function potgWaitFinish(card, recPath) {   // 공개 직전 — 예측 결과를 경기 기록·카드에 남기고 지움
-  const W = MIR.potgWait && MIR.potgWait.ready ? MIR.potgWait.data : await getJson(`${FIREBASE_DB}/${T}/potgWait.json`).catch(() => null);
+  const W = MIR.potgWait && MIR.potgWait.ready ? MIR.potgWait.data : await roomGet('potgWait').catch(() => null);
   if (!W || String(W.gameId) !== String(card.gameId)) return;
   const picks = W.guess || {}, cands = W.cands || [];
   if (cands.length >= 2 && Object.keys(picks).length) {
@@ -1364,7 +1482,7 @@ async function potgWaitFinish(card, recPath) {   // 공개 직전 — 예측 결
     const pk = {}; for (const [k, v] of Object.entries(picks)) if (v && cands[v.i]) pk[k] = cands[v.i].name;
     await fbUpdate(recPath, { guess: { answer: card.name, right, picks: pk } }).catch(() => {});
   }
-  await fbSet(`${T}/potgWait`, null).catch(() => {});
+  await fbSet(`${RP()}/potgWait`, null).catch(() => {});
 }
 async function waitToday(W) {   // 오늘 순위 변화(이 판 빼고 → 넣고) + 오늘의 예측왕 + (일반 판이면) 오늘 같이 한 일반 판
   const day = String(W.path || '').split('/')[2];
@@ -1427,7 +1545,7 @@ async function hostTick() {
     if (s.pendingEog && String(s.pendingEog.gameId) === String(eog.gameId)) return;   // 승리팀 선택 대기 중
     const winner = matchWinner(s, eog);
     if (winner) await recordGame(winner, eog);
-    else await fbUpdate(`${T}/session`, { pendingEog: { gameId: eog.gameId, winSide: eog.winSide || null, at: Date.now() } });   // 이름 매칭 실패 → 방장이 승리팀 직접 선택
+    else await fbUpdate(`${RP()}/session`, { pendingEog: { gameId: eog.gameId, winSide: eog.winSide || null, at: Date.now() } });   // 이름 매칭 실패 → 방장이 승리팀 직접 선택
     return;
   }
   if (s.phase === 'draft') {
@@ -1438,7 +1556,7 @@ async function hostTick() {
   if (s.potg && s.potg.pending && !replayBusy && Date.now() - (s.potg.pendingAt || 0) > (s.potg.hero ? 340000 : 260000)) {   // 🎬 녹화하던 방장 앱이 꺼졌거나 넘겨받음 → 카드로라도 보여줌
     const c = Object.assign({}, s.potg, { pending: null, pendingAt: null, showAt: Date.now() + 1500 });
     if (s.game) await potgWaitFinish(c, `${T}/days/${s.game.day}/matches/${s.game.id}`).catch(() => {});
-    await fbUpdate(`${T}/session`, { potg: c }); if (s.game) await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: c });
+    await fbUpdate(`${RP()}/session`, { potg: c }); if (s.game) await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: c });
   }
   if (s.phase === 'vote' && s.game) {
     const voters = [...(s.teamA || []), ...(s.teamB || [])];
@@ -1462,7 +1580,7 @@ async function hostPotg(s) {
     _potgFor = String(s.game.id);
     const rec = await getJson(`${FIREBASE_DB}/${T}/days/${s.game.day}/matches/${s.game.id}.json`);
     const card = n ? potg.pickPotg(raws, s, rec && rec.stats) : null;
-    if (!card) { await fbUpdate(`${T}/session`, { potg: { none: true, gameId: String(s.game.id) } }); return; }
+    if (!card) { await fbUpdate(`${RP()}/session`, { potg: { none: true, gameId: String(s.game.id) } }); return; }
     card.gameId = String(s.game.id);
     try { card.splash = await potg.splashFor(card.championId, card.skin); } catch (_) {}   // 🖼️ 소개 배경 = 그 사람이 낀 스킨 일러스트
     try {   // 🛡️ 숨은 영웅(v0.1.44) — 팟지 주인공 말고, 킬 아닌 장면(광역 이니시·버티기·세이브·한타 설계) 하나 더
@@ -1474,7 +1592,7 @@ async function hostPotg(s) {
       card.pending = null; card.pendingAt = null; card.showAt = Date.now() + 1500;
       await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: card });
       const cur = sessionData && sessionData.game;   // 녹화하는 사이 다음 판이 기록됐으면 지금 판 팟지를 덮지 않음(경기 기록에만 남김)
-      if (!cur || String(cur.id) === card.gameId) await fbUpdate(`${T}/session`, { potg: card });
+      if (!cur || String(cur.id) === card.gameId) await fbUpdate(`${RP()}/session`, { potg: card });
     };
     if (!app.isPackaged && process.env.TN_FAKE_CLIP) {   // 🧪 개발용: 리플레이 녹화 대신 이 파일을 영상으로 올림
       try { card.clip = await potg.uploadClip(s.game.id, fs.readFileSync(process.env.TN_FAKE_CLIP), /\.mp4$/i.test(process.env.TN_FAKE_CLIP) ? 'video/mp4' : 'video/webm'); } catch (_) {}
@@ -1483,7 +1601,7 @@ async function hostPotg(s) {
     }
     if (!replayRec || process.platform !== 'win32') return publish();
     // 🎬 리플레이 녹화(방장 PC) — 그동안은 「준비 중」(showAt 없음 → 아무 창도 안 뜸) · 3분 넘거나 실패하면 카드로
-    await fbUpdate(`${T}/session`, { potg: Object.assign({}, card, { pending: true, pendingAt: Date.now() }) });
+    await fbUpdate(`${RP()}/session`, { potg: Object.assign({}, card, { pending: true, pendingAt: Date.now() }) });
     recordPotgClip(card, { id: s.game.id, path: `${T}/days/${s.game.day}/matches/${s.game.id}` }).then(([clip, hclip]) => { if (clip) card.clip = clip; if (hclip && card.hero) card.hero.clip = hclip; }).catch(() => {}).finally(() => publish().catch(() => {}));
   } finally { _potgBusy = false; }
 }
@@ -1498,7 +1616,8 @@ const _normDone = new Set();
 async function recordNormal(e) {
   if (!e || !e.gameId || !Array.isArray(e.players) || _normDone.has(String(e.gameId))) return;
   _normDone.add(String(e.gameId));
-  const acc = (await fetchAccounts()) || {};
+  if (!room) { console.log('[normal] 방에 없음 — 같이 한 판 기록 안 함'); return; }
+  const acc = {}; for (const m of roomMembers(room.id)) acc[m.key] = true;   // 🚪 v0.1.94: 같은 방 사람끼리만(예전 = 한 번이라도 앱 켠 사람 전부)
   const byTeam = {};
   for (const p of e.players) if (p.puuid && acc[p.puuid] && p.summonerName) (byTeam[p.teamId] = byTeam[p.teamId] || []).push(p);
   const side = Object.keys(byTeam).sort((a, b) => byTeam[b].length - byTeam[a].length)[0];
@@ -1507,7 +1626,7 @@ async function recordNormal(e) {
   const gid = String(e.gameId), day = dayKey(), win = us[0].isWin != null ? !!us[0].isWin : (e.winSide === 'blue') === (Number(side) === 100);
   const ids = {}; for (const p of us) ids[fbKeyOf(p.summonerName)] = p.puuid;
   const rec = { gameId: gid, day, ts: Date.now(), source: e.source || 'eog', queueId: e.queueId == null ? null : e.queueId, gameMode: e.gameMode || null, queue: queueName(e.queueId, e.gameMode),
-    side: Number(side), win, us: us.map(p => p.summonerName), ids, gameTime: e.gameTime || 0, stats: e.players, by: config.myName || '' };
+    side: Number(side), win, us: us.map(p => p.summonerName), ids, gameTime: e.gameTime || 0, stats: e.players, by: config.myName || '', roomName: room.name, roomId: room.id };
   const w = await fbPutIfAbsent(`${T}/days/${day}/normals/${gid}`, rec);
   if (w.ok) { console.log(`[normal] 같이 한 판 저장 ${rec.queue} ${win ? '승' : '패'} · ${rec.us.join(', ')}`); _profIdx = null; }
   else console.log('[normal] ' + (w.conflict ? '다른 친구 앱이 먼저 저장' : w.err));
@@ -1543,7 +1662,7 @@ async function normalPotg(rec) {
     await potgWaitFinish(card, path).catch(() => {});   // 🔮 예측 결과
     card.pending = null; card.pendingAt = null; card.showAt = Date.now() + 1500;
     await fbUpdate(path, { potg: card });
-    await fbSet(`${T}/normalLive`, card);
+    await fbSet(`${RP()}/normalLive`, card);
   };
   if (!app.isPackaged && process.env.TN_FAKE_CLIP) {
     try { card.clip = await potg.uploadClip(rec.gameId, fs.readFileSync(process.env.TN_FAKE_CLIP), /\.mp4$/i.test(process.env.TN_FAKE_CLIP) ? 'video/mp4' : 'video/webm'); } catch (_) {}
@@ -1613,8 +1732,8 @@ function recStage(sub) {   // 내 PC 녹화 단계 → 내 안내 + 서버
   showRecToast(sub, recProgNow());
   recPush();
 }
-function recPush() { const p = recProgNow(); fbSet(`${T}/potgRec`, { at: Date.now(), who: config.myName || null, players: _recPlayers, sub: _recToastMsg.sub, pct: p ? p.pct : null, left: p ? p.left : null }).catch(() => {}); }
-function recEnd() { _recLocal = false; recProgStop(); hideRecToast(); fbSet(`${T}/potgRec`, null).catch(() => {}); }
+function recPush() { const p = recProgNow(); fbSet(`${RP()}/potgRec`, { at: Date.now(), who: config.myName || null, players: _recPlayers, sub: _recToastMsg.sub, pct: p ? p.pct : null, left: p ? p.left : null }).catch(() => {}); }
+function recEnd() { _recLocal = false; recProgStop(); hideRecToast(); fbSet(`${RP()}/potgRec`, null).catch(() => {}); }
 // 📊 녹화 진행 퍼센트(2026-11-01 사장님: 얼마나 걸리는지 보이게) — 시작 때 장면마다 예상 시간(실측 로그 기준: 열기 ~10초 · 연출 카메라 미리 보기 = 구간/2 + 상대마다 2.2초
 //   · 녹화 = 구간 실제 시간 + 2.5초 · 올리기 4초/영상)
 //   실측 맞춤(자야: 미리 보기 끝 22.2초·녹화 끝 42.2초 → 예상 23.0·44.0 / 제이스: 23.5·45.5 → 24.2·47.6)을 더해 total → 지난 시간으로 차오르되 다음 단계 표시(열림·미리 보기 끝·장면 끝·닫음) 전에는 그 직전에서 기다리고,
@@ -1898,11 +2017,12 @@ async function recordGame(winner, eog) {
     winner, winSide: (eog && eog.winSide) || null, gameTime: (eog && eog.gameTime) || 0,
     stats: (eog && eog.players) || null, teamsFormedAt: s.teamsFormedAt || null,
     ids: s.ids || null,   // 👤 이름→puuid(프로필이 닉변해도 같은 사람으로 묶음)
+    roomName: room ? room.name : null, roomId: room ? room.id : null,   // 🚪 「오늘」 순위 = 방 이름별
   };
   const w = await fbPutIfAbsent(`${T}/days/${day}/matches/${gid}`, rec);
   _profIdx = null;
   if (!w.ok && !w.conflict) return { ok: false, err: w.err };
-  const u = await fbUpdate(`${T}/session`, { phase: 'vote', game: { id: gid, day, winner, at: Date.now() }, votes: null, result: null, lastGameId: gid, pendingEog: null, potg: null });
+  const u = await fbUpdate(`${RP()}/session`, { phase: 'vote', game: { id: gid, day, winner, at: Date.now() }, votes: null, result: null, lastGameId: gid, pendingEog: null, potg: null });
   return { ok: u.ok, err: u.err };
 }
 
@@ -1934,7 +2054,7 @@ async function closeVote() {
   const result = { mvp: mvp || null, svp: svp || null, manner: manner || null, voteCount: Object.keys(votes).length, closedAt: Date.now() };
   _profIdx = null;
   await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { mvp: result.mvp, svp: result.svp, manner: result.manner, votes: s.votes || null });
-  const u = await fbUpdate(`${T}/session`, { phase: 'result', result });
+  const u = await fbUpdate(`${RP()}/session`, { phase: 'result', result });
   return { ok: u.ok, err: u.err };
 }
 
@@ -2015,19 +2135,19 @@ async function startDraft(names, captains) {
   const first = Math.random() < 0.5 ? 'teamA' : 'teamB';   // 🪙 선픽 = 동전 던지기
   const teamSize = Math.min(5, Math.floor(names.length / 2));
   const now = Date.now(), ids = await teamIds(names);
-  const w = await fbSet(`${T}/session`, {
+  const w = await fbSet(`${RP()}/session`, {
     phase: 'draft', ids, active: true, mode: 'draft', by: config.myName || null, day: dayKey(now),
     players: names, captains: { teamA: caps[0], teamB: caps[1] }, teamA: [caps[0]], teamB: [caps[1]],
     pool: names.filter(n => !caps.includes(n)), order: draftOrder(first, (teamSize - 1) * 2), pickIdx: 0,
     teamSize, firstPick: first, draftStartedAt: now, turnEndsAt: now + COIN_MS + DRAFT_TURN_MS,   // 첫 차례 = 동전 연출이 끝난 뒤부터 30초
   });
-  if (w.ok) fbSet(`${T}/lobby/captains`, null).catch(() => {});
+  if (w.ok) fbSet(`${RP()}/lobby/captains`, null).catch(() => {});
   return w;
 }
 // 한 명 뽑기 — name=null+auto=true면 무작위(시간 초과). 내 차례 팀장 또는 방장만.
 async function draftPick(name, auto) {
   const me = normName(config.myName || '');
-  const r = await fbCas(`${T}/session`, s => {
+  const r = await fbCas(`${RP()}/session`, s => {
     if (!s || s.phase !== 'draft') return { err: '드래프트 중이 아니에요' };
     const team = (s.order || [])[s.pickIdx || 0];
     if (!team) return { err: '이미 끝났어요' };
@@ -2052,13 +2172,13 @@ async function draftPick(name, auto) {
 async function writeTeams(teamA, teamB, spectators, mode) {
   const now = Date.now();
   const ids = await teamIds([...teamA, ...teamB]);
-  const w = await fbSet(`${T}/session`, {
+  const w = await fbSet(`${RP()}/session`, {
     phase: 'teams', active: true, teamA, teamB, ids,
     spectators: (spectators && spectators.length) ? spectators : null,
     teamSize: Math.max(teamA.length, teamB.length), mode: mode || 'balance',
     teamsFormedAt: now, day: dayKey(now), by: config.myName || null,
   });
-  if (w.ok) fbSet(`${T}/lobby/captains`, null).catch(() => {});
+  if (w.ok) fbSet(`${RP()}/lobby/captains`, null).catch(() => {});
   return w;
 }
 
@@ -2086,10 +2206,12 @@ function computeToday(matchesObj) {
 async function getToday(day) {
   const d = day || dayKey();
   const [raw, nraw] = await Promise.all([fetchDay(d), getJson(`${FIREBASE_DB}/${T}/days/${d}/normals.json`)]);
-  const normals = Object.values(nraw || {}).filter(m => m && Array.isArray(m.us)).sort((a, b) => (b.ts || 0) - (a.ts || 0)).map(m => Object.assign({}, m, {
+  const inRoom = m => !room || !m.roomName || m.roomName === room.name;   // 🚪 방 이름별(이름 없는 옛 기록은 모든 방에) · 방 밖이면 전부
+  const raw2 = {}; for (const [k, m] of Object.entries(raw || {})) if (m && inRoom(m)) raw2[k] = m;
+  const normals = Object.values(nraw || {}).filter(m => m && Array.isArray(m.us) && inRoom(m)).sort((a, b) => (b.ts || 0) - (a.ts || 0)).map(m => Object.assign({}, m, {
     fun: normalFun(m), players: (m.stats || []).filter(p => m.us.some(n => norm(n) === norm(p.summonerName))).map(p => ({ name: p.summonerName, champId: p.championId, champ: p.championName, k: p.kills, d: p.deaths, a: p.assists, damage: p.damage })),
     stats: undefined, potg: m.potg && !m.potg.none ? m.potg : null }));
-  return Object.assign({ ok: true, day: d, today: dayKey(), normals }, computeToday(raw));
+  return Object.assign({ ok: true, day: d, today: dayKey(), normals, roomName: room ? room.name : null }, computeToday(raw2));
 }
 
 // ── 🧩 증강 정보 — CommunityDragon latest(사이트와 같은 출처)를 받아 12시간 캐시 + 디스크 보관(오프라인·CDN 장애 대비) ──
@@ -2506,6 +2628,10 @@ ipcMain.handle('lobby-side', (_e, { name, team }) => lobbySide(name, team));
 ipcMain.handle('lobby-sides-prev', () => lobbySidesPrev());
 ipcMain.handle('lobby-sides-clear', () => lobbySidesClear());
 ipcMain.handle('lobby-reopen', () => lobbyReopen());
+ipcMain.handle('rooms-data', () => roomsView());   // 🚪 방 목록
+ipcMain.handle('room-create', (_e, { name, priv, pw }) => roomCreate(name, priv, pw));
+ipcMain.handle('room-join', (_e, { id, pw }) => roomJoin(id, pw));
+ipcMain.handle('room-leave', () => roomLeave());
 ipcMain.on('overlay-show', () => { userHid = false; showOverlay(); });
 ipcMain.handle('get-players', async () => ({ account, myName: config.myName || '', isHost: !!config.isHost, appVer: app.getVersion(), session: sessionData }));
 ipcMain.handle('roster-data', () => getRoster());
@@ -2535,13 +2661,13 @@ ipcMain.handle('vote-cast', async (_e, { mvpPick, mannerPick }) => {
   if (!teamOf(s, mvpPick) || teamOf(s, mvpPick) !== opp) return { ok: false, err: 'MVP는 상대 팀에서 골라요' };
   const mates = (s[team] || []).filter(n => normName(n) !== normName(me));   // 우리 팀이 나 혼자(1:1 등)면 매너왕 없이 투표
   if (mates.length && (teamOf(s, mannerPick) !== team || normName(mannerPick) === normName(me))) return { ok: false, err: '매너왕은 우리 팀(본인 제외)에서 골라요' };
-  const r = await fbSet(`${T}/session/votes/${fbKeyOf(me)}`, { mvp: normName(mvpPick), manner: mates.length ? normName(mannerPick) : null, team, at: Date.now() });
+  const r = await fbSet(`${RP()}/session/votes/${fbKeyOf(me)}`, { mvp: normName(mvpPick), manner: mates.length ? normName(mannerPick) : null, team, at: Date.now() });
   if (r.ok && config.isHost) runHost();
   return r;
 });
 ipcMain.handle('vote-clear', async () => {
   if (!sessionData || sessionData.phase !== 'vote' || !config.myName) return { ok: false };
-  return fbDelete(`${T}/session/votes/${fbKeyOf(config.myName)}`);
+  return fbDelete(`${RP()}/session/votes/${fbKeyOf(config.myName)}`);
 });
 ipcMain.handle('vote-close', async () => {   // ⏭️ 방장: 미투표자 있어도 지금까지의 표로 결과 확정
   if (!config.isHost) return { ok: false, err: '방장만 마감할 수 있어요' };
@@ -2565,7 +2691,7 @@ ipcMain.on('potg-guess', (_e, i) => {   // 🔮 팟지 예측 한 표(바꿀 수
   if (!W || !me || !Array.isArray(W.cands) || !Number.isInteger(i) || i < 0 || i >= W.cands.length) return;
   W.guess = Object.assign({}, W.guess, { [fbKeyOf(me)]: { i, name: me, at: Date.now() } });   // 내 화면 먼저
   openPotgWait(W).catch(() => {});
-  fbSet(`${T}/potgWait/guess/${fbKeyOf(me)}`, { i, name: me, at: Date.now() }).catch(() => {});
+  fbSet(`${RP()}/potgWait/guess/${fbKeyOf(me)}`, { i, name: me, at: Date.now() }).catch(() => {});
 });
 ipcMain.on('potg-open', (_e, card) => { if (card && !card.none) openPotg(card, true); });   // 「오늘」 탭 일반 판 「팟지」
 ipcMain.on('potg-replay', () => { const P = sessionData && sessionData.potg; if (P && !P.none) openPotg(P, true); });   // 결과 화면 「팟지 다시 보기」
@@ -2576,6 +2702,7 @@ ipcMain.on('open-profile', (_e, arg) => {   // 왼쪽 대기실에서 이름 누
 });
 
 // ── 앱 시작 ──────────────────────────────────────────────────────────────
+if (!app.isPackaged && process.env.TN_USERDATA) app.setPath('userData', process.env.TN_USERDATA);   // 🧪 개발용: 한 PC에서 앱 두 개(방 시험) — 배포본에선 무시
 const _gotLock = app.requestSingleInstanceLock();
 if (!_gotLock) { app.quit(); }
 else {
@@ -2604,16 +2731,11 @@ else {
     setInterval(autoLobbyMode, 3000);   // 🔀 v0.1.82: 대기방을 먼저 감지하고 방장이 나중에 된 경우(앱 재시작·방장 이어받기)도 판단 — 대기방 종류가 바뀐 때만 실제로 바꿈
     setInterval(() => { augTick().catch(() => {}); }, 400);   // 🎯 증강 순위(켠 사람만 · 게임 중에만 실제로 읽음)
     if (config.augRank) regAugShot();
-    const runSession = coalesce(pollSession);
+    runSession = coalesce(pollSession);
     setInterval(runSession, 3000);                       // 화면·방장 일 3초마다(📡 v0.1.63: 데이터는 스트림 사본 — 끊긴 노드만 서버에서 읽음)
-    fbMirror('session', runSession);                     // ⚡ 팀 배정·투표·결과 = 바뀌는 즉시
-    fbMirror('lobby', d => { lobbyRaw = d || null; broadcast('lobby', lobbyView()); });       // ⚡ 대기실(참가·방식·팀장)
-    fbMirror('presence', d => { presenceRaw = d || null; broadcast('lobby', lobbyView()); }); // ⚡ 누가 들어오고 나감
-    fbMirror('host', runSession);                        // ⚡ 방장 바뀜(넘겨받음·이어받음)
-    fbMirror('normalLive', runSession);                  // 🎮 같이 한 일반 판 팟지
-    fbMirror('potgWait', runSession);                    // ⏳ 팟지 기다림 화면(예측 투표 실시간)
-    fbMirror('potgRec', runSession);                     // 🔴 녹화 중 안내                  // ⚡ 방장 준비 중 배너
-    fbStream(`${T}/bridge/eogStats`, () => { if (config.isHost) runHost(); });   // ⚡ 경기 종료 → 방장 앱이 바로 기록
+    fbMirror('presence', d => { presenceRaw = d || null; broadcast('lobby', lobbyView()); broadcastRooms(); }); // ⚡ 누가 들어오고 나감(어느 방에)
+    fbMirror('roomList', d => { roomListRaw = d || null; broadcastRooms(); roomRejoin(); });                    // 🚪 방 목록
+    roomStreams();                                       // 🚪 방 노드(session·lobby·host·normalLive·potgWait·potgRec·eogStats) = 방에 들어가면 그 방 것만
     setupAutoUpdate();
     replayRec = makeReplayRec(Object.assign(makeReplayRec.defaults(), {   // 🎬 방장 PC가 팟지 장면을 리플레이로 녹화
       lcuRaw: bridge.lcuRaw, lolDir: bridge.lolDir, outDir: path.join(app.getPath('userData'), 'replay-rec'),
@@ -2681,8 +2803,8 @@ app.on('before-quit', (e) => {
   _cleanedUp = true;
   const jobs = [];
   if (account) jobs.push(fbSet(`${T}/presence/${account.puuid}`, null));
-  if (account) jobs.push(fbSet(`${T}/lobby/join/${account.puuid}`, null));
-  if (config.isHost) jobs.push(fbCas(`${T}/host`, cur => cur && account && cur.puuid === account.puuid ? { value: null } : { err: 'not mine' }));
+  if (account) jobs.push(fbSet(`${RP()}/lobby/join/${account.puuid}`, null));
+  if (config.isHost) jobs.push(fbCas(`${RP()}/host`, cur => cur && account && cur.puuid === account.puuid ? { value: null } : { err: 'not mine' }));
   if (!jobs.length) return;
   e.preventDefault();
   Promise.race([Promise.allSettled(jobs), new Promise(r => setTimeout(r, 3000))]).then(() => app.quit());
