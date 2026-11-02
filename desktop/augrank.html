@@ -6,54 +6,72 @@
   <style>
     * { margin:0; box-sizing:border-box; }
     html, body { width:100%; height:100%; background:transparent; overflow:hidden; -webkit-user-select:none; }
-    /* 🎯 증강 순위(v0.1.78 · 베타) — 게임 화면 위 투명 창(클릭 통과) · main showAugRank → 'augrank' {cards:[{ax, ay(카드 위쪽 가운데 · 이 창 기준), rank, tier, scope, extra, why}]}
-       v0.1.86: 사장님 「글자가 잘 안 보임 · 더 직관적이고 시인성 있게」 → 아이콘·이름 사이에 끼우던 것 대신 **카드 맨 위 가장자리 가운데에 리본처럼**
-         진한 불투명 판 + 순위 색 테두리 · 1줄 = 「1위」(가장 크게) + 등급 칩 · 2줄 = 「신 짜오 기준」 · 크기 = 창 높이(화면 높이 42%) 비례(vh)
+    /* 🎯 증강 순위(v0.1.78 · 베타) — 게임 화면 위 투명 창(클릭 통과) · main showAugRank → 'augrank' {cards:[{ax, ay(배지 아래 끝 · 이 창 기준), u(화면 높이 1%), cw(카드 폭), rank, tier, scope, extra, combo}]}
+       v0.1.102 다시 그림(사장님: 직관적이지 않음 · 시인성) —
+         · 자리 = 카드 **위쪽 빈 곳**(아래 끝이 카드 위 테두리에 살짝 걸침) → 카드 아이콘·이름·설명을 하나도 안 가림 · 폭 = 카드 폭 정도
+         · 왼쪽 = 순위(가장 크게) + 등급 칩 + 「럭스 기준」 · 함정이면 빨간 「⚠ 함정」
+         · 오른쪽(조합 자료 있을 때) = 「같이 가면 좋은」 + 짝 증강 **아이콘 2개**(이름 아래) + 큰 승률 — 글 대신 그림이라 한눈에
+           짝이 지금 옆 카드면 아이콘에 청록 테두리 + 「◀ 옆 카드」(방향 화살표)
+         · 크기 = 화면 높이(u) 기준 → 해상도가 달라도 카드 대비 같은 크기
        ⚠️ 무한 애니메이션 금지 — 뜰 때 한 번만 */
-    .bd { position:absolute; transform:translate(-50%, -50%); display:flex; flex-direction:column; align-items:center; gap:.35vh;
-      padding:.9vh 2.2vh 1vh; background:rgba(7,11,17,.95); border:.45vh solid var(--rc); box-shadow:0 .6vh 1.8vh rgba(0,0,0,.7), 0 0 2.2vh var(--rg);
-      clip-path:polygon(1.4vh 0, 100% 0, 100% calc(100% - 1.4vh), calc(100% - 1.4vh) 100%, 0 100%, 0 1.4vh); animation:in .22s ease-out both; --rc:#7d8792; --rg:transparent; }
-    .r1 { --rc:#f2c25a; --rg:rgba(242,194,90,.45); } .r2 { --rc:#cfd8e2; --rg:rgba(207,216,226,.3); } .r3 { --rc:#d48a55; --rg:rgba(212,138,85,.3); }
-    .top { display:flex; align-items:center; gap:1.2vh; }
-    .rk { font-family:var(--f-num); font-weight:700; font-size:max(30px, 7.6vh); line-height:.9; color:var(--rc); text-shadow:0 .3vh .6vh rgba(0,0,0,.8); }
-    .rk small { font-family:var(--f-body); font-size:.48em; font-weight:800; margin-left:.08em; }
-    .tr { font-family:var(--f-num); font-weight:700; font-size:max(20px, 5vh); line-height:1; padding:.12em .32em .08em; color:#fff; background:#4a525c; text-shadow:0 .15vh .3vh rgba(0,0,0,.5); }
+    .bd { position:absolute; transform:translate(-50%, -100%); display:flex; align-items:stretch;
+      background:rgba(6,10,16,.96); border:calc(var(--u) * .3) solid var(--rc); box-shadow:0 calc(var(--u) * .5) calc(var(--u) * 1.6) rgba(0,0,0,.75), 0 0 calc(var(--u) * 1.6) var(--rg);
+      clip-path:polygon(calc(var(--u) * 1.1) 0, 100% 0, 100% calc(100% - calc(var(--u) * 1.1)), calc(100% - calc(var(--u) * 1.1)) 100%, 0 100%, 0 calc(var(--u) * 1.1));
+      font-family:var(--f-body); color:#f5efe2; animation:in .22s ease-out both; --rc:#6d7682; --rg:transparent; }
+    .r1 { --rc:#f2c25a; --rg:rgba(242,194,90,.4); } .r2 { --rc:#cfd8e2; --rg:rgba(207,216,226,.22); } .r3 { --rc:#d48a55; --rg:rgba(212,138,85,.22); }
+    /* 왼쪽: 순위 */
+    .bd:not(:has(.cb)) .rk { flex:1; }
+    .rk { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:calc(var(--u) * .35); padding:calc(var(--u) * .7) calc(var(--u) * 1.3); flex:none; }
+    .rk .row { display:flex; align-items:center; gap:calc(var(--u) * .7); }
+    .rk .n { font-family:var(--f-num); font-weight:700; font-size:calc(var(--u) * 5.4); line-height:.85; color:var(--rc); }
+    .rk .n small { font-family:var(--f-body); font-size:.42em; font-weight:900; margin-left:.06em; }
+    .tr { font-family:var(--f-num); font-weight:700; font-size:calc(var(--u) * 2.5); line-height:1; padding:.14em .3em .1em; color:#fff; background:#4a525c; }
     .tr.tS { background:linear-gradient(180deg, #ff9d4d, #d9542a); } .tr.tA { background:linear-gradient(180deg, #b48cff, #7a4fd6); }
     .tr.tB { background:linear-gradient(180deg, #5fb3ff, #2f74c9); } .tr.tC, .tr.tD { background:linear-gradient(180deg, #8c96a1, #5a636d); }
-    .sc { font-family:var(--f-body); font-size:max(14px, 3.3vh); font-weight:800; color:#f5efe2; white-space:nowrap; letter-spacing:-.01em; }
+    .sc { font-size:calc(var(--u) * 1.55); font-weight:800; color:#d9dee4; white-space:nowrap; }
     .sc b { color:var(--rc); font-weight:900; }
-    .sc em { font-style:normal; color:#c9d1da; font-weight:700; }
-    /* 🔗 v0.1.101 조합 줄 — 이 카드와 승률 좋은 3개 조합의 나머지 둘(aramgg) · 같은 화면에 뜬 카드면 「옆」 */
-    .cb { display:flex; align-items:center; gap:.5vh; max-width:min(46vw, 62vh); font-family:var(--f-body); font-size:max(13px, 2.7vh); font-weight:700; color:#cfe6f2;
-      padding-top:.45vh; margin-top:.15vh; border-top:1px solid rgba(255,255,255,.14); white-space:nowrap; }
-    .cb .nm { overflow:hidden; text-overflow:ellipsis; min-width:0; max-width:11em; color:#fff; }
-    .cb .pl { color:#7f8b97; flex:none; }
-    .cb .hr { flex:none; font-size:.78em; font-weight:800; color:#0b1a14; background:#5fd3b8; padding:0 .3em; margin-left:.3vh; }
-    .cb .wr { flex:none; font-family:var(--f-num); color:var(--rc); margin-left:.4vh; }
-    .r0 .cb .wr { color:#cfe6f2; }
-    .r0 .rk { color:#aeb6bf; } .r0 .sc { color:#c9d1da; }
-    @keyframes in { from { opacity:0; transform:translate(-50%, -30%); } to { opacity:1; transform:translate(-50%, -50%); } }
+    .warn { font-size:calc(var(--u) * 1.5); font-weight:900; color:#fff; background:#d8343f; padding:0 .4em; white-space:nowrap; }
+    .rec { font-size:calc(var(--u) * 1.3); font-weight:700; color:#aeb6bf; white-space:nowrap; }
+    .r0 .n { color:#9aa3ad; }
+    /* 오른쪽: 같이 가면 좋은 증강 */
+    .cb { display:flex; flex-direction:column; gap:calc(var(--u) * .45); padding:calc(var(--u) * .6) calc(var(--u) * 1.1) calc(var(--u) * .7); min-width:0; flex:1;
+      border-left:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.035); }
+    .cb .hd { display:flex; align-items:baseline; justify-content:space-between; gap:calc(var(--u) * .8); white-space:nowrap; }
+    .cb .hd span { font-size:calc(var(--u) * 1.35); font-weight:800; color:#c9d1da; }
+    .cb .hd b { font-family:var(--f-num); font-size:calc(var(--u) * 2.5); font-weight:700; line-height:1; color:#7fe0c9; }
+    .cb .hd b small { font-family:var(--f-body); font-size:.5em; font-weight:800; color:#9fb3ae; margin-right:.2em; }
+    .cb .ics { display:flex; justify-content:space-around; gap:calc(var(--u) * .6); }
+    .pa { display:flex; flex-direction:column; align-items:center; gap:calc(var(--u) * .25); width:calc(var(--u) * 7.2); min-width:0; }
+    .pa .ic { position:relative; width:calc(var(--u) * 3.9); height:calc(var(--u) * 3.9); border-radius:50%; background:#1c2632 center/cover; border:calc(var(--u) * .22) solid #8a96a3; }
+    .pa .ic.gold { border-color:#e2b65a; } .pa .ic.prismatic { border-color:#c98bff; } .pa .ic.silver { border-color:#c9d1da; }
+    .pa .ic i { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-style:normal; font-weight:900; font-size:calc(var(--u) * 1.8); color:#c9d1da; }
+    .pa .nm { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:calc(var(--u) * 1.3); font-weight:800; color:#f5efe2; }
+    .pa.here .ic { border-color:#5fd3b8; box-shadow:0 0 0 calc(var(--u) * .2) rgba(95,211,184,.35); }
+    .pa.here .nm { color:#7fe0c9; }
+    .pa .tg { font-size:calc(var(--u) * 1.15); font-weight:900; color:#0b1a14; background:#5fd3b8; padding:0 .35em; white-space:nowrap; }
+    @keyframes in { from { opacity:0; transform:translate(-50%, -80%); } to { opacity:1; transform:translate(-50%, -100%); } }
   </style>
 </head>
 <body>
   <div id="root"></div>
   <script>
-    const tcls = t => { const m = /^T([1-5])$/.exec(t || ''); return m ? ' SABCC'[m[1]] : String(t || '')[0]; };   // aramgg T1~T5(v0.1.100) → 예전 S·A·B·C 색
+    const tcls = t => { const m = /^T([1-5])$/.exec(t || ''); return m ? ' SABCC'[m[1]] : String(t || '')[0]; };   // aramgg T1~T5 → S·A·B·C 색
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    function comboHtml(cb) {
-      if (!cb || !cb.with || !cb.with.length) return '';
-      const parts = cb.with.map(a => `<span class="nm">${esc(a.name || '?')}</span>${a.here ? '<span class="hr">옆</span>' : ''}`).join('<span class="pl">+</span>');
-      return `<span class="cb" title="${esc(cb.n)}판"><span class="pl">🔗 조합</span>${parts}<span class="wr">${Math.round((cb.wr || 0) * 100)}%</span></span>`;
+    function pair(a) {
+      const tg = a.here ? `<span class="tg">${a.dir < 0 ? '◀ 옆 카드' : a.dir > 0 ? '옆 카드 ▶' : '옆 카드'}</span>` : '';
+      return `<span class="pa${a.here ? ' here' : ''}"><span class="ic ${esc(a.rarity)}"${a.icon ? ` style="background-image:url('${esc(a.icon)}')"` : ''}>${a.icon ? '' : `<i>${esc(String(a.name || '?')[0])}</i>`}</span><span class="nm">${esc(a.name || '?')}</span>${tg}</span>`;
     }
     function set(d) {
       const cards = (d && d.cards) || [];
       document.getElementById('root').innerHTML = cards.map(c => {
-        const r = c.rank ? Math.min(3, c.rank) : 0;
-        const scope = c.tier ? `<b>${esc(c.scope)}</b> 기준` : c.rank ? '' : '등급 자료 없음';
-        const extra = (c.extra || []).map(x => `<em>${esc(x)}</em>`).join(' · ');
-        return `<div class="bd r${r}" style="left:${Math.round(c.ax)}px;top:${Math.round(c.ay)}px">
-          <span class="top"><span class="rk">${c.rank ? `${c.rank}<small>위</small>` : '?'}</span>${c.tier ? `<span class="tr t${esc(tcls(c.tier))}">${esc(c.tier)}</span>` : ''}</span>
-          <span class="sc">${[scope, extra].filter(Boolean).join(' · ') || esc(c.why || '')}</span>${comboHtml(c.combo)}</div>`;
+        const r = c.rank ? Math.min(3, c.rank) : 0, ex = c.extra || [];
+        const trap = ex.includes('함정'), rec = ex.find(x => /^우리 /.test(x));
+        const left = `<span class="rk"><span class="row"><span class="n">${c.rank ? `${c.rank}<small>위</small>` : '?'}</span>${c.tier ? `<span class="tr t${esc(tcls(c.tier))}">${esc(c.tier)}</span>` : ''}</span>`
+          + `<span class="sc">${c.tier ? `<b>${esc(c.scope)}</b> 기준` : c.rank ? '' : '등급 자료 없음'}</span>`
+          + (trap ? '<span class="warn">⚠ 함정</span>' : '') + (rec ? `<span class="rec">${esc(rec)}</span>` : '') + '</span>';
+        const cb = c.combo && c.combo.with && c.combo.with.length ? `<span class="cb"><span class="hd"><span>🔗 같이 가면 좋은</span><b><small>승률</small>${Math.round((c.combo.wr || 0) * 100)}%</b></span><span class="ics">${c.combo.with.map(pair).join('')}</span></span>` : '';
+        const u = c.u || 10;
+        return `<div class="bd r${r}" style="--u:${u}px;left:${Math.round(c.ax)}px;top:${Math.round(c.ay)}px;width:${Math.round((c.cw || u * 29.6) + u * 1.2)}px" title="${esc(c.combo ? c.combo.n + '판' : '')}">${left}${cb}</div>`;
       }).join('');
     }
     window.__set = set;
