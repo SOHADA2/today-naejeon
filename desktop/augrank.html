@@ -22,12 +22,8 @@
     /* 왼쪽: 순위 */
         .rk { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:calc(var(--u) * .45); padding:0 calc(var(--u) * 1.1); flex:none; width:calc(var(--u) * 11.5); min-width:0; }
     .rk .row { display:flex; align-items:center; gap:calc(var(--u) * .7); white-space:nowrap; }
-    .rk .n, .tr { flex:none; white-space:nowrap; }
-    .rk .n { font-family:var(--f-num); font-weight:700; font-size:calc(var(--u) * 5.4); line-height:.85; color:var(--rc); }
+    .rk .n { flex:none; white-space:nowrap; } .rk .n { font-family:var(--f-num); font-weight:700; font-size:calc(var(--u) * 6.2); line-height:.85; color:var(--rc); }
     .rk .n small { font-family:var(--f-body); font-size:.42em; font-weight:900; margin-left:.06em; }
-    .tr { font-family:var(--f-num); font-weight:700; font-size:calc(var(--u) * 2.5); line-height:1; padding:.14em .3em .1em; color:#fff; background:#4a525c; }
-    .tr.tS { background:linear-gradient(180deg, #ff9d4d, #d9542a); } .tr.tA { background:linear-gradient(180deg, #b48cff, #7a4fd6); }
-    .tr.tB { background:linear-gradient(180deg, #5fb3ff, #2f74c9); } .tr.tC, .tr.tD { background:linear-gradient(180deg, #8c96a1, #5a636d); }
     .sc { font-size:calc(var(--u) * 1.55); font-weight:800; color:#d9dee4; white-space:nowrap; }
     .sc b { color:var(--rc); font-weight:900; }
     .warn { font-size:calc(var(--u) * 1.5); font-weight:900; color:#fff; background:#d8343f; padding:0 .4em; white-space:nowrap; }
@@ -38,16 +34,11 @@
       border-left:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.035); }
     .cb .hd { display:flex; align-items:baseline; justify-content:space-between; gap:calc(var(--u) * .8); white-space:nowrap; }
     .cb .hd span { font-size:calc(var(--u) * 1.35); font-weight:800; color:#c9d1da; }
-    .cb .hd b { font-family:var(--f-num); font-size:calc(var(--u) * 2.5); font-weight:700; line-height:1; color:#7fe0c9; }
-    .cb .hd b small { font-family:var(--f-body); font-size:.5em; font-weight:800; color:#9fb3ae; margin-right:.2em; }
     .cb .ics { display:flex; justify-content:space-around; align-items:flex-start; gap:calc(var(--u) * .6); height:calc(var(--u) * 5.8); }
     .cb .ics.none { align-items:center; justify-content:center; font-size:calc(var(--u) * 1.35); font-weight:700; color:#6f7a86; }
-    .cb.none .hd b { color:#6f7a86; }
-    .tr.t0 { background:#2a313a; color:#7d8792; }
     .sc { max-width:100%; overflow:hidden; text-overflow:ellipsis; }
     .sc.trap { color:#fff; background:#d8343f; padding:0 .45em; }
     .sc.trap b { color:#fff; }
-    .cb .hd b.rec-t { color:#f2c25a; }
     .pa { display:flex; flex-direction:column; align-items:center; gap:calc(var(--u) * .25); width:calc(var(--u) * 7.2); min-width:0; }
     .pa .ic { position:relative; width:calc(var(--u) * 3.9); height:calc(var(--u) * 3.9); border-radius:50%; background:#1c2632 center/cover; border:calc(var(--u) * .22) solid #8a96a3; }
     .pa .ic.gold { border-color:#e2b65a; } .pa .ic.prismatic { border-color:#c98bff; } .pa .ic.silver { border-color:#c9d1da; }
@@ -68,13 +59,12 @@
   <div id="root"></div>
   <div id="tip"></div>
   <script>
-    const tcls = t => { const m = /^T([1-5])$/.exec(t || ''); return m ? ' SABCC'[m[1]] : String(t || '')[0]; };   // aramgg T1~T5 → S·A·B·C 색
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const pct = x => x == null ? '' : Math.round(x * 1000) / 10 + '%';
     const TIPS = [];   // data-tip 번호 → 설명 HTML(그릴 때마다 새로)
     const tip = h => { TIPS.push(h); return ` data-tip="${TIPS.length - 1}"`; };
     function pair(a, c) {
-      return `<span class="pa"${tip(`<b>${esc(a.name || '?')}</b><br>이 카드를 고른 뒤 다음 증강에서 노려 볼 짝이에요.`)}><span class="ic ${esc(a.rarity)}"${a.icon ? ` style="background-image:url('${esc(a.icon)}')"` : ''}>${a.icon ? '' : `<i>${esc(String(a.name || '?')[0])}</i>`}</span><span class="nm">${esc(a.name || '?')}</span></span>`;
+      return `<span class="pa"${tip(`<b>${esc(a.name || '?')}</b>`)}><span class="ic ${esc(a.rarity)}"${a.icon ? ` style="background-image:url('${esc(a.icon)}')"` : ''}>${a.icon ? '' : `<i>${esc(String(a.name || '?')[0])}</i>`}</span><span class="nm">${esc(a.name || '?')}</span></span>`;
     }
     function set(d) {
       const cards = (d && d.cards) || [];
@@ -82,23 +72,18 @@
       document.getElementById('root').innerHTML = cards.map(c => {
         const r = c.rank ? Math.min(3, c.rank) : 0, ex = c.extra || [];
         const trap = ex.includes('함정'), rec = ex.find(x => /^우리 /.test(x));
-        const rkTip = c.tier
-          ? (c.scope === '전체' ? '이 챔피언 자료가 없어 <b>모든 챔피언</b> 기준이에요.<br>' : `<b>${esc(c.scope)}</b> 기준 · `) + `이 증강의 등급 <b>${esc(c.tier)}</b> — T1이 가장 좋고 T5가 가장 낮아요.`
-            + (c.wr != null ? `<br>승률 ${pct(c.wr)}` : '') + (c.pr != null ? ` · 고른 비율 ${pct(c.pr)}` : '')
-            + `<br>지금 뜬 카드 중 <b>${c.rank}위</b> · 자료 aramgg`
-          : c.rank ? `지금 뜬 카드 중 <b>${c.rank}위</b>` : '이 증강은 등급 자료가 아직 없어서 순위에서 빠졌어요.';
-        // 🧱 v0.1.105 칸 고정(사장님: 카드마다 들쭉날쭉하면 안 됨 · 같은 자리에 같은 종류 정보) —
-        //   왼쪽 = [순위][등급] / [기준 한 줄(함정이면 빨간 줄)] · 오른쪽 = [🔗 같이 가면 좋은 · 값] / [짝 아이콘 2칸] · 자료 없으면 같은 자리에 흐린 「—」·「조합 자료 없음」
-        const scLine = trap ? `<span class="sc trap"${tip(`많이 고르지만 ${c.tier ? `<b>${esc(c.scope)}</b> 기준 ` : ''}등급이 낮은 증강이에요.`)}>⚠ 함정</span>`
-          : `<span class="sc">${c.tier ? `<b>${esc(c.scope)}</b> 기준` : '등급 자료 없음'}</span>`;
-        const left = `<span class="rk"${tip(rkTip + (rec ? `<br>우리 기록: ${esc(rec)}` : ''))}><span class="row"><span class="n">${c.rank ? `${c.rank}<small>위</small>` : '?'}</span>`
-          + `<span class="tr t${c.tier ? esc(tcls(c.tier)) : '0'}">${c.tier ? esc(c.tier) : '—'}</span></span>${scLine}</span>`;
+        // 🎯 v0.1.106 등급 하나로(사장님: 1·2·3위·T1~T5·조합 승률·추천 S가 섞여 헷갈림 → 「셋 중 뭘 고르면 좋은지」 하나) — 화면 = 순위만(금·은·동)
+        //   T 등급·승률·조합 승률은 마우스 올림 설명에 정보로만(누가 추천했는지 같은 말 없이)
+        const rkTip = (c.tier ? `<b>${esc(c.scope === '전체' ? '모든 챔피언' : c.scope)}</b> 기준` : '등급 자료 없음')
+          + (c.wr != null ? ` · 승률 ${pct(c.wr)}` : '') + (c.pr != null ? ` · 고른 비율 ${pct(c.pr)}` : '') + (rec ? `<br>${esc(rec)}` : '');
+        const scLine = trap ? `<span class="sc trap"${tip('고른 비율은 높고 승률은 낮은 증강')}>⚠ 함정</span>`
+          : `<span class="sc">${c.tier ? `<b>${esc(c.scope)}</b> 기준` : '순위 자료 없음'}</span>`;
+        const left = `<span class="rk"${tip(rkTip)}><span class="n">${c.rank ? `${c.rank}<small>위</small>` : '–'}</span>${scLine}</span>`;
         const cm = c.combo && c.combo.with && c.combo.with.length ? c.combo : null, gg = cm && cm.src === 'aramgg';
-        const cbTip = !cm ? '이 카드와 같이 노릴 조합 자료가 없어요.<br>aramgg(판 수 151+ 조합)·증강 가이드 추천 조합 둘 다 없거나, 짝이 지금 같이 뜬 카드뿐이에요.' : gg
-          ? `<b>${esc(c.scope || '이 챔피언')}</b> 기준 · 이 카드와 아래 두 증강을 <b>셋 다</b> 고른 판의 승률이에요.<br>${esc(cm.n)}판 · aramgg${cm.p ? ' · 패치 ' + esc(cm.p) : ''}`
-          : `${cm.src === 'arammayhem' ? 'arammayhem 편집진이 추천한' : esc(cm.by || '누군가') + '님이 증강 가이드에 적은'} 조합이에요${cm.tier ? ` (등급 <b>${esc(cm.tier)}</b>)` : ''}.<br>승률 통계는 아니고, 이 카드와 같이 노리면 좋은 증강${cm.more ? ` · 이 밖에 ${cm.more}개 더` : ''}${cm.date ? ` · ${esc(cm.date.slice(0, 7))} 자료` : ''}`;
-        const cbHead = !cm ? '<b>—</b>' : gg ? `<b><small>승률</small>${Math.round((cm.wr || 0) * 100)}%</b>` : `<b class="rec-t"><small>추천</small>${esc(cm.tier || '')}</b>`;
-        const cb = `<span class="cb${cm ? '' : ' none'}"${tip(cbTip)}><span class="hd"><span>🔗 같이 가면 좋은</span>${cbHead}</span>`
+        const cbTip = !cm ? '조합 자료 없음'
+          : gg ? `세 증강을 함께 고른 판 승률 ${pct(cm.wr)} · ${esc(cm.n)}판<br>aramgg${cm.p ? ' · 패치 ' + esc(cm.p) : ''}`
+          : `함께 노릴 증강: ${(cm.all || cm.with.map(a => a.name)).map(esc).join(', ')}<br>${cm.src === 'arammayhem' ? 'arammayhem' : '증강 가이드'}${cm.date ? ' · ' + esc(cm.date.slice(0, 7)) : ''}`;
+        const cb = `<span class="cb${cm ? '' : ' none'}"${tip(cbTip)}><span class="hd"><span>🔗 같이 가면 좋은</span></span>`
           + (cm ? `<span class="ics">${cm.with.slice(0, 2).map(a => pair(a, c)).join('')}</span>` : '<span class="ics none">조합 자료 없음</span>') + '</span>';
         const u = c.u || 10;
         document.documentElement.style.setProperty('--tu', u + 'px');

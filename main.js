@@ -866,7 +866,7 @@ function augCombo(id, gg, aug, ids, plans) {
     .sort((x, y) => (TSC[y.p.tier] != null ? TSC[y.p.tier] : 5) - (TSC[x.p.tier] != null ? TSC[x.p.tier] : 5));
   if (!ps.length) return null;
   const x = ps[0], am = /arammayhem\.com/.test(String(x.p.link || ''));
-  return { src: am ? 'arammayhem' : 'guide', with: x.rest.slice(0, 2).map(meta), more: Math.max(0, x.rest.length - 2), tier: x.p.tier || '', date: x.p.date || '', by: am ? '' : (x.p.by || '') };
+  return { src: am ? 'arammayhem' : 'guide', with: x.rest.slice(0, 2).map(meta), more: Math.max(0, x.rest.length - 2), all: x.rest.map(a => (aug[a] || {}).name || '').filter(Boolean), date: x.p.date || '' };
 }
 function showAugRank(d, cards, area) {   // area = 띠(그 모니터 기준 DIP) — 투명 창을 띠 크기로만(v0.1.80: 예전엔 화면 전체 3440×1440 투명 창이 게임 위에 떠 합성 부담)
   const b = area ? { x: Math.round(d.bounds.x + area.x), y: Math.round(d.bounds.y + area.y), width: Math.round(area.width), height: Math.round(area.height) } : d.bounds;
