@@ -843,11 +843,18 @@ async function augTick() {
     // v0.1.86: 배지 = 카드 맨 위 가장자리 가운데(이름 줄 − 화면 높이 0.232 · 실측 docs/screen-layout.md) → 창을 위로 0.16H 늘림
     const top = Math.max(0, oy - Math.round(pr.height * 0.16)), lift = oy - top;
     const aug = await getAugments();
-    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, ax: (c.x + c.w / 2) / sf, ay: Math.max(30, lift + c.y - pr.height * 0.232) / sf, rank: ranks[i].rank, why: ranks[i].why, tier: ranks[i].tier, scope: ranks[i].scope, extra: ranks[i].extra, name: (aug[c.id] || {}).name || '' }));   // 띠 기준
+    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, ax: (c.x + c.w / 2) / sf, ay: Math.max(30, lift + c.y - pr.height * 0.232) / sf, rank: ranks[i].rank, why: ranks[i].why, tier: ranks[i].tier, scope: ranks[i].scope, extra: ranks[i].extra, name: (aug[c.id] || {}).name || '', combo: augCombo(c.id, gg, aug, ids) }));   // 띠 기준
     augState.showing = { sig };
     augLog(`증강 ${found.cards.map((c, i) => `${cards[i].name}(${c.score.toFixed(2)})=${ranks[i].rank}위`).join(' · ')} · 캡처 ${r.cap}ms · 읽기 ${r.ms}ms`);
     showAugRank(d, cards, { x: ox / sf, y: top / sf, width: band.w / sf, height: (lift + band.h) / sf });
   } catch (e) { augLog('오류 ' + e.message); } finally { augState.busy = false; }
+}
+// 🔗 v0.1.101: 이 카드와 조합이 좋은 증강(사장님: 실시간 추적 말고 「뜬 증강이 어떤 증강이랑 조합이 좋다」만 — 이미 뽑았으면 본인이 알고, 아니면 다음에 뜰 때 노림)
+//   = aramgg 그 챔피언 3개 조합(승률순) 중 이 증강이 든 첫 조합의 나머지 둘 · 같은 화면에 뜬 카드가 짝이면 그 조합 먼저 · 없으면 null
+function augCombo(id, gg, aug, ids) {
+  const cs = ((gg && gg.c) || []).filter(c => c[0].includes(id)); if (!cs.length) return null;
+  const c = cs.find(x => x[0].some(a => a !== id && ids.includes(a))) || cs[0];
+  return { with: c[0].filter(a => a !== id).map(a => ({ id: a, name: (aug[a] || {}).name || '', here: ids.includes(a) })), wr: c[1], n: c[2] };
 }
 function showAugRank(d, cards, area) {   // area = 띠(그 모니터 기준 DIP) — 투명 창을 띠 크기로만(v0.1.80: 예전엔 화면 전체 3440×1440 투명 창이 게임 위에 떠 합성 부담)
   const b = area ? { x: Math.round(d.bounds.x + area.x), y: Math.round(d.bounds.y + area.y), width: Math.round(area.width), height: Math.round(area.height) } : d.bounds;
@@ -2357,7 +2364,7 @@ function guideFor(id, raw, gg) {
   const human = !!(raw && !raw.draft && g.plans && g.plans.length);
   const A = Object.entries(gg.a);
   const out = Object.assign({}, g, { gg: { p: gg.p, d: gg.d }, top: { patch: gg.p, src: 'aramgg', augs: A.filter(([, v]) => v[3] > 0).sort((p, q) => p[1][3] - q[1][3]).slice(0, 6).map(([a, v]) => ({ id: +a, tier: 'T' + v[0], wr: v[1] })) } });
-  if (!human) out.plans = (gg.c || []).map(c => ({ title: '', augs: c[0], why: '', wr: c[1], games: c[2], patch: gg.p, link: GG_PAGE + id, src: 'aramgg' }));
+  if (!human) out.plans = (gg.c || []).slice(0, 5).map(c => ({ title: '', augs: c[0], why: '', wr: c[1], games: c[2], patch: gg.p, link: GG_PAGE + id, src: 'aramgg' }));
   const av = A.filter(([, v]) => v[0] === 5 && v[2] >= 0.02).sort((p, q) => q[1][2] - p[1][2]).slice(0, 3).map(([a]) => +a);
   if (av.length) out.avoid = av; else delete out.avoid;
   return { guide: out, draft: false, src: human ? (raw.src || '') : 'aramgg' };

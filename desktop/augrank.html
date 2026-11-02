@@ -23,6 +23,14 @@
     .sc { font-family:var(--f-body); font-size:max(14px, 3.3vh); font-weight:800; color:#f5efe2; white-space:nowrap; letter-spacing:-.01em; }
     .sc b { color:var(--rc); font-weight:900; }
     .sc em { font-style:normal; color:#c9d1da; font-weight:700; }
+    /* 🔗 v0.1.101 조합 줄 — 이 카드와 승률 좋은 3개 조합의 나머지 둘(aramgg) · 같은 화면에 뜬 카드면 「옆」 */
+    .cb { display:flex; align-items:center; gap:.5vh; max-width:min(46vw, 62vh); font-family:var(--f-body); font-size:max(13px, 2.7vh); font-weight:700; color:#cfe6f2;
+      padding-top:.45vh; margin-top:.15vh; border-top:1px solid rgba(255,255,255,.14); white-space:nowrap; }
+    .cb .nm { overflow:hidden; text-overflow:ellipsis; min-width:0; max-width:11em; color:#fff; }
+    .cb .pl { color:#7f8b97; flex:none; }
+    .cb .hr { flex:none; font-size:.78em; font-weight:800; color:#0b1a14; background:#5fd3b8; padding:0 .3em; margin-left:.3vh; }
+    .cb .wr { flex:none; font-family:var(--f-num); color:var(--rc); margin-left:.4vh; }
+    .r0 .cb .wr { color:#cfe6f2; }
     .r0 .rk { color:#aeb6bf; } .r0 .sc { color:#c9d1da; }
     @keyframes in { from { opacity:0; transform:translate(-50%, -30%); } to { opacity:1; transform:translate(-50%, -50%); } }
   </style>
@@ -32,6 +40,11 @@
   <script>
     const tcls = t => { const m = /^T([1-5])$/.exec(t || ''); return m ? ' SABCC'[m[1]] : String(t || '')[0]; };   // aramgg T1~T5(v0.1.100) → 예전 S·A·B·C 색
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    function comboHtml(cb) {
+      if (!cb || !cb.with || !cb.with.length) return '';
+      const parts = cb.with.map(a => `<span class="nm">${esc(a.name || '?')}</span>${a.here ? '<span class="hr">옆</span>' : ''}`).join('<span class="pl">+</span>');
+      return `<span class="cb" title="${esc(cb.n)}판"><span class="pl">🔗 조합</span>${parts}<span class="wr">${Math.round((cb.wr || 0) * 100)}%</span></span>`;
+    }
     function set(d) {
       const cards = (d && d.cards) || [];
       document.getElementById('root').innerHTML = cards.map(c => {
@@ -40,7 +53,7 @@
         const extra = (c.extra || []).map(x => `<em>${esc(x)}</em>`).join(' · ');
         return `<div class="bd r${r}" style="left:${Math.round(c.ax)}px;top:${Math.round(c.ay)}px">
           <span class="top"><span class="rk">${c.rank ? `${c.rank}<small>위</small>` : '?'}</span>${c.tier ? `<span class="tr t${esc(tcls(c.tier))}">${esc(c.tier)}</span>` : ''}</span>
-          <span class="sc">${[scope, extra].filter(Boolean).join(' · ') || esc(c.why || '')}</span></div>`;
+          <span class="sc">${[scope, extra].filter(Boolean).join(' · ') || esc(c.why || '')}</span>${comboHtml(c.combo)}</div>`;
       }).join('');
     }
     window.__set = set;

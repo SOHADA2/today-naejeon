@@ -37,7 +37,8 @@ function compactChamp(d, st) {
   const a = {};
   for (const [id, v] of Object.entries(x.augments)) { const t = num(v.tier); if (t >= 1 && t <= 5) a[id] = [t, r4(num(v.win_rate)), r4(num(v.pick_rate)), num(v.rank)]; }
   const c = Object.entries(x.augment_trios || {}).map(([k, v]) => [k.split(':').map(Number), r4(num(v.win_rate)), num(v.num_games)])
-    .filter(t => t[0].length === 3 && t[1] != null && t[2] >= 1).sort((p, q) => q[1] - p[1]).slice(0, 5);
+    .filter(t => t[0].length === 3 && t[1] != null && t[2] >= 1).sort((p, q) => q[1] - p[1]).slice(0, 30);   // v0.1.101: 5 → 30(증강 순위 배지 「🔗 조합」이 카드마다 찾아 씀 · 가이드 「추천 콤보」는 main이 앞 5개만)
+  compactChamp.trios = (compactChamp.trios || 0) + Object.keys(x.augment_trios || {}).length;
   const mh = x.match_history || {};
   return { p: patchOf(mh.game_patch || (st && st.version)), d: mh.date || (st && st.date) || '', t: st ? [num(st.tier), r4(num(st.winRate)), r4(num(st.pickRate)), num(st.rank)] : null, a, c };
 }
@@ -59,5 +60,5 @@ function compactChamp(d, st) {
   }
   if (!ok) { console.log('챔피언 자료 0개 — index 안 바꿈'); process.exit(1); }
   if (!ONLY.length) fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify({ p: patch, d: date, at: Date.now(), n: ok, src: 'aramgg.com', g }));
-  console.log(`챔피언 ${ok}개 · 실패 ${fail} · 패치 ${patch} · 자료 날짜 ${date}`);
+  console.log(`챔피언 ${ok}개 · 실패 ${fail} · 패치 ${patch} · 자료 날짜 ${date} · 사이트 조합 ${compactChamp.trios || 0}개`);
 })();
