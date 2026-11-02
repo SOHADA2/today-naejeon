@@ -11,7 +11,7 @@
          · 자리 = 카드 **위쪽 빈 곳**(아래 끝이 카드 위 테두리에 살짝 걸침) → 카드 아이콘·이름·설명을 하나도 안 가림 · 폭 = 카드 폭 정도
          · 왼쪽 = 순위(가장 크게) + 등급 칩 + 「럭스 기준」 · 함정이면 빨간 「⚠ 함정」
          · 오른쪽(조합 자료 있을 때) = 「같이 가면 좋은」 + 짝 증강 **아이콘 2개**(이름 아래) + 큰 승률 — 글 대신 그림이라 한눈에
-           v0.1.103: 「옆 카드」 표시 뺌(사장님: 직관적이지 않음) → 자세한 설명은 전부 **마우스 올림**(순위·등급·승률·고른 비율 · 조합 판 수·패치 · 짝 증강이 지금 다른 카드에도 떠 있는지 · 함정·우리 기록)
+           v0.1.103: 「옆 카드」 표시 뺌(사장님: 직관적이지 않음) → 자세한 설명은 전부 **마우스 올림**(순위·등급·승률·고른 비율 · 조합 판 수·패치 · 함정·우리 기록) · v0.1.104 같이 뜬 카드가 짝인 조합은 안 보여줌(셋 중 하나만 고르니)
          · 크기 = 화면 높이(u) 기준 → 해상도가 달라도 카드 대비 같은 크기
        ⚠️ 무한 애니메이션 금지 — 뜰 때 한 번만 */
     .bd { position:absolute; transform:translate(-50%, -100%); display:flex; align-items:stretch;
@@ -67,8 +67,7 @@
     const TIPS = [];   // data-tip 번호 → 설명 HTML(그릴 때마다 새로)
     const tip = h => { TIPS.push(h); return ` data-tip="${TIPS.length - 1}"`; };
     function pair(a, c) {
-      const where = a.here ? `<br>지금 <b>${a.dir < 0 ? '왼쪽' : a.dir > 0 ? '오른쪽' : '다른'} 카드</b>에도 떠 있어요 — 이번엔 하나만 고를 수 있으니 다음에 다시 뜨면 노려 보세요.` : '';
-      return `<span class="pa"${tip(`<b>${esc(a.name || '?')}</b>${where}`)}><span class="ic ${esc(a.rarity)}"${a.icon ? ` style="background-image:url('${esc(a.icon)}')"` : ''}>${a.icon ? '' : `<i>${esc(String(a.name || '?')[0])}</i>`}</span><span class="nm">${esc(a.name || '?')}</span></span>`;
+      return `<span class="pa"${tip(`<b>${esc(a.name || '?')}</b><br>이 카드를 고른 뒤 다음 증강에서 노려 볼 짝이에요.`)}><span class="ic ${esc(a.rarity)}"${a.icon ? ` style="background-image:url('${esc(a.icon)}')"` : ''}>${a.icon ? '' : `<i>${esc(String(a.name || '?')[0])}</i>`}</span><span class="nm">${esc(a.name || '?')}</span></span>`;
     }
     function set(d) {
       const cards = (d && d.cards) || [];

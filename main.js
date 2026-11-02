@@ -851,12 +851,12 @@ async function augTick() {
   } catch (e) { augLog('오류 ' + e.message); } finally { augState.busy = false; }
 }
 // 🔗 v0.1.101: 이 카드와 조합이 좋은 증강(사장님: 실시간 추적 말고 「뜬 증강이 어떤 증강이랑 조합이 좋다」만 — 이미 뽑았으면 본인이 알고, 아니면 다음에 뜰 때 노림)
-//   = aramgg 그 챔피언 3개 조합(승률순) 중 이 증강이 든 첫 조합의 나머지 둘 · 같은 화면에 뜬 카드가 짝이면 그 조합 먼저 · 없으면 null
+//   = aramgg 그 챔피언 3개 조합(승률순) 중 이 증강이 든 조합의 나머지 둘
+//   v0.1.104: 짝이 **지금 같이 뜬 다른 카드**인 조합은 뺌(사장님: 셋 중 하나만 고르니 의미 없음) · 그런 것밖에 없으면 조합 칸 없음
 function augCombo(id, gg, aug, ids) {
   const cs = ((gg && gg.c) || []).filter(c => c[0].includes(id)); if (!cs.length) return null;
-  const c = cs.find(x => x[0].some(a => a !== id && ids.includes(a))) || cs[0];
-  const me = ids.indexOf(id);
-  return { with: c[0].filter(a => a !== id).map(a => ({ id: a, name: (aug[a] || {}).name || '', icon: (aug[a] || {}).icon || '', rarity: (aug[a] || {}).rarity || '', here: ids.includes(a), dir: ids.includes(a) ? Math.sign(ids.indexOf(a) - me) : 0 })), wr: c[1], n: c[2], p: (gg && gg.p) || '' };
+  const c = cs.find(x => !x[0].some(a => a !== id && ids.includes(a))); if (!c) return null;
+  return { with: c[0].filter(a => a !== id).map(a => ({ id: a, name: (aug[a] || {}).name || '', icon: (aug[a] || {}).icon || '', rarity: (aug[a] || {}).rarity || '' })), wr: c[1], n: c[2], p: (gg && gg.p) || '' };
 }
 function showAugRank(d, cards, area) {   // area = 띠(그 모니터 기준 DIP) — 투명 창을 띠 크기로만(v0.1.80: 예전엔 화면 전체 3440×1440 투명 창이 게임 위에 떠 합성 부담)
   const b = area ? { x: Math.round(d.bounds.x + area.x), y: Math.round(d.bounds.y + area.y), width: Math.round(area.width), height: Math.round(area.height) } : d.bounds;
