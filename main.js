@@ -846,10 +846,14 @@ async function augTick() {
     //   ay = 배지 아래 끝(이름 줄 0.40H − 0.207H) · u = 화면 높이 1%(DIP) · cw = 카드 폭(0.296H)
     const top = Math.max(0, oy - Math.round(pr.height * 0.21)), lift = oy - top;
     const aug = await getAugments();
-    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, ax: (c.x + c.w / 2) / sf, ay: Math.max(60, lift + c.y - pr.height * 0.207) / sf, u: pr.height / sf / 100, cw: pr.height * 0.296 / sf, rank: ranks[i].rank, why: ranks[i].why, tier: ranks[i].tier, scope: ranks[i].scope, extra: ranks[i].extra, wr: ranks[i].wr, pr: ranks[i].pr, name: (aug[c.id] || {}).name || '', combo: augCombo(c.id, gg, aug, ids, (guide[champId] && guide[champId].plans) || []) }));   // 띠 기준
+    // 📌 v0.1.109: 배지 자리 = 카드 **고정 칸**(사장님: 증강 뜰 때 배지가 이리저리 움직임) — 예전엔 읽은 이름 글자 위치로 매번 계산 → 카드가 미끄러져 들어오는 동안 읽히거나
+    //   두 장 → 세 장으로 다시 그릴 때마다 위치가 달랐음 · 카드 칸 = 화면 가운데, 가운데 ± 0.340H(docs/screen-layout.md) · 이름 줄 = 0.40H → 읽기는 「몇 번째 칸의 어떤 증강」만 정함
+    const mid = pr.width / 2 - ox, gap = pr.height * 0.340, slotX = c => mid + Math.max(-1, Math.min(1, Math.round((c.x + c.w / 2 - mid) / gap))) * gap;
+    const ayFix = Math.max(60, lift + (pr.height * 0.40 - oy) - pr.height * 0.207);
+    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, ax: slotX(c) / sf, ay: ayFix / sf, u: pr.height / sf / 100, cw: pr.height * 0.296 / sf, rank: ranks[i].rank, why: ranks[i].why, tier: ranks[i].tier, scope: ranks[i].scope, extra: ranks[i].extra, wr: ranks[i].wr, pr: ranks[i].pr, name: (aug[c.id] || {}).name || '', combo: augCombo(c.id, gg, aug, ids, (guide[champId] && guide[champId].plans) || []) }));   // 띠 기준
     augState.showing = { sig, ids };
     // 🖱️ 카드 영역(실제 픽셀 · docs/screen-layout.md: 카드 너비 0.296H · 위 0.178H ~ 아래 0.66H · 리롤 버튼은 그 아래 0.69~0.73H라 안 겹침)
-    augState.rects = found.cards.map(c => { const cx = band.x + c.x + c.w / 2; return [cx - pr.height * 0.148, pr.y + pr.height * 0.178, cx + pr.height * 0.148, pr.y + pr.height * 0.66]; });
+    augState.rects = found.cards.map(c => { const cx = band.x + slotX(c); return [cx - pr.height * 0.148, pr.y + pr.height * 0.178, cx + pr.height * 0.148, pr.y + pr.height * 0.66]; });
     augClickWatch();
     augLog(`증강 ${found.cards.map((c, i) => `${cards[i].name}(${c.score.toFixed(2)})=${ranks[i].rank}위`).join(' · ')} · 캡처 ${r.cap}ms · 읽기 ${r.ms}ms`);
     showAugRank(d, cards, { x: ox / sf, y: top / sf, width: band.w / sf, height: (lift + band.h) / sf });
