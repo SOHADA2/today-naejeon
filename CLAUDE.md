@@ -7,7 +7,7 @@
 - 배포(옛): 사이트(sohada2.github.io/aram) **최하단**에 「투데이 내전 다운로드」 버튼(기존 「내전 오버레이 다운로드」 옆)
 - 출발점: aram-overlay v0.1.55 코드에서 도킹·창·트레이·자동 업데이트·내장 브릿지·팀짜기 알고리즘만 가져오고, 복권·대장간·상점·가챠·패스·프로필·LP·막고라·아이템 페이즈·숨은 라이브 계정은 전부 걷어냄
 
-## 🔄 다른 PC에서 이어받기 (2026-11-02 · v0.1.100)
+## 🔄 다른 PC에서 이어받기 (2026-11-04 · v0.1.109)
 1. **`git pull` 먼저** — 여러 PC가 main에 직접 푸시 + **aramgg 봇이 매일 한국 4:30 main에 커밋**(`docs/data/aramgg`) → 안 받고 푸시하면 거절됨.
 2. `npm install` · ⚠️ 셸에 `ELECTRON_RUN_AS_NODE=1`이 있으면 `env -u ELECTRON_RUN_AS_NODE ./node_modules/electron/dist/electron.exe .` · 테스트는 창 숨김(`TN_HIDDEN=1`, 아래 「실행 / 배포」).
 3. **관리자 도구(서버 규칙·시험 데이터 정리·사용량 조회)** = `npm i -g firebase-tools` → `firebase login`(사장님 계정 shm2644) → `node tools/gapi.cjs <메서드> <URL> [본문]` · 규칙 확인 = `node tools/rules-test.cjs`(70건 · 인증 없는 요청 허용/차단 + 끝나면 정리). ⚠️ 이 PC 임시 폴더(scratchpad) 도구는 다른 PC에 없음 — 필요한 건 `tools/`에 있음.
@@ -15,12 +15,12 @@
 5. **홈페이지(docs/)** = main에 푸시하면 GitHub Pages가 1~2분 뒤 반영 · 화면 확인 = Edge 헤드리스(390px는 창 최소 폭 때문에 iframe 틀로) · 영상 변환 ffmpeg(이 PC = `pip install imageio-ffmpeg` 경로).
 6. 앱 배포 = package.json 버전↑ → main 푸시(release.yml 자동 빌드 · 켜면 3분 안에 받으면 바로 설치·재시작).
 
-## ⏳ 남은 일 (2026-11-02 기준 · 중요한 순)
+## ⏳ 남은 일 (2026-11-04 기준 · 중요한 순)
 - 🔐 **인증 2단계**(먼저 하면 옛 앱 전부 401): ① 친구들 앱이 전부 v0.1.98+인지(`today/presence/*/app`) ② 1시간 넘게 켜 둬도 표식 교체·재연결 되는지 실기 ③ `node tools/rules-auth.cjs > rules.auth.json` → gapi로 적용 + 중계 `wrangler.toml` `REQUIRE_AUTH = "1"` 다시 deploy ④ 표식 없이 서버에 붙는 개발 도구(`tools/potg-seed.mjs`·`lobby-report.cjs` 등) 손보기.
 - 🗑️ **옛 사이트 DB(aramchaos) `today/` 삭제** — 새 DB로 다 옮겨진 것 확인 + 45MB 백업(`문서	oday-naejeon-backupold-site-db-today-2026-11-02.json`, 그 PC에만) · 대량 삭제라 자동 권한 검사가 막음 → 사장님이 Firebase 콘솔에서 `today`만 직접(했는지 = `curl …aramchaos…/today.json?shallow=true`가 null).
 - ⚠️ **홈페이지(aramchaos) DB 규칙이 루트 `.read/.write: true` 완전 공개**(2026-11-02 발견) — 누구나 사이트 전체 삭제 가능 · aram 리포 작업(투데이 내전 아님).
 - ❓ 기존 홈페이지(sohada2.github.io/aram) 맨 아래 「투데이 내전 다운로드」 버튼 = 새 홈페이지로 연결 / 빼기 / 그대로 — 사장님 답 대기.
-- 🎮 **다음 내전 실기 확인**: 방(여러 PC) · 자리 꽉 참 · 영상 중계(표식) · 증강 탭(aramgg) 챔피언 선택 화면 · 1시간 넘는 연결 · (예전 목록) vStart 타이밍·소리 복구·클라 복구·진행 막대·자리 이동/예측.
+- 🎮 **다음 내전 실기 확인**: 증강 배지(v0.1.101~109 · 고정 칸 위치·카드 클릭하면 바로 사라지는지·마우스 올림 설명) · 방(여러 PC) · 자리 꽉 참 · 영상 중계(표식) · 증강 탭(aramgg) 챔피언 선택 화면 · 1시간 넘는 연결 · (예전 목록) vStart 타이밍·소리 복구·클라 복구·진행 막대·자리 이동/예측.
 - 📈 사용자 늘면: 접속 표시·방 목록 전역 방송 + 「오늘 순위」 하루 전체 읽기 = 사람 수 제곱으로 늘어남 → 방 단위로(유료 전환 전에 · 2026-11-02 비용 추정: 지금 구조 100명×매일 3시간 ≈ 월 28만 원, 고치면 2~3만 원).
 - 배포 위험 점검 남은 항목 #5~#11(증강 순위 정책·game.cfg 수정·패치 대응·백신/서명·실기·리플레이·개인정보).
 - 결정해 둔 것: 광고 안 붙임 · 사미라 3D 동전·챔피언 그림 유지(라이엇 정책상 회색 · 친구용 무료) · 비공개 방 비밀번호 = 「잠금」 수준으로 충분.
