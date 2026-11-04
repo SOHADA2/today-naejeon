@@ -362,15 +362,23 @@ module.exports = function makePotg(d) {
   }
   // ⚡ v0.1.124: 중계가 미국 LA(Cloudflare 무료 colo=LAX)라 큰 영상이 1~3분·자주 끊김 → 중계에선 **1시간짜리 올리기 토큰**(GitHub App · clips 저장소만)만 받고
   //   영상은 GitHub(uploads.github.com)로 **직접**(9MB 2~4초) · 토큰/직접이 안 되면 예전처럼 중계로
-  let _upTok = null;
-  async function uploadDirect(name, buf, mime, day) {   // → assetId 또는 null
-    const base = await proxy(); if (!base) return null;
-    if (!_upTok || _upTok.day !== day || _upTok.exp - Date.now() < 5 * 60e3) {
+  //   v0.1.125: 토큰 받기(실측 ~3초)를 녹화 시작 때 미리(`prepUpload` · main recordPotgClip) → 올리기는 GitHub로 보내는 시간만
+  let _upTok = null, _upTokP = null;
+  async function upToken(day) {   // → {token, upload, exp} 또는 null(동시에 부르면 한 번만 받음)
+    if (_upTok && _upTok.day === day && _upTok.exp - Date.now() > 5 * 60e3) return _upTok;
+    if (_upTokP) return _upTokP;
+    _upTokP = (async () => {
+      const base = await proxy(); if (!base) return null;
       const r = await fetch(`${base}/upload-token?day=${day}`, { method: 'POST', headers: await pxHead(), signal: AbortSignal.timeout(20000) });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j || !j.token || !/^https:\/\/uploads\.github\.com\//.test(j.upload || '')) { log(`올리기 토큰 못 받음 ${r.status} ${JSON.stringify(j || {}).slice(0, 80)}`); return null; }
-      _upTok = { day, token: j.token, upload: j.upload, exp: Number(j.exp) || Date.now() + 50 * 60e3 };
-    }
+      return (_upTok = { day, token: j.token, upload: j.upload, exp: Number(j.exp) || Date.now() + 50 * 60e3 });
+    })().catch(e => { log('올리기 토큰 못 받음 ' + e.message); return null; }).finally(() => { _upTokP = null; });
+    return _upTokP;
+  }
+  const prepUpload = () => upToken(d.dayKey());
+  async function uploadDirect(name, buf, mime, day) {   // → assetId 또는 null
+    if (!(await upToken(day))) return null;
     const t0 = Date.now();
     const r = await fetch(`${_upTok.upload}?name=${encodeURIComponent(name)}`, { method: 'POST', body: buf, signal: AbortSignal.timeout(90000),
       headers: { Authorization: `Bearer ${_upTok.token}`, 'Content-Type': mime, Accept: 'application/vnd.github+json', 'User-Agent': 'today-naejeon' } });
@@ -478,5 +486,5 @@ module.exports = function makePotg(d) {
     return cdPath(s.splashPath || s.uncenteredSplashPath);
   }
 
-  return { splashFor, startCollect, stopCollect, pickPotg, pickHero, heroStats, readRaws, uploadClip, uploadShot, getClip, cleanup, extOf, _pick: pickPotg };
+  return { splashFor, startCollect, stopCollect, pickPotg, pickHero, heroStats, readRaws, uploadClip, uploadShot, getClip, prepUpload, cleanup, extOf, _pick: pickPotg };
 };

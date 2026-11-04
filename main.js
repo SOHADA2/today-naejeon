@@ -1990,6 +1990,7 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   _recPlayers = card.normal ? (card.normal.us || []) : [...((sessionData && sessionData.teamA) || []), ...((sessionData && sessionData.teamB) || [])];
   recStage('리플레이 준비 중…');
   potgWaitStart(card, g).catch(() => {});   // ⏳ 기다림 화면
+  if (potg && potg.prepUpload) potg.prepUpload().catch(() => {});   // ⚡ v0.1.125: 올리기 토큰을 녹화하는 동안 미리(올리기 때 3초 아낌)
   const fov = async id => potgFov(id).catch(() => FOV_BASE);
   // 🎥 연출 카메라(2026-11-01 · replayrec direct): 처음 2.4초 주인공 정면(누구 팟지인지) → 교전은 주인공 + 잡힐 상대가 다 보이게 · 팟지는 소개 몫으로 2초 앞부터
   //   이름이 안 잡히면 영문 챔피언 이름(alias)으로 — 한글 챔피언 이름은 리플레이가 못 알아들음(실측)
