@@ -262,7 +262,7 @@ async function showHeroCard(my) {   // 숨은 영웅 영상이 없을 때: 지�
 }
 
 // 🎬 팟지 편집(v0.1.35) — 오버워치 팟지 공식: 시네마 띠+이름표로 시작 → 킬 직전 확대(줌 인)·슬로모션 → 킬 순간 섬광·흔들림·킬 피드·「더블킬」
-//   → 마지막 킬은 더 느리게 + 0.45초 뒤 정지 화면(1.5초, 큰 글자) → 다시 재생하며 줌 아웃 → 끝. 시각은 전부 영상 기준(킬 시각 - clipFrom)
+//   → 마지막 킬은 더 느리게 + 0.15초 뒤 정지 화면(v0.1.119 · 예전 0.45)(1.5초, 큰 글자) → 다시 재생하며 줌 아웃 → 끝. 시각은 전부 영상 기준(킬 시각 - clipFrom)
 const MULTI = ['처치', '더블킬', '트리플킬', '쿼드라킬', '펜타킬'];
 // 오른쪽 킬 피드 한 줄(2026-11-01 · 사장님: 롤 톤앤매너로) — 롤 인게임 킬 피드처럼 [주인공] 검 [잡힌 상대] · 팀 색 테두리 · 둘째 킬부터 「더블킬…」 금색 작은 글자
 //   as = 어시스트(숨은 영웅 한타 설계 · 검 대신 금색 점선)
@@ -279,9 +279,12 @@ const rgbIn = from => [   // 들어올 때만 빨강·청록으로 한 번 갈�
   { opacity: 1, transform: 'none', textShadow: '0 0 transparent, 0 0 transparent' }];
 const smooth = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
 const killsAt = c => (c.kills && c.kills.length ? c.kills.map(k => k.t) : [c.obj ? c.obj.t : c.t1]).map(t => t - c.clipFrom);   // 영상 기준 킬 시각
-const rateFor = ms => { const last = ms[ms.length - 1]; return t => { for (const m of ms) { if (m === last ? t >= m - 0.7 && t <= m + 0.45 : t >= m - 0.45 && t <= m + 0.3) return m === last ? 0.3 : 0.4; } return 1; }; };
+// ⏱️ v0.1.119: 마지막 킬 정지 화면 = 킬 FREEZE_AFTER초 뒤(사장님: 킬 캐치가 살짝 느림 — 0.45초 뒤였고 0.3배 슬로라 사망 빛기둥이 뜨고 실제 1.5초 뒤에야 멈췄음 ·
+//   실측 2026-11-05: 영상 속 사망 빛기둥은 기록된 킬 시각 0.1초 전부터 = 기록·영상 시각은 정확) → 0.15초(실제 0.5초 뒤 · 빛기둥·킬 골드가 막 뜬 순간)
+const FREEZE_AFTER = 0.15;
+const rateFor = ms => { const last = ms[ms.length - 1]; return t => { for (const m of ms) { if (m === last ? t >= m - 0.7 && t <= m + FREEZE_AFTER : t >= m - 0.45 && t <= m + 0.3) return m === last ? 0.3 : 0.4; } return 1; }; };
 function realBetween(rateAt, a, b) { let w = 0; for (let x = a; x < b; x += 0.02) w += 0.02 / rateAt(x); return w; }   // 영상 a→b초가 실제로 걸리는 시간(슬로모션 감안)
-function realToFreeze(c) { const ms = killsAt(c); return realBetween(rateFor(ms), 0, ms[ms.length - 1] + 0.45); }
+function realToFreeze(c) { const ms = killsAt(c); return realBetween(rateFor(ms), 0, ms[ms.length - 1] + FREEZE_AFTER); }
 const cardDropAt = c => (400 + Math.max(0, ((c.kills || []).length || 1) - 1) * 380) / 1000;   // 카드: 마지막 킬 칸이 찍히는 시각(소개 뒤)
 // 🎨 화면 효과(v0.1.65 · 레퍼런스 v2 「팟지 업그레이드」에서 옮김) — WebGL 셰이더 한 장으로 영상 위에:
 //   색 보정(대비·채도·밝은 곳 따뜻하게/어두운 곳 차갑게) · 필름 그레인 · 천천히 밀기 · 킬 순간 펀치 줌+방사형 모션 블러+RGB 분리
@@ -399,7 +402,7 @@ function playVideo(my) {
     const zoomAt = t => {   // 킬 1.2초 전부터 확대 → 킬 0.3초 뒤까지 유지 → 0.9초에 걸쳐 원래대로 · 마지막 킬은 정지 끝날 때까지 유지
       let z = 0;
       for (const m of ms) {
-        const x = t - m, outEnd = m === last ? (frozen === 2 ? 0.45 + 1.2 : 99) : 0.9, hold = m === last ? 0.45 : 0.3;
+        const x = t - m, outEnd = m === last ? (frozen === 2 ? FREEZE_AFTER + 1.2 : 99) : 0.9, hold = m === last ? FREEZE_AFTER : 0.3;
         const up = smooth((x + 1.2) / 0.9), down = x <= hold ? 1 : 1 - smooth((x - hold) / Math.max(0.01, outEnd - hold));
         z = Math.max(z, Math.min(up, down));
       }
@@ -416,10 +419,10 @@ function playVideo(my) {
       fxPaint(v, { zoom: c.directed ? 1 : zoomAt(t), punch: frozen ? 0 : punchAt(ms, t), frozen });   // 🎨 연출 카메라로 찍은 영상은 확대 안 함(상대가 화면 밖으로 잘리지 않게)
       ms.forEach((m, i) => { if (!fired.has(i) && t >= m) { fired.add(i); onKill(i); } });
       if (!frozen) {   // 🎵 BGM 「터짐」을 정지 화면에 맞추고, 「느려지는 떨림」의 타격을 마지막 킬에 맞춤
-        bgmRetarget(realBetween(rateAt, t, last + 0.45), rate === 1);
+        bgmRetarget(realBetween(rateAt, t, last + FREEZE_AFTER), rate === 1);
         if (!slowFired && t < last && realBetween(rateAt, t, last) <= SFX.slow.hit) { slowFired = true; playSfx('slow'); }
       }
-      if (!frozen && t >= last + 0.45) {   // 마지막 킬 = 정지 화면
+      if (!frozen && t >= last + FREEZE_AFTER) {   // 마지막 킬 = 정지 화면
         frozen = 1; v.pause();
         playSfx('slam'); bgmDropNow();
         v.animate([{ filter: 'none' }, { filter: 'saturate(1.5) contrast(1.15) brightness(1.08)' }], { duration: 200, fill: 'forwards' });
