@@ -255,7 +255,7 @@ function makeReplayRec(d) {
             const hero = await scout(focus, t0, t1, 2, champ);
             if (!hero) { log('연출 카메라: 주인공 위치 기록 실패 → 위에서 보기'); return {}; }
             const vs = [];
-            for (const v of c.victims || []) { const pts = await scout(v.name, Math.max(t0, v.t - 4.5), Math.min(t1, v.t + 0.6), 4, v.alias); if (pts) vs.push({ k: v.t, pts }); }
+            for (const v of c.victims || []) { const pts = await scout(v.name, Math.max(t0, v.t - 4.5), Math.min(t1, v.t + 0.6), 4, v.alias); if (pts) vs.push({ k: v.t, pts, name: v.name }); }
             await live('POST', '/replay/render', { cameraAttached: false, cameraMode: 'fps' });
             const intro = c.intro == null ? 2.4 : c.intro, i0 = from, i1 = from + intro, BL = 1.2, P = 55 * Math.PI / 180, STEP = 0.1;
             const ts = []; for (let t = t0; t <= t1 + 1e-6; t += STEP) ts.push(+t.toFixed(2));
@@ -268,6 +268,25 @@ function makeReplayRec(d) {
               return { x: cx, y: h.y, z: cz, d: Math.min(3200, Math.max(1700, s * 2.6)), h };   // 사장님 2026-11-01 「완벽」(예시 12) 값 그대로
             });
             const sm = ts.map((_, i) => { let x = 0, y = 0, z = 0, d = 0, w = 0; for (let j = -6; j <= 6; j++) { const r = raw[Math.min(raw.length - 1, Math.max(0, i + j))], g = Math.exp(-(j * j) / 18); x += r.x * g; y += r.y * g; z += r.z * g; d += r.d * g; w += g; } return { x: x / w, y: y / w, z: z / w, d: d / w }; });
+            // 🔭 v0.1.121: 멀리서 죽는 상대 쪽으로 잠깐(사장님: 킬 캐치가 어떨 땐 안 맞음 — 주인공은 다른 쪽인데 도망간 상대가 멀리서 죽으면 화면 밖이라 효과만 터짐 → 죽은 순서대로 그쪽을 비춰 줌)
+            //   상대가 죽는 순간 교전 화면에서 벗어나 있으면(교전 화면 가운데에서 거리×0.42 넘게 · 예전엔 주인공에서 2200 넘는 상대는 아예 안 넣었음)
+            //   킬 −0.9~+0.4초 동안 그 상대를 가까이(1250) 비춤 · 앞뒤 0.35초씩 부드럽게 옮겨 갔다 옴(그 구간은 슬로라 천천히) · c.focus = 'all'이면 모든 킬(시험용)
+            const FD = 1250, fcs = [];
+            for (const v of vs) {
+              const i = Math.max(0, Math.min(ts.length - 1, Math.round((v.k - t0) / STEP))), f = sm[i], q = at(v.pts, v.k); if (!q) continue;
+              const off = Math.hypot(q.x - f.x, q.z - f.z), far = off > f.d * 0.42;
+              const force = c.focus === 'all' || (Array.isArray(c.focus) && c.focus.includes(v.name));   // 시험용: 'all' 또는 [상대 이름…]
+              if (far || force) fcs.push({ v, a: v.k - 0.9, b: v.k + 0.4 });
+              log(`연출 카메라: ${v.name || '상대'} 죽는 곳 = 교전 화면 가운데에서 ${Math.round(off)}(${far ? '화면 밖 → 그쪽을 비춤' : force ? '화면 안 · 시험으로 비춤' : '화면 안'})`);
+            }
+            const focusAt = t => {   // → { w: 0~1, q: 그 상대 위치 }
+              let w = 0, q = null;
+              for (const F of fcs) {
+                const x = t < F.a || t > F.b ? 0 : Math.min(1, (t - F.a) / 0.35, (F.b - t) / 0.35), e = x * x * (3 - 2 * x);
+                if (e > w) { const p = F.v.pts, qq = at(p, Math.min(Math.max(t, p[0].t), p[p.length - 1].t)); if (qq) { w = e; q = qq; } }
+              }
+              return { w, q };
+            };
             // 소개 카메라(사장님 「가장 멋있음」 = 예시 12): 얼굴이 향하는 쪽(첫 상대 쪽, 없으면 움직이는 쪽) 낮은 곳(높이 260·거리 430)에서 바라보며 75° 돎
             //   ⚠️ 주인공·카메라가 다리 가장자리(얼음 덤불·벽)에 걸리면 가림(말파이트·초가스 실기 · nearClip으로 카메라 앞을 지워도 안 됨)
             //   → 칼바람 다리 지도(LANE12)로 도는 방향 두 가지(+75°/−75°)를 미리 따져 카메라·주인공·그 사이가 소개 내내 다리 안쪽인 쪽을 고름
@@ -288,7 +307,9 @@ function makeReplayRec(d) {
             log(`연출 카메라: 소개 = ${introCam === L1 ? '낮게 돌기 +75°' : introCam === L2 ? '낮게 돌기 −75°' : '기본 방향 가까이(낮은 카메라는 다리 가장자리·포탑에 가릴 수 있음)'}`);
             const kp = [], kr = []; let yawPrev = null;
             ts.forEach((t, i) => {
-              const f = sm[i], fight = { pos: { x: f.x, y: f.y + f.d * Math.sin(P), z: f.z - f.d * Math.cos(P) }, tgt: { x: f.x, y: f.y, z: f.z } };
+              const f = sm[i]; let fight = { pos: { x: f.x, y: f.y + f.d * Math.sin(P), z: f.z - f.d * Math.cos(P) }, tgt: { x: f.x, y: f.y, z: f.z } };
+              const fo = focusAt(t);   // 🔭 멀리서 죽는 상대 쪽
+              if (fo.w > 0) { const q = fo.q, fc = { pos: { x: q.x, y: q.y + FD * Math.sin(P), z: q.z - FD * Math.cos(P) }, tgt: { x: q.x, y: q.y, z: q.z } }, M = (a, b) => ({ x: a.x + (b.x - a.x) * fo.w, y: a.y + (b.y - a.y) * fo.w, z: a.z + (b.z - a.z) * fo.w }); fight = { pos: M(fight.pos, fc.pos), tgt: M(fight.tgt, fc.tgt) }; }
               const k = Math.min(1, Math.max(0, (t - i1) / BL)), w = intro > 0 ? k * k * (3 - 2 * k) : 1, ic = w < 1 ? introCam(t) : fight;
               const L = (a, b) => ({ x: a.x + (b.x - a.x) * w, y: a.y + (b.y - a.y) * w, z: a.z + (b.z - a.z) * w });
               const pos = L(ic.pos, fight.pos), tgt = L(ic.tgt, fight.tgt), dx = tgt.x - pos.x, dz = tgt.z - pos.z;
@@ -297,7 +318,7 @@ function makeReplayRec(d) {
               kp.push({ time: t, value: { x: +pos.x.toFixed(1), y: +pos.y.toFixed(1), z: +pos.z.toFixed(1) }, blend: 'linear' });
               kr.push({ time: t, value: { x: +yaw.toFixed(2), y: +pitch.toFixed(2), z: 0 }, blend: 'linear' });
             });
-            log(`연출 카메라: 주인공 위치 ${hero.length}개 · 상대 ${vs.length}/${(c.victims || []).length}명 · 키프레임 ${kp.length}개 (${sec()}초)`);
+            log(`연출 카메라: 주인공 위치 ${hero.length}개 · 상대 ${vs.length}/${(c.victims || []).length}명 · 상대 쪽 비춤 ${fcs.length}번 · 키프레임 ${kp.length}개 (${sec()}초)`);
             await seekTo(t0);
             return { cameraPosition: kp, cameraRotation: kr };
           };
