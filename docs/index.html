@@ -67,6 +67,18 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 .coin img.b { transform:rotateX(180deg); }
 .coin-shadow { position:absolute; width:60px; height:8px; border-radius:50%; background:rgba(0,0,0,.55); opacity:0; }
 .ib-msg { position:absolute; left:0; right:0; text-align:center; font:800 clamp(17px, 1.8vw, 20px) var(--sans); letter-spacing:-0.02em; opacity:0; }
+.crack { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; }
+.crack path { fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.shard { position:absolute; inset:0; background:var(--bg); overflow:hidden; will-change:transform, opacity; backface-visibility:hidden; }
+.shard .board { position:absolute; inset:0; }
+.ib-go { position:absolute; padding:12px 28px; border:1px solid var(--gold); color:var(--gold); font:700 16px var(--sans); letter-spacing:-0.01em; white-space:nowrap; opacity:0; background:var(--bg); }
+.gate { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; text-align:center; padding:0 var(--pad); z-index:2; }
+.gate .g-k { font:500 12px var(--mono); letter-spacing:.08em; color:var(--ink-3); }
+.gate h2 { font-size:clamp(30px, 4.6vw, 56px); line-height:1.12; font-weight:850; letter-spacing:-0.05em; margin-bottom:10px; }
+.gate .g-on { padding:16px 26px; font-size:17px; }
+.gate .g-off { font-size:14px; color:var(--ink-3); padding:6px 0; }
+.gate .g-off:hover { color:var(--ink); }
+.gate .g-note { font-size:12.5px; color:var(--ink-3); }
 .in-skip { position:absolute; right:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font-size:13px; color:var(--ink-3); padding:8px 0; }
 .in-skip:hover { color:var(--ink); }
 .in-cap { position:absolute; left:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font:500 12px var(--mono); color:var(--ink-3); }
@@ -218,6 +230,15 @@ footer p + p { margin-top:6px; }
     <div class="coin-shadow"></div>
     <div class="coin"><div class="spin"><img class="a" src="img/coin-t1.webp" alt=""><img class="b" src="img/coin-t2.webp" alt=""></div></div>
     <div class="ib-msg"></div>
+    <div class="ib-go">게임 시작</div>
+    <svg class="crack" aria-hidden="true"></svg>
+  </div>
+  <div class="gate" hidden>
+    <p class="g-k">TODAY NAEJEON · CUSTOM DRAFT</p>
+    <h2>오늘 모인 사람끼리,<br>드래프트부터.</h2>
+    <button class="btn btn-dl g-on" type="button">▶ 소리 켜고 입장</button>
+    <button class="g-off" type="button">소리 없이 보기</button>
+    <p class="g-note">약 10초 · 언제든 건너뛸 수 있어요</p>
   </div>
   <span class="in-cap">TODAY NAEJEON</span>
   <button class="in-skip" type="button">건너뛰기 →</button>
@@ -411,6 +432,60 @@ function ready() { document.body.classList.add('ready'); playReel(); }
 const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('seen'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' }) : null;
 document.querySelectorAll('[data-rv]').forEach(el => io ? io.observe(el) : el.classList.add('seen'));
 
+// 🔊 소리 = 앱에 들어 있는 실제 소리(sfx/ · 원본 assets/sfx·bgm) — 브라우저는 클릭해야 소리를 내서 「소리 켜고 입장」을 누른 사람만
+const SFX = {}; let AC = null, SND = false, bgm = null;
+function sfxLoad() {
+  if (AC) return;
+  try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { return; }
+  for (const k of ['pick-t1', 'pick-t2', 'potg-hit', 'potg-slam', 'coin-samira', 'bgm'])
+    fetch('sfx/' + k + '.mp3').then(r => r.arrayBuffer()).then(b => AC.decodeAudioData(b)).then(buf => { SFX[k] = buf; }).catch(() => {});
+}
+function sfx(k, o) {   // o = {at 초 뒤, off 시작 위치, dur 길이, vol, rate}
+  o = o || {};
+  if (!SND || !AC || !SFX[k]) return null;
+  const src = AC.createBufferSource(), g = AC.createGain();
+  src.buffer = SFX[k]; src.playbackRate.value = o.rate || 1; g.gain.value = o.vol == null ? 0.5 : o.vol;
+  src.connect(g).connect(AC.destination);
+  src.start(AC.currentTime + (o.at || 0), o.off || 0, o.dur);
+  return { src, g };
+}
+const BGM_DROP = 12.9;   // sfx/bgm.mp3에서 곡이 크게 터지는 곳(원곡 38.9초 − 잘라낸 26초)
+function bgmStart(dropInSec) {   // 깨지는 순간에 곡이 터지게 시작 위치를 맞춤
+  if (!SND || !AC || !SFX.bgm) return;
+  const off = BGM_DROP - dropInSec, src = AC.createBufferSource(), g = AC.createGain();
+  src.buffer = SFX.bgm; src.connect(g).connect(AC.destination);
+  g.gain.setValueAtTime(0, AC.currentTime); g.gain.linearRampToValueAtTime(0.3, AC.currentTime + 1.2);
+  if (off >= 0) src.start(AC.currentTime, off); else src.start(AC.currentTime - off, 0);
+  bgm = { src, g };
+}
+function bgmFade(sec) { if (!bgm) return; const b = bgm; bgm = null; b.g.gain.cancelScheduledValues(AC.currentTime); b.g.gain.setValueAtTime(b.g.gain.value, AC.currentTime); b.g.gain.linearRampToValueAtTime(0, AC.currentTime + sec); setTimeout(() => { try { b.src.stop(); } catch (_) {} }, sec * 1000 + 100); }
+function reelSound() {   // 화면이 열리면 팟지 영상의 실제 소리로(재생 중인 장면 그대로 — 처음으로 돌리면 영상의 소개 글자가 제목과 겹침)
+  if (!SND || !reel) return;
+  reel.muted = false; reel.volume = 0; reel.play().catch(() => {});
+  const b = document.getElementById('snd'); b.textContent = '소리 끄기'; b.setAttribute('aria-pressed', 'true');
+  let v = 0; const iv = setInterval(() => { v = Math.min(0.65, v + 0.05); reel.volume = v; if (v >= 0.65) clearInterval(iv); }, 110);
+}
+let gating = false;
+function playIntro() {   // 시작 화면 → 고르면 드래프트
+  intro.getAnimations().forEach(a => a.cancel()); board.getAnimations().forEach(a => a.cancel());
+  board.querySelectorAll('.chip, .ib-slot').forEach(x => x.remove()); $i('.crack').innerHTML = '';
+  ['.ib-head.a', '.ib-head.b', '.ib-pool-label', '.coin', '.coin-shadow', '.ib-msg', '.ib-go'].forEach(q => { const el = $i(q); el.getAnimations().forEach(a => a.cancel()); el.style.opacity = '0'; });
+  step('');
+  intro.hidden = false; document.body.classList.add('intro-on');
+  const g = $i('.gate'); g.hidden = false; g.style.opacity = ''; gating = true;
+  sfxLoad();
+  g.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 500, easing: 'cubic-bezier(.22,.8,.24,1)', fill: 'both' });
+}
+function begin(sound) {
+  if (!gating) return;
+  gating = false; SND = !!sound;
+  if (SND && AC) AC.resume().catch(() => {});
+  const g = $i('.gate');
+  g.animate([{ opacity: 1 }, { opacity: 0, transform: 'translateY(-8px)' }], { duration: 300, easing: 'ease-in', fill: 'both' });
+  setTimeout(() => { g.hidden = true; }, 300);
+  setTimeout(() => runIntro(), 250);
+}
+
 // ── 오프닝 = 드래프트 보드(약 8초): 접속 → 팀장 → 선픽 동전 → 한 명씩 픽(스네이크) → 막이 걷힘 ──
 const P = [['미드장인', 103], ['정글러버', 64], ['서폿요정', 412], ['원딜왕', 222], ['칼바람고수', 157], ['포로사랑', 99], ['눈덩이장인', 86], ['탑솔러', 51], ['한타장인', 498], ['와드요정', 360]];
 const ICON = id => `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${id}.png`;
@@ -428,18 +503,75 @@ function moveTo(el, x, y, dur, delay) {
 }
 function step(t) { $i('.ib-step').innerHTML = t; }
 function lift(dur) {   // 보드가 막처럼 위로 걷힘 → 뒤의 팟지 영상
-  running = false; timers.forEach(clearTimeout); timers = [];
+  running = false; gating = false; bgmFade(0.8); timers.forEach(clearTimeout); timers = [];
   intro.animate([{ transform: 'none' }, { transform: 'translateY(-100%)' }], { duration: dur, easing: 'cubic-bezier(.7,0,.25,1)', fill: 'both' });
   board.animate([{ transform: 'none', opacity: 1 }, { transform: 'translateY(8%)', opacity: 0.4 }], { duration: dur, easing: 'cubic-bezier(.7,0,.25,1)', fill: 'both' });
   setTimeout(ready, dur * 0.35);
   setTimeout(() => { intro.hidden = true; intro.getAnimations().forEach(a => a.cancel()); document.body.classList.remove('intro-on'); }, dur + 40);
   try { sessionStorage.setItem('tn-intro', '1'); } catch (_) {}
 }
-function playIntro() {
+// 가는 금(바퀴살이 조금씩 꺾이며 뻗고, 둥근 금은 드문드문) — 반환 = 바퀴살 각도(조각 나누기용)
+function drawCrack(cx, cy) {
+  const svg = $i('.crack'), W = innerWidth, H = innerHeight, R = Math.hypot(W, H);
+  const n = 11 + Math.floor(Math.random() * 3), angs = [];
+  let d = '', ring = '';
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.3; angs.push(a);
+    let r = 34, aa = a, x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r; d += `M${x.toFixed(1)} ${y.toFixed(1)}`;
+    while (r < R) { r += 60 + Math.random() * 110; aa += (Math.random() - 0.5) * 0.22; x = cx + Math.cos(aa) * r; y = cy + Math.sin(aa) * r; d += ` L${x.toFixed(1)} ${y.toFixed(1)}`; }
+  }
+  angs.sort((p, q) => p - q);
+  for (let i = 0; i < angs.length; i++) {
+    if (Math.random() < 0.45) continue;
+    const a1 = angs[i], a2 = i + 1 < angs.length ? angs[i + 1] : angs[0] + Math.PI * 2, j = 120 + Math.random() * 140;
+    ring += `M${(cx + Math.cos(a1) * j).toFixed(1)} ${(cy + Math.sin(a1) * j).toFixed(1)} L${(cx + Math.cos(a2) * j * 1.02).toFixed(1)} ${(cy + Math.sin(a2) * j * 1.02).toFixed(1)}`;
+  }
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = `<path d="${d}" stroke="rgba(0,0,0,.45)" stroke-width="2.2" pathLength="1"/><path d="${d}" stroke="rgba(236,230,218,.62)" stroke-width="0.9" pathLength="1"/><path d="${ring}" stroke="rgba(236,230,218,.38)" stroke-width="0.8" pathLength="1"/>`;
+  svg.querySelectorAll('path').forEach((p, i) => { p.style.strokeDasharray = '1'; p.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: i === 2 ? 220 : 260, delay: i === 2 ? 120 : 0, easing: 'cubic-bezier(.15,.7,.3,1)', fill: 'both' }); });
+  return angs;
+}
+// 보드를 바퀴살 사이 조각으로 — 조각마다 지금 보드를 그대로 담아(이름표·자리·동전·금) 입체적으로 떨어짐 → 뒤의 영상
+function shatter(cx, cy, angs) {
+  const W = innerWidth, H = innerHeight, R = Math.hypot(W, H) * 1.2;
+  board.querySelectorAll('*').forEach(el => el.getAnimations().forEach(a => { try { a.commitStyles(); } catch (_) {} a.cancel(); }));   // 움직임을 지금 모습 그대로 굳힘(복사하면 애니메이션은 안 따라감)
+  const shards = [];
+  angs.forEach((a1, i) => {
+    const a2 = i + 1 < angs.length ? angs[i + 1] : angs[0] + Math.PI * 2, mid = (a1 + a2) / 2;
+    const sh = document.createElement('div'); sh.className = 'shard';
+    sh.style.clipPath = `polygon(${cx}px ${cy}px, ${cx + Math.cos(a1) * R}px ${cy + Math.sin(a1) * R}px, ${cx + Math.cos(mid) * R}px ${cy + Math.sin(mid) * R}px, ${cx + Math.cos(a2) * R}px ${cy + Math.sin(a2) * R}px)`;
+    sh.style.transformOrigin = `${cx + Math.cos(mid) * 220}px ${cy + Math.sin(mid) * 220}px`;
+    sh.appendChild(board.cloneNode(true));
+    intro.appendChild(sh); shards.push([sh, mid]);
+  });
+  intro.style.background = 'transparent'; board.style.visibility = 'hidden';
+  shards.forEach(([sh, mid], i) => {
+    const out = 30 + Math.random() * 70, fall = 220 + Math.random() * 260, rz = (Math.random() - 0.5) * 22, rx = 14 + Math.random() * 26, d = Math.random() * 180;
+    sh.animate([
+      { transform: 'perspective(1400px) none', opacity: 1 },
+      { transform: `perspective(1400px) translate(${Math.cos(mid) * out * 0.35}px, ${Math.sin(mid) * out * 0.35}px)`, opacity: 1, offset: 0.18 },
+      { transform: `perspective(1400px) translate(${Math.cos(mid) * out}px, ${Math.sin(mid) * out + fall}px) rotateX(${rx}deg) rotateZ(${rz}deg)`, opacity: 0 },
+    ], { duration: 1050 + Math.random() * 300, delay: d, easing: 'cubic-bezier(.45,0,.7,.55)', fill: 'both' });
+  });
+  setTimeout(ready, 120); bgmFade(2.6); setTimeout(reelSound, 900);
+  setTimeout(() => { shards.forEach(([sh]) => sh.remove()); intro.hidden = true; intro.style.background = ''; board.style.visibility = ''; document.body.classList.remove('intro-on'); }, 1700);
+  try { sessionStorage.setItem('tn-intro', '1'); } catch (_) {}
+}
+function crackAndShatter(cx, cy) {   // 「게임 시작」이 눌림 → 금 → 0.4초 뒤 조각
+  if (!running) return;
+  running = false; timers.forEach(clearTimeout); timers = [];
+  sfx('potg-slam', { vol: 0.5 }); sfx('coin-samira', { off: 3.3, dur: 1.5, vol: 0.55 });   // 쾅 + 유리
+  const coin = $i('.ib-go');
+  coin.animate([{ transform: 'scale(1)' }, { transform: 'scale(.94)', offset: 0.4 }, { transform: 'scale(1)' }], { duration: 260, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'both' });
+  const angs = drawCrack(cx, cy);
+  setTimeout(() => shatter(cx, cy, angs), 420);
+}
+function runIntro() {
   if (running) return;
   running = true;
   intro.getAnimations().forEach(a => a.cancel()); board.getAnimations().forEach(a => a.cancel());
-  board.querySelectorAll('.chip, .ib-slot').forEach(x => x.remove());
+  board.querySelectorAll('.chip, .ib-slot').forEach(x => x.remove()); $i('.crack').innerHTML = '';
+  board.querySelectorAll('[style]').forEach(el => { if (!el.classList.contains('chip')) el.style.opacity = ''; });
   intro.hidden = false; document.body.classList.add('intro-on');
   const W = innerWidth, H = innerHeight, narrow = W < 1000, pad = Math.max(20, Math.min(64, W * 0.05));
   const ch = narrow ? (H < 720 ? 32 : W < 560 ? 36 : 40) : (H < 760 ? 40 : 46), gap = narrow ? 8 : 10, cw = narrow ? Math.min(180, (W - 2 * pad - 12) / 2) : 214, block = 5 * ch + 4 * gap;
@@ -459,6 +591,7 @@ function playIntro() {
   }
   const coin = $i('.coin'), spin = coin.querySelector('.spin'), shadow = $i('.coin-shadow'), msg = $i('.ib-msg');
   [coin, spin, shadow, msg].forEach(x => x.getAnimations().forEach(a => a.cancel()));
+  const go = $i('.ib-go'); go.getAnimations().forEach(a => a.cancel()); go.style.cssText = `left:${W / 2}px; top:${coinY}px; transform:translate(-50%, -50%)`;
   coin.style.cssText = `left:${W / 2 - 42}px; top:${coinY - 42}px`; shadow.style.cssText = `left:${W / 2 - 30}px; top:${coinY + 40}px`; msg.style.top = msgY + 'px'; msg.textContent = '';
   [head.a, head.b, label, ...board.querySelectorAll('.ib-slot')].forEach(el => fade(el, true, 400));
   step('<b>접속 중</b>');
@@ -483,16 +616,20 @@ function playIntro() {
     later(160, reflow);
   };
   // ② 팀장
-  later(1450, () => { step('<b>팀장</b>'); seat(pool[0], 'a', true); seat(pool[0], 'b', true); });
+  later(1450, () => { step('<b>팀장</b>'); seat(pool[0], 'a', true); sfx('pick-t1', { vol: 0.45 }); later(260, () => { seat(pool[0], 'b', true); sfx('pick-t2', { vol: 0.45 }); }); });
   // ③ 선픽 동전 — 제자리에서 튕겨 올라 돌다가 내려앉음
   const first = Math.random() < 0.5 ? 'a' : 'b';
   later(2250, () => {
-    step('<b>선픽 동전</b>');
+    step('<b>선픽 동전</b>'); sfx('coin-samira', { off: 0.12, dur: 0.5, vol: 0.6 }); sfx('coin-samira', { at: 1.0, off: 0.6, dur: 0.4, vol: 0.7 });
     fade(coin, true, 200);
     const turns = 3 * 360 + (first === 'b' ? 180 : 0);
     coin.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-96px)', offset: 0.45, easing: 'cubic-bezier(.3,0,.7,1)' }, { transform: 'translateY(0)', offset: 0.9 }, { transform: 'translateY(-6px)', offset: 0.95 }, { transform: 'translateY(0)' }], { duration: 1150, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'both' });
     spin.animate([{ transform: 'rotateX(0deg)' }, { transform: `rotateX(${turns}deg)` }], { duration: 1040, easing: 'cubic-bezier(.25,.6,.3,1)', fill: 'both' });
     shadow.animate([{ opacity: 0.5, transform: 'scale(1)' }, { opacity: 0.18, transform: 'scale(.55)', offset: 0.45 }, { opacity: 0.5, transform: 'scale(1)', offset: 0.9 }, { opacity: 0.5, transform: 'scale(1)' }], { duration: 1150, fill: 'both' });
+  });
+  later(4150, () => {   // 동전은 선픽만 정하고 퇴장 — 팀 이름 옆에 「선픽」
+    [coin, shadow, msg].forEach(el => el.animate([{ opacity: 1 }, { opacity: 0, transform: 'translateY(-6px)' }], { duration: 350, easing: 'ease-in', fill: 'forwards' }));
+    head[first].querySelector('span').textContent = '선픽';
   });
   later(3450, () => {
     msg.innerHTML = `<span class="${first === 'a' ? 't1' : 't2'}">${first === 'a' ? 1 : 2}팀 선픽</span>`;
@@ -500,23 +637,27 @@ function playIntro() {
   });
   // ④ 픽(스네이크) — 차례 표시 → 뽑힐 사람 표시 → 자리로
   const other = first === 'a' ? 'b' : 'a', snake = [first, other, other, first, first, other, other, first];
-  let t = 3950;
+  let t = 4550;
   snake.forEach((team, k) => {
     later(t, () => {
       const el = pool[Math.floor(Math.random() * pool.length)];
       for (const x of ['a', 'b']) { head[x].classList.toggle('turn', x === team); head[x].querySelector('span').textContent = x === team ? '차례' : ''; }
       step(`<b>PICK ${k + 1}</b> / 8`);
       el.classList.add('next', team === 'a' ? 'ta' : 'tb');
-      later(200, () => seat(el, team));
+      later(200, () => { seat(el, team); sfx('potg-hit', { vol: 0.22, rate: 0.95 + Math.random() * 0.15 }); });
     });
     t += 470;
   });
   later(t + 150, () => { for (const x of ['a', 'b']) { head.a.classList.remove('turn'); head.b.classList.remove('turn'); head[x].querySelector('span').textContent = '5명'; } step('<b>팀 완성</b>'); fade(label, false, 250); });
-  later(t + 900, () => lift(950));
+  later(t + 350, () => { go.animate([{ opacity: 0, transform: 'translate(-50%, -40%)' }, { opacity: 1, transform: 'translate(-50%, -50%)' }], { duration: 380, easing: EASE, fill: 'both' }); });
+  later(t + 1150, () => crackAndShatter(W / 2, coinY));
+  bgmStart((t + 1150) / 1000);
 }
-intro.querySelector('.in-skip').addEventListener('click', e => { e.stopPropagation(); if (running) lift(600); });
-['click', 'wheel', 'touchstart'].forEach(ev => intro.addEventListener(ev, () => running && lift(600), { passive: true }));
-addEventListener('keydown', () => running && lift(600));
+$i('.g-on').addEventListener('click', e => { e.stopPropagation(); begin(true); });
+$i('.g-off').addEventListener('click', e => { e.stopPropagation(); begin(false); });
+intro.querySelector('.in-skip').addEventListener('click', e => { e.stopPropagation(); if (running || gating) lift(600); });
+['click', 'wheel', 'touchstart'].forEach(ev => intro.addEventListener(ev, e => { if (e.target.closest && e.target.closest('.gate')) return; if (running || (gating && ev !== 'click')) lift(600); }, { passive: true }));
+addEventListener('keydown', e => { if (gating && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); begin(true); return; } if (running || gating) lift(600); });
 document.getElementById('replay').addEventListener('click', () => { scrollTo(0, 0); document.body.classList.remove('ready'); setTimeout(playIntro, 60); });
 
 let seen = false; try { seen = sessionStorage.getItem('tn-intro') === '1'; } catch (_) {}
