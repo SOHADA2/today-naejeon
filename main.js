@@ -1898,7 +1898,7 @@ function recProgStart(parts) {
   parts.forEach((p, i) => {
     const warm = Math.max(0, p.from - PRE - 2); t += 0.5;
     if (p.direct) { t += (p.to + 0.6 - warm) / 2 + 0.5 + ((p.direct.victims || []).length) * 1.9; marks.push(['scout' + (i + 1), t]); }
-    t += (p.to - warm) + 1; marks.push(['rec' + (i + 1), t]);
+    t += (p.to - warm) + 1 + slowExtra(p.speed, warm, p.to); marks.push(['rec' + (i + 1), t]);   // 🐢 슬로 구간을 느리게 찍는 만큼 더
   });
   t += 0.5; marks.push(['close', t]); t += 2 + 4 * parts.length;
   _recProg = { total: t, marks, sec: 0, at: Date.now(), cap: marks[0][1] - 0.5 };
@@ -1948,6 +1948,24 @@ async function champRanges() {
   return _ranges || {};
 }
 async function potgFov(championId) { const r = (await champRanges())[championId]; return RANGED_FORMS.has(Number(championId)) || r >= 500 ? FOV_RANGED : FOV_BASE; }
+// 🐢 v0.1.120: 슬로 구간을 리플레이에서 **미리 느리게 재생하며** 녹화(사장님: 슬로가 버벅임 — 30장 영상을 팟지 화면이 0.3배로 틀어 1초 9장이었음)
+//   롤 리플레이 /replay/sequence `playbackSpeed` 키프레임(게임 시각) → 그 구간도 실제 시간 1초 30장으로 찍힘 → 팟지 화면은 그 구간을 1배속으로(potg/potg.js timeMap·spdAt)
+//   구간·속도 ⚠️ potg/potg.js와 같게: 팟지 = 마지막 킬 −0.7~+FREEZE_AFTER 0.3배 · 중간 킬 −0.45~+0.3 0.4배(rateFor) · 숨은 영웅 = 핵심 −0.6~+0.35 0.35배(playHeroVideo rateAt)
+const FREEZE_AFTER = 0.15, SLOW_RAMP = 0.03;
+const potgSlow = ms => { const last = ms[ms.length - 1]; return g => { for (const m of ms) { if (m === last ? g >= m - 0.7 && g <= m + FREEZE_AFTER : g >= m - 0.45 && g <= m + 0.3) return m === last ? 0.3 : 0.4; } return 1; }; };
+const heroSlow = peak => g => (g >= peak - 0.6 && g <= peak + 0.35 ? 0.35 : 1);
+function slowKeys(spAt, bounds) {   // 속도 함수 + 바뀌는 지점들 → [[게임 초, 속도], …](바뀌는 곳마다 SLOW_RAMP초 경사) · 슬로 없으면 null
+  const bs = [...new Set(bounds.filter(Number.isFinite).map(b => +b.toFixed(3)))].sort((a, b) => a - b), keys = [];
+  let prev = 1;
+  for (const b of bs) {
+    const nx = spAt(b + 1e-4); if (nx === prev) continue;
+    const t0 = Math.max(b, keys.length ? keys[keys.length - 1][0] + 0.001 : b);
+    keys.push([+t0.toFixed(3), prev], [+(t0 + SLOW_RAMP).toFixed(3), nx]); prev = nx;
+  }
+  return keys.length ? keys : null;
+}
+const spdAt = (K, g) => { if (!K || !K.length) return 1; if (g <= K[0][0]) return K[0][1]; for (let i = 1; i < K.length; i++) if (g <= K[i][0]) { const [a, va] = K[i - 1], [b, vb] = K[i]; return va + (vb - va) * ((g - a) / Math.max(1e-6, b - a)); } return K[K.length - 1][1]; };   // potg/potg.js와 같음
+const slowExtra = (K, a, b) => { if (!K) return 0; let w = 0; for (let x = a; x < b; x += 0.01) w += Math.min(0.01, b - x) * (1 / Math.max(0.05, spdAt(K, x)) - 1); return w; };   // 게임 a→b초를 찍는 데 더 걸린 실제 시간(= 영상이 늘어난 만큼)
 // 🚫 v0.1.118: 팟지 건너뛰기(사장님: 쓸만한 장면 없는 노잼판 — 「팟지 준비 중」일 때 녹화하는 PC가 취소) — 기다림 화면 버튼(녹화하는 사람에게만) → 'potg-cancel'
 //   → replayRec.cancel()(녹화 멈춤·리플레이 닫기·소리 켜기) · 영상 안 올림 · potgWait.skipped(다른 사람 화면에 「○○님이 건너뛰었어요」) → 5초 뒤 지움 · 기록 potg = {none, skipped, by}
 let _potgSkip = false;
@@ -1977,8 +1995,9 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   //   이름이 안 잡히면 영문 챔피언 이름(alias)으로 — 한글 챔피언 이름은 리플레이가 못 알아들음(실측)
   const champs = await getChamps().catch(() => ({})), alias = id => (champs[id] && champs[id].alias) || '';
   const victims = (card.kills || []).map(k => ({ name: k.victim, alias: alias(k.championId), t: k.t })).filter(v => v.name && Number.isFinite(v.t));
-  const parts = [{ from: Math.max(0, card.clipFrom - 2), to: card.clipTo, focus: card.name, champ: alias(card.championId), fov: await fov(card.championId), direct: { victims } }]
-    .concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: alias(H.championId), fov: await fov(H.championId), direct: { victims: [] } }] : []);
+  const kts = (card.kills && card.kills.length ? card.kills.map(k => k.t) : [card.obj ? card.obj.t : card.t1]).filter(Number.isFinite);   // potg/potg.js killsAt과 같은 킬 시각
+  const parts = [{ from: Math.max(0, card.clipFrom - 2), to: card.clipTo, focus: card.name, champ: alias(card.championId), fov: await fov(card.championId), direct: { victims }, speed: slowKeys(potgSlow(kts), kts.flatMap(m => [m - 0.7, m - 0.45, m + 0.3, m + FREEZE_AFTER])) }]
+    .concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: alias(H.championId), fov: await fov(H.championId), direct: { victims: [] }, speed: slowKeys(heroSlow(H.peak), [H.peak - 0.6, H.peak + 0.35]) }] : []);
   recProgStart(parts);
   const t0 = Date.now(), recP = replayRec.record({ gameId: g.id, parts });
   recP.catch(() => {}).finally(() => setTimeout(() => { replayBusy = false; }, 6000));   // 리플레이가 실제로 끝나고(닫히고) 조금 더 지나야 풀림(시간 초과로 먼저 카드를 보여줘도)
@@ -2009,9 +2028,18 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   //   = 녹화 끝(clipTo) − 원본 영상 길이(실측 540~556 요청 → 18.94초 → 537.06) · 길이를 모르거나 이상하면 되감기 지점(clipFrom − 3)
   //   ⚠️ v0.1.90: 연출 카메라(키프레임) 녹화는 롤이 startTime(= from)부터 찍음(11/1 실기 9장면 모두 clipTo − 길이 = from ±0.11)
   //   → 옛 「되감기 지점 ±2초」 검사에 걸려(차이 3초) 되감기 지점으로 떨어져 킬 자막·슬로가 3초 늦었음 → 되감기 지점 −1 ~ from +1 사이면 실측을 믿음
-  const vStart = (c, sec) => { const g = makeReplayRec.videoStart(c.clipFrom, c.clipTo), f = Math.max(0, Math.min(c.clipFrom, c.clipTo - 3)), m = sec != null ? c.clipTo - sec : null; return m != null && m >= g - 1 && m <= f + 1 ? +m.toFixed(2) : g; };
-  if (metas[0]) { const v0 = vStart({ clipFrom: parts[0].from, clipTo: card.clipTo }, secs[0]); card.clipLead = +(card.clipFrom - v0).toFixed(2); card.clipFrom = v0; card.directed = true; }   // directed = 연출 카메라 영상(팟지 창이 확대 안 함)
-  if (metas[1] && H) { const v0 = vStart(H, secs[1]); H.clipLead = +(H.clipFrom - v0).toFixed(2); H.clipFrom = v0; H.directed = true; }
+  //   🐢 v0.1.120: 슬로 구간을 느리게 찍은 만큼 영상이 길어짐 → 길이에서 늘어난 몫(slowExtra · from~to)을 빼고 계산 · K = 그 장면 속도 표
+  const vStart = (c, sec, K) => { const g = makeReplayRec.videoStart(c.clipFrom, c.clipTo), f = Math.max(0, Math.min(c.clipFrom, c.clipTo - 3)), m = sec != null ? c.clipTo - (sec - slowExtra(K, f, c.clipTo)) : null; return m != null && m >= g - 1 && m <= f + 1 ? +m.toFixed(2) : g; };
+  //   🛡️ 롤이 속도 키프레임을 무시했으면(영상이 안 늘어남) 속도 표를 버리고 예전 방식 — 표만 믿으면 킬 자막이 몇 초씩 어긋남
+  //   판단 = 원본 길이가 「늘어난 길이」(구간 + slowExtra)와 「안 늘어난 길이」 중 어디에 가까운가(연출 카메라 녹화는 from부터 찍힘)
+  for (const i of [0, 1]) {
+    const pt = parts[i], K = pt && pt.speed; if (!K || secs[i] == null) continue;
+    const span = (i ? H.clipTo : card.clipTo) - pt.from, ex = slowExtra(K, pt.from, i ? H.clipTo : card.clipTo);
+    if (Math.abs(secs[i] - (span + ex)) > Math.abs(secs[i] - span)) { pt.speed = null; _recLog.push(`${i ? '숨은 영웅' : '팟지'} 슬로 녹화 안 먹음(원본 ${secs[i].toFixed(2)}초 · 기대 ${(span + ex).toFixed(2)}초) → 예전 방식으로 재생`); }
+    else _recLog.push(`${i ? '숨은 영웅' : '팟지'} 슬로 녹화 ✅ +${ex.toFixed(2)}초(원본 ${secs[i].toFixed(2)}초)`);
+  }
+  if (metas[0]) { const v0 = vStart({ clipFrom: parts[0].from, clipTo: card.clipTo }, secs[0], parts[0].speed); card.clipLead = +(card.clipFrom - v0).toFixed(2); card.clipFrom = v0; card.directed = true; if (parts[0].speed) card.spd = parts[0].speed; }   // directed = 연출 카메라 영상(팟지 창이 확대 안 함) · spd = 🐢 속도 표
+  if (metas[1] && H) { const v0 = vStart(H, secs[1], parts[1].speed); H.clipLead = +(H.clipFrom - v0).toFixed(2); H.clipFrom = v0; H.directed = true; if (parts[1].speed) H.spd = parts[1].speed; }
   if (metas[0] || metas[1]) _recLog.push(`영상 시작 = 게임 ${metas[0] ? card.clipFrom : '-'}초${H && metas[1] ? ` · 숨은 영웅 ${H.clipFrom}초` : ''} (원본 길이 ${secs.map(x => x == null ? '?' : x.toFixed(2)).join('/')}초)`);
   const sec = Math.round((Date.now() - t0) / 1000), mb = m => m ? +(m.size / 1048576).toFixed(1) : null;
   recEnd(); setTimeout(tryInstallUpdate, 8000);   // 녹화 끝 → 안내 닫기 · 업데이트 기다리던 중이면 이제 설치

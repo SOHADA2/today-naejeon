@@ -177,12 +177,12 @@ function playHeroVideo(my) {
     const cur = meter.querySelector('.cur'), ghost = meter.querySelector('.ghost'), hpn = el('pg-hpn'), mv = el('pg-mv');
     let ghostV = null;
     const zoomAt = t => { const x = t - peak, up = smooth((x + 1.4) / 1.0), down = frozen === 2 ? 1 - smooth((x - 0.35) / 1.2) : 1; return 1 + 0.12 * Math.min(up, down); };
-    const rateAt = t => (t >= peak - 0.6 && t <= peak + 0.35 ? 0.35 : 1);
+    const rateAt = t => (t >= peak - 0.6 && t <= peak + 0.35 ? 0.35 : 1), gOf = timeMap(h.spd, h.clipFrom, (h.clipTo || h.clipFrom + 30) - h.clipFrom);   // ⚠️ main SLOW 숨은 영웅 구간과 같게
     const finish = ok => { if (done) return; done = true; cancelAnimationFrame(raf); v.playbackRate = 1; resolve(ok && my === run); };
     const tick = () => {
       if (my !== run) return finish(false);
-      const t = v.currentTime, g = t + h.clipFrom;
-      if (!frozen) { const r = rateAt(t); if (r !== rate) { rate = r; v.playbackRate = r; } }
+      const t = gOf(v.currentTime), g = t + h.clipFrom;   // 🐢
+      if (!frozen) { rate = rateAt(t); const pr = playRate(rate / spdAt(h.spd, g)); if (Math.abs(pr - v.playbackRate) > 0.005) v.playbackRate = pr; }
       { const gv = frozen === 1 ? 0 : rate < 1 ? 0.03 : 0.6; v.volume += (gv - v.volume) * 0.25; }
       fxPaint(v, { zoom: h.directed ? 1 : zoomAt(t), punch: frozen ? 0 : punchAt([peak], t), frozen });   // 🎨 연출 카메라 영상은 확대 안 함
       if (showMeter) {   // 실제 체력 기록으로 막대를 움직임(1초 간격 기록 · 사이는 선형)
@@ -283,6 +283,17 @@ const killsAt = c => (c.kills && c.kills.length ? c.kills.map(k => k.t) : [c.obj
 //   실측 2026-11-05: 영상 속 사망 빛기둥은 기록된 킬 시각 0.1초 전부터 = 기록·영상 시각은 정확) → 0.15초(실제 0.5초 뒤 · 빛기둥·킬 골드가 막 뜬 순간)
 const FREEZE_AFTER = 0.15;
 const rateFor = ms => { const last = ms[ms.length - 1]; return t => { for (const m of ms) { if (m === last ? t >= m - 0.7 && t <= m + FREEZE_AFTER : t >= m - 0.45 && t <= m + 0.3) return m === last ? 0.3 : 0.4; } return 1; }; };
+// 🐢 v0.1.120: 슬로 구간을 리플레이에서 미리 느리게 재생하며 녹화(사장님: 슬로가 버벅임 — 30장 영상을 0.3배로 틀어 1초 9장이었음)
+//   card.spd / hero.spd = 녹화 때 건 재생 속도 키프레임 [[게임 초, 속도], …](선형 · 밖은 끝 값 · main SLOW와 같은 구간) → 영상 시각 ↔ 게임 시각을 이 표로 바꿈
+//   재생 속도 = 원하는 속도(rateFor) ÷ 녹화 속도 → 미리 느리게 찍은 구간은 1배속으로 틀어 30장 그대로 · 표가 없는 옛 영상은 예전처럼(영상 시각 = 게임 시각)
+const spdAt = (K, g) => { if (!K || !K.length) return 1; if (g <= K[0][0]) return K[0][1]; for (let i = 1; i < K.length; i++) if (g <= K[i][0]) { const [a, va] = K[i - 1], [b, vb] = K[i]; return va + (vb - va) * ((g - a) / Math.max(1e-6, b - a)); } return K[K.length - 1][1]; };
+function timeMap(K, clipFrom, len) {   // → 영상 초 → 게임 상대 초(클립 시작 = 0)
+  if (!K || !K.length) return vt => vt;
+  const vt = [0], step = 0.01; let acc = 0;
+  for (let x = step; x <= len + 2; x += step) { acc += step / Math.max(0.05, spdAt(K, clipFrom + x - step / 2)); vt.push(acc); }
+  return t => { let lo = 0, hi = vt.length - 1; if (t <= 0) return t; if (t >= vt[hi]) return hi * step + (t - vt[hi]); while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (vt[mid] <= t) lo = mid; else hi = mid; } return (lo + (t - vt[lo]) / Math.max(1e-6, vt[hi] - vt[lo])) * step; };
+}
+const playRate = r => Math.max(0.0625, Math.min(4, r));   // 브라우저가 받는 범위
 function realBetween(rateAt, a, b) { let w = 0; for (let x = a; x < b; x += 0.02) w += 0.02 / rateAt(x); return w; }   // 영상 a→b초가 실제로 걸리는 시간(슬로모션 감안)
 function realToFreeze(c) { const ms = killsAt(c); return realBetween(rateFor(ms), 0, ms[ms.length - 1] + FREEZE_AFTER); }
 const cardDropAt = c => (400 + Math.max(0, ((c.kills || []).length || 1) - 1) * 380) / 1000;   // 카드: 마지막 킬 칸이 찍히는 시각(소개 뒤)
@@ -409,12 +420,12 @@ function playVideo(my) {
       for (let i = 0; i < ms.length - 1; i++) if (ms[i + 1] - ms[i] < 3 && t >= ms[i] && t <= ms[i + 1]) z = 1;   // 킬 사이가 3초 안이면 확대 유지(들썩이지 않게)
       return 1 + 0.12 * z;   // 2026-11-01 0.32 → 0.12(답답·흐릿 — 카메라가 주인공을 따라가 가운데라 크게 키울 필요 없음)
     };
-    const rateAt = rateFor(ms);
+    const rateAt = rateFor(ms), gOf = timeMap(c.spd, c.clipFrom, (c.clipTo || c.clipFrom + 30) - c.clipFrom);
     const finish = ok => { if (done) return; done = true; cancelAnimationFrame(raf); v.playbackRate = 1; resolve(ok && my === run); };
     const tick = () => {
       if (my !== run) return finish(false);
-      const t = v.currentTime;
-      if (!frozen) { const r = rateAt(t); if (r !== rate) { rate = r; v.playbackRate = r; } }
+      const t = gOf(v.currentTime);   // 🐢 게임 상대 초(미리 느리게 찍은 구간이 있으면 표로 바꿈)
+      if (!frozen) { rate = rateAt(t); const pr = playRate(rate / spdAt(c.spd, t + c.clipFrom)); if (Math.abs(pr - v.playbackRate) > 0.005) v.playbackRate = pr; }
       { const gv = frozen === 1 ? 0 : rate < 1 ? 0.03 : 0.6; v.volume += (gv - v.volume) * 0.25; }   // 🎵 슬로모션 땐 게임 소리를 확 줄임(느리고 낮아진 게임 소리가 이상한 음악처럼 들렸음) — BGM·효과음이 이끔 · v0.1.61: 0.15도 웅웅거려서(사장님 「후반 소리가 왜 이래」) 거의 끔(0.03)
       fxPaint(v, { zoom: c.directed ? 1 : zoomAt(t), punch: frozen ? 0 : punchAt(ms, t), frozen });   // 🎨 연출 카메라로 찍은 영상은 확대 안 함(상대가 화면 밖으로 잘리지 않게)
       ms.forEach((m, i) => { if (!fired.has(i) && t >= m) { fired.add(i); onKill(i); } });

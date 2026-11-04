@@ -193,7 +193,7 @@ function makeReplayRec(d) {
       for (let pi = 0; pi < parts.length; pi++) outs.push(aborted || (aborted = await realGame()) ? null : await recordOne(parts[pi], pi).catch(e => { log(`장면 ${pi + 1} 오류 ${e && e.message}`); return null; }));
       if (aborted) log('실제 게임·큐가 시작돼 녹화 그만: ' + aborted);
       return outs;
-      async function recordOne({ from, to, focus, champ, fov, cam, camAt, camRamp, seq, direct }, pi) {   // cam = 처음 카메라에 덧붙일 render 값(예: {cameraMode:'tps'}) · camAt = [{t: 게임 초, set: render 값}] 녹화 중 그 시각에 바꿈(섞은 연출 · v0.1.87 시험)   // 장면 하나(되감기 → 카메라 → 녹화 → 파일)
+      async function recordOne({ from, to, focus, champ, fov, cam, camAt, camRamp, seq, direct, speed }, pi) {   // cam = 처음 카메라에 덧붙일 render 값(예: {cameraMode:'tps'}) · camAt = [{t: 게임 초, set: render 값}] 녹화 중 그 시각에 바꿈(섞은 연출 · v0.1.87 시험)   // 장면 하나(되감기 → 카메라 → 녹화 → 파일)
         if (pi) log(`── 장면 ${pi + 1} · ${from}~${to}초`);
         if (_cancel) return null;
         if (!muted) await mute(true);   // 열 때 소리 세션이 아직 없었으면 여기서
@@ -310,6 +310,8 @@ function makeReplayRec(d) {
           if (direct) seq = Object.assign({}, seq, await directSeq(direct, warmAt, to + 0.6));   // 🎥 연출 카메라(소개 → 교전)
           if (_cancel) return null;   // 🚫 미리 보기 도중 건너뛰기
           // seq = 키프레임 연출(롤이 매 프레임 이어 줌 · /replay/sequence 형식 {fieldOfView: [{time, value, blend}], …}) — camAt(0.1초마다 render 바꾸기)은 계단식이라 슬로모션에서 버벅여 보였음(2026-11-01)
+          // 🐢 v0.1.120: 슬로 구간 재생 속도 키프레임(speed = [[게임 초, 속도], …] · main slowKeys) — 그 구간을 느리게 재생하며 실제 시간으로 찍어 슬로도 1초 30장
+          if (Array.isArray(speed) && speed.length) { seq = Object.assign({}, seq, { playbackSpeed: speed.map(([time, value]) => ({ time, value, blend: 'linear' })) }); log(`슬로 구간 느리게 녹화 · 속도 바꿈 ${speed.length / 2}번(${speed.filter((_, i) => i % 2).map(k => k[1]).join(" → ")}배)`); }
           await live('POST', '/replay/sequence', seq || {});   // 앞 장면 연출이 남지 않게 늘 새로
           if (fov) await live('POST', '/replay/render', { fieldOfView: fov });   // v0.1.80: 시야 넓히기(먼 사거리 · 주인공이 화면 끝에 걸리던 것)
           { const c = (await live('GET', '/replay/render')).data || {}; log(`카메라 ${JSON.stringify({ sel: c.selectionName, att: c.cameraAttached, mode: c.cameraMode, fov: c.fieldOfView, off: c.selectionOffset, move: c.cameraMoveSpeed, look: c.cameraLookSpeed, pos: c.cameraPosition, rot: c.cameraRotation })}`); }
@@ -366,7 +368,7 @@ function makeReplayRec(d) {
             if (rec.outputPath || rec.path) lastPath = rec.outputPath || rec.path;
             if (++n % 3 === 1) log(`진행 리플레이 ${t == null ? '?' : t.toFixed(1)}초 · 녹화 ${rec.recording ? '중' : '멈춤'}${rec.currentTime != null ? ' ' + Number(rec.currentTime).toFixed(1) : ''}`);
             if (t != null) last = t;
-            if (t != null && Math.abs(t - moveT) > 0.3) { moveT = t; moveAt = Date.now(); }
+            if (t != null && Math.abs(t - moveT) > 0.15) { moveT = t; moveAt = Date.now(); }   // 🐢 슬로(0.3배) 구간은 1초에 0.3초만 가서 0.3이면 멈춤으로 오인
             else if (!shown && Date.now() - moveAt > 6000) { shown = true; hid.show(); log('화면 밖에선 리플레이가 멈춰서 화면 안으로 꺼냄'); await live('POST', '/replay/playback', { paused: false }); moveAt = Date.now(); }
             if (t != null && t >= to + 0.5 && !rec.recording) break;
             if (p.data && p.data.paused && t != null && t < to) await live('POST', '/replay/playback', { paused: false });   // 누가 멈췄으면 다시 재생
