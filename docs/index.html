@@ -41,47 +41,32 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 :focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
 .t1 { color:var(--t1); } .t2 { color:var(--t2); }
 
-/* ── 오프닝 = 드래프트 보드: 빈 자리 5칸씩 → 접속 → 팀장 → 동전(선픽) → 한 명씩 픽 → 보드가 막처럼 걷히며 팟지 영상 ──
-   평평한 칸·얇은 선·팀 색은 칸 왼쪽 가는 줄로만 · 움직임은 감속 곡선 하나 · 빛·흐림·흔들림·사선 띠 없음 */
-#intro { position:fixed; inset:0; z-index:100; overflow:hidden; background:var(--bg); will-change:transform; }
-#intro .board { position:absolute; inset:0; }
-.ib-top { position:absolute; left:0; right:0; top:clamp(22px, 5vh, 44px); display:flex; justify-content:center; gap:18px; align-items:baseline; font:500 12px var(--mono); color:var(--ink-3); letter-spacing:.06em; }
-.ib-top b { color:var(--ink); font-weight:700; }
-.ib-head { position:absolute; display:flex; align-items:baseline; gap:10px; font:800 clamp(18px, 2vw, 22px) var(--sans); letter-spacing:-0.03em; }
-.ib-head.a { color:var(--t1); } .ib-head.b { color:var(--t2); }
-.ib-head span { font:600 12px var(--sans); letter-spacing:0; color:var(--ink-3); transition:color .25s ease; }
-.ib-head.turn span { color:var(--ink); }
-.ib-slot { position:absolute; border:1px dashed var(--rule-2); }
-.ib-pool-label { position:absolute; font:500 12px var(--mono); color:var(--ink-3); letter-spacing:.06em; text-align:center; }
-.chip { position:absolute; left:0; top:0; display:flex; align-items:center; gap:10px; padding:0 12px 0 0; background:var(--bg-2); border:1px solid var(--rule-2); font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; will-change:transform, opacity; transition:border-color .25s ease, background-color .25s ease; }
-.chip::before { content:''; align-self:stretch; width:3px; background:transparent; transition:background-color .25s ease; }
-.chip img { flex:none; width:28px; height:28px; }
-.board.big .chip { font-size:15.5px; gap:12px; } .board.big .chip img { width:34px; height:34px; }
-.board.big .ib-head { font-size:24px; }
-.chip em { font-style:normal; margin-left:auto; font:600 11px var(--sans); color:var(--ink-3); }
-.chip.ta::before { background:var(--t1); } .chip.tb::before { background:var(--t2); }
-.chip.next { border-color:var(--ink-2); background:#151d25; }
-.coin { position:absolute; width:84px; height:84px; perspective:600px; opacity:0; pointer-events:none; }
-.coin .spin { position:absolute; inset:0; transform-style:preserve-3d; }
-.coin img { position:absolute; inset:0; width:100%; height:100%; backface-visibility:hidden; -webkit-backface-visibility:hidden; }
-.coin img.b { transform:rotateX(180deg); }
-.coin-shadow { position:absolute; width:60px; height:8px; border-radius:50%; background:rgba(0,0,0,.55); opacity:0; }
-.ib-msg { position:absolute; left:0; right:0; text-align:center; font:800 clamp(17px, 1.8vw, 20px) var(--sans); letter-spacing:-0.02em; opacity:0; }
-.crack { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; }
-.crack path { fill:none; stroke-linecap:round; stroke-linejoin:round; }
-.shard { position:absolute; inset:0; background:var(--bg); overflow:hidden; will-change:transform, opacity; backface-visibility:hidden; }
-.shard .board { position:absolute; inset:0; }
-.ib-go { position:absolute; padding:12px 28px; border:1px solid var(--gold); color:var(--gold); font:700 16px var(--sans); letter-spacing:-0.01em; white-space:nowrap; opacity:0; background:var(--bg); }
-.gate { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; text-align:center; padding:0 var(--pad); z-index:2; }
-.gate .g-k { font:500 12px var(--mono); letter-spacing:.08em; color:var(--ink-3); }
-.gate h2 { font-size:clamp(30px, 4.6vw, 56px); line-height:1.12; font-weight:850; letter-spacing:-0.05em; margin-bottom:10px; }
-.gate .g-on { padding:16px 26px; font-size:17px; }
-.gate .g-off { font-size:14px; color:var(--ink-3); padding:6px 0; }
-.gate .g-off:hover { color:var(--ink); }
-.gate .g-note { font-size:12.5px; color:var(--ink-3); }
+/* ── 오프닝 = 아수라장 증강 선택(약 3초): 카드 셋이 올라옴 → 가운데 리롤 → 「투데이 내전」 카드 선택 → 첫 화면 ──
+   평평한 카드·얇은 등급 테두리 · 움직임은 감속 곡선 하나 · 빛·흐림·흔들림·사선 띠 없음 · 소리 없음 */
+#intro { position:fixed; inset:0; z-index:100; overflow:hidden; background:var(--bg); display:flex; align-items:center; justify-content:center; }
+#intro[hidden] { display:none; }
+.aug-stage { display:flex; flex-direction:column; align-items:center; gap:clamp(20px, 3.4vh, 34px); padding:0 16px; margin-top:-4vh; }
+.aug-k { font:500 12px var(--mono); letter-spacing:.08em; color:var(--ink-3); opacity:0; }
+.aug-k b { color:var(--ink); font:700 12.5px var(--sans); letter-spacing:0; }
+.aug-row { display:flex; gap:clamp(8px, 1.6vw, 22px); perspective:1400px; }
+.aug-slot { position:relative; opacity:0; padding-bottom:44px; }
+.aug { position:relative; width:clamp(104px, 16vw, 224px); aspect-ratio:224 / 320; transform-style:preserve-3d; }
+.aug-f { --c:var(--gold); position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; background:var(--bg-2); border:1px solid var(--c); display:flex; flex-direction:column; align-items:center; text-align:center; padding:clamp(16px, 2.4vw, 30px) clamp(8px, 1.2vw, 18px) clamp(12px, 1.6vw, 20px); }
+.aug-f.pri { --c:#b6a4ee; }
+.aug-f.back { transform:rotateY(180deg); }
+.aug-f::before { content:''; position:absolute; left:0; right:0; top:0; height:3px; background:var(--c); }
+.aug-ic { width:clamp(46px, 5.4vw, 76px); aspect-ratio:1; border:1.5px solid var(--c); border-radius:50%; display:grid; place-items:center; background:#0b1015; }
+.aug-ic img { width:60%; height:60%; }
+.aug-ic img.app { width:72%; height:72%; }
+.aug-f b { margin-top:clamp(12px, 2.2vh, 22px); font-size:clamp(13.5px, 1.4vw, 19px); font-weight:800; letter-spacing:-0.03em; line-height:1.25; word-break:keep-all; }
+.aug-r { margin-top:6px; font:600 10.5px var(--mono); letter-spacing:.08em; color:var(--c); }
+.aug-f p { margin-top:auto; font-size:clamp(11.5px, 0.95vw, 13.5px); color:var(--ink-2); line-height:1.5; word-break:keep-all; }
+.aug-rr { position:absolute; left:50%; bottom:0; transform:translateX(-50%); font:600 12.5px var(--sans); color:var(--ink-3); border:1px solid var(--rule-2); padding:6px 14px; white-space:nowrap; background:var(--bg); transition:color .25s ease, border-color .25s ease; }
+.aug-rr.on { color:var(--gold); border-color:var(--gold); }
 .in-skip { position:absolute; right:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font-size:13px; color:var(--ink-3); padding:8px 0; }
 .in-skip:hover { color:var(--ink); }
 .in-cap { position:absolute; left:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font:500 12px var(--mono); color:var(--ink-3); }
+@media (max-width:600px) { .aug-f p { display:none; } .aug-r { margin-top:auto; } .aug-rr { font-size:11.5px; padding:5px 9px; } }
 
 /* 머리 */
 .top { position:sticky; top:0; z-index:20; background:rgba(10,14,18,0.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--rule); }
@@ -117,8 +102,6 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 .dl-meta { font-size:13px; color:var(--ink-3); }
 .dl-meta .mono { color:var(--ink-2); }
 .hero-tag { position:absolute; top:18px; right:var(--pad); display:flex; gap:14px; align-items:center; font-size:12.5px; color:rgba(236,230,218,.75); }
-.hero-tag button { font-size:12.5px; padding:6px 10px; border:1px solid rgba(236,230,218,.35); background:rgba(10,14,18,.45); }
-.hero-tag button:hover { border-color:var(--ink); }
 
 /* 스크롤하면 살짝 떠오름(한 번) */
 .js [data-rv] { opacity:0; transform:translateY(22px); transition:opacity .7s ease, transform .8s var(--ease); }
@@ -141,7 +124,89 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 /* 기능 — 실제 화면 + 설명 */
 .feat { display:grid; grid-template-columns:minmax(0, 300px) minmax(0, 1fr); gap:28px clamp(32px, 6vw, 96px); align-items:center; padding:clamp(40px, 6vw, 72px) 0; border-top:1px solid var(--rule); }
 .feat:first-of-type { border-top:0; }
-.feat .shot img, .feat .shot video { width:100%; border:1px solid var(--rule-2); background:var(--bg-2); }
+/* 기능 화면 = 직접 그린 앱 화면(보이면 한 번 움직임 · ↻ 다시) — 앱 패널처럼 짙은 바탕·가는 선 */
+.mock { position:relative; width:100%; height:456px; background:#0d1319; border:1px solid var(--rule-2); overflow:hidden; font-size:13px; line-height:1.4; user-select:none; }
+.mk-top { display:flex; align-items:center; gap:10px; height:36px; padding:0 8px 0 12px; border-bottom:1px solid var(--rule); font:500 11px var(--mono); color:var(--ink-3); letter-spacing:.04em; }
+.mk-top em { font:500 12px var(--sans); margin-left:auto; color:var(--ink-2); letter-spacing:0; }
+.mk-top em b { color:var(--ink); }
+.mk-re { width:26px; height:26px; color:var(--ink-3); font-size:14px; }
+.mk-re:hover { color:var(--ink); }
+.mk-body { position:absolute; left:0; right:0; top:36px; bottom:0; }
+.mk-body > * { will-change:transform, opacity; }
+.mk-ic { flex:none; width:22px; height:22px; background:#1a232c; }
+.mk-h { font-weight:800; font-size:14px; letter-spacing:-0.02em; }
+.mk-cap { font:500 11px var(--sans); color:var(--ink-3); letter-spacing:.02em; }
+/* 방 목록 */
+.mk-list { position:absolute; inset:12px; }
+.mk-room { display:flex; align-items:center; gap:10px; padding:12px; border:1px solid var(--rule-2); background:var(--bg-2); margin-bottom:8px; transition:border-color .25s ease; }
+.mk-room > div { min-width:0; flex:1; }
+.mk-room b { display:block; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mk-room span { display:block; font-size:11.5px; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mk-room em { font-style:normal; font:500 12px var(--mono); color:var(--ink-2); }
+.mk-room em i { font-style:normal; color:var(--ink); }
+.mk-room .go { flex:none; padding:6px 10px; font-size:12px; font-weight:700; border:1px solid var(--rule-2); color:var(--ink-2); transition:background-color .2s ease, color .2s ease, border-color .2s ease; }
+.mk-room.on { border-color:var(--gold); }
+.mk-room.on .go { background:var(--gold); border-color:var(--gold); color:#14110a; }
+.mk-new { margin-top:4px; padding:11px; border:1px dashed var(--rule-2); text-align:center; color:var(--ink-3); font-size:12.5px; }
+.mk-cur { position:absolute; left:0; top:0; width:16px; height:20px; opacity:0; pointer-events:none; z-index:3; }
+.mk-cur svg { display:block; width:100%; height:100%; }
+.mk-lobby { position:absolute; inset:12px; opacity:0; }
+.mk-lobby .mk-lh { display:flex; align-items:baseline; justify-content:space-between; padding-bottom:10px; border-bottom:1px solid var(--rule); margin-bottom:10px; }
+.mk-seats { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.mk-seat { display:flex; align-items:center; gap:8px; height:36px; padding:0 8px; border:1px solid var(--rule-2); background:var(--bg-2); font-size:12.5px; font-weight:700; white-space:nowrap; overflow:hidden; }
+.mk-seat.empty { background:none; border-style:dashed; color:var(--ink-3); font-weight:500; }
+.mk-seat.me { border-color:var(--gold); }
+.mk-seat.me em { margin-left:auto; font-style:normal; font-size:10.5px; color:var(--gold); }
+/* 드래프트 */
+.mk-head { position:absolute; display:flex; align-items:baseline; gap:8px; font-weight:800; font-size:14px; }
+.mk-head.a { color:var(--t1); } .mk-head.b { color:var(--t2); }
+.mk-head span { font:600 11px var(--sans); color:var(--ink-3); }
+.mk-head.turn span { color:var(--ink); }
+.mk-slot { position:absolute; border:1px dashed var(--rule-2); }
+.mk-chip { position:absolute; left:0; top:0; display:flex; align-items:center; gap:7px; padding-right:8px; background:var(--bg-2); border:1px solid var(--rule-2); font-size:12px; font-weight:700; white-space:nowrap; overflow:hidden; transition:border-color .25s ease, background-color .25s ease; }
+.mk-chip::before { content:''; align-self:stretch; width:3px; background:transparent; transition:background-color .25s ease; }
+.mk-chip img { flex:none; width:20px; height:20px; }
+.mk-chip em { margin-left:auto; font-style:normal; font-size:10px; font-weight:600; color:var(--ink-3); }
+.mk-chip.ta::before { background:var(--t1); } .mk-chip.tb::before { background:var(--t2); }
+.mk-chip.next { border-color:var(--ink-2); background:#151d25; }
+.mk-coin { position:absolute; width:38px; height:38px; perspective:400px; opacity:0; }
+.mk-coin .spin { position:absolute; inset:0; transform-style:preserve-3d; }
+.mk-coin img { position:absolute; inset:0; width:100%; height:100%; backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+.mk-coin img.b { transform:rotateX(180deg); }
+.mk-msg { position:absolute; left:0; right:0; text-align:center; font-weight:800; font-size:13.5px; opacity:0; }
+.mk-pl { position:absolute; left:0; right:0; text-align:center; }
+/* 투표 */
+.mk-vote { position:absolute; inset:12px; }
+.mk-win { display:flex; align-items:baseline; justify-content:space-between; padding:10px 12px; border:1px solid var(--rule-2); border-left:3px solid var(--t1); background:var(--bg-2); }
+.mk-win b { font-size:16px; font-weight:850; color:var(--t1); letter-spacing:-0.02em; }
+.mk-sub { margin:14px 0 8px; }
+.mk-cand { position:relative; display:grid; grid-template-columns:22px minmax(0, 1fr) 22px; align-items:center; gap:8px; padding:7px 8px 9px; border:1px solid transparent; transition:border-color .25s ease; }
+.mk-cand b { font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mk-cand b small { font-weight:500; color:var(--ink-3); font-size:11px; margin-left:6px; }
+.mk-cand .n { font:700 12px var(--mono); text-align:right; color:var(--ink-2); }
+.mk-cand .bar { position:absolute; left:38px; right:38px; bottom:3px; height:2px; background:var(--rule); }
+.mk-cand .bar i { display:block; height:100%; width:0; background:var(--ink-2); transition:width .35s var(--ease), background-color .25s ease; }
+.mk-cand.top { border-color:var(--gold); }
+.mk-cand.top .bar i { background:var(--gold); }
+.mk-cand .tag { position:absolute; right:36px; top:7px; font:700 10.5px var(--mono); color:#14110a; background:var(--gold); padding:1px 6px; opacity:0; }
+.mk-res { margin-top:14px; border-top:1px solid var(--rule); }
+.mk-res div { display:flex; justify-content:space-between; padding:9px 2px; border-bottom:1px solid var(--rule); font-size:12.5px; opacity:0; }
+.mk-res span { color:var(--ink-3); }
+/* 오늘 순위 */
+.mk-toast { position:absolute; left:12px; right:12px; top:12px; padding:10px 12px; border:1px solid var(--rule-2); border-left:3px solid var(--t2); background:#121a22; font-size:12.5px; opacity:0; z-index:2; }
+.mk-toast b { color:var(--t2); }
+.mk-th, .mk-tr { position:absolute; left:12px; right:12px; display:grid; grid-template-columns:22px minmax(0, 1fr) 58px 40px 26px; align-items:center; gap:6px; }
+.mk-th { top:66px; padding:0 6px 8px; border-bottom:1px solid var(--rule); }
+.mk-th span:nth-child(n+3) { text-align:right; }
+.mk-tr { top:0; height:44px; padding:0 6px; border-bottom:1px solid var(--rule); background:#0d1319; }
+.mk-tr .rk { font:700 13px var(--mono); color:var(--ink-3); }
+.mk-tr.r1 .rk { color:var(--gold); }
+.mk-tr .nm { display:flex; align-items:center; gap:8px; min-width:0; font-weight:700; font-size:12.5px; white-space:nowrap; overflow:hidden; }
+.mk-tr .rec, .mk-tr .wr { font:500 12px var(--sans); text-align:right; color:var(--ink-2); }
+.mk-tr .wr { color:var(--ink); font-family:var(--mono); }
+.mk-tr .dl { font:700 10.5px var(--mono); text-align:right; opacity:0; }
+.mk-tr .dl.up { color:#5fc79a; } .mk-tr .dl.dn { color:var(--t2); }
+.mk-tr .hl { color:var(--gold); transition:color .6s ease; }
 .feat h3 { font-size:clamp(24px, 2.6vw, 34px); line-height:1.2; font-weight:800; letter-spacing:-0.04em; }
 .feat > div > p { margin-top:14px; color:var(--ink-2); font-size:16px; max-width:34em; }
 .feat ul { list-style:none; margin-top:20px; border-top:1px solid var(--rule); max-width:38em; }
@@ -204,7 +269,6 @@ footer p + p { margin-top:6px; }
   .hero .shade { display:none; }
   .hero .copy { position:relative; bottom:auto; padding:28px 0 8px; }
   .hero-tag { position:static; justify-content:space-between; padding:10px var(--pad) 0; color:var(--ink-3); }
-  .hero-tag button { background:none; border-color:var(--rule-2); color:var(--ink-2); }
 }
 @media (max-width:560px) {
   .flow { grid-template-columns:minmax(0, 1fr); }
@@ -212,8 +276,6 @@ footer p + p { margin-top:6px; }
   .more > div { grid-template-columns:minmax(0, 1fr); }
   .dl-box, .dl-box .btn-dl { width:100%; }
   .dl-box .btn-dl { justify-content:center; }
-  .chip { height:36px; font-size:13px; gap:7px; }
-  .chip img { width:26px; height:26px; }
 }
 @media (prefers-reduced-motion:reduce) {
   .js .ln > span, .js [data-rv], .js .hero-row { transform:none !important; opacity:1 !important; transition:none !important; }
@@ -223,22 +285,13 @@ footer p + p { margin-top:6px; }
 <body>
 
 <div id="intro" hidden>
-  <div class="board">
-    <div class="ib-top"><span>CUSTOM DRAFT</span><span class="ib-step"><b>접속 중</b></span></div>
-    <div class="ib-head a">1팀 <span></span></div><div class="ib-head b">2팀 <span></span></div>
-    <div class="ib-pool-label">대기 중</div>
-    <div class="coin-shadow"></div>
-    <div class="coin"><div class="spin"><img class="a" src="img/coin-t1.webp" alt=""><img class="b" src="img/coin-t2.webp" alt=""></div></div>
-    <div class="ib-msg"></div>
-    <div class="ib-go">게임 시작</div>
-    <svg class="crack" aria-hidden="true"></svg>
-  </div>
-  <div class="gate" hidden>
-    <p class="g-k">TODAY NAEJEON · CUSTOM DRAFT</p>
-    <h2>오늘 모인 사람끼리,<br>드래프트부터.</h2>
-    <button class="btn btn-dl g-on" type="button">▶ 소리 켜고 입장</button>
-    <button class="g-off" type="button">소리 없이 보기</button>
-    <p class="g-note">약 10초 · 언제든 건너뛸 수 있어요</p>
+  <div class="aug-stage">
+    <p class="aug-k">ARAM: MAYHEM · <b>증강 선택</b></p>
+    <div class="aug-row">
+      <div class="aug-slot"><div class="aug"><div class="aug-f"><span class="aug-ic"><img src="img/aug/protagonistssignatureweapon.png" alt=""></span><b>운명의 무기</b><span class="aug-r">GOLD</span><p>첫 전설급 아이템이 처치 관여마다 강해져요.</p></div></div><span class="aug-rr">↻ 리롤</span></div>
+      <div class="aug-slot"><div class="aug"><div class="aug-f pri"><span class="aug-ic"><img src="img/aug/drawyoursword.png" alt=""></span><b>검을 뽑아라</b><span class="aug-r">PRISMATIC</span><p>근접 챔피언이 되어 여러 능력치를 얻어요.</p></div><div class="aug-f pri back"><span class="aug-ic"><img class="app" src="img/icon.png" alt=""></span><b>투데이 내전</b><span class="aug-r">PRISMATIC</span><p>오늘 모인 사람끼리 팀을 나누고, 기록·투표·최고의 장면까지.</p></div></div><span class="aug-rr">↻ 리롤</span></div>
+      <div class="aug-slot"><div class="aug"><div class="aug-f"><span class="aug-ic"><img src="img/aug/bees.png" alt=""></span><b>벌이다!!!</b><span class="aug-r">GOLD</span><p>스킬이 적중하면 가끔 벌집이 날아가요.</p></div></div><span class="aug-rr">↻ 리롤</span></div>
+    </div>
   </div>
   <span class="in-cap">TODAY NAEJEON</span>
   <button class="in-skip" type="button">건너뛰기 →</button>
@@ -256,7 +309,7 @@ footer p + p { margin-top:6px; }
   <section class="hero" aria-label="첫 화면 — 실제 내전에서 앱이 만든 최고의 장면">
     <video id="reel" src="img/potg.mp4" poster="img/potg-poster.jpg" muted loop playsinline preload="auto"></video>
     <div class="shade"></div>
-    <div class="hero-tag"><span>실제 내전 장면 · 자야 트리플킬</span><button type="button" id="snd" aria-pressed="false">소리 켜기</button></div>
+    <div class="hero-tag"><span>실제 내전 장면 · 자야 트리플킬</span></div>
     <div class="copy">
       <div class="wrap">
         <h1><span class="ln"><span>오늘 모인 사람끼리,</span></span><span class="ln"><span>롤 <span class="g">내전</span> 한 판.</span></span></h1>
@@ -289,7 +342,7 @@ footer p + p { margin-top:6px; }
       <p class="sec-lead" data-rv>롤 클라이언트 양옆에 작은 창으로 붙어서, 게임을 방해하지 않고 진행을 도와줘요. <kbd>Shift</kbd>+<kbd>F7</kbd>로 숨겨요.</p>
 
       <div class="feat" data-rv>
-        <div class="shot"><img src="img/rooms.png" alt="방 목록: 금요일 칼바람 내전 8명, 동아리 5대5 비공개 6명, 퇴근하고 한 판 3명" width="400" height="720" loading="lazy"></div>
+        <div class="shot"><div class="mock" data-mock="rooms" role="img" aria-label="방 목록에서 방에 들어가 대기실 자리에 앉는 화면"><div class="mk-top"><span>TODAY NAEJEON</span><em><b>방 목록</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div></div>
         <div>
           <h3>방을 만들고 친구끼리 모여요</h3>
           <p>여러 모임이 동시에 써도 섞이지 않아요. 방마다 팀, 기록, 순위가 따로예요.</p>
@@ -302,7 +355,7 @@ footer p + p { margin-top:6px; }
       </div>
 
       <div class="feat" data-rv>
-        <div class="shot"><video src="img/coin.mp4" poster="img/coin-poster.jpg" muted autoplay loop playsinline aria-label="선픽 동전 던지기: 1팀 선픽"></video></div>
+        <div class="shot"><div class="mock" data-mock="draft" role="img" aria-label="드래프트: 팀장 두 명, 선픽 동전, 차례대로 팀원 뽑기"><div class="mk-top"><span>TODAY NAEJEON</span><em><b>드래프트</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div></div>
         <div>
           <h3>드래프트로 팀장이 직접 뽑아요</h3>
           <p>팀장 두 명을 정하면 동전 던지기로 선픽을 정하고, 차례대로 팀원을 골라요. 남은 시간이 화면에 보여서 진행이 늘어지지 않아요.</p>
@@ -316,7 +369,7 @@ footer p + p { margin-top:6px; }
       </div>
 
       <div class="feat" data-rv>
-        <div class="shot"><img src="img/vote.png" alt="투표 화면: 1팀 승리, MVP와 매너왕 선택" width="400" height="720" loading="lazy"></div>
+        <div class="shot"><div class="mock" data-mock="vote" role="img" aria-label="1팀 승리 뒤 MVP 투표가 쌓여 결정되는 화면"><div class="mk-top"><span>TODAY NAEJEON</span><em><b>투표</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div></div>
         <div>
           <h3>결과는 자동, 투표는 다 같이</h3>
           <p>게임이 끝나면 롤의 경기 결과를 읽어 승패와 킬·데스·어시스트, 딜량, 증강을 저장해요. 정산 화면을 바로 넘겨도 전적에서 다시 찾아와요.</p>
@@ -329,7 +382,7 @@ footer p + p { margin-top:6px; }
       </div>
 
       <div class="feat" data-rv>
-        <div class="shot"><img src="img/today.png" alt="오늘 순위: 4판 기준 전적, 승률, MVP·매너 횟수, KDA" width="400" height="760" loading="lazy"></div>
+        <div class="shot"><div class="mock" data-mock="today" role="img" aria-label="새 판 결과가 들어와 오늘 순위가 바뀌는 화면"><div class="mk-top"><span>TODAY NAEJEON</span><em><b>오늘</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div></div>
         <div>
           <h3>오늘의 순위가 바로 나와요</h3>
           <p>그날 한 판들을 모아 전적, 승률, MVP·매너왕 횟수, KDA로 순위를 매겨요. 판마다 누가 어느 팀이었는지도 다시 볼 수 있어요.</p>
@@ -425,240 +478,198 @@ const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)
 const reel = document.getElementById('reel');
 const playReel = () => { if (reel && !reduce) reel.play().catch(() => {}); };
 playReel();   // 오프닝 뒤에서 미리 재생(막이 걷히면 이미 움직이는 장면)
-document.getElementById('snd').addEventListener('click', e => { reel.muted = !reel.muted; if (!reel.muted) reel.play().catch(() => {}); e.currentTarget.textContent = reel.muted ? '소리 켜기' : '소리 끄기'; e.currentTarget.setAttribute('aria-pressed', String(!reel.muted)); });
 function ready() { document.body.classList.add('ready'); playReel(); }
+const EASE = 'cubic-bezier(.22,.8,.24,1)';
+const anim = (el, kf, o) => el.animate(kf, Object.assign({ easing: EASE, fill: 'both' }, o));
 
 // 스크롤하면 한 번 떠오름
 const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('seen'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' }) : null;
 document.querySelectorAll('[data-rv]').forEach(el => io ? io.observe(el) : el.classList.add('seen'));
 
-// 🔊 소리 = 앱에 들어 있는 실제 소리(sfx/ · 원본 assets/sfx·bgm) — 브라우저는 클릭해야 소리를 내서 「소리 켜고 입장」을 누른 사람만
-const SFX = {}; let AC = null, SND = false, bgm = null;
-function sfxLoad() {
-  if (AC) return;
-  try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { return; }
-  for (const k of ['pick-t1', 'pick-t2', 'potg-hit', 'potg-slam', 'coin-samira', 'bgm'])
-    fetch('sfx/' + k + '.mp3').then(r => r.arrayBuffer()).then(b => AC.decodeAudioData(b)).then(buf => { SFX[k] = buf; }).catch(() => {});
-}
-function sfx(k, o) {   // o = {at 초 뒤, off 시작 위치, dur 길이, vol, rate}
-  o = o || {};
-  if (!SND || !AC || !SFX[k]) return null;
-  const src = AC.createBufferSource(), g = AC.createGain();
-  src.buffer = SFX[k]; src.playbackRate.value = o.rate || 1; g.gain.value = o.vol == null ? 0.5 : o.vol;
-  src.connect(g).connect(AC.destination);
-  src.start(AC.currentTime + (o.at || 0), o.off || 0, o.dur);
-  return { src, g };
-}
-const BGM_DROP = 12.9;   // sfx/bgm.mp3에서 곡이 크게 터지는 곳(원곡 38.9초 − 잘라낸 26초)
-function bgmStart(dropInSec) {   // 깨지는 순간에 곡이 터지게 시작 위치를 맞춤
-  if (!SND || !AC || !SFX.bgm) return;
-  const off = BGM_DROP - dropInSec, src = AC.createBufferSource(), g = AC.createGain();
-  src.buffer = SFX.bgm; src.connect(g).connect(AC.destination);
-  g.gain.setValueAtTime(0, AC.currentTime); g.gain.linearRampToValueAtTime(0.3, AC.currentTime + 1.2);
-  if (off >= 0) src.start(AC.currentTime, off); else src.start(AC.currentTime - off, 0);
-  bgm = { src, g };
-}
-function bgmFade(sec) { if (!bgm) return; const b = bgm; bgm = null; b.g.gain.cancelScheduledValues(AC.currentTime); b.g.gain.setValueAtTime(b.g.gain.value, AC.currentTime); b.g.gain.linearRampToValueAtTime(0, AC.currentTime + sec); setTimeout(() => { try { b.src.stop(); } catch (_) {} }, sec * 1000 + 100); }
-function reelSound() {   // 화면이 열리면 팟지 영상의 실제 소리로(재생 중인 장면 그대로 — 처음으로 돌리면 영상의 소개 글자가 제목과 겹침)
-  if (!SND || !reel) return;
-  reel.muted = false; reel.volume = 0; reel.play().catch(() => {});
-  const b = document.getElementById('snd'); b.textContent = '소리 끄기'; b.setAttribute('aria-pressed', 'true');
-  let v = 0; const iv = setInterval(() => { v = Math.min(0.65, v + 0.05); reel.volume = v; if (v >= 0.65) clearInterval(iv); }, 110);
-}
-let gating = false;
-function playIntro() {   // 시작 화면 → 고르면 드래프트
-  intro.getAnimations().forEach(a => a.cancel()); board.getAnimations().forEach(a => a.cancel());
-  board.querySelectorAll('.chip, .ib-slot').forEach(x => x.remove()); $i('.crack').innerHTML = '';
-  ['.ib-head.a', '.ib-head.b', '.ib-pool-label', '.coin', '.coin-shadow', '.ib-msg', '.ib-go'].forEach(q => { const el = $i(q); el.getAnimations().forEach(a => a.cancel()); el.style.opacity = '0'; });
-  step('');
-  intro.hidden = false; document.body.classList.add('intro-on');
-  const g = $i('.gate'); g.hidden = false; g.style.opacity = ''; gating = true;
-  sfxLoad();
-  g.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 500, easing: 'cubic-bezier(.22,.8,.24,1)', fill: 'both' });
-}
-function begin(sound) {
-  if (!gating) return;
-  gating = false; SND = !!sound;
-  if (SND && AC) AC.resume().catch(() => {});
-  const g = $i('.gate');
-  g.animate([{ opacity: 1 }, { opacity: 0, transform: 'translateY(-8px)' }], { duration: 300, easing: 'ease-in', fill: 'both' });
-  setTimeout(() => { g.hidden = true; }, 300);
-  setTimeout(() => runIntro(), 250);
-}
-
-// ── 오프닝 = 드래프트 보드(약 8초): 접속 → 팀장 → 선픽 동전 → 한 명씩 픽(스네이크) → 막이 걷힘 ──
-const P = [['미드장인', 103], ['정글러버', 64], ['서폿요정', 412], ['원딜왕', 222], ['칼바람고수', 157], ['포로사랑', 99], ['눈덩이장인', 86], ['탑솔러', 51], ['한타장인', 498], ['와드요정', 360]];
-const ICON = id => `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${id}.png`;
-const EASE = 'cubic-bezier(.22,.8,.24,1)';
-const intro = document.getElementById('intro'), board = intro.querySelector('.board');
-const $i = s => intro.querySelector(s);
+// ── 오프닝 = 아수라장 증강 선택(약 3초): 카드 셋이 올라옴 → 가운데 리롤 → 「투데이 내전」 선택 → 화면이 걷히며 팟지 영상 ──
+const intro = document.getElementById('intro'), $i = s => intro.querySelector(s);
 let timers = [], running = false;
 const later = (ms, f) => timers.push(setTimeout(f, ms));
-const fade = (el, on, dur, delay) => el.animate([{ opacity: on ? 0 : 1, transform: on ? 'translateY(6px)' : 'none' }, { opacity: on ? 1 : 0, transform: 'none' }], { duration: dur || 300, delay: delay || 0, easing: EASE, fill: 'both' });
-function moveTo(el, x, y, dur, delay) {
-  const from = `translate(${el._x}px, ${el._y}px)`, to = `translate(${x}px, ${y}px)`;
-  el.getAnimations().forEach(a => { if (a.id !== 'in') a.cancel(); });
-  el.animate([{ transform: from }, { transform: to }], { duration: dur, delay: delay || 0, easing: EASE, fill: 'both' });
-  el._x = x; el._y = y;
-}
-function step(t) { $i('.ib-step').innerHTML = t; }
-function lift(dur) {   // 보드가 막처럼 위로 걷힘 → 뒤의 팟지 영상
-  running = false; gating = false; bgmFade(0.8); timers.forEach(clearTimeout); timers = [];
-  intro.animate([{ transform: 'none' }, { transform: 'translateY(-100%)' }], { duration: dur, easing: 'cubic-bezier(.7,0,.25,1)', fill: 'both' });
-  board.animate([{ transform: 'none', opacity: 1 }, { transform: 'translateY(8%)', opacity: 0.4 }], { duration: dur, easing: 'cubic-bezier(.7,0,.25,1)', fill: 'both' });
-  setTimeout(ready, dur * 0.35);
+function closeIntro(dur) {
+  if (!running) return;
+  running = false; timers.forEach(clearTimeout); timers = [];
+  anim(intro, [{ opacity: 1 }, { opacity: 0 }], { duration: dur, easing: 'ease' });
+  setTimeout(ready, dur * 0.3);
   setTimeout(() => { intro.hidden = true; intro.getAnimations().forEach(a => a.cancel()); document.body.classList.remove('intro-on'); }, dur + 40);
   try { sessionStorage.setItem('tn-intro', '1'); } catch (_) {}
 }
-// 가는 금(바퀴살이 조금씩 꺾이며 뻗고, 둥근 금은 드문드문) — 반환 = 바퀴살 각도(조각 나누기용)
-function drawCrack(cx, cy) {
-  const svg = $i('.crack'), W = innerWidth, H = innerHeight, R = Math.hypot(W, H);
-  const n = 11 + Math.floor(Math.random() * 3), angs = [];
-  let d = '', ring = '';
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.3; angs.push(a);
-    let r = 34, aa = a, x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r; d += `M${x.toFixed(1)} ${y.toFixed(1)}`;
-    while (r < R) { r += 60 + Math.random() * 110; aa += (Math.random() - 0.5) * 0.22; x = cx + Math.cos(aa) * r; y = cy + Math.sin(aa) * r; d += ` L${x.toFixed(1)} ${y.toFixed(1)}`; }
-  }
-  angs.sort((p, q) => p - q);
-  for (let i = 0; i < angs.length; i++) {
-    if (Math.random() < 0.45) continue;
-    const a1 = angs[i], a2 = i + 1 < angs.length ? angs[i + 1] : angs[0] + Math.PI * 2, j = 120 + Math.random() * 140;
-    ring += `M${(cx + Math.cos(a1) * j).toFixed(1)} ${(cy + Math.sin(a1) * j).toFixed(1)} L${(cx + Math.cos(a2) * j * 1.02).toFixed(1)} ${(cy + Math.sin(a2) * j * 1.02).toFixed(1)}`;
-  }
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svg.innerHTML = `<path d="${d}" stroke="rgba(0,0,0,.45)" stroke-width="2.2" pathLength="1"/><path d="${d}" stroke="rgba(236,230,218,.62)" stroke-width="0.9" pathLength="1"/><path d="${ring}" stroke="rgba(236,230,218,.38)" stroke-width="0.8" pathLength="1"/>`;
-  svg.querySelectorAll('path').forEach((p, i) => { p.style.strokeDasharray = '1'; p.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: i === 2 ? 220 : 260, delay: i === 2 ? 120 : 0, easing: 'cubic-bezier(.15,.7,.3,1)', fill: 'both' }); });
-  return angs;
-}
-// 보드를 바퀴살 사이 조각으로 — 조각마다 지금 보드를 그대로 담아(이름표·자리·동전·금) 입체적으로 떨어짐 → 뒤의 영상
-function shatter(cx, cy, angs) {
-  const W = innerWidth, H = innerHeight, R = Math.hypot(W, H) * 1.2;
-  board.querySelectorAll('*').forEach(el => el.getAnimations().forEach(a => { try { a.commitStyles(); } catch (_) {} a.cancel(); }));   // 움직임을 지금 모습 그대로 굳힘(복사하면 애니메이션은 안 따라감)
-  const shards = [];
-  angs.forEach((a1, i) => {
-    const a2 = i + 1 < angs.length ? angs[i + 1] : angs[0] + Math.PI * 2, mid = (a1 + a2) / 2;
-    const sh = document.createElement('div'); sh.className = 'shard';
-    sh.style.clipPath = `polygon(${cx}px ${cy}px, ${cx + Math.cos(a1) * R}px ${cy + Math.sin(a1) * R}px, ${cx + Math.cos(mid) * R}px ${cy + Math.sin(mid) * R}px, ${cx + Math.cos(a2) * R}px ${cy + Math.sin(a2) * R}px)`;
-    sh.style.transformOrigin = `${cx + Math.cos(mid) * 220}px ${cy + Math.sin(mid) * 220}px`;
-    sh.appendChild(board.cloneNode(true));
-    intro.appendChild(sh); shards.push([sh, mid]);
-  });
-  intro.style.background = 'transparent'; board.style.visibility = 'hidden';
-  shards.forEach(([sh, mid], i) => {
-    const out = 30 + Math.random() * 70, fall = 220 + Math.random() * 260, rz = (Math.random() - 0.5) * 22, rx = 14 + Math.random() * 26, d = Math.random() * 180;
-    sh.animate([
-      { transform: 'perspective(1400px) none', opacity: 1 },
-      { transform: `perspective(1400px) translate(${Math.cos(mid) * out * 0.35}px, ${Math.sin(mid) * out * 0.35}px)`, opacity: 1, offset: 0.18 },
-      { transform: `perspective(1400px) translate(${Math.cos(mid) * out}px, ${Math.sin(mid) * out + fall}px) rotateX(${rx}deg) rotateZ(${rz}deg)`, opacity: 0 },
-    ], { duration: 1050 + Math.random() * 300, delay: d, easing: 'cubic-bezier(.45,0,.7,.55)', fill: 'both' });
-  });
-  setTimeout(ready, 120); bgmFade(2.6); setTimeout(reelSound, 900);
-  setTimeout(() => { shards.forEach(([sh]) => sh.remove()); intro.hidden = true; intro.style.background = ''; board.style.visibility = ''; document.body.classList.remove('intro-on'); }, 1700);
-  try { sessionStorage.setItem('tn-intro', '1'); } catch (_) {}
-}
-function crackAndShatter(cx, cy) {   // 「게임 시작」이 눌림 → 금 → 0.4초 뒤 조각
-  if (!running) return;
-  running = false; timers.forEach(clearTimeout); timers = [];
-  sfx('potg-slam', { vol: 0.5 }); sfx('coin-samira', { off: 3.3, dur: 1.5, vol: 0.55 });   // 쾅 + 유리
-  const coin = $i('.ib-go');
-  coin.animate([{ transform: 'scale(1)' }, { transform: 'scale(.94)', offset: 0.4 }, { transform: 'scale(1)' }], { duration: 260, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'both' });
-  const angs = drawCrack(cx, cy);
-  setTimeout(() => shatter(cx, cy, angs), 420);
-}
-function runIntro() {
+function playIntro() {
   if (running) return;
   running = true;
-  intro.getAnimations().forEach(a => a.cancel()); board.getAnimations().forEach(a => a.cancel());
-  board.querySelectorAll('.chip, .ib-slot').forEach(x => x.remove()); $i('.crack').innerHTML = '';
-  board.querySelectorAll('[style]').forEach(el => { if (!el.classList.contains('chip')) el.style.opacity = ''; });
+  [intro, ...intro.querySelectorAll('*')].forEach(el => el.getAnimations().forEach(a => a.cancel()));
   intro.hidden = false; document.body.classList.add('intro-on');
-  const W = innerWidth, H = innerHeight, narrow = W < 1000, pad = Math.max(20, Math.min(64, W * 0.05));
-  const ch = narrow ? (H < 720 ? 32 : W < 560 ? 36 : 40) : (H < 760 ? 40 : 46), gap = narrow ? 8 : 10, cw = narrow ? Math.min(180, (W - 2 * pad - 12) / 2) : 214, block = 5 * ch + 4 * gap;
-  board.classList.toggle('big', !narrow);
-  // 자리 계산 — 넓으면 [1팀 | 대기 | 2팀] 가로 셋 · 좁으면 위에 두 팀, 아래에 동전과 대기
-  const blockTop = narrow ? Math.max(92, H * 0.13 + 30) : H / 2 - block / 2 + 70;   // 넓으면 동전+보드 묶음이 화면 가운데
-  const colA = narrow ? pad : W * 0.2 - cw / 2, colB = narrow ? W - pad - cw : W * 0.8 - cw / 2;
-  const coinY = narrow ? blockTop + block + 64 : blockTop - 112, msgY = coinY + (narrow ? 48 : 52);
-  const poolTop = narrow ? msgY + 62 : blockTop, poolX = [W / 2 - cw - 6, W / 2 + 6];
-  const slotY = r => blockTop + r * (ch + gap), poolPos = i => [poolX[i % 2], poolTop + Math.floor(i / 2) * (ch + gap)];
-  const head = { a: $i('.ib-head.a'), b: $i('.ib-head.b') };
-  head.a.style.cssText = `left:${colA}px; top:${blockTop - 34}px`; head.b.style.cssText = `left:${colB}px; top:${blockTop - 34}px`;
-  for (const k of ['a', 'b']) { head[k].classList.remove('turn'); head[k].querySelector('span').textContent = ''; }
-  const label = $i('.ib-pool-label'); label.style.cssText = `left:${W / 2 - cw}px; width:${2 * cw + 12}px; top:${poolTop - 24}px`;
-  for (const [x] of [[colA], [colB]]) for (let r = 0; r < 5; r++) {   // 빈 자리 5칸씩
-    const s = document.createElement('div'); s.className = 'ib-slot'; s.style.cssText = `left:${x}px; top:${slotY(r)}px; width:${cw}px; height:${ch}px`; board.appendChild(s);
-  }
-  const coin = $i('.coin'), spin = coin.querySelector('.spin'), shadow = $i('.coin-shadow'), msg = $i('.ib-msg');
-  [coin, spin, shadow, msg].forEach(x => x.getAnimations().forEach(a => a.cancel()));
-  const go = $i('.ib-go'); go.getAnimations().forEach(a => a.cancel()); go.style.cssText = `left:${W / 2}px; top:${coinY}px; transform:translate(-50%, -50%)`;
-  coin.style.cssText = `left:${W / 2 - 42}px; top:${coinY - 42}px`; shadow.style.cssText = `left:${W / 2 - 30}px; top:${coinY + 40}px`; msg.style.top = msgY + 'px'; msg.textContent = '';
-  [head.a, head.b, label, ...board.querySelectorAll('.ib-slot')].forEach(el => fade(el, true, 400));
-  step('<b>접속 중</b>');
-  // ① 접속 — 대기 칸에 한 명씩
-  const pool = P.slice().sort(() => Math.random() - 0.5).map(([name, champ], i) => {
-    const el = document.createElement('div'); el.className = 'chip'; el.style.cssText = `width:${cw}px; height:${ch}px`;
-    el.innerHTML = `<img src="${ICON(champ)}" alt="" onerror="this.style.visibility='hidden'"><span>${name}</span><em></em>`;
-    el._name = name; [el._x, el._y] = poolPos(i);
-    el.style.transform = `translate(${el._x}px, ${el._y}px)`;
-    board.appendChild(el);
-    const a = el.animate([{ opacity: 0, transform: `translate(${el._x}px, ${el._y + 8}px)` }, { opacity: 1, transform: `translate(${el._x}px, ${el._y}px)` }], { duration: 320, delay: 250 + i * 95, easing: EASE, fill: 'both' }); a.id = 'in';
-    later(250 + i * 95, () => step(`<b>접속</b> ${i + 1} / 10`));
-    return el;
-  });
-  const reflow = () => pool.forEach((el, i) => { const [x, y] = poolPos(i); if (x !== el._x || y !== el._y) moveTo(el, x, y, 420); });
-  const rows = { a: 0, b: 0 };
-  const seat = (el, team, cap) => {
-    pool.splice(pool.indexOf(el), 1);
-    el.classList.remove('next'); el.classList.add(team === 'a' ? 'ta' : 'tb');
-    if (cap) el.querySelector('em').textContent = '팀장';
-    moveTo(el, team === 'a' ? colA : colB, slotY(rows[team]++), 520);
-    later(160, reflow);
-  };
-  // ② 팀장
-  later(1450, () => { step('<b>팀장</b>'); seat(pool[0], 'a', true); sfx('pick-t1', { vol: 0.45 }); later(260, () => { seat(pool[0], 'b', true); sfx('pick-t2', { vol: 0.45 }); }); });
-  // ③ 선픽 동전 — 제자리에서 튕겨 올라 돌다가 내려앉음
-  const first = Math.random() < 0.5 ? 'a' : 'b';
+  const slots = [...intro.querySelectorAll('.aug-slot')], card = slots[1].querySelector('.aug'), rr = slots.map(s => s.querySelector('.aug-rr'));
+  rr[1].textContent = '↻ 리롤'; rr[1].classList.remove('on');
+  const UP = 'translateY(-10px) rotateY(180deg)';
+  anim($i('.aug-k'), [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 420 });
+  slots.forEach((s, i) => anim(s, [{ opacity: 0, transform: 'translateY(40px)' }, { opacity: 1, transform: 'none' }], { duration: 620, delay: 180 + i * 140 }));
+  // 가운데 카드 리롤 — 버튼이 눌리고 카드가 뒤집혀 「투데이 내전」
+  later(1250, () => anim(rr[1], [{ transform: 'translateX(-50%) scale(1)' }, { transform: 'translateX(-50%) scale(.92)', offset: 0.4 }, { transform: 'translateX(-50%) scale(1)' }], { duration: 240 }));
+  later(1380, () => anim(card, [{ transform: 'none' }, { transform: 'rotateY(180deg)' }], { duration: 640, easing: 'cubic-bezier(.55,0,.25,1)' }));
+  // 고름 — 나머지는 흐려지고 고른 카드가 살짝 올라옴
   later(2250, () => {
-    step('<b>선픽 동전</b>'); sfx('coin-samira', { off: 0.12, dur: 0.5, vol: 0.6 }); sfx('coin-samira', { at: 1.0, off: 0.6, dur: 0.4, vol: 0.7 });
-    fade(coin, true, 200);
-    const turns = 3 * 360 + (first === 'b' ? 180 : 0);
-    coin.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-96px)', offset: 0.45, easing: 'cubic-bezier(.3,0,.7,1)' }, { transform: 'translateY(0)', offset: 0.9 }, { transform: 'translateY(-6px)', offset: 0.95 }, { transform: 'translateY(0)' }], { duration: 1150, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'both' });
-    spin.animate([{ transform: 'rotateX(0deg)' }, { transform: `rotateX(${turns}deg)` }], { duration: 1040, easing: 'cubic-bezier(.25,.6,.3,1)', fill: 'both' });
-    shadow.animate([{ opacity: 0.5, transform: 'scale(1)' }, { opacity: 0.18, transform: 'scale(.55)', offset: 0.45 }, { opacity: 0.5, transform: 'scale(1)', offset: 0.9 }, { opacity: 0.5, transform: 'scale(1)' }], { duration: 1150, fill: 'both' });
+    slots.forEach((s, i) => { if (i !== 1) anim(s, [{ opacity: 1 }, { opacity: 0.25 }], { duration: 320 }); });
+    anim(card, [{ transform: 'rotateY(180deg)' }, { transform: UP }], { duration: 360 });
+    rr[1].textContent = '선택'; rr[1].classList.add('on');
   });
-  later(4150, () => {   // 동전은 선픽만 정하고 퇴장 — 팀 이름 옆에 「선픽」
-    [coin, shadow, msg].forEach(el => el.animate([{ opacity: 1 }, { opacity: 0, transform: 'translateY(-6px)' }], { duration: 350, easing: 'ease-in', fill: 'forwards' }));
-    head[first].querySelector('span').textContent = '선픽';
+  later(2900, () => {
+    slots.forEach((s, i) => { if (i !== 1) anim(s, [{ opacity: 0.25, transform: 'none' }, { opacity: 0, transform: 'translateY(14px)' }], { duration: 320, easing: 'ease-in' }); });
+    anim(card, [{ transform: UP }, { transform: UP + ' scale(1.05)' }], { duration: 560 });
+    closeIntro(620);
   });
-  later(3450, () => {
-    msg.innerHTML = `<span class="${first === 'a' ? 't1' : 't2'}">${first === 'a' ? 1 : 2}팀 선픽</span>`;
-    fade(msg, true, 300);
+}
+intro.querySelector('.in-skip').addEventListener('click', e => { e.stopPropagation(); closeIntro(400); });
+['click', 'wheel', 'touchstart'].forEach(ev => intro.addEventListener(ev, () => closeIntro(400), { passive: true }));
+addEventListener('keydown', () => closeIntro(400));
+document.getElementById('replay').addEventListener('click', () => { scrollTo(0, 0); document.body.classList.remove('ready'); setTimeout(playIntro, 60); });
+
+// ── 기능 화면 = 직접 그린 앱 화면 — 화면에 반쯤 보이면 처음부터 한 번 · 벗어났다 다시 오면 다시 · ↻ = 지금 다시 ──
+const P = [['미드장인', 103], ['정글러버', 64], ['서폿요정', 412], ['원딜왕', 222], ['칼바람고수', 157], ['포로사랑', 99], ['눈덩이장인', 86], ['탑솔러', 51], ['한타장인', 498], ['와드요정', 360]];
+const ICON = id => `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${id}.png`;
+const img = (id, c) => `<img class="${c || 'mk-ic'}" src="${ICON(id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`;
+const fadeIn = (el, delay, dy) => anim(el, [{ opacity: 0, transform: `translateY(${dy == null ? 8 : dy}px)` }, { opacity: 1, transform: 'none' }], { duration: 380, delay: delay || 0 });
+const MOCK = {};
+
+// 방 목록 → 「들어가기」 → 대기실 자리에 앉음
+MOCK.rooms = (b, at) => {
+  const R = [['금요일 칼바람 내전', '방장 미드장인', 8], ['동아리 5대5', '비공개 · 방장 한타장인', 6], ['퇴근하고 한 판', '방장 포로사랑', 3]];
+  b.innerHTML = `<div class="mk-list"><p class="mk-cap" style="margin-bottom:10px">ROOMS · 3</p>${R.map(r => `<div class="mk-room"><div><b>${r[0]}</b><span>${r[1]}</span></div><em><i>${r[2]}</i>/10</em><span class="go">들어가기</span></div>`).join('')}<div class="mk-new">＋ 방 만들기</div></div>`
+    + `<div class="mk-lobby"><div class="mk-lh"><span class="mk-h">금요일 칼바람 내전</span><span class="mk-cap">ROOM · <span class="n">9</span>/10</span></div><div class="mk-seats">${P.slice(0, 8).map(([n, c]) => `<div class="mk-seat">${img(c)}${n}</div>`).join('')}<div class="mk-seat me">${img(266)}칼바람초보<em>나</em></div><div class="mk-seat empty">빈 자리</div></div></div>`
+    + `<div class="mk-cur"><svg viewBox="0 0 16 20"><path d="M1 1 L1 15.5 L4.6 12.2 L7.1 18.2 L9.6 17.1 L7.1 11.3 L12 11.3 Z" fill="#ece6da" stroke="#0a0e12" stroke-width="1.2" stroke-linejoin="round"/></svg></div>`;
+  const rows = [...b.querySelectorAll('.mk-room')], cur = b.querySelector('.mk-cur'), list = b.querySelector('.mk-list'), lob = b.querySelector('.mk-lobby');
+  rows.forEach((r, i) => fadeIn(r, 150 + i * 220));
+  fadeIn(b.querySelector('.mk-new'), 820);
+  const go = rows[0].querySelector('.go'), br = b.getBoundingClientRect(), gr = go.getBoundingClientRect();
+  const tx = gr.left - br.left + gr.width * 0.55, ty = gr.top - br.top + gr.height * 0.55, sx = b.clientWidth - 40, sy = b.clientHeight - 60;
+  at(1300, () => anim(cur, [{ opacity: 0, transform: `translate(${sx}px, ${sy}px)` }, { opacity: 1, transform: `translate(${sx}px, ${sy}px)`, offset: 0.15 }, { opacity: 1, transform: `translate(${tx}px, ${ty}px)` }], { duration: 900, easing: 'cubic-bezier(.45,.05,.25,1)' }));
+  at(2250, () => {
+    anim(go, [{ transform: 'scale(1)' }, { transform: 'scale(.92)', offset: 0.4 }, { transform: 'scale(1)' }], { duration: 220 });
+    rows[0].classList.add('on'); go.textContent = '입장'; rows[0].querySelector('i').textContent = '9';
   });
-  // ④ 픽(스네이크) — 차례 표시 → 뽑힐 사람 표시 → 자리로
-  const other = first === 'a' ? 'b' : 'a', snake = [first, other, other, first, first, other, other, first];
-  let t = 4550;
+  at(3100, () => {
+    anim(cur, [{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' });
+    anim(list, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateX(-24px)' }], { duration: 360, easing: 'ease-in' });
+    anim(lob, [{ opacity: 0, transform: 'translateX(24px)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: 260 });
+    const me = lob.querySelector('.me'); me.style.opacity = '0';
+  });
+  at(3900, () => { const me = lob.querySelector('.me'); me.style.opacity = ''; fadeIn(me, 0, 6); });
+};
+
+// 드래프트 — 팀장 → 선픽 동전(동전은 선픽만) → 스네이크로 한 명씩
+MOCK.draft = (b, at, step) => {
+  const W = b.clientWidth, pad = 12, gap = 8, cw = (W - 2 * pad - gap) / 2, ch = 28, rh = 33;
+  const col = [pad, pad + cw + gap], slotY = r => 34 + r * rh, coinY = 200, msgY = 242, poolY = 284;
+  const poolPos = i => [col[i % 2], poolY + Math.floor(i / 2) * rh];
+  b.innerHTML = `<div class="mk-head a" style="left:${col[0]}px;top:8px">1팀 <span></span></div><div class="mk-head b" style="left:${col[1]}px;top:8px">2팀 <span></span></div>`
+    + [0, 1].map(c => [0, 1, 2, 3, 4].map(r => `<div class="mk-slot" style="left:${col[c]}px;top:${slotY(r)}px;width:${cw}px;height:${ch}px"></div>`).join('')).join('')
+    + `<div class="mk-coin" style="left:${W / 2 - 19}px;top:${coinY}px"><div class="spin"><img class="a" src="img/coin-t1.webp" alt=""><img class="b" src="img/coin-t2.webp" alt=""></div></div><div class="mk-msg" style="top:${msgY}px"></div><p class="mk-cap mk-pl" style="top:${poolY - 20}px">대기 중</p>`;
+  const head = { a: b.querySelector('.mk-head.a'), b: b.querySelector('.mk-head.b') };
+  const chip = ([n, c], x, y) => { const el = document.createElement('div'); el.className = 'mk-chip'; el.style.cssText = `width:${cw}px;height:${ch}px;transform:translate(${x}px,${y}px)`; el.innerHTML = `${img(c, '')}<span>${n}</span><em></em>`; el._x = x; el._y = y; b.appendChild(el); return el; };
+  const move = (el, x, y, dur) => { anim(el, [{ transform: `translate(${el._x}px,${el._y}px)` }, { transform: `translate(${x}px,${y}px)` }], { duration: dur }); el._x = x; el._y = y; };
+  const rows = { a: 1, b: 1 };
+  const capA = chip(P[0], col[0], slotY(0)), capB = chip(P[8], col[1], slotY(0));
+  capA.classList.add('ta'); capB.classList.add('tb'); capA.querySelector('em').textContent = capB.querySelector('em').textContent = '팀장';
+  const pool = P.filter((_, i) => i !== 0 && i !== 8).map((p, i) => chip(p, ...poolPos(i)));
+  b.querySelectorAll('.mk-head, .mk-slot, .mk-pl').forEach((el, i) => fadeIn(el, 60 + i * 25, 4));
+  b.querySelectorAll('.mk-chip').forEach((el, i) => anim(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 320, delay: 200 + i * 45 }));
+  const coin = b.querySelector('.mk-coin'), spin = coin.querySelector('.spin'), msg = b.querySelector('.mk-msg');
+  const first = Math.random() < 0.5 ? 'a' : 'b', other = first === 'a' ? 'b' : 'a';
+  step('<b>팀장</b>');
+  at(700, () => {
+    step('<b>선픽 동전</b>');
+    anim(coin, [{ opacity: 0 }, { opacity: 1 }], { duration: 150 });
+    anim(coin, [{ transform: 'translateY(0)' }, { transform: 'translateY(-46px)', offset: 0.45, easing: 'cubic-bezier(.3,0,.7,1)' }, { transform: 'translateY(0)', offset: 0.9 }, { transform: 'translateY(-3px)', offset: 0.95 }, { transform: 'translateY(0)' }], { duration: 1050 });
+    anim(spin, [{ transform: 'rotateX(0)' }, { transform: `rotateX(${1080 + (first === 'b' ? 180 : 0)}deg)` }], { duration: 950, easing: 'cubic-bezier(.25,.6,.3,1)' });
+  });
+  at(1800, () => { msg.innerHTML = `<span class="${first === 'a' ? 't1' : 't2'}">${first === 'a' ? 1 : 2}팀 선픽</span>`; fadeIn(msg, 0, 4); });
+  at(2600, () => { [coin, msg].forEach(el => anim(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards' })); head[first].querySelector('span').textContent = '선픽'; });
+  const snake = [first, other, other, first, first, other, other, first];
+  let t = 3000;
   snake.forEach((team, k) => {
-    later(t, () => {
+    at(t, () => {
       const el = pool[Math.floor(Math.random() * pool.length)];
       for (const x of ['a', 'b']) { head[x].classList.toggle('turn', x === team); head[x].querySelector('span').textContent = x === team ? '차례' : ''; }
       step(`<b>PICK ${k + 1}</b> / 8`);
       el.classList.add('next', team === 'a' ? 'ta' : 'tb');
-      later(200, () => { seat(el, team); sfx('potg-hit', { vol: 0.22, rate: 0.95 + Math.random() * 0.15 }); });
+      at(260, () => {
+        pool.splice(pool.indexOf(el), 1); el.classList.remove('next');
+        move(el, col[team === 'a' ? 0 : 1], slotY(rows[team]++), 520);
+        at(180, () => pool.forEach((p, i) => { const [x, y] = poolPos(i); if (x !== p._x || y !== p._y) move(p, x, y, 420); }));
+      });
     });
-    t += 470;
+    t += 720;
   });
-  later(t + 150, () => { for (const x of ['a', 'b']) { head.a.classList.remove('turn'); head.b.classList.remove('turn'); head[x].querySelector('span').textContent = '5명'; } step('<b>팀 완성</b>'); fade(label, false, 250); });
-  later(t + 350, () => { go.animate([{ opacity: 0, transform: 'translate(-50%, -40%)' }, { opacity: 1, transform: 'translate(-50%, -50%)' }], { duration: 380, easing: EASE, fill: 'both' }); });
-  later(t + 1150, () => crackAndShatter(W / 2, coinY));
-  bgmStart((t + 1150) / 1000);
+  at(t + 200, () => { head.a.classList.remove('turn'); head.b.classList.remove('turn'); head.a.querySelector('span').textContent = head.b.querySelector('span').textContent = '5명'; step('<b>팀 완성</b>'); anim(b.querySelector('.mk-pl'), [{ opacity: 1 }, { opacity: 0 }], { duration: 250, fill: 'forwards' }); });
+};
+
+// 결과·투표 — 1팀 승리 → 진 팀의 표가 쌓여 MVP → SVP·매너왕
+MOCK.vote = (b, at) => {
+  const C = [[P[0], '9/2/11'], [P[3], '12/4/6'], [P[2], '1/3/19'], [P[6], '5/5/8'], [P[9], '2/6/14']];
+  b.innerHTML = `<div class="mk-vote"><div class="mk-win"><b>1팀 승리</b><span class="mk-cap">24:51</span></div><p class="mk-cap mk-sub">MVP · 진 팀(2팀)이 1팀에서 골라요</p>`
+    + C.map(([[n, c], k]) => `<div class="mk-cand">${img(c)}<b>${n}<small>${k}</small></b><span class="n">0</span><span class="bar"><i></i></span><span class="tag">MVP</span></div>`).join('')
+    + `<div class="mk-res"><div><span>SVP · 2팀에서</span><b>정글러버</b></div><div><span>매너왕</span><b>와드요정</b></div></div></div>`;
+  const rows = [...b.querySelectorAll('.mk-cand')], cnt = [0, 0, 0, 0, 0];
+  fadeIn(b.querySelector('.mk-win'), 100); fadeIn(b.querySelector('.mk-sub'), 250);
+  rows.forEach((r, i) => fadeIn(r, 320 + i * 90));
+  [2, 1, 2, 4, 2].forEach((i, k) => at(1200 + k * 520, () => {
+    cnt[i]++; rows[i].querySelector('.n').textContent = cnt[i]; rows[i].querySelector('.bar i').style.width = cnt[i] / 5 * 100 + '%';
+    anim(rows[i].querySelector('.n'), [{ color: '#ece6da', transform: 'translateY(-3px)' }, { color: '#a9a396', transform: 'none' }], { duration: 420, fill: 'none' });
+  }));
+  at(4100, () => { rows[2].classList.add('top'); anim(rows[2].querySelector('.tag'), [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: 320 }); });
+  at(4600, () => b.querySelectorAll('.mk-res div').forEach((d, i) => fadeIn(d, i * 220, 4)));
+};
+
+// 오늘 순위 — 새 판 결과가 들어오면 전적이 바뀌고 순위가 위아래로
+MOCK.today = (b, at, step) => {
+  const D = [[P[0], 4, 1, 5, 1], [P[3], 3, 1, 3, 2], [P[1], 3, 2, 4, 2], [P[2], 2, 2, 3, 2], [P[7], 1, 3, 1, 4]];   // 이름, 승, 패, 판 뒤 승, 판 뒤 패
+  const order0 = [0, 1, 2, 3, 4], order1 = [0, 2, 1, 3, 4], y = r => 96 + r * 46;
+  const wr = (w, l) => Math.round(w / (w + l) * 100) + '%';
+  b.innerHTML = `<div class="mk-toast"><b>2팀 승리</b> · 5판째 기록됐어요</div><div class="mk-th mk-cap"><span>#</span><span>이름</span><span>전적</span><span>승률</span><span></span></div>`
+    + D.map(([[n, c], w, l], i) => `<div class="mk-tr${i ? '' : ' r1'}" style="transform:translateY(${y(i)}px)"><span class="rk">${i + 1}</span><span class="nm">${img(c)}${n}</span><span class="rec">${w}승 ${l}패</span><span class="wr">${wr(w, l)}</span><span class="dl"></span></div>`).join('');
+  const rows = [...b.querySelectorAll('.mk-tr')];
+  step('<b>4판</b> 기준');
+  fadeIn(b.querySelector('.mk-th'), 100);
+  rows.forEach((r, i) => anim(r, [{ opacity: 0, transform: `translateY(${y(i) + 8}px)` }, { opacity: 1, transform: `translateY(${y(i)}px)` }], { duration: 380, delay: 200 + i * 90 }));
+  at(1300, () => anim(b.querySelector('.mk-toast'), [{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'none' }], { duration: 380 }));
+  at(2100, () => {
+    step('<b>5판</b> 기준');
+    rows.forEach((r, i) => { const [, w0, l0, w, l] = D[i]; if (w0 === w && l0 === l) return; const rec = r.querySelector('.rec'), w1 = r.querySelector('.wr'); rec.textContent = `${w}승 ${l}패`; w1.textContent = wr(w, l); rec.classList.add('hl'); w1.classList.add('hl'); at(700, () => { rec.classList.remove('hl'); w1.classList.remove('hl'); }); });
+  });
+  at(2900, () => {
+    order1.forEach((di, r) => {
+      const row = rows[di], from = order0.indexOf(di);
+      row.querySelector('.rk').textContent = r + 1; row.classList.toggle('r1', r === 0);
+      if (from === r) return;
+      anim(row, [{ transform: `translateY(${y(from)}px)` }, { transform: `translateY(${y(r)}px)` }], { duration: 620 });
+      const dl = row.querySelector('.dl'); dl.textContent = from > r ? `▲${from - r}` : `▼${r - from}`; dl.className = 'dl ' + (from > r ? 'up' : 'dn');
+      anim(dl, [{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 400 });
+    });
+  });
+};
+
+function mockRun(m) {
+  mockStop(m);
+  const b = m.querySelector('.mk-body'), em = m.querySelector('.mk-top em');
+  b.getAnimations({ subtree: true }).forEach(a => a.cancel());
+  const at = (ms, f) => m._t.push(setTimeout(f, reduce ? 0 : ms));
+  MOCK[m.dataset.mock](b, at, h => { em.innerHTML = h; });
 }
-$i('.g-on').addEventListener('click', e => { e.stopPropagation(); begin(true); });
-$i('.g-off').addEventListener('click', e => { e.stopPropagation(); begin(false); });
-intro.querySelector('.in-skip').addEventListener('click', e => { e.stopPropagation(); if (running || gating) lift(600); });
-['click', 'wheel', 'touchstart'].forEach(ev => intro.addEventListener(ev, e => { if (e.target.closest && e.target.closest('.gate')) return; if (running || (gating && ev !== 'click')) lift(600); }, { passive: true }));
-addEventListener('keydown', e => { if (gating && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); begin(true); return; } if (running || gating) lift(600); });
-document.getElementById('replay').addEventListener('click', () => { scrollTo(0, 0); document.body.classList.remove('ready'); setTimeout(playIntro, 60); });
+function mockStop(m) { (m._t || []).forEach(clearTimeout); m._t = []; }
+const mocks = [...document.querySelectorAll('.mock')];
+mocks.forEach(m => m.querySelector('.mk-re').addEventListener('click', () => mockRun(m)));
+if ('IntersectionObserver' in window) {
+  const mio = new IntersectionObserver(es => es.forEach(e => {
+    const m = e.target;
+    if (e.intersectionRatio >= 0.5 && !m._on) { m._on = true; mockRun(m); }
+    else if (!e.isIntersecting) m._on = false;
+  }), { threshold: [0, 0.5] });
+  mocks.forEach(m => mio.observe(m));
+} else mocks.forEach(mockRun);
 
 let seen = false; try { seen = sessionStorage.getItem('tn-intro') === '1'; } catch (_) {}
 if (reduce || seen) ready(); else playIntro();
