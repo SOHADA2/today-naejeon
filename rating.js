@@ -12,6 +12,13 @@ const Q = { aram: { ids: [450], modes: ['ARAM'] }, mayhem: { ids: [2400], modes:
 const MAX_GAMES = 40, MIN_GAMES = 5, PAGE = 20, MAX_PAGES = 10;
 const GRADES = [[75, 'S+'], [70, 'S'], [65, 'A+'], [60, 'A'], [55, 'B+'], [50, 'B'], [45, 'C+'], [40, 'C'], [-1, 'D']];
 const gradeOf = s => GRADES.find(([min]) => s >= min)[1];
+// v0.1.113: 화면은 글자 등급 대신 롤 티어 이름(사장님: 롤 티어표처럼) — 8점마다 한 티어 · 2점마다 한 단계(4 → 1) · 마스터부터 단계 없음
+//   ⚠️ sidepanel.js `scoreTier`와 같은 표(렌더러는 이 파일을 못 불러서 두 군데 · 바꾸면 둘 다)
+const SCORE_TIERS = [[90, 'CHALLENGER'], [84, 'GRANDMASTER'], [78, 'MASTER'], [70, 'DIAMOND'], [62, 'EMERALD'], [54, 'PLATINUM'], [46, 'GOLD'], [38, 'SILVER'], [30, 'BRONZE'], [22, 'IRON']];
+function tierOf(s) {
+  const f = SCORE_TIERS.findIndex(([lo]) => s >= lo), i = f < 0 ? SCORE_TIERS.length - 1 : f, [lo, tier] = SCORE_TIERS[i];
+  return { tier, div: ['MASTER', 'GRANDMASTER', 'CHALLENGER'].includes(tier) ? null : Math.max(1, 4 - Math.max(0, Math.floor((s - lo) / 2))), rank: SCORE_TIERS.length - 1 - i };   // rank = 아이언 0 ~ 챌린저 9
+}
 const r3 = v => Math.round(v * 1000) / 1000;
 
 function queueOf(g) {   // 이 판이 칼바람/아수라장인지
@@ -57,7 +64,9 @@ function soloOf(rk) {   // 공식 랭크 → {tier, div, lp, w, l, q}(솔로 우
   return null;
 }
 
-module.exports = function makeRating(d) {   // d = { lcuGet(path) → data|null, userData, log }
+module.exports = makeRating;
+makeRating.tierOf = tierOf;
+function makeRating(d) {   // d = { lcuGet(path) → data|null, userData, log }
   const cacheFile = path.join(d.userData, 'rating-games.json');
   let cache = {}; try { cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8')) || {}; } catch (_) {}
   async function collect(puuid) {
@@ -93,4 +102,4 @@ module.exports = function makeRating(d) {   // d = { lcuGet(path) → data|null,
     return out;
   }
   return { collect, _compactGame: compactGame, _scoreQueue: scoreQueue, _soloOf: soloOf, _gradeOf: gradeOf };
-};
+}

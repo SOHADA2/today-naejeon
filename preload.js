@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('api', {
   getSettings: () => ipcRenderer.invoke('settings-get'),
   openTutorial: () => ipcRenderer.send('tutorial-open'),                   // 📘 사용법 다시 보기
   onTutorial: (cb) => ipcRenderer.on('tutorial', (_e, d) => cb(d)),
+  onTierReveal: (cb) => ipcRenderer.on('tier-reveal', (_e, d) => cb(d)),   // 🏅 아수라장 티어 공개(v0.1.113)
   setSetting: (key, value) => ipcRenderer.invoke('settings-set', { key, value }),
   onSettings: (cb) => ipcRenderer.on('settings', (_e, d) => cb(d)),
   quitApp: () => ipcRenderer.send('app-quit'),

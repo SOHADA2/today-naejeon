@@ -310,14 +310,32 @@
 .age-top b { flex:1; }
 .age-top small { order:5; flex-basis:100%; margin-left:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .age-top b + .age-histbtn { margin-left:0; }
-/* 🏅 전적 기반 점수(v0.1.111) — 솔로 랭크·칼바람·아수라장 세 칸(같은 크기·같은 자리) */
-.pf-rts { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; margin-bottom:4px; }
-.pf-rt { display:flex; flex-direction:column; align-items:flex-start; text-align:left; gap:1px; padding:7px 6px; min-width:0; background:rgba(255,255,255,0.03); border:1px solid var(--hair); clip-path:var(--cut-sm); }
+/* 🏅 전적 기반 점수(v0.1.111) · v0.1.113: 아수라장 = 맨 위 큰 줄(티어 문장 + 티어 이름) · 솔로 랭크·칼바람 = 아래 작은 두 칸
+   티어 색 = --tc(롤 티어 느낌 · 공식 문장 그림은 안 씀 — 우리끼리 점수) · 문장 = 비스듬히 자른 방패 도형(움직임 없음) */
+.t-iron { --tc:#a0948f; } .t-bronze { --tc:#c68e66; } .t-silver { --tc:#b7c4ce; } .t-gold { --tc:#e6bf62; } .t-platinum { --tc:#55c9bd; }
+.t-emerald { --tc:#43d27f; } .t-diamond { --tc:#8c9cff; } .t-master { --tc:#cd78e4; } .t-grandmaster { --tc:#ec6157; } .t-challenger { --tc:#f4d987; }
+.pf-mh { display:flex; align-items:center; gap:10px; padding:9px 8px 9px 10px; margin-bottom:6px; min-width:0;
+  background:linear-gradient(90deg, color-mix(in srgb, var(--tc, #6b7684) 18%, transparent), rgba(255,255,255,0.02) 70%);
+  border:1px solid color-mix(in srgb, var(--tc, #6b7684) 50%, transparent); clip-path:var(--cut-sm); }
+.pf-mh.none { --tc:#6b7684; }
+.pf-mh-q { flex:none; align-self:flex-start; width:20px; height:20px; padding:0; font:800 11px var(--f-body); color:var(--dim); background:transparent; border:1px solid var(--hair); cursor:pointer; }
+.pf-mh-q.on { color:var(--tc); border-color:var(--tc); }
+.pf-mh-why { margin:-2px 0 6px; padding:7px 9px; font-size:11px; line-height:1.55; color:var(--ink-soft); background:rgba(255,255,255,0.03); border:1px solid var(--hair); word-break:keep-all; }
+.pf-mh-why b { color:var(--ink); }
+.pf-emb { flex:0 0 auto; width:38px; height:44px; display:grid; place-items:center;
+  background:linear-gradient(165deg, color-mix(in srgb, var(--tc) 70%, #fff), var(--tc) 50%, color-mix(in srgb, var(--tc) 55%, #000));
+  clip-path:polygon(50% 0, 100% 20%, 100% 68%, 50% 100%, 0 68%, 0 20%); }
+.pf-emb b { font:800 17px var(--f-num); color:rgba(8,12,20,0.85); }
+.pf-mh.none .pf-emb { opacity:0.35; }
+.pf-mh-tx { flex:1; display:flex; flex-direction:column; gap:1px; min-width:0; }
+.pf-mh-tx span { font-size:10px; font-weight:700; color:var(--dim); white-space:nowrap; }
+.pf-mh-tx b { font:800 21px var(--f-body); line-height:26px; color:var(--tc); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pf-mh.none .pf-mh-tx b { color:var(--dim); font-size:16px; }
+.pf-mh-tx em { font-style:normal; font-size:10px; color:var(--ink-soft); font-family:var(--f-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pf-rts { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px; margin-bottom:4px; }
+.pf-rt { display:flex; flex-direction:column; align-items:flex-start; text-align:left; gap:1px; padding:6px 7px; min-width:0; background:rgba(255,255,255,0.03); border:1px solid var(--hair); clip-path:var(--cut-sm); }
 .pf-rt span { font-size:10px; font-weight:700; color:var(--dim); white-space:nowrap; }
-.pf-rt b { font:700 18px var(--f-num); letter-spacing:0.01em; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pf-rt.tier b { font:800 13px var(--f-body); line-height:22px; max-width:100%; }
-.pf-rt em { font-style:normal; font-size:10px; color:var(--ink-soft); font-family:var(--f-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pf-rt.g-s b { color:var(--gold-hi); } .pf-rt.g-s { border-color:var(--gold-line); background:var(--gold-soft); }
-.pf-rt.g-a b { color:#9fd8c9; } .pf-rt.g-b b { color:#a9b8c8; } .pf-rt.g-c b, .pf-rt.g-d b { color:#c98a7a; }
-.pf-rt.none b { color:var(--dim); font:800 13px var(--f-body); line-height:22px; }
+.pf-rt b { font:800 13px var(--f-body); line-height:20px; color:var(--tc, var(--ink)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+.pf-rt em { font-style:normal; font-size:10px; color:var(--ink-soft); font-family:var(--f-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+.pf-rt.none b { color:var(--dim); }
 .pf-rt-at { margin:0 2px 12px; font-size:10px; color:var(--dim); }

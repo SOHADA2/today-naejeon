@@ -226,19 +226,36 @@ const pct = (w, g) => g ? Math.round(w / g * 100) : 0;
 const kdaOf = (k, d, a) => ((k + a) / Math.max(1, d)).toFixed(2);
 let _augMapP = null;
 const augMapP = async () => _augMapP || (_augMapP = await window.api.getAugments().catch(() => ({})) || {});
-// 🏅 전적 기반 점수(v0.1.111) — 솔로 랭크(공식 티어) · 칼바람 · 아수라장(최근 전적으로 계산한 글자 등급 S+~D) 세 칸
+// 🏅 전적 기반 점수(v0.1.111) — 솔로 랭크(공식 티어) · 칼바람 · 아수라장
+//   v0.1.113(사장님: 아수라장을 크게·나머지는 작게 · ABC 말고 롤 티어표처럼) — 아수라장 = 맨 위 큰 줄(티어 문장 모양 + 티어 이름) · 솔로·칼바람 = 아래 작은 두 칸
+//   칼바람·아수라장 점수(0~100) → 롤 티어 이름: 8점마다 한 티어 · 2점마다 한 단계(4 → 1) · 마스터부터 단계 없음(우리끼리 점수 · 공식 랭크 아님 → 문장은 공식 그림 대신 티어 색 도형)
 const TIER_KO = { IRON: '아이언', BRONZE: '브론즈', SILVER: '실버', GOLD: '골드', PLATINUM: '플래티넘', EMERALD: '에메랄드', DIAMOND: '다이아', MASTER: '마스터', GRANDMASTER: '그마', CHALLENGER: '챌린저' };
 const DIV_NUM = { I: 1, II: 2, III: 3, IV: 4 };
+const SCORE_TIERS = [[90, 'CHALLENGER'], [84, 'GRANDMASTER'], [78, 'MASTER'], [70, 'DIAMOND'], [62, 'EMERALD'], [54, 'PLATINUM'], [46, 'GOLD'], [38, 'SILVER'], [30, 'BRONZE'], [22, 'IRON']];
+function scoreTier(s) {
+  const i = SCORE_TIERS.findIndex(([lo]) => s >= lo), [lo, tier] = SCORE_TIERS[i < 0 ? SCORE_TIERS.length - 1 : i];
+  return { tier, div: ['MASTER', 'GRANDMASTER', 'CHALLENGER'].includes(tier) ? null : Math.max(1, 4 - Math.max(0, Math.floor((s - lo) / 2))) };
+}
+const tierLabel = (tier, div) => `${TIER_KO[tier] || tier}${div ? ' ' + div : ''}`;
 function ratingRow(R, me) {
   const cell = (label, main, sub, cls, tip) => `<div class="pf-rt ${cls || ''}" title="${escH(tip || '')}"><span>${label}</span><b>${main}</b><em>${sub}</em></div>`;
+  const how = '우리끼리 점수(공식 랭크 아님) · 점수 = 승률 + 경기력(팀 안 딜 순위·킬 관여·KDA) · 최근 판일수록 크게 · 8점마다 한 티어';
   const so = R && R.solo;
-  const solo = so ? cell('솔로 랭크', escH(TIER_KO[so.tier] || so.tier), `${so.div && DIV_NUM[so.div] ? DIV_NUM[so.div] + ' · ' : ''}${so.lp}LP${so.q === 'flex' ? ' · 자유' : ''}`, 'tier', `${so.w}승 ${so.l}패${so.q === 'flex' ? ' · 솔로 랭크가 없어 자유 랭크' : ''}`)
+  const solo = so ? cell('솔로 랭크', escH(tierLabel(so.tier, so.div && DIV_NUM[so.div])), `${so.lp}LP${so.q === 'flex' ? ' · 자유' : ''}`, 't-' + String(so.tier).toLowerCase(), `${so.w}승 ${so.l}패${so.q === 'flex' ? ' · 솔로 랭크가 없어 자유 랭크' : ''}`)
     : cell('솔로 랭크', R ? '언랭' : '—', R ? '배치 전' : '아직 없음', 'none');
-  const q = (label, x) => !x ? cell(label, '—', R ? '최근 전적 없음' : '아직 없음', 'none')
-    : x.gr ? cell(label, escH(x.gr), `${x.s}점 · ${x.n}판`, 'g-' + x.gr[0].toLowerCase(), `최근 ${x.n}판 ${x.w}승 · 승률 ${Math.round(x.wr * 100)}% · KDA ${x.kda} · 점수 = 승률 + 경기력(팀 안 딜 순위·킬 관여·KDA) · 최근 판일수록 크게`)
-    : cell(label, `배치 ${x.pl}/5`, `${x.n}판 ${x.w}승`, 'none', '5판부터 등급이 나와요');
+  const x0 = R && R.aram, st0 = x0 && x0.s != null && x0.n >= 5 ? scoreTier(x0.s) : null;
+  const aram = !x0 ? cell('칼바람', '—', R ? '최근 전적 없음' : '아직 없음', 'none')
+    : st0 ? cell('칼바람', tierLabel(st0.tier, st0.div), `${x0.s}점 · ${x0.n}판`, 't-' + st0.tier.toLowerCase(), `최근 ${x0.n}판 ${x0.w}승 · 승률 ${Math.round(x0.wr * 100)}% · KDA ${x0.kda} · ${how}`)
+    : cell('칼바람', `배치 ${x0.pl || x0.n}/5`, `${x0.n}판 ${x0.w}승`, 'none', '5판부터 티어가 나와요');
+  const x = R && R.mayhem, st = x && x.s != null && x.n >= 5 ? scoreTier(x.s) : null;
+  // 🏅 아수라장 큰 줄(`.pf-mh` — ⚠️ `.pf-big`은 아래 전적 칸이 이미 씀) · 「?」 = 근거 펼치기(마우스 올림 설명은 작은 칸에서 잘려서 누르는 방식)
+  const why = x && x.n ? `최신 아수라장 <b>${x.n}판</b>(롤 전적) 기준으로 매겼어요 · 점수 = 승률 + 경기력(팀 안 딜 순위·킬 관여·KDA) · 최근 판일수록 크게 · 8점마다 한 티어 · <b>우리끼리 점수</b>(공식 랭크 아님)` : '롤을 켜 두면 최근 아수라장 전적(5판부터)으로 티어를 매겨요 · 우리끼리 점수(공식 랭크 아님)';
+  const big = (cls, emb, main, sub) => `<div class="pf-mh ${cls}"><i class="pf-emb"><b>${emb}</b></i><div class="pf-mh-tx"><span>아수라장 티어</span><b>${main}</b><em>${sub}</em></div><button class="pf-mh-q" onclick="this.classList.toggle('on');this.parentNode.nextElementSibling.hidden=!this.classList.contains('on')">?</button></div><div class="pf-mh-why" hidden>${why}</div>`;
+  const mayhem = !x ? big('none', '', '—', R ? '최근 전적 없음' : '아직 없음')
+    : st ? big('t-' + st.tier.toLowerCase(), st.div || '', tierLabel(st.tier, st.div), `${x.s}점 · ${x.n}판 ${x.w}승 · 승률 ${Math.round(x.wr * 100)}%`)
+    : big('none', '', `배치 ${x.pl || x.n}/5`, `${x.n}판 ${x.w}승 · 5판부터 티어가 나와요`);
   const when = R && R.at ? `<div class="pf-rt-at">전적 기준 · ${new Date(R.at).getMonth() + 1}/${new Date(R.at).getDate()} ${String(new Date(R.at).getHours()).padStart(2, "0")}:${String(new Date(R.at).getMinutes()).padStart(2, "0")}</div>` : (me ? '<div class="pf-rt-at">롤을 켜 두면 내 전적으로 매겨져요</div>' : '');
-  return `<div class="pf-rts">${solo}${q('칼바람', R && R.aram)}${q('아수라장', R && R.mayhem)}</div>${when}`;
+  return `${mayhem}<div class="pf-rts">${solo}${aram}</div>${when}`;
 }
 async function renderProfile() {
   const body = $('pf-body'), arg = _pfArg;
