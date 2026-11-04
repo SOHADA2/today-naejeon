@@ -144,13 +144,22 @@ module.exports = function makePotg(d) {
     const labelOf = c => c.kind === 'steal' ? c.tags[0] : (c.n === 1 && c.tags.includes('솔로킬') ? '솔로킬' : MULTI_LABEL[c.n]);
     const nameOf = k => (s.teamA || []).concat(s.teamB || []).find(x => norm(x) === norm(k)) || String(k).split('#')[0];
     const label = labelOf(c), name = nameOf(c.killer);
+    // ⚰️ v0.1.123: 주인공이 빌드업 구간(킬 5초 전 + 소개 2초) 동안 죽어 있었으면 부활 뒤부터(사장님: 아크샨이 죽은 상태로 시작 — 8445563287: 332.4 사망 → 354 부활인데
+    //   영상은 351부터라 쓰러진 장면 → 부활 순간 카메라가 본진으로 튀었다 돌아옴) · 부활 = 그 사람 체력 기록에서 사망 뒤 처음 0 초과(앱 켠 사람만 · 기록 없으면 그대로)
+    //   clipFrom ≥ 부활 + 2.3(연출 카메라 소개가 clipFrom − 2부터라 부활 0.3초 뒤부터 찍힘) · 단 첫 킬 1.5초 전보다 늦추진 않음
+    let clipFrom = Math.max(0, Math.floor(c.t0 - 5));
+    {
+      const d = ev.filter(e => e.n === 'ChampionKill' && norm(e.v) === norm(c.killer) && e.t < c.t0).pop();
+      const back = d && (hpOf[norm(c.killer)] || []).find(([t, hpv]) => t > d.t && hpv > 0);
+      if (back && back[0] + 2.3 > clipFrom) clipFrom = Math.min(Math.floor(c.t0 - 1.5), Math.ceil(back[0] + 2.3));
+    }
     // 🔮 팟지 예측(2026-11-01) — 녹화 기다리는 동안 「누가 팟지일까?」 후보 = 1위 + 다른 사람의 다음 장면 최대 2개
     const alts = [], seen = new Set([norm(c.killer)]);
     for (const x of cands.slice(1)) { if (alts.length >= 2 || seen.has(norm(x.killer))) continue; seen.add(norm(x.killer)); const q = players[norm(x.killer)] || {}; alts.push({ name: nameOf(x.killer), champ: q.champ || '', championId: champId(x.killer), label: labelOf(x), team: teamOfName(x.killer) }); }
     return {
       name, champ: p.champ || '', championId: champId(c.killer), team: teamOfName(c.killer), skin: p.skin == null ? null : p.skin,
       label, tags: c.tags.filter(t => t !== label), score: Math.round(c.score),
-      t0: c.t0, t1: c.t1, clipFrom: Math.max(0, Math.floor(c.t0 - 5)), clipTo: Math.ceil(c.t1 + 2),   // 팟지 공식: 킬 5초 전부터(빌드업) · 끝은 마지막 킬 +2초(2026-11-01: +3초는 정지 화면 뒤 걸어가는 장면만 남음 → 팟지 창이 0.5배 여운 후 페이드) — v0.1.35 8→5초
+      t0: c.t0, t1: c.t1, clipFrom, clipTo: Math.ceil(c.t1 + 2),   // 팟지 공식: 킬 5초 전부터(빌드업) · 끝은 마지막 킬 +2초(2026-11-01: +3초는 정지 화면 뒤 걸어가는 장면만 남음 → 팟지 창이 0.5배 여운 후 페이드) — v0.1.35 8→5초
       kills: c.ks.map(k => { const v = players[norm(k.v)] || {}; return { t: k.t, victim: String(k.v).split('#')[0], champ: v.champ || '', championId: champId(k.v), solo: !k.a || !k.a.length }; }),
       obj: c.obj ? { n: c.obj.n, t: c.obj.t } : null,
       apps: list.length, alts,
