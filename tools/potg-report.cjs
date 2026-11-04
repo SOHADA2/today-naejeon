@@ -3,7 +3,10 @@
 //       node tools/potg-report.cjs 2026-10-28 (날짜 지정)
 // 보는 것: ① 각 PC 수집(today/potg/raw) ② 방장이 고른 장면(session.potg·경기 기록 potg) ③ 영상(today/clips) ④ 리플레이 확인(replayProbe)
 const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app/today';
-const get = async p => { const r = await fetch(`${DB}/${p}.json`); return r.ok ? r.json() : null; };
+// 🔐 2026-11-04 인증 2단계 뒤 = 읽기에도 로그인 표식 필요(없으면 401) → 처음 한 번 익명 표식을 받아 붙임(rules-test·room-e2e와 같은 방식 · 웹 앱 키 = 공개 식별자)
+let TOK = null;
+const token = async () => TOK || (TOK = (await (await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=AIzaSyDhVbSzNQ306LUTcPo44Ru9G4_RqV9Dl_E', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"returnSecureToken":true}' })).json()).idToken || '');
+const get = async p => { const r = await fetch(`${DB}/${p}.json?auth=${await token()}`); return r.ok ? r.json() : null; };
 const dayKey = (t = Date.now()) => { const d = new Date(t - 6 * 3600e3); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const when = t => t ? new Date(t).toLocaleTimeString('ko-KR') : '-';
 const mmss = s => s == null ? '-' : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
