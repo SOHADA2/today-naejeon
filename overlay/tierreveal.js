@@ -3,6 +3,7 @@
 //   카드 한 번: 문장이 위에서 떨어져 박힘 → 빛이 한 번 훑음 → 티어 이름·점수 → 9초 뒤 저절로 닫힘(「?」를 열면 「확인」 누를 때까지)
 //   애니메이션은 전부 한 번만(WAAPI · 성능 규칙: 무한 반복 금지) · 문장 = 티어 색 방패 도형(공식 문장 그림 안 씀 — 우리끼리 점수)
 (function () {
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const KO = { IRON: '아이언', BRONZE: '브론즈', SILVER: '실버', GOLD: '골드', PLATINUM: '플래티넘', EMERALD: '에메랄드', DIAMOND: '다이아몬드', MASTER: '마스터', GRANDMASTER: '그랜드마스터', CHALLENGER: '챌린저' };
   //   v0.1.114: kind = 'custom'(아수라장 내전 · 사용자 설정 게임) | 'mayhem'(아수라장 일반) · 둘이 한꺼번에 오면 차례로(줄 세움)
   let box = null, timer = null, open = false;
@@ -15,12 +16,14 @@
   }
   function show(d) {
     if (!d || !d.tier) return;
-    if (open) { queue.push(d); return; }
+    if (open) { if (d.dir !== 'replay') { queue.push(d); return; } open = false; }   // 다시 보기는 줄 안 서고 바로 바꿔 띄움
     if (!box) { box = document.createElement('div'); box.className = 'trv'; document.body.appendChild(box); }
     clearTimeout(timer); open = true;
     const custom = d.kind === 'custom', what = custom ? '아수라장 내전' : '아수라장';
     const name = KO[d.tier] || d.tier, head = d.dir === 'up' ? 'PROMOTED' : d.dir === 'down' ? 'TIER UPDATE' : custom ? 'IN-HOUSE MAYHEM TIER' : 'MAYHEM TIER';
-    const sub = d.dir === 'up' ? `${what} · ${KO[d.prev] || d.prev}에서 승급했어요` : d.dir === 'down' ? `${what} · ${KO[d.prev] || d.prev}에서 내려왔어요` : `내 ${what} 티어가 정해졌어요`;
+    // v0.1.116: 프로필 티어 칸을 누르면 다시 보기(dir 'replay' · who = 남의 프로필이면 그 사람 이름)
+    const sub = d.dir === 'up' ? `${what} · ${KO[d.prev] || d.prev}에서 승급했어요` : d.dir === 'down' ? `${what} · ${KO[d.prev] || d.prev}에서 내려왔어요`
+      : d.dir === 'replay' ? (d.who ? `${esc(d.who)}님의 ${what} 티어` : `내 ${what} 티어`) : `내 ${what} 티어가 정해졌어요`;
     box.className = `trv t-${String(d.tier).toLowerCase()}`;
     box.innerHTML = `<div class="trv-card">
       <span class="trv-en lb-sec-en">${head}</span>

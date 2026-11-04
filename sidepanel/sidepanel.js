@@ -237,20 +237,25 @@ function scoreTier(s) {
 }
 const tierLabel = (tier, div) => `${TIER_KO[tier] || tier}${div ? ' ' + div : ''}`;
 //   v0.1.114(사장님): **아수라장 내전**(사용자 설정 게임) · **아수라장 일반**(내전 제외) 두 줄 · 솔로 랭크·칼바람은 뺌
-function ratingRow(R, me) {
+// 🎬 v0.1.116(사장님: 프로필 티어 칸을 누르면 그 공개 애니메이션 — 본인 거 보게) — 티어가 나온 칸만 · 이 창 안에서 overlay/tierreveal.js 카드(dir 'replay')
+let _pfTiers = [];
+function pfTierReplay(i) { const d = _pfTiers[i]; if (d && window.tnTierReveal) window.tnTierReveal(d); }
+function ratingRow(R, me, who) {
   // 🏅 큰 줄(`.pf-mh` — ⚠️ `.pf-big`은 아래 전적 칸이 이미 씀) · 「?」 = 근거 펼치기(마우스 올림 설명은 작은 칸에서 잘려서 누르는 방식)
   //   v0.1.115: 내전 = 투데이 내전으로 기록된 아수라장 내전 전부(서버 기록) · 일반 = 롤 전적
-  const row = (x, label, src, from, none) => {
+  _pfTiers = [];
+  const row = (x, label, src, from, none, kind) => {
     const st = x && x.s != null && x.n >= 5 ? scoreTier(x.s) : null;
     const why = x && x.n ? `${src} <b>${x.n}판</b>(${from}) 기준으로 매겼어요 · 점수 = 승률 + 경기력(팀 안 딜 순위·킬 관여·KDA) · 최근 판일수록 크게 · 8점마다 한 티어 · <b>우리끼리 점수</b>(공식 랭크 아님)` : `${none} · 우리끼리 점수(공식 랭크 아님)`;
-    const big = (cls, emb, main, sub) => `<div class="pf-mh ${cls}"><i class="pf-emb"><b>${emb}</b></i><div class="pf-mh-tx"><span>${label}</span><b>${main}</b><em>${sub}</em></div><button class="pf-mh-q" onclick="this.classList.toggle('on');this.parentNode.nextElementSibling.hidden=!this.classList.contains('on')">?</button></div><div class="pf-mh-why" hidden>${why}</div>`;
+    const tap = st ? _pfTiers.push({ kind, tier: st.tier, div: st.div, s: x.s, n: x.n, w: x.w, wr: x.wr, kda: x.kda, dir: 'replay', who: me ? null : who }) - 1 : -1;
+    const big = (cls, emb, main, sub) => `<div class="pf-mh ${cls}${tap >= 0 ? ' tap' : ''}"${tap >= 0 ? ` onclick="pfTierReplay(${tap})" title="눌러서 티어 공개 다시 보기"` : ''}><i class="pf-emb"><b>${emb}</b></i><div class="pf-mh-tx"><span>${label}</span><b>${main}</b><em>${sub}</em></div><button class="pf-mh-q" onclick="event.stopPropagation();this.classList.toggle('on');this.parentNode.nextElementSibling.hidden=!this.classList.contains('on')">?</button></div><div class="pf-mh-why" hidden>${why}</div>`;
     return !x ? big('none', '', '—', R ? '최근 전적 없음' : '아직 없음')
       : st ? big('t-' + st.tier.toLowerCase(), st.div || '', tierLabel(st.tier, st.div), `${x.s}점 · ${x.n}판 ${x.w}승 · 승률 ${Math.round(x.wr * 100)}%`)
       : big('none', '', `배치 ${x.pl || x.n}/5`, `${x.n}판 ${x.w}승 · 5판부터 티어가 나와요`);
   };
   const when = R && R.at ? `<div class="pf-rt-at">전적 기준 · ${new Date(R.at).getMonth() + 1}/${new Date(R.at).getDate()} ${String(new Date(R.at).getHours()).padStart(2, "0")}:${String(new Date(R.at).getMinutes()).padStart(2, "0")}</div>` : (me ? '<div class="pf-rt-at">롤을 켜 두면 내 전적으로 매겨져요</div>' : '');
-  return `${row(R && R.custom, '아수라장 내전 티어', '투데이 내전으로 기록된 아수라장 내전', '처음 기록부터 전부', '투데이 내전으로 아수라장 내전을 5판 하면 티어가 나와요')}`
-    + `${row(R && R.mayhem, '아수라장 티어 · 일반', '최신 아수라장 일반 판(내전 제외)', '롤 전적', '롤을 켜 두면 최근 아수라장 일반 판(5판부터)으로 티어를 매겨요')}${when}`;
+  return `${row(R && R.custom, '아수라장 내전 티어', '투데이 내전으로 기록된 아수라장 내전', '처음 기록부터 전부', '투데이 내전으로 아수라장 내전을 5판 하면 티어가 나와요', 'custom')}`
+    + `${row(R && R.mayhem, '아수라장 티어 · 일반', '최신 아수라장 일반 판(내전 제외)', '롤 전적', '롤을 켜 두면 최근 아수라장 일반 판(5판부터)으로 티어를 매겨요', 'mayhem')}${when}`;
 }
 async function renderProfile() {
   const body = $('pf-body'), arg = _pfArg;
@@ -262,7 +267,7 @@ async function renderProfile() {
   if (!P || !P.ok) { body.innerHTML = `<div class="td-empty">${escH((P && P.err) || '프로필을 불러오지 못했어요')}</div>`; return; }
   const head = `<div class="pf-head"><div class="pf-nm">${escH(P.name)}${P.tag ? `<small>#${escH(P.tag)}</small>` : ''}${P.me ? '<span class="pf-me">나</span>' : ''}</div>`
     + `<div class="pf-sub">${P.games ? `첫 내전 ${md(P.first)} · 내전 ${P.days}일 · 마지막 ${md(P.last)}` : '아직 내전 기록이 없어요'}</div></div>`
-    + (P.key && String(P.key).startsWith('p:') ? ratingRow(P.rating, P.me) : '');   // 🏅 앱으로 들어온 사람만(손님은 전적을 못 읽음)
+    + (P.key && String(P.key).startsWith('p:') ? ratingRow(P.rating, P.me, P.name) : '');   // 🏅 앱으로 들어온 사람만(손님은 전적을 못 읽음)
   if (!P.games) { body.innerHTML = head + '<div class="td-empty">내전을 한 판 하면 여기에 기록이 쌓여요</div>'; return; }
   const streak = P.streak > 0 ? `<b class="w">${P.streak}연승</b>` : `<b class="l">${-P.streak}연패</b>`;
   const big = `<div class="pf-big">`

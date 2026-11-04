@@ -318,6 +318,7 @@
   background:linear-gradient(90deg, color-mix(in srgb, var(--tc, #6b7684) 18%, transparent), rgba(255,255,255,0.02) 70%);
   border:1px solid color-mix(in srgb, var(--tc, #6b7684) 50%, transparent); clip-path:var(--cut-sm); }
 .pf-mh.none { --tc:#6b7684; }
+.pf-mh.tap { cursor:pointer; transition:filter .15s; } .pf-mh.tap:hover { filter:brightness(1.18); }   /* v0.1.116: 누르면 티어 공개 다시 보기 */
 .pf-mh-q { flex:none; align-self:flex-start; width:20px; height:20px; padding:0; font:800 11px var(--f-body); color:var(--dim); background:transparent; border:1px solid var(--hair); cursor:pointer; }
 .pf-mh-q.on { color:var(--tc); border-color:var(--tc); }
 .pf-mh-why { margin:-2px 0 6px; padding:7px 9px; font-size:11px; line-height:1.55; color:var(--ink-soft); background:rgba(255,255,255,0.03); border:1px solid var(--hair); word-break:keep-all; }

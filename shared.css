@@ -142,3 +142,29 @@ body { -webkit-font-smoothing:antialiased; font-feature-settings:'tnum' 0; lette
   font-size:12px; font-weight:600; line-height:1.5; color:var(--ink); background:#0d1822; border:1px solid var(--gold-line); box-shadow:0 6px 18px rgba(0,0,0,0.5);
   opacity:0; transform:translateY(-4px); pointer-events:none; transition:opacity .12s, transform .12s; }
 .tn-tip:hover::after { opacity:1; transform:translateY(0); transition-delay:.25s; }
+
+/* 🏅 아수라장 티어 공개(v0.1.113 · overlay/tierreveal.js · v0.1.116: 오른쪽 창 프로필에서도 → 공용으로 옮김) — 티어 색 = --tc(sidepanel/today.css .t-* 와 같은 값) · 문장 = 방패 도형 · 움직임은 한 번만 */
+.trv { --tc:#e6bf62; position:fixed; inset:0; z-index:9100; display:flex; align-items:center; justify-content:center; padding:14px; background:rgba(1,6,12,0.86); -webkit-app-region:no-drag; }
+.trv.t-iron { --tc:#a0948f; } .trv.t-bronze { --tc:#c68e66; } .trv.t-silver { --tc:#b7c4ce; } .trv.t-gold { --tc:#e6bf62; } .trv.t-platinum { --tc:#55c9bd; }
+.trv.t-emerald { --tc:#43d27f; } .trv.t-diamond { --tc:#8c9cff; } .trv.t-master { --tc:#cd78e4; } .trv.t-grandmaster { --tc:#ec6157; } .trv.t-challenger { --tc:#f4d987; }
+.trv-card { width:100%; max-width:320px; display:flex; flex-direction:column; align-items:center; gap:6px; padding:18px 16px 14px; text-align:center;
+  background:radial-gradient(120% 70% at 50% 18%, color-mix(in srgb, var(--tc) 22%, transparent), transparent 70%), linear-gradient(160deg, var(--bg-2), var(--bg-1));
+  border:1px solid color-mix(in srgb, var(--tc) 55%, transparent); clip-path:var(--cut); }
+.trv-en { font-family:var(--f-num); font-weight:700; font-size:11px; color:var(--tc); letter-spacing:0.14em; }   /* .lb-sec-en은 overlay.css에만 있어 오른쪽 창용으로 직접 */
+.trv-emb { position:relative; width:84px; height:98px; margin:6px 0 4px; display:grid; place-items:center; overflow:hidden;
+  background:linear-gradient(165deg, color-mix(in srgb, var(--tc) 65%, #fff), var(--tc) 48%, color-mix(in srgb, var(--tc) 50%, #000));
+  clip-path:polygon(50% 0, 100% 20%, 100% 68%, 50% 100%, 0 68%, 0 20%); }
+.trv-emb::before { content:''; position:absolute; inset:7px; background:linear-gradient(180deg, rgba(0,0,0,0.22), rgba(0,0,0,0.05)); clip-path:polygon(50% 0, 100% 20%, 100% 68%, 50% 100%, 0 68%, 0 20%); }
+.trv-emb i { position:absolute; top:0; bottom:0; left:0; width:40%; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.75), transparent); opacity:0; }
+.trv-emb b { position:relative; font-size:34px; font-weight:700; color:rgba(8,12,20,0.82); }
+.trv-name { font-size:26px; font-weight:800; color:var(--tc); line-height:1.2; }
+.trv-name .num { font-size:28px; }
+.trv-sub { font-size:12.5px; color:var(--ink-soft); }
+.trv-stat { font-size:13px; color:var(--dim); }
+.trv-why { margin-top:4px; padding:8px 10px; font-size:11.5px; line-height:1.6; color:var(--ink-soft); text-align:left; background:rgba(255,255,255,0.04); border:1px solid var(--hair); word-break:keep-all; }
+.trv-why b { color:#F0E6D2; }
+.trv-btns { display:flex; gap:6px; width:100%; margin-top:6px; }
+.trv-btns button { padding:8px 12px; font-size:12.5px; font-weight:700; cursor:pointer; }
+.trv-q { width:34px; flex:none; color:var(--dim); background:transparent; border:1px solid var(--hair); clip-path:var(--cut-sm); }
+.trv-q.on { color:var(--tc); border-color:var(--tc); }
+.trv-ok { flex:1; }
