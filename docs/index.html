@@ -41,38 +41,35 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 :focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
 .t1 { color:var(--t1); } .t2 { color:var(--t2); }
 
-/* ── 오프닝: 접속 → 팀장 → 드래프트 픽(앱의 사선 띠) → 동전이 화면에 박혀 유리가 갈라짐 → 조각이 떨어지며 팟지 영상 ── */
-#intro { position:fixed; inset:0; z-index:100; overflow:hidden; }
-#intro .bg { position:absolute; inset:0; background:var(--bg); }
-#intro .stage { position:absolute; inset:0; }
-#intro.shake .stage { animation:shake .34s linear; }
-@keyframes shake { 0%,100% { transform:none; } 15% { transform:translate(-7px, 4px); } 30% { transform:translate(6px, -5px); } 45% { transform:translate(-4px, -3px); } 60% { transform:translate(4px, 3px); } 80% { transform:translate(-2px, 1px); } }
-.in-h { position:absolute; top:0; font:800 clamp(18px, 2.4vw, 26px) var(--sans); letter-spacing:-0.03em; opacity:0; }
-.in-h.a { color:var(--t1); } .in-h.b { color:var(--t2); }
-.chip { position:absolute; left:0; top:0; height:40px; display:flex; align-items:center; gap:9px; padding:0 12px 0 4px; background:var(--bg-2); border:1px solid var(--rule-2); font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; opacity:0; transition:border-color .4s ease; will-change:transform, opacity; }
-.chip img { flex:none; width:30px; height:30px; background:var(--rule); }
-.chip em { font-style:normal; font-size:10px; font-weight:800; color:#0a0e12; padding:1px 5px; margin-left:auto; display:none; }
-.chip.cap em { display:inline; }
-.chip.ta { border-color:var(--t1); } .chip.ta em { background:var(--t1); }
-.chip.tb { border-color:var(--t2); } .chip.tb em { background:var(--t2); }
-/* 픽 띠 = 앱 드래프트 연출(팀 색 사선 띠에 「TEAM n · PICK n」 + 이름이 쾅) */
-.band { position:absolute; left:-10%; right:-10%; height:clamp(96px, 15vh, 140px); transform:rotate(-7deg) scaleX(0); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; pointer-events:none; opacity:.96; }
-.band.a { background:var(--t1); transform-origin:left center; } .band.b { background:var(--t2); transform-origin:right center; }
-.band small { font:700 clamp(11px, 1.2vw, 14px) var(--mono); letter-spacing:.14em; color:rgba(10,14,18,.75); }
-.band b { font:900 clamp(30px, 5.4vw, 64px) var(--sans); letter-spacing:-0.04em; color:#0a0e12; line-height:1.05; }
-.coin { position:absolute; left:50%; top:50%; width:150px; height:150px; margin:-75px 0 0 -75px; perspective:700px; opacity:0; pointer-events:none; }
+/* ── 오프닝 = 드래프트 보드: 빈 자리 5칸씩 → 접속 → 팀장 → 동전(선픽) → 한 명씩 픽 → 보드가 막처럼 걷히며 팟지 영상 ──
+   평평한 칸·얇은 선·팀 색은 칸 왼쪽 가는 줄로만 · 움직임은 감속 곡선 하나 · 빛·흐림·흔들림·사선 띠 없음 */
+#intro { position:fixed; inset:0; z-index:100; overflow:hidden; background:var(--bg); will-change:transform; }
+#intro .board { position:absolute; inset:0; }
+.ib-top { position:absolute; left:0; right:0; top:clamp(22px, 5vh, 44px); display:flex; justify-content:center; gap:18px; align-items:baseline; font:500 12px var(--mono); color:var(--ink-3); letter-spacing:.06em; }
+.ib-top b { color:var(--ink); font-weight:700; }
+.ib-head { position:absolute; display:flex; align-items:baseline; gap:10px; font:800 clamp(18px, 2vw, 22px) var(--sans); letter-spacing:-0.03em; }
+.ib-head.a { color:var(--t1); } .ib-head.b { color:var(--t2); }
+.ib-head span { font:600 12px var(--sans); letter-spacing:0; color:var(--ink-3); transition:color .25s ease; }
+.ib-head.turn span { color:var(--ink); }
+.ib-slot { position:absolute; border:1px dashed var(--rule-2); }
+.ib-pool-label { position:absolute; font:500 12px var(--mono); color:var(--ink-3); letter-spacing:.06em; text-align:center; }
+.chip { position:absolute; left:0; top:0; display:flex; align-items:center; gap:10px; padding:0 12px 0 0; background:var(--bg-2); border:1px solid var(--rule-2); font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; will-change:transform, opacity; transition:border-color .25s ease, background-color .25s ease; }
+.chip::before { content:''; align-self:stretch; width:3px; background:transparent; transition:background-color .25s ease; }
+.chip img { flex:none; width:28px; height:28px; }
+.board.big .chip { font-size:15.5px; gap:12px; } .board.big .chip img { width:34px; height:34px; }
+.board.big .ib-head { font-size:24px; }
+.chip em { font-style:normal; margin-left:auto; font:600 11px var(--sans); color:var(--ink-3); }
+.chip.ta::before { background:var(--t1); } .chip.tb::before { background:var(--t2); }
+.chip.next { border-color:var(--ink-2); background:#151d25; }
+.coin { position:absolute; width:84px; height:84px; perspective:600px; opacity:0; pointer-events:none; }
 .coin .spin { position:absolute; inset:0; transform-style:preserve-3d; }
 .coin img { position:absolute; inset:0; width:100%; height:100%; backface-visibility:hidden; -webkit-backface-visibility:hidden; }
-.coin img.b { transform:rotateY(180deg); }
-.crack { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-.crack path { fill:none; stroke-linecap:round; stroke-linejoin:round; }
-.flash { position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; }
-.in-msg { position:absolute; left:0; right:0; text-align:center; font:900 clamp(34px, 6vw, 72px) var(--sans); letter-spacing:-0.045em; opacity:0; text-shadow:0 4px 30px rgba(0,0,0,.8); }
-.in-msg small { display:block; margin-top:6px; font:700 15px var(--sans); letter-spacing:-0.01em; color:var(--ink); }
-.shard { position:absolute; inset:0; background:var(--bg); will-change:transform, opacity; }
-.in-skip { position:absolute; right:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font-size:13px; color:var(--ink-3); padding:8px 0; z-index:3; }
+.coin img.b { transform:rotateX(180deg); }
+.coin-shadow { position:absolute; width:60px; height:8px; border-radius:50%; background:rgba(0,0,0,.55); opacity:0; }
+.ib-msg { position:absolute; left:0; right:0; text-align:center; font:800 clamp(17px, 1.8vw, 20px) var(--sans); letter-spacing:-0.02em; opacity:0; }
+.in-skip { position:absolute; right:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font-size:13px; color:var(--ink-3); padding:8px 0; }
 .in-skip:hover { color:var(--ink); }
-.in-cap { position:absolute; left:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font:500 12px var(--mono); color:var(--ink-3); z-index:3; }
+.in-cap { position:absolute; left:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font:500 12px var(--mono); color:var(--ink-3); }
 
 /* 머리 */
 .top { position:sticky; top:0; z-index:20; background:rgba(10,14,18,0.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--rule); }
@@ -214,13 +211,13 @@ footer p + p { margin-top:6px; }
 <body>
 
 <div id="intro" hidden>
-  <div class="bg"></div>
-  <div class="stage">
-    <span class="in-h a">1팀</span><span class="in-h b">2팀</span>
+  <div class="board">
+    <div class="ib-top"><span>CUSTOM DRAFT</span><span class="ib-step"><b>접속 중</b></span></div>
+    <div class="ib-head a">1팀 <span></span></div><div class="ib-head b">2팀 <span></span></div>
+    <div class="ib-pool-label">대기 중</div>
+    <div class="coin-shadow"></div>
     <div class="coin"><div class="spin"><img class="a" src="img/coin-t1.webp" alt=""><img class="b" src="img/coin-t2.webp" alt=""></div></div>
-    <svg class="crack" aria-hidden="true"></svg>
-    <div class="in-msg"></div>
-    <div class="flash"></div>
+    <div class="ib-msg"></div>
   </div>
   <span class="in-cap">TODAY NAEJEON</span>
   <button class="in-skip" type="button">건너뛰기 →</button>
@@ -406,7 +403,7 @@ fetch('https://api.github.com/repos/SOHADA2/today-naejeon/releases/latest')
 const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const reel = document.getElementById('reel');
 const playReel = () => { if (reel && !reduce) reel.play().catch(() => {}); };
-playReel();   // 오프닝 뒤에서 미리 재생(유리가 깨지면 이미 움직이는 장면이 드러남)
+playReel();   // 오프닝 뒤에서 미리 재생(막이 걷히면 이미 움직이는 장면)
 document.getElementById('snd').addEventListener('click', e => { reel.muted = !reel.muted; if (!reel.muted) reel.play().catch(() => {}); e.currentTarget.textContent = reel.muted ? '소리 켜기' : '소리 끄기'; e.currentTarget.setAttribute('aria-pressed', String(!reel.muted)); });
 function ready() { document.body.classList.add('ready'); playReel(); }
 
@@ -414,143 +411,112 @@ function ready() { document.body.classList.add('ready'); playReel(); }
 const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('seen'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' }) : null;
 document.querySelectorAll('[data-rv]').forEach(el => io ? io.observe(el) : el.classList.add('seen'));
 
-// ── 오프닝(약 6초) ──
+// ── 오프닝 = 드래프트 보드(약 8초): 접속 → 팀장 → 선픽 동전 → 한 명씩 픽(스네이크) → 막이 걷힘 ──
 const P = [['미드장인', 103], ['정글러버', 64], ['서폿요정', 412], ['원딜왕', 222], ['칼바람고수', 157], ['포로사랑', 99], ['눈덩이장인', 86], ['탑솔러', 51], ['한타장인', 498], ['와드요정', 360]];
 const ICON = id => `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${id}.png`;
-const intro = document.getElementById('intro'), stage = intro.querySelector('.stage');
-const EASE = 'cubic-bezier(.2,.8,.2,1)';
+const EASE = 'cubic-bezier(.22,.8,.24,1)';
+const intro = document.getElementById('intro'), board = intro.querySelector('.board');
+const $i = s => intro.querySelector(s);
 let timers = [], running = false;
 const later = (ms, f) => timers.push(setTimeout(f, ms));
-const anim = (el, kf, o) => el.animate(kf, Object.assign({ fill: 'both', easing: EASE }, o));
-function cleanup() {
-  intro.hidden = true; document.body.classList.remove('intro-on');
-  intro.querySelectorAll('.chip, .band, .shard').forEach(x => x.remove());
-  intro.querySelector('.crack').innerHTML = ''; intro.classList.remove('shake');
-  intro.querySelector('.bg').style.display = '';
+const fade = (el, on, dur, delay) => el.animate([{ opacity: on ? 0 : 1, transform: on ? 'translateY(6px)' : 'none' }, { opacity: on ? 1 : 0, transform: 'none' }], { duration: dur || 300, delay: delay || 0, easing: EASE, fill: 'both' });
+function moveTo(el, x, y, dur, delay) {
+  const from = `translate(${el._x}px, ${el._y}px)`, to = `translate(${x}px, ${y}px)`;
+  el.getAnimations().forEach(a => { if (a.id !== 'in') a.cancel(); });
+  el.animate([{ transform: from }, { transform: to }], { duration: dur, delay: delay || 0, easing: EASE, fill: 'both' });
+  el._x = x; el._y = y;
 }
-function finish(skip) {   // 건너뛰기 = 바로 조각 떨어뜨리기
-  if (!running) return;
+function step(t) { $i('.ib-step').innerHTML = t; }
+function lift(dur) {   // 보드가 막처럼 위로 걷힘 → 뒤의 팟지 영상
   running = false; timers.forEach(clearTimeout); timers = [];
-  if (skip) { shatter(innerWidth / 2, innerHeight / 2, 420); }
+  intro.animate([{ transform: 'none' }, { transform: 'translateY(-100%)' }], { duration: dur, easing: 'cubic-bezier(.7,0,.25,1)', fill: 'both' });
+  board.animate([{ transform: 'none', opacity: 1 }, { transform: 'translateY(8%)', opacity: 0.4 }], { duration: dur, easing: 'cubic-bezier(.7,0,.25,1)', fill: 'both' });
+  setTimeout(ready, dur * 0.35);
+  setTimeout(() => { intro.hidden = true; intro.getAnimations().forEach(a => a.cancel()); document.body.classList.remove('intro-on'); }, dur + 40);
   try { sessionStorage.setItem('tn-intro', '1'); } catch (_) {}
-}
-// 유리 금(앱 동전 연출처럼 바퀴살이 꺾이며 뻗고 둥근 금 몇 겹) — 반환 = 바퀴살 끝 각도들(조각 나누기용)
-function drawCrack(cx, cy) {
-  const svg = intro.querySelector('.crack'), W = innerWidth, H = innerHeight, R = Math.hypot(W, H);
-  const n = 12 + Math.floor(Math.random() * 4), angs = [];
-  let d = '';
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.35; angs.push(a);
-    let x = cx, y = cy, r = 0, aa = a; d += `M${x.toFixed(1)} ${y.toFixed(1)}`;
-    while (r < R) { r += 40 + Math.random() * 90; aa += (Math.random() - 0.5) * 0.28; x = cx + Math.cos(aa) * r; y = cy + Math.sin(aa) * r; d += ` L${x.toFixed(1)} ${y.toFixed(1)}`; }
-  }
-  angs.sort((p, q) => p - q);
-  let rings = '';
-  for (const rr of [70 + Math.random() * 30, 170 + Math.random() * 60, 330 + Math.random() * 90]) {
-    for (let i = 0; i < angs.length; i++) {
-      if (Math.random() < 0.3) continue;
-      const a1 = angs[i], a2 = angs[(i + 1) % angs.length] + (i + 1 === angs.length ? Math.PI * 2 : 0), j = rr * (0.85 + Math.random() * 0.3);
-      rings += `M${(cx + Math.cos(a1) * j).toFixed(1)} ${(cy + Math.sin(a1) * j).toFixed(1)} L${(cx + Math.cos((a1 + a2) / 2) * j * 1.04).toFixed(1)} ${(cy + Math.sin((a1 + a2) / 2) * j * 1.04).toFixed(1)} L${(cx + Math.cos(a2) * j).toFixed(1)} ${(cy + Math.sin(a2) * j).toFixed(1)}`;
-    }
-  }
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svg.innerHTML = `<path d="${d}" stroke="rgba(0,0,0,.55)" stroke-width="3" pathLength="1"/><path d="${d}" stroke="rgba(255,255,255,.85)" stroke-width="1.2" pathLength="1"/><path d="${rings}" stroke="rgba(255,255,255,.55)" stroke-width="1" pathLength="1"/>`;
-  svg.querySelectorAll('path').forEach((p, i) => { p.style.strokeDasharray = '1'; p.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: i === 2 ? 260 : 170, delay: i === 2 ? 90 : 0, easing: 'cubic-bezier(.1,.7,.3,1)', fill: 'both' }); });
-  return angs;
-}
-// 화면(어두운 바탕 + 금)을 바퀴살 사이 조각으로 나눠 떨어뜨림 → 뒤의 팟지 영상
-function shatter(cx, cy, dur, angs) {
-  const W = innerWidth, H = innerHeight, R = Math.hypot(W, H) * 1.2;
-  if (!angs) { angs = []; for (let i = 0; i < 12; i++) angs.push((i / 12) * Math.PI * 2); }
-  const snap = intro.querySelector('.crack').outerHTML;
-  intro.querySelector('.bg').style.display = 'none'; stage.style.opacity = '0';
-  angs.forEach((a1, i) => {
-    const a2 = angs[(i + 1) % angs.length] + (i + 1 === angs.length ? Math.PI * 2 : 0), mid = (a1 + a2) / 2;
-    const s = document.createElement('div'); s.className = 'shard';
-    s.style.clipPath = `polygon(${cx}px ${cy}px, ${cx + Math.cos(a1) * R}px ${cy + Math.sin(a1) * R}px, ${cx + Math.cos(mid) * R}px ${cy + Math.sin(mid) * R}px, ${cx + Math.cos(a2) * R}px ${cy + Math.sin(a2) * R}px)`;
-    s.innerHTML = snap;
-    intro.appendChild(s);
-    const dist = 60 + Math.random() * 120;
-    anim(s, [{ transform: 'none', opacity: 1 }, { transform: `translate(${Math.cos(mid) * dist}px, ${Math.sin(mid) * dist + 260}px) rotate(${(Math.random() - 0.5) * 24}deg)`, opacity: 0 }], { duration: dur + Math.random() * 260, delay: Math.random() * 120, easing: 'cubic-bezier(.5,0,.75,.4)' });
-  });
-  setTimeout(ready, 60);
-  setTimeout(cleanup, dur + 450);
 }
 function playIntro() {
   if (running) return;
   running = true;
-  cleanup(); intro.hidden = false; document.body.classList.add('intro-on'); stage.style.opacity = '';
-  const coin = intro.querySelector('.coin'), spin = coin.querySelector('.spin'), msg = intro.querySelector('.in-msg'), flash = intro.querySelector('.flash');
-  [coin, spin, msg, flash].forEach(x => x.getAnimations().forEach(a => a.cancel()));
+  intro.getAnimations().forEach(a => a.cancel()); board.getAnimations().forEach(a => a.cancel());
+  board.querySelectorAll('.chip, .ib-slot').forEach(x => x.remove());
+  intro.hidden = false; document.body.classList.add('intro-on');
   const W = innerWidth, H = innerHeight, narrow = W < 1000, pad = Math.max(20, Math.min(64, W * 0.05));
-  const cw = narrow ? Math.min(170, (W - 2 * pad - 16) / 2) : 170, ch = W < 560 ? 36 : 40, gap = W < 560 ? 8 : 10, block = 5 * ch + 4 * gap;
-  const colA = narrow ? pad : W * 0.29 - cw / 2, colB = narrow ? W - pad - cw : W * 0.71 - cw / 2;
-  const top0 = narrow ? Math.max(84, H * 0.42 - block) : H / 2 - block / 2 + 14;
-  const bandY = narrow ? Math.min(H - 150, top0 + block + 40) : H / 2 - 60;   // 픽 띠 높이(좁으면 팀 줄 아래)
-  for (const [k, x] of [['a', colA], ['b', colB]]) { const h = intro.querySelector('.in-h.' + k); h.style.left = x + 'px'; h.style.top = (top0 - (W < 560 ? 40 : 48)) + 'px'; h.getAnimations().forEach(a => a.cancel()); }
-  const order = P.slice().sort(() => Math.random() - 0.5);
-  const placed = [];
-  const chips = order.map(([name, champ], i) => {   // ① 접속(흩어진 자리 · 서로 안 겹치게)
-    const el = document.createElement('div'); el.className = 'chip'; el.style.width = cw + 'px';
-    el.innerHTML = `<img src="${ICON(champ)}" alt="" onerror="this.style.visibility='hidden'">${name}<em>팀장</em>`;
-    let x, y, k = 0;
-    do { x = W * 0.06 + Math.random() * (W * 0.88 - cw); y = H * 0.12 + Math.random() * (H * 0.76 - ch); } while (k++ < 40 && placed.some(p => Math.abs(p[0] - x) < cw + 8 && Math.abs(p[1] - y) < ch + 8));
-    placed.push([x, y]); el._at = `translate(${x}px, ${y}px)`; el.style.transform = el._at;
-    stage.appendChild(el);
-    anim(el, [{ opacity: 0, transform: `translate(${x}px, ${y + 10}px) scale(.9)` }, { opacity: 1, transform: el._at }], { duration: 300, delay: 120 + i * 95 });
+  const ch = narrow ? (H < 720 ? 32 : W < 560 ? 36 : 40) : (H < 760 ? 40 : 46), gap = narrow ? 8 : 10, cw = narrow ? Math.min(180, (W - 2 * pad - 12) / 2) : 214, block = 5 * ch + 4 * gap;
+  board.classList.toggle('big', !narrow);
+  // 자리 계산 — 넓으면 [1팀 | 대기 | 2팀] 가로 셋 · 좁으면 위에 두 팀, 아래에 동전과 대기
+  const blockTop = narrow ? Math.max(92, H * 0.13 + 30) : H / 2 - block / 2 + 70;   // 넓으면 동전+보드 묶음이 화면 가운데
+  const colA = narrow ? pad : W * 0.2 - cw / 2, colB = narrow ? W - pad - cw : W * 0.8 - cw / 2;
+  const coinY = narrow ? blockTop + block + 64 : blockTop - 112, msgY = coinY + (narrow ? 48 : 52);
+  const poolTop = narrow ? msgY + 62 : blockTop, poolX = [W / 2 - cw - 6, W / 2 + 6];
+  const slotY = r => blockTop + r * (ch + gap), poolPos = i => [poolX[i % 2], poolTop + Math.floor(i / 2) * (ch + gap)];
+  const head = { a: $i('.ib-head.a'), b: $i('.ib-head.b') };
+  head.a.style.cssText = `left:${colA}px; top:${blockTop - 34}px`; head.b.style.cssText = `left:${colB}px; top:${blockTop - 34}px`;
+  for (const k of ['a', 'b']) { head[k].classList.remove('turn'); head[k].querySelector('span').textContent = ''; }
+  const label = $i('.ib-pool-label'); label.style.cssText = `left:${W / 2 - cw}px; width:${2 * cw + 12}px; top:${poolTop - 24}px`;
+  for (const [x] of [[colA], [colB]]) for (let r = 0; r < 5; r++) {   // 빈 자리 5칸씩
+    const s = document.createElement('div'); s.className = 'ib-slot'; s.style.cssText = `left:${x}px; top:${slotY(r)}px; width:${cw}px; height:${ch}px`; board.appendChild(s);
+  }
+  const coin = $i('.coin'), spin = coin.querySelector('.spin'), shadow = $i('.coin-shadow'), msg = $i('.ib-msg');
+  [coin, spin, shadow, msg].forEach(x => x.getAnimations().forEach(a => a.cancel()));
+  coin.style.cssText = `left:${W / 2 - 42}px; top:${coinY - 42}px`; shadow.style.cssText = `left:${W / 2 - 30}px; top:${coinY + 40}px`; msg.style.top = msgY + 'px'; msg.textContent = '';
+  [head.a, head.b, label, ...board.querySelectorAll('.ib-slot')].forEach(el => fade(el, true, 400));
+  step('<b>접속 중</b>');
+  // ① 접속 — 대기 칸에 한 명씩
+  const pool = P.slice().sort(() => Math.random() - 0.5).map(([name, champ], i) => {
+    const el = document.createElement('div'); el.className = 'chip'; el.style.cssText = `width:${cw}px; height:${ch}px`;
+    el.innerHTML = `<img src="${ICON(champ)}" alt="" onerror="this.style.visibility='hidden'"><span>${name}</span><em></em>`;
+    el._name = name; [el._x, el._y] = poolPos(i);
+    el.style.transform = `translate(${el._x}px, ${el._y}px)`;
+    board.appendChild(el);
+    const a = el.animate([{ opacity: 0, transform: `translate(${el._x}px, ${el._y + 8}px)` }, { opacity: 1, transform: `translate(${el._x}px, ${el._y}px)` }], { duration: 320, delay: 250 + i * 95, easing: EASE, fill: 'both' }); a.id = 'in';
+    later(250 + i * 95, () => step(`<b>접속</b> ${i + 1} / 10`));
     return el;
   });
-  const seat = (el, team, row, dur, delay) => {   // 팀 줄 자리로
-    const to = `translate(${team === 'a' ? colA : colB}px, ${top0 + row * (ch + gap)}px)`;
-    el.getAnimations().forEach(a => a.cancel()); el.style.opacity = '1';
-    anim(el, [{ transform: el._at }, { transform: to }], { duration: dur, delay: delay || 0 });
-    el._at = to; el.classList.add(team === 'a' ? 'ta' : 'tb');
+  const reflow = () => pool.forEach((el, i) => { const [x, y] = poolPos(i); if (x !== el._x || y !== el._y) moveTo(el, x, y, 420); });
+  const rows = { a: 0, b: 0 };
+  const seat = (el, team, cap) => {
+    pool.splice(pool.indexOf(el), 1);
+    el.classList.remove('next'); el.classList.add(team === 'a' ? 'ta' : 'tb');
+    if (cap) el.querySelector('em').textContent = '팀장';
+    moveTo(el, team === 'a' ? colA : colB, slotY(rows[team]++), 520);
+    later(160, reflow);
   };
-  later(1250, () => {   // ② 팀장
-    intro.querySelectorAll('.in-h').forEach(h => anim(h, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 400 }));
-    chips[0].classList.add('cap'); chips[1].classList.add('cap');
-    seat(chips[0], 'a', 0, 650); seat(chips[1], 'b', 0, 650, 40);
+  // ② 팀장
+  later(1450, () => { step('<b>팀장</b>'); seat(pool[0], 'a', true); seat(pool[0], 'b', true); });
+  // ③ 선픽 동전 — 제자리에서 튕겨 올라 돌다가 내려앉음
+  const first = Math.random() < 0.5 ? 'a' : 'b';
+  later(2250, () => {
+    step('<b>선픽 동전</b>');
+    fade(coin, true, 200);
+    const turns = 3 * 360 + (first === 'b' ? 180 : 0);
+    coin.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-96px)', offset: 0.45, easing: 'cubic-bezier(.3,0,.7,1)' }, { transform: 'translateY(0)', offset: 0.9 }, { transform: 'translateY(-6px)', offset: 0.95 }, { transform: 'translateY(0)' }], { duration: 1150, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'both' });
+    spin.animate([{ transform: 'rotateX(0deg)' }, { transform: `rotateX(${turns}deg)` }], { duration: 1040, easing: 'cubic-bezier(.25,.6,.3,1)', fill: 'both' });
+    shadow.animate([{ opacity: 0.5, transform: 'scale(1)' }, { opacity: 0.18, transform: 'scale(.55)', offset: 0.45 }, { opacity: 0.5, transform: 'scale(1)', offset: 0.9 }, { opacity: 0.5, transform: 'scale(1)' }], { duration: 1150, fill: 'both' });
   });
-  // ③ 드래프트 픽(스네이크: 1·2·2·1·1·2·2·1) — 앞 넷은 띠가 크게 쾅, 나머지는 빠르게
-  const snake = ['a', 'b', 'b', 'a', 'a', 'b', 'b', 'a'], rows = { a: 1, b: 1 };
-  let t = 1850;
+  later(3450, () => {
+    msg.innerHTML = `<span class="${first === 'a' ? 't1' : 't2'}">${first === 'a' ? 1 : 2}팀 선픽</span>`;
+    fade(msg, true, 300);
+  });
+  // ④ 픽(스네이크) — 차례 표시 → 뽑힐 사람 표시 → 자리로
+  const other = first === 'a' ? 'b' : 'a', snake = [first, other, other, first, first, other, other, first];
+  let t = 3950;
   snake.forEach((team, k) => {
-    const el = chips[2 + k], row = rows[team]++, big = k < 4, at = t;
-    later(at, () => {
-      if (big) {
-        const band = document.createElement('div'); band.className = 'band ' + team; band.style.top = bandY + 'px';
-        band.innerHTML = `<small>TEAM ${team === 'a' ? 1 : 2} · PICK ${k + 1}</small><b>${el.textContent.replace('팀장', '')}</b>`;
-        stage.appendChild(band);
-        anim(band, [{ transform: 'rotate(-7deg) scaleX(0)' }, { transform: 'rotate(-7deg) scaleX(1)', offset: 0.28 }, { transform: 'rotate(-7deg) scaleX(1)', opacity: 0.96, offset: 0.72 }, { transform: `rotate(-7deg) scaleX(1) translateX(${team === 'a' ? -14 : 14}%)`, opacity: 0 }], { duration: 430, easing: 'cubic-bezier(.3,.7,.3,1)' });
-        anim(band.querySelector('b'), [{ filter: 'blur(8px)', transform: 'scale(1.25)', opacity: 0 }, { filter: 'blur(0)', transform: 'scale(1)', opacity: 1, offset: 0.35 }, { filter: 'blur(0)', transform: 'scale(1)', opacity: 1 }], { duration: 430 });
-        setTimeout(() => band.remove(), 460);
-      }
-      seat(el, team, row, big ? 520 : 380, big ? 180 : 0);
+    later(t, () => {
+      const el = pool[Math.floor(Math.random() * pool.length)];
+      for (const x of ['a', 'b']) { head[x].classList.toggle('turn', x === team); head[x].querySelector('span').textContent = x === team ? '차례' : ''; }
+      step(`<b>PICK ${k + 1}</b> / 8`);
+      el.classList.add('next', team === 'a' ? 'ta' : 'tb');
+      later(200, () => seat(el, team));
     });
-    t += big ? 440 : 170;
+    t += 470;
   });
-  // ④ 동전이 멀리서 돌며 화면으로 날아와 박힘 → 유리 금 · 섬광 · 흔들림 · 선픽
-  const hit = t + 380, first = Math.random() < 0.5 ? 1 : 2, cx = W / 2, cy = narrow ? top0 + block + 75 * 1.35 + 22 : H / 2;   // 좁으면 팀 줄 아래
-  later(t, () => {
-    coin.style.left = cx + 'px'; coin.style.top = cy + 'px';
-    anim(coin, [{ opacity: 0, transform: 'scale(.15)' }, { opacity: 1, transform: 'scale(.35)', offset: 0.25 }, { opacity: 1, transform: 'scale(1.35)' }], { duration: 380, easing: 'cubic-bezier(.55,0,.9,.4)' });   // 점점 빨라지며 다가옴
-    anim(spin, [{ transform: 'rotateY(0deg) rotateX(25deg)' }, { transform: `rotateY(${4 * 360 + (first === 2 ? 180 : 0)}deg) rotateX(0deg)` }], { duration: 380, easing: 'linear' });
-  });
-  later(hit, () => {
-    const angs = drawCrack(cx, cy);
-    intro.classList.remove('shake'); void intro.offsetWidth; intro.classList.add('shake');
-    anim(flash, [{ opacity: 0.55 }, { opacity: 0 }], { duration: 260, easing: 'ease-out' });
-    anim(coin, [{ transform: 'scale(1.35)' }, { transform: 'scale(1.24)', offset: 0.3 }, { transform: 'scale(1.3)' }], { duration: 300 });   // 박혀서 턱
-    chips.forEach(el => anim(el, [{ opacity: 1 }, { opacity: 0.35 }], { duration: 300, easing: 'ease-out' }));
-    msg.style.top = (cy + 75 * 1.3 + 14) + 'px';
-    msg.innerHTML = `<span class="${first === 1 ? 't1' : 't2'}">${first}팀 선픽!</span><small>${chips[first === 1 ? 0 : 1].textContent.replace('팀장', '')} 팀장이 먼저 골라요</small>`;
-    anim(msg, [{ opacity: 0, transform: 'scale(1.15)' }, { opacity: 1, transform: 'none' }], { duration: 260, delay: 120 });
-    later(1050, () => { running = false; shatter(cx, cy, 760, angs); try { sessionStorage.setItem('tn-intro', '1'); } catch (_) {} });
-  });
+  later(t + 150, () => { for (const x of ['a', 'b']) { head.a.classList.remove('turn'); head.b.classList.remove('turn'); head[x].querySelector('span').textContent = '5명'; } step('<b>팀 완성</b>'); fade(label, false, 250); });
+  later(t + 900, () => lift(950));
 }
-intro.querySelector('.in-skip').addEventListener('click', e => { e.stopPropagation(); finish(true); });
-['click', 'wheel', 'touchstart'].forEach(ev => intro.addEventListener(ev, () => finish(true), { passive: true }));
-addEventListener('keydown', () => running && finish(true));
+intro.querySelector('.in-skip').addEventListener('click', e => { e.stopPropagation(); if (running) lift(600); });
+['click', 'wheel', 'touchstart'].forEach(ev => intro.addEventListener(ev, () => running && lift(600), { passive: true }));
+addEventListener('keydown', () => running && lift(600));
 document.getElementById('replay').addEventListener('click', () => { scrollTo(0, 0); document.body.classList.remove('ready'); setTimeout(playIntro, 60); });
 
 let seen = false; try { seen = sessionStorage.getItem('tn-intro') === '1'; } catch (_) {}
