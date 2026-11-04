@@ -360,10 +360,31 @@ module.exports = function makePotg(d) {
     log(`중계 올리기 실패 ${r.status} ${JSON.stringify(j || {}).slice(0, 120)}`);
     return null;
   }
+  // ⚡ v0.1.124: 중계가 미국 LA(Cloudflare 무료 colo=LAX)라 큰 영상이 1~3분·자주 끊김 → 중계에선 **1시간짜리 올리기 토큰**(GitHub App · clips 저장소만)만 받고
+  //   영상은 GitHub(uploads.github.com)로 **직접**(9MB 2~4초) · 토큰/직접이 안 되면 예전처럼 중계로
+  let _upTok = null;
+  async function uploadDirect(name, buf, mime, day) {   // → assetId 또는 null
+    const base = await proxy(); if (!base) return null;
+    if (!_upTok || _upTok.day !== day || _upTok.exp - Date.now() < 5 * 60e3) {
+      const r = await fetch(`${base}/upload-token?day=${day}`, { method: 'POST', headers: await pxHead(), signal: AbortSignal.timeout(20000) });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.token || !/^https:\/\/uploads\.github\.com\//.test(j.upload || '')) { log(`올리기 토큰 못 받음 ${r.status} ${JSON.stringify(j || {}).slice(0, 80)}`); return null; }
+      _upTok = { day, token: j.token, upload: j.upload, exp: Number(j.exp) || Date.now() + 50 * 60e3 };
+    }
+    const t0 = Date.now();
+    const r = await fetch(`${_upTok.upload}?name=${encodeURIComponent(name)}`, { method: 'POST', body: buf, signal: AbortSignal.timeout(90000),
+      headers: { Authorization: `Bearer ${_upTok.token}`, 'Content-Type': mime, Accept: 'application/vnd.github+json', 'User-Agent': 'today-naejeon' } });
+    const j = await r.json().catch(() => null);
+    if (r.status === 401) _upTok = null;
+    if (!r.ok || !j || !j.id) { log(`GitHub 직접 올리기 실패 ${r.status} ${JSON.stringify(j || {}).slice(0, 80)}`); return null; }
+    log(`GitHub 직접 올리기 ${((Date.now() - t0) / 1000).toFixed(1)}초`);
+    return j.id;
+  }
   async function uploadGh(gameId, buf, mime, day) {   // → assetId 또는 null
     try {
       const name = `${String(gameId).replace(/[^\w-]/g, '')}-${Date.now().toString(36)}.${extOf(mime)}`;   // 같은 판 다시 올려도 안 부딪힘
-      const id = await pxUpload(`/upload?day=${day}`, name, buf, mime, 180000);
+      const id = await uploadDirect(name, buf, mime, day).catch(e => { log('GitHub 직접 올리기 실패 ' + e.message); return null; })
+        || await pxUpload(`/upload?day=${day}`, name.replace(/(\.\w+)$/, 'r$1'), buf, mime, 180000);   // 직접이 반쯤 올라갔을 수 있어 이름을 바꿔 중계로
       if (id) log(`영상 올림 ✅ ${(buf.length / 1048576).toFixed(1)}MB · GitHub ${name}`);
       return id;
     } catch (e) { log('GitHub 영상 올리기 실패 ' + e.message); return null; }

@@ -4,6 +4,7 @@
 // 할 수 있는 것 = 그날 릴리스(clips-YYYY-MM-DD)에 영상 올리기 · 영상 받기(서명된 임시 주소로 넘김) · 증강 화면(aug-shots 릴리스) 올리기
 // 못 하는 것 = 지우기·덮어쓰기·다른 파일 읽기(지우기는 매일 정리 cron만 · 3일 지난 clips- 릴리스)
 // 경로: POST /upload?day=&name= (video/webm|mp4 · 45MB 이하) → {id} · GET /clip/{id} → 302 · POST /shot?name= (jpg·json 8MB 이하) → {id}
+//       POST /upload-token?day= → {token, upload, exp}(2026-11-05 · 앱이 GitHub에 직접 올림 · 아래 appToken)
 // x-tn-app 머리말은 지나가는 요청 거르기용일 뿐(앱 코드에 공개) — 보안 장치 아님
 // 🔐 2026-11-02(앱 v0.1.99~): Authorization: Bearer <Firebase 익명 로그인 표식> 확인(구글 공개키로 서명·프로젝트·만료) — 표식이 있는데 가짜면 401
 //   표식 없는 요청 = 옛 앱(전환 중) → vars REQUIRE_AUTH="1"이면 거절(친구들 업데이트 뒤 · DB 2단계 규칙과 같이)
@@ -34,6 +35,26 @@ async function upload(env, rel, name, type, buf) {
   const r = await gh(env, 'POST', `${rel.upload_url.replace(/\{.*$/, '')}?name=${encodeURIComponent(name)}`, buf, { 'Content-Type': type });
   const j = await r.json().catch(() => null);
   return r.ok && j && j.id ? json({ id: j.id }) : json({ err: 'upload', status: r.status }, 502);
+}
+
+// ⚡ 2026-11-05(앱 v0.1.124~): 앱이 GitHub에 **직접** 올리게 임시 토큰을 줌 — 이 중계는 Cloudflare 무료라 한국 요청이 미국 LA(colo=LAX)로 가서
+//   큰 영상을 여기로 보내면 1~3분·자주 끊김(실측 9MB 65~178초) · 한국 → GitHub 직접은 9MB 2~4초 → 토큰만 여기서 받고 영상은 GitHub로 바로
+//   토큰 = GitHub App(비공개 · 앱 id/설치 번호 = vars GH_APP_ID·GH_INSTALL_ID · 비밀 키 = 비밀값 GH_APP_KEY PKCS#8) 설치 토큰:
+//   clips 저장소 하나 · Contents 쓰기만 · 1시간짜리(로그인 표식 있는 앱만 · 올리기 횟수 제한 같이) — 새도 1시간 뒤 못 쓰고 다른 저장소는 못 건드림
+let _tok = null;
+const b64uStr = s => btoa(s).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+async function appToken(env) {
+  if (_tok && _tok.exp - Date.now() > 10 * 60e3) return _tok;   // 10분 넘게 남은 건 같이 씀
+  const now = Math.floor(Date.now() / 1000), head = b64uStr(JSON.stringify({ alg: 'RS256', typ: 'JWT' })), pay = b64uStr(JSON.stringify({ iat: now - 60, exp: now + 540, iss: String(env.GH_APP_ID) }));
+  const der = Uint8Array.from(atob(String(env.GH_APP_KEY).replace(/-----[^-]+-----/g, '').replace(/\s+/g, '')), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
+  const sig = new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(`${head}.${pay}`)));
+  const jwt = `${head}.${pay}.${b64uStr(String.fromCharCode(...sig))}`;
+  const r = await fetch(`https://api.github.com/app/installations/${env.GH_INSTALL_ID}/access_tokens`, { method: 'POST',
+    headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/vnd.github+json', 'User-Agent': 'today-naejeon-clips', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repositories: [String(env.REPO).split('/')[1]], permissions: { contents: 'write' } }) });
+  const j = await r.json().catch(() => null); if (!j || !j.token) return null;
+  _tok = { token: j.token, exp: Date.parse(j.expires_at) }; return _tok;
 }
 
 let _jwk = null;
@@ -70,6 +91,14 @@ async function route(req, env) {
     const buf = await req.arrayBuffer(); if (buf.byteLength !== len) return json({ err: 'length' }, 400);
     const rel = await release(env, `clips-${day}`, `팟지 영상 ${day}`); if (!rel) return json({ err: 'release' }, 502);
     return upload(env, rel, name, type, buf);
+  }
+  if (req.method === 'POST' && u.pathname === '/upload-token') {   // ⚡ 직접 올리기용 임시 토큰 + 그날 릴리스 올리기 주소(로그인 표식 필수)
+    if (!uid) return json({ err: 'login required' }, 401);
+    const day = u.searchParams.get('day'); if (!dayOk(day)) return json({ err: 'bad request' }, 400);
+    if (!env.GH_APP_KEY || !env.GH_APP_ID || !env.GH_INSTALL_ID) return json({ err: 'no app' }, 501);
+    const t = await appToken(env); if (!t) return json({ err: 'token' }, 502);
+    const rel = await release(env, `clips-${day}`, `팟지 영상 ${day}`); if (!rel) return json({ err: 'release' }, 502);
+    return json({ token: t.token, upload: rel.upload_url.replace(/\{.*$/, ''), exp: t.exp });
   }
   if (req.method === 'POST' && u.pathname === '/shot') {
     const name = u.searchParams.get('name');

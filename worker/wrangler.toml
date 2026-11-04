@@ -7,6 +7,9 @@ workers_dev = true
 [vars]
 REPO = "SOHADA2/today-naejeon-clips"
 REQUIRE_AUTH = "1"   # 2026-11-04 DB 2단계와 같이 켬 — 표식 없는 요청 거절
+# ⚡ 2026-11-05 GitHub App(앱이 직접 올리기용 1시간 토큰 · clips 저장소에만 설치) — 비밀 키는 비밀값 GH_APP_KEY(PKCS#8 · 저장소에 절대 안 둠)
+GH_APP_ID = "5615183"
+GH_INSTALL_ID = "178639405"
 
 [triggers]
 crons = ["0 21 * * *"]   # 매일 한국 새벽 6시 = 3일 지난 영상 정리
