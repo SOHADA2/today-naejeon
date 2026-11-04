@@ -354,11 +354,21 @@ module.exports = function makePotg(d) {
       return !!(await pxUpload('/shot', name, buf, /\.json$/.test(name) ? 'application/json' : 'image/jpeg', 60000));
     } catch (e) { log('화면 보내기 실패 ' + e.message); return false; }
   }
+  // ⏱️ v0.1.117: 중계(→ GitHub)가 가끔 아주 느림(실측 2026-11-04: 0.5MB 9초 · 3MB 77초 · 9MB 9초 · 실제 판 9MB는 3분 시간 초과 → 99%에서 4분 멈춤)
+  //   → 중계가 40초 안에 안 끝나면 Firebase 예비 조각도 **같이** 올려 먼저 끝난 쪽을 씀(늦게 끝난 쪽은 버려져도 3일 정리로 지워짐)
+  const GH_WAIT = 40000;
   async function uploadClip(gameId, buf, mime) {
     const day = d.dayKey();
     mime = mime || 'video/webm';
-    const id = await uploadGh(gameId, buf, mime, day);
-    if (id) return { day, gameId: String(gameId), n: 0, size: buf.length, mime, at: Date.now(), gh: id };
+    const ghP = uploadGh(gameId, buf, mime, day).then(id => id ? { day, gameId: String(gameId), n: 0, size: buf.length, mime, at: Date.now(), gh: id } : null, () => null);
+    const first = await Promise.race([ghP, new Promise(r => setTimeout(() => r('slow'), GH_WAIT))]);
+    if (first && first !== 'slow') return first;
+    if (first === null) return uploadChunks(gameId, buf, mime, day);   // 중계가 바로 실패
+    log(`중계가 ${GH_WAIT / 1000}초 넘게 걸려 Firebase 예비 조각도 같이 올림`);
+    const fbP = uploadChunks(gameId, buf, mime, day);
+    return Promise.race([ghP.then(x => x || fbP), fbP.then(x => x || ghP)]);
+  }
+  async function uploadChunks(gameId, buf, mime, day) {
     // v0.1.70 예비(사장님): GitHub가 실패한 판만 예전처럼 Firebase 조각 — 그 판만 Firebase 한도를 씀
     const base = `${d.T}/clips/${day}/${gameId}`, n = Math.ceil(buf.length / CHUNK);
     for (let i = 0; i < n; i++) {

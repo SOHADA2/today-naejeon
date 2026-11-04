@@ -1959,7 +1959,7 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   recProgStart(parts);
   const t0 = Date.now(), recP = replayRec.record({ gameId: g.id, parts });
   recP.catch(() => {}).finally(() => setTimeout(() => { replayBusy = false; }, 6000));   // 리플레이가 실제로 끝나고(닫히고) 조금 더 지나야 풀림(시간 초과로 먼저 카드를 보여줘도)
-  const metas = [null, null], whys = [], secs = [null, null], LIMIT = H ? 260000 : 180000;
+  const metas = [null, null], whys = [], secs = [null, null], ups = [], LIMIT = H ? 260000 : 180000;
   try {
     const files = await Promise.race([recP, new Promise(r => setTimeout(() => r(null), LIMIT))]);
     if (!files) whys.push(Date.now() - t0 >= LIMIT - 1000 ? `${LIMIT / 60000}분 초과` : '녹화 안 됨');
@@ -1976,9 +1976,10 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
       // v0.1.71: 화질을 올려 원본보다 커질 수 있음 → 크기 비교 안 함(잘라 맞춘 화면 = 주인공 중심이 기준)
       if (small && small.buf.length > 100000 && small.buf.length <= CLIP_MAX) { _recLog.push(`${tag} 다시 녹화 ${(buf.length / 1048576).toFixed(1)}→${(small.buf.length / 1048576).toFixed(1)}MB ${small.w}×${small.h}`); buf = small.buf; }
       if (buf.length > CLIP_MAX) whys.push(`${tag} 너무 큼 ${(buf.length / 1048576).toFixed(1)}MB`);
-      else { metas[i] = await potg.uploadClip(i ? g.id + 'h' : g.id, buf, 'video/webm'); if (!metas[i]) whys.push(tag + ' 올리기 실패'); }
-      try { fs.unlinkSync(file); } catch (_) {}
+      else ups.push(potg.uploadClip(i ? g.id + 'h' : g.id, buf, 'video/webm').then(m => { metas[i] = m; if (!m) whys.push(tag + ' 올리기 실패'); }, () => { whys.push(tag + ' 올리기 실패'); }));   // v0.1.117: 두 영상 동시에(예전엔 차례로)
+      try { fs.unlinkSync(file); } catch (_) {}   // 내용은 이미 메모리(buf)에
     }
+    await Promise.all(ups);
   } catch (e) { whys.push('오류 ' + (e && e.message)); }
   // 🎬 영상 0초 = 롤이 실제로 찍기 시작한 게임 시각 → 영상이 생긴 장면은 clipFrom을 거기로(안 하면 킬 자막·슬로가 어긋남 · v0.1.58)
   //   = 녹화 끝(clipTo) − 원본 영상 길이(실측 540~556 요청 → 18.94초 → 537.06) · 길이를 모르거나 이상하면 되감기 지점(clipFrom − 3)

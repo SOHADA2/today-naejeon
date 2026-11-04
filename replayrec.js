@@ -169,14 +169,20 @@ function makeReplayRec(d) {
     const mute = async on => {
       if (!d.muteAudio || !replayPid || (!on && !muted)) return;
       const r = await d.muteAudio([replayPid], on).catch(() => null);
-      if (on && r && r.muted) { if (!muted) log(`리플레이 소리 끔(방장 스피커만 · 영상엔 소리 있음)`); muted = true; }
+      if (on && r && r.muted) { if (!muted) log(`리플레이 소리 끔(방장 스피커만 · 영상엔 소리 있음 · ${sec()}초)`); muted = true; }
       if (!on) { log(`리플레이 소리 다시 켬 ${r ? `세션 ${r.sessions} · 음소거 ${r.muted}` : '실패(다음 게임 때 다시 풂)'}`); if (r && !r.muted) muted = false; }
     };
     try {
       let len = 0;   // ④ 리플레이 로딩(최대 120초)
-      for (let i = 0; i < (d.loadWaitSec || 120) && !len; i++) { const p = await live('GET', '/replay/playback'); if (p.status === 200 && p.data && p.data.length > 0) len = p.data.length; else await sleep(1000); }
+      for (let i = 0; i < (d.loadWaitSec || 120) && !len; i++) {
+        const p = await live('GET', '/replay/playback'); if (p.status === 200 && p.data && p.data.length > 0) { len = p.data.length; break; }
+        // 🔇 v0.1.117: 로딩 동안에도 끔(사장님: 녹화할 때 소리가 남 — 실기 ap렉사이서폿 PC: 열기 요청 → 열림까지 ~50초 로딩 소리가 다 나고 열린 뒤에야 껐음)
+        //   → 리플레이 프로세스가 생기면 1초마다 소리 세션을 찾아 바로 끔(세션은 소리가 나기 시작할 때 생김)
+        if (!muted && d.muteAudio) { const np = (await gamePids()).find(x => !before.includes(x)); if (np) { replayPid = np; await mute(true); } }
+        await sleep(1000);
+      }
       if (!len) { log('리플레이 창구가 안 열림(EnableReplayApi?)'); return null; }
-      replayPid = (await gamePids()).find(x => !before.includes(x)) || null;
+      replayPid = (await gamePids()).find(x => !before.includes(x)) || replayPid;
       log(`리플레이 열림 · 길이 ${Math.round(len)}초 · 프로세스 ${replayPid || '?'} (${sec()}초)`);
       await mute(true);
       const outs = [];
