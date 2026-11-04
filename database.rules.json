@@ -63,6 +63,12 @@
           "seen": {
             ".validate": "newData.isNumber()"
           },
+          "n": {
+            ".validate": "newData.isNumber()"
+          },
+          "mem": {
+            ".validate": "newData.isString() && newData.val().length <= 400"
+          },
           "$other": {
             ".validate": false
           }
@@ -79,6 +85,35 @@
           "potgWait": {},
           "potgRec": {},
           "bridge": {},
+          "members": {
+            "$k": {
+              ".validate": "$k.length <= 80 && newData.hasChildren(['name', 'at'])",
+              "name": {
+                ".validate": "newData.isString() && newData.val().length <= 40"
+              },
+              "tag": {
+                ".validate": "newData.isString() && newData.val().length <= 20"
+              },
+              "icon": {
+                ".validate": "newData.isNumber()"
+              },
+              "at": {
+                ".validate": "newData.isNumber()"
+              },
+              "host": {
+                ".validate": "newData.isBoolean()"
+              },
+              "app": {
+                ".validate": "newData.isString() && newData.val().length <= 20"
+              },
+              "room": {
+                ".validate": "newData.isString() && newData.val().length <= 40"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
           "$other": {
             ".validate": false
           }
@@ -206,7 +241,10 @@
               "votes": {
                 ".write": "auth != null && (data.parent().child('sv').val() > now - 21600000)"
               }
-            }
+            },
+            ".indexOn": [
+              "roomName"
+            ]
           }
         }
       },

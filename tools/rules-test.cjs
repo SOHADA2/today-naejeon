@@ -1,4 +1,4 @@
-// 서버 규칙 시험(v0.1.97 · 70건 + 2단계 표식 없는 요청 5건) — 기본 = 익명 로그인 표식을 붙인 요청(= 앱 설치본)으로 허용/차단 확인 + 표식 없는 요청 전부 거절 · RT_NOAUTH=1 = 1단계(표식 없이) · 시험 경로 = 2000-01-01·rt_ 접두 · 끝나면 관리자로 정리(GAPI=관리자 토큰 스크립트 경로 · CLAUDE.md 서버 규칙)
+// 서버 규칙 시험(v0.1.97 · 75건 + 2단계 표식 없는 요청 5건) — 기본 = 익명 로그인 표식을 붙인 요청(= 앱 설치본)으로 허용/차단 확인 + 표식 없는 요청 전부 거절 · RT_NOAUTH=1 = 1단계(표식 없이) · 시험 경로 = 2000-01-01·rt_ 접두 · 끝나면 관리자로 정리(GAPI=관리자 토큰 스크립트 경로 · CLAUDE.md 서버 규칙)
 const { execFileSync } = require('child_process');
 const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app';
 const admin = (m, p, body) => execFileSync('node', [process.env.GAPI || require('path').join(__dirname, 'gapi.cjs'), m, `${DB}/${p}.json`].concat(body ? [JSON.stringify(body)] : [])).toString().trim();
@@ -62,6 +62,12 @@ const SV = { '.sv': 'timestamp' }, D = 'today/days/2000-01-01';
   await t('방 판 상태', 'ok', 'PUT', 'today/rooms/rt_r/session', { phase: 'teams', teamA: ['a'] });
   await t('방 대기실·방장·브릿지', 'ok', 'PATCH', 'today/rooms/rt_r', { lobby: { v: 1 }, host: { puuid: 'x' }, bridge: { gamePhase: 'Lobby' } });
   await t('방 안 모르는 칸', 'deny', 'PUT', 'today/rooms/rt_r/junk', 'x');
+  // 📦 v0.1.110 방 단위 데이터
+  await t('방 사람 칸', 'ok', 'PUT', 'today/rooms/rt_r/members/rt_p', { name: '시험', tag: 'KR1', icon: 29, at: Date.now(), host: false, app: '0.1.110', room: 'rt_r' });
+  await t('방 사람 칸 — 모르는 칸', 'deny', 'PUT', 'today/rooms/rt_r/members/rt_p', { name: '시험', at: 1, junk: 'x' });
+  await t('방 목록 인원·이름', 'ok', 'PATCH', 'today/roomList/rt_r', { n: 2, mem: '시험\n시험2' });
+  await t('방 목록 이름 줄 너무 김', 'deny', 'PATCH', 'today/roomList/rt_r', { mem: 'x'.repeat(401) });
+  { const r = await fetch(`${DB}/today/days/2000-01-02/matches.json?orderBy=${encodeURIComponent('"roomName"')}&equalTo=${encodeURIComponent('"rt"')}${TOK ? `&auth=${TOK}` : ''}`); const ok = r.status === 200; ok ? pass++ : fail++; console.log(ok ? '✅' : '❌', '허용 방 이름으로 골라 읽기(색인)', r.status); }
   await t('방 밖(_none) 쓰기', 'deny', 'PUT', 'today/rooms/_none/session', { a: 1 });
   await t('방 지우기(정리)', 'ok', 'DELETE', 'today/rooms/rt_r');
   await t('모든 방 통째 지우기', 'deny', 'DELETE', 'today/rooms');

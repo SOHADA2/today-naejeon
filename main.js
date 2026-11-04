@@ -992,6 +992,11 @@ function teamOf(s, name) {
 //   today/roomList/{방} = { name, priv, pw(비공개 = sha256(방:비밀번호)), host(방장 이름), at(만든 시각), seen(방 사람 앱이 20초마다), by }
 //   today/rooms/{방}/{session·lobby·host·normalLive·potgWait·potgRec·bridge} = 예전 today/ 아래 그 노드들 그대로(방마다)
 //   방에 있는 사람 = presence.room · 기록(days)은 그대로 한곳 + roomName → 「오늘」 순위는 방 이름별(이름 없는 옛 기록은 모든 방에) · 프로필은 합침
+//   📦 v0.1.110 방 단위 데이터(사장님: 다른 팀이 와도 섞이지 않고 서버가 사람 수 제곱으로 안 늘게):
+//     · 방 사람 = rooms/{방}/members/{puuid}(방 스트림 안 → 그 방 사람만 받음) · 전역 presence는 쓰기만(아무도 실시간으로 안 받음 · 옛 앱 호환)
+//     · 방 목록 스트림 = 방 밖(방 고르는 화면)일 때만 · 방장(방장이 40초 넘게 조용하면 남은 사람)이 roomList에 seen·n(인원)·mem(이름) 갱신
+//     · 앱당 실시간 연결 1개(방 밖 = 방 목록 · 방 안 = 방) → 자리 기준 30 → 80
+//     · 「오늘」 = 서버에서 방 이름으로 골라 받음(.indexOn roomName) + 같은 방 번호이거나, 이름만 같으면 지금 방 사람이 그 판에 있었을 때만(sameGroup)
 //   ⚠️ 비공개 = 목록 자물쇠 + 앱의 비밀번호 확인까지(서버 읽기는 누구나 — 규칙 참고)
 let room = null, roomListRaw = null, runSession = null, _autoHostAt = 0, _gcAt = 0;   // room = { id, name, priv, h }
 const RP = () => `${T}/rooms/${room ? room.id : '_none'}`;   // 방 밖이면 쓰지 않음(각 함수가 room 확인 · _none은 규칙상 쓰기 거절)
@@ -1001,18 +1006,16 @@ const pwHash = (id, pw) => require('crypto').createHash('sha256').update(`${id}:
 // 🚦 v0.1.96: 자리 — 무료 요금제 동시 연결 100개(앱당 실시간 연결 3개 = 약 33명 · 짧은 요청은 안 셈 · 실측) → 켤 때 자리부터 보고 꽉 찼으면 실시간 연결을 아예 안 엶
 //   이미 들어와 있는 사람은 그대로(다시 확인 안 함) · 30초마다 다시 보고 자리 나면 들어감
 //   세는 것 = today/conns/{기기} = 마지막 신호 시각(롤 로그인 안 한 앱도 연결은 쓰니 접속 표시 대신 기기 단위) · 기준 = config/connCap(기본 30 · 동시에 켜는 사람 여유)
-const CONN_CAP = 30, CONN_MS = 20000, CONN_STALE_MS = 10 * 60 * 1000;
+const CONN_CAP = 80, CONN_MS = 20000, CONN_STALE_MS = 10 * 60 * 1000;   // v0.1.110: 앱당 실시간 연결 1개 → 80(동시에 켜는 여유 20)
 let seatFull = null, _live = false, _connN = 0;   // seatFull = { n, cap } = 꽉 차서 기다리는 중
 function connBeat() {
   fbSet(`${T}/conns/${config.deviceId}`, Date.now()).catch(() => {});
   if (++_connN % 15) return;   // 5분마다 오래된 기기 정리(앱이 갑자기 꺼진 것)
   getJson(`${FIREBASE_DB}/${T}/conns.json`).then(c => { for (const [k, v] of Object.entries(c || {})) if (!(Date.now() - v < CONN_STALE_MS)) fbSet(`${T}/conns/${k}`, null).catch(() => {}); }).catch(() => {});
 }
-function startLive() {   // 실시간 연결 3개(접속 표시·방 목록·방)
+function startLive() {   // v0.1.110: 실시간 연결 1개 = 방 밖이면 방 목록 · 방 안이면 그 방(roomStreams가 바꿔 끼움)
   _live = true;
-  fbMirror('presence', d => { presenceRaw = d || null; broadcast('lobby', lobbyView()); broadcastRooms(); }); // ⚡ 누가 들어오고 나감(어느 방에)
-  fbMirror('roomList', d => { roomListRaw = d || null; broadcastRooms(); roomRejoin(); });                    // 🚪 방 목록
-  roomStreams();                                       // 🚪 방 노드(session·lobby·host·normalLive·potgWait·potgRec·eogStats) = 방에 들어가면 그 방 것만
+  roomStreams();
   connBeat(); setInterval(connBeat, CONN_MS);
 }
 async function seatGate() {
@@ -1030,9 +1033,10 @@ function roomsView() {
   const now = Date.now(), rooms = [];
   for (const [id, r] of Object.entries(roomListRaw || {})) {
     if (!r || !r.name) continue;
-    const mem = roomMembers(id);
-    if (!(room && room.id === id) && !mem.length && now - Math.max(r.seen || 0, r.at || 0) > ROOM_GONE_MS) continue;   // 사라지는 중
-    rooms.push({ id, name: r.name, priv: !!r.priv, host: r.host || null, n: mem.length, members: mem.map(m => m.name).slice(0, 10), at: r.at || 0, mine: !!(room && room.id === id) });
+    const mine = !!(room && room.id === id);
+    if (!mine && now - Math.max(r.seen || 0, r.at || 0) > ROOM_GONE_MS) continue;   // 사라지는 중(방 사람 앱이 90초 넘게 소식 없음)
+    const mem = mine ? roomMembers(id).map(m => m.name) : String(r.mem || '').split('\n').filter(Boolean);   // 다른 방 = 방장이 적어 둔 인원·이름(v0.1.110)
+    rooms.push({ id, name: r.name, priv: !!r.priv, host: r.host || null, n: mine ? mem.length : (Number(r.n) || mem.length), members: mem.slice(0, 10), at: r.at || 0, mine });
   }
   rooms.sort((a, b) => b.mine - a.mine || b.n - a.n || b.at - a.at);
   return { rooms, room: room ? { id: room.id, name: room.name, priv: room.priv } : null, me: config.myName || '', ready: !!(MIR.roomList && MIR.roomList.ready), full: seatFull };
@@ -1045,7 +1049,9 @@ let _roomPrev = null;
 const roomPart = (name, fetcher) => MIR.room && MIR.room.ready ? Promise.resolve(((MIR.room.data || {})[name]) || null) : fetcher();
 function roomStreams() {   // 방 바뀜 → 방 스트림 다시(예전 방 데이터는 버림)
   mirClose('room'); _roomPrev = null;
-  sessionData = null; lobbyRaw = null; lastFormed = 0; normalLive = null; potgRecRaw = null; potgWaitRaw = null;
+  sessionData = null; lobbyRaw = null; presenceRaw = null; lastFormed = 0; normalLive = null; potgRecRaw = null; potgWaitRaw = null;
+  if (room) mirClose('roomList');   // 📦 v0.1.110: 방 안에선 방 목록을 실시간으로 안 받음(방 고르는 화면에서만)
+  else if (_live && !MIR.roomList) fbMirror('roomList', d => { roomListRaw = d || null; broadcastRooms(); roomRejoin(); });   // 🚪 방 목록
   onHostRec(null);
   try { bridge.setRoot(room ? `${RP()}/bridge` : `${T}/bridge`); } catch (_) {}
   broadcast('lobby', lobbyView()); broadcast('session', { session: null, myName: config.myName || '' });
@@ -1053,6 +1059,7 @@ function roomStreams() {   // 방 바뀜 → 방 스트림 다시(예전 방 데
   fbMirror('room', d => {
     const p = _roomPrev || {}, c = d || {}; _roomPrev = c;
     if (p.lobby !== c.lobby) { lobbyRaw = c.lobby || null; broadcast('lobby', lobbyView()); }               // ⚡ 대기실(참가·방식·팀장)
+    if (p.members !== c.members) { presenceRaw = c.members || null; broadcast('lobby', lobbyView()); broadcastRooms(); }   // 📦 v0.1.110: 방 사람(들어오고 나감)
     if (['session', 'host', 'normalLive', 'potgWait', 'potgRec'].some(k => p[k] !== c[k])) runSession();     // ⚡ 판·방장·팟지(일반 판·기다림·녹화 안내)
     if ((p.bridge && p.bridge.eogStats) !== (c.bridge && c.bridge.eogStats) && config.isHost) runHost();      // ⚡ 경기 종료 → 방장 앱이 바로 기록
   }, RP());
@@ -1096,6 +1103,7 @@ async function roomLeave(quiet) {
     if (next) await handHost(next.key).catch(() => {}); else await releaseHost().catch(() => {});
   }
   if (account) fbSet(`${T}/rooms/${id}/lobby/join/${account.puuid}`, null).catch(() => {});
+  if (account) fbSet(`${T}/rooms/${id}/members/${account.puuid}`, null).catch(() => {});   // 📦 방 사람 칸
   room = null; config.lastRoom = null; saveConfig();
   roomStreams();
   await beatPresence();
@@ -1109,11 +1117,11 @@ function roomAutoHost() {   // 👑 방장이 없거나 1분 넘게 응답 없�
   if (first && first.key === account.puuid) { _autoHostAt = Date.now(); claimHost().catch(() => {}); }
 }
 async function roomGc() {   // 🧹 아무도 없는 방 지우기(아무 앱이나 · 30초마다)
-  if (Date.now() - _gcAt < 30000 || !(MIR.roomList && MIR.roomList.ready) || !(MIR.presence && MIR.presence.ready)) return;
+  if (Date.now() - _gcAt < 30000 || !(MIR.roomList && MIR.roomList.ready)) return;   // 📦 v0.1.110: 방 목록을 보는 앱(방 밖)만
   _gcAt = Date.now();
   for (const [id, r] of Object.entries(roomListRaw || {})) {
     if (room && room.id === id) continue;
-    if (r && r.name && (roomMembers(id).length || Date.now() - Math.max(r.seen || 0, r.at || 0) < ROOM_GONE_MS)) continue;
+    if (r && r.name && Date.now() - Math.max(r.seen || 0, r.at || 0) < ROOM_GONE_MS) continue;   // 방 사람 앱이 90초 안에 소식 있으면 둠
     await fbSet(`${T}/roomList/${id}`, null).catch(() => {});
     await fbSet(`${T}/rooms/${id}`, null).catch(() => {});
   }
@@ -1137,8 +1145,25 @@ function roomRejoin() {   // 앱을 다시 켜면(업데이트 등) 있던 방�
 const fetchSession   = () => roomGet('session');
 const fetchLobby     = () => roomGet('lobby');
 const fetchEog       = () => roomGet('bridge/eogStats');
-const fetchDay       = (day) => getJson(`${FIREBASE_DB}/${T}/days/${day}/matches.json`);
-const fetchPresence  = () => getJson(`${FIREBASE_DB}/${T}/presence.json`);        // 👤 지금 앱 켜고 롤 로그인한 사람들(presence.room = 있는 방)
+const fetchPresence  = () => room ? roomGet('members') : Promise.resolve(null);   // 👤 v0.1.110: 이 방 사람(rooms/{방}/members · 예전 = 전역 presence 전체)
+// 📦 그날 기록 중 이 방 것만 — 서버에서 방 이름으로 골라 받음(.indexOn roomName · 방 생기기 전 날은 통째) · 이름만 같은 다른 모임은 sameGroup으로 거름
+const ROOMS_SINCE = '2026-11-02';
+async function fetchDayRoom(kind, day) {
+  const base = `${FIREBASE_DB}/${T}/days/${day}/${kind}.json`;
+  if (!room || day < ROOMS_SINCE) return getJson(base);
+  const r = await getJson(`${base}?orderBy=${encodeURIComponent('"roomName"')}&equalTo=${encodeURIComponent(JSON.stringify(room.name))}`);
+  return r && r.error ? getJson(base) : r;   // 서버 규칙에 색인이 없으면(옛 규칙) 통째
+}
+const fetchDay = day => fetchDayRoom('matches', day);
+function sameGroup(m) {   // 이 방 기록인가(방 밖이면 전부 · 방 생기기 전 이름 없는 옛 기록은 모든 방에)
+  if (!room || !m || !m.roomName) return true;
+  if (m.roomId === room.id) return true;
+  if (m.roomName !== room.name) return false;
+  // 이름만 같은 다른 방(방을 다시 만들었거나 · 이름이 같은 다른 모임) → 지금 이 방 사람(나 포함)이 그 판에 있었으면 같은 모임
+  const mine = new Set(Object.keys(presenceRaw || {}).concat(account ? [account.puuid] : []));
+  for (const p of Object.values(m.ids || {}).concat((m.stats || []).map(x => x && x.puuid))) if (p && mine.has(p)) return true;
+  return false;
+}
 
 // ── 👤 라이엇 계정 = 나 (롤 클라에 로그인된 계정으로 자동 입장 · 사이트 닉네임 안 씀) ──
 // 표시 이름 = 라이엇 게임 이름. 저장 키 = puuid(계정 고유 ID·닉변해도 유지).
@@ -1151,9 +1176,14 @@ async function beatPresence() {
     if (_away && config.isHost && room) fbCas(`${RP()}/host`, cur => cur && cur.puuid === _away.puuid ? { value: { puuid: cur.puuid, name: cur.name, at: Date.now() } } : { err: 'not mine' }).catch(() => {});
     return;
   }
-  await fbSet(`${T}/presence/${account.puuid}`, { name: account.gameName, tag: account.tagLine || null, icon: account.iconId || null, at: Date.now(), host: !!config.isHost, app: app.getVersion(), room: room ? room.id : null }).catch(() => {});
+  const pres = { name: account.gameName, tag: account.tagLine || null, icon: account.iconId || null, at: Date.now(), host: !!config.isHost, app: app.getVersion(), room: room ? room.id : null };
+  await fbSet(`${T}/presence/${account.puuid}`, pres).catch(() => {});   // 전역(아무도 실시간으로 안 받음 · 옛 앱 호환·관리용)
   if (!room) return;
-  fbUpdate(`${T}/roomList/${room.id}`, Object.assign({ name: room.name, priv: !!room.priv, pw: room.priv ? room.h : null, seen: Date.now() }, config.isHost ? { host: account.gameName } : {})).catch(() => {});   // 🚪 방 살아있음(+방장 이름)
+  fbSet(`${RP()}/members/${account.puuid}`, pres).catch(() => {});   // 📦 v0.1.110: 방 사람 = 방 스트림 안(그 방 사람만 받음)
+  if (config.isHost || !hostRec || Date.now() - (hostRec.at || 0) > 40000) {   // 🚪 방 살아있음 + 인원·이름(방 목록에 보임) — 방장 한 명만(방장이 조용하면 남은 사람이)
+    const mem = roomMembers(room.id).map(m => m.name); if (!mem.includes(normName(account.gameName))) mem.unshift(normName(account.gameName));
+    fbUpdate(`${T}/roomList/${room.id}`, Object.assign({ name: room.name, priv: !!room.priv, pw: room.priv ? room.h : null, seen: Date.now(), n: mem.length, mem: mem.slice(0, 10).join('\n').slice(0, 400) }, config.isHost ? { host: account.gameName } : {})).catch(() => {});
+  }
   if (config.isHost) fbCas(`${RP()}/host`, cur => cur && cur.puuid === account.puuid ? { value: { puuid: cur.puuid, name: cur.name, at: Date.now() } } : { err: 'not mine' }).catch(() => {});   // 👑 방장 살아있음 표시
 }
 // 🔌 롤 클라를 잠깐 끈 것(게임 끝나고 껐다 켜기 등)은 로그아웃으로 치지 않음 — 같은 계정이 2분 안에 돌아오면 방장·참가 그대로
@@ -1162,6 +1192,7 @@ const AWAY_GRACE_MS = 2 * 60 * 1000;
 let _away = null, _awayTimer = null;   // 클라 꺼짐으로 잠깐 없는 내 계정
 function releaseAccount(prev) {   // 이전 계정의 접속 표시·방장·대기실 참가 정리
   fbSet(`${T}/presence/${prev.puuid}`, null).catch(() => {});
+  if (room) fbSet(`${RP()}/members/${prev.puuid}`, null).catch(() => {});
   if (config.isHost) { config.isHost = false; fbSet(`${RP()}/host`, null).catch(() => {}); broadcast('account', { account, isHost: false }); broadcast('host', hostView()); }
   fbSet(`${RP()}/lobby/join/${prev.puuid}`, null).catch(() => {});
 }
@@ -1426,8 +1457,8 @@ async function lobbySidesPrev() {   // 지난 판 팀 그대로(지금 판 → �
   if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
   let A = sessionData && sessionData.teamA, B = sessionData && sessionData.teamB;
   if (!(A && A.length && B && B.length)) {
-    const ms = await getJson(`${FIREBASE_DB}/${T}/days/${dayKey()}/matches.json`);
-    const last = Object.values(ms || {}).filter(m => m && m.teamA && m.teamB && (!room || !m.roomName || m.roomName === room.name)).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+    const ms = await fetchDay(dayKey());
+    const last = Object.values(ms || {}).filter(m => m && m.teamA && m.teamB && sameGroup(m)).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
     if (last) { A = last.teamA; B = last.teamB; }
   }
   if (!(A && A.length && B && B.length)) return { ok: false, err: '오늘 지난 판 팀이 없어요' };
@@ -1491,7 +1522,7 @@ async function fbPutIfAbsent(pathStr, value) {
 // ── 🧩 세션 폴링 — 팀 배정·투표·결과를 오버레이/패널로 ──────────────────────
 async function pollSession() {
   if (!_live) return;   // 🚦 자리 기다리는 중(서버에서 읽지도 않음)
-  const [s, lob, h, pres, np, pr, pw] = await Promise.all([roomPart('session', fetchSession), roomPart('lobby', fetchLobby), roomPart('host', fetchHost), mirOr('presence', fetchPresence),
+  const [s, lob, h, pres, np, pr, pw] = await Promise.all([roomPart('session', fetchSession), roomPart('lobby', fetchLobby), roomPart('host', fetchHost), roomPart('members', fetchPresence),
     roomPart('normalLive', () => roomGet('normalLive')), roomPart('potgRec', () => roomGet('potgRec')),
     roomPart('potgWait', () => roomGet('potgWait'))]);   // 📡 스트림 사본(끊겼을 때만 서버에서)
   normalLive = np || null; potgRecRaw = pr || null; potgWaitRaw = pw || null;
@@ -1599,7 +1630,8 @@ async function potgWaitFinish(card, recPath) {   // 공개 직전 — 예측 결
 }
 async function waitToday(W) {   // 오늘 순위 변화(이 판 빼고 → 넣고) + 오늘의 예측왕 + (일반 판이면) 오늘 같이 한 일반 판
   const day = String(W.path || '').split('/')[2];
-  const [raw, nraw] = await Promise.all([fetchDay(day), getJson(`${FIREBASE_DB}/${T}/days/${day}/normals.json`)]);
+  const [raw0, nraw] = await Promise.all([fetchDay(day), fetchDayRoom('normals', day)]);
+  const raw = {}; for (const [k, m] of Object.entries(raw0 || {})) if (m && sameGroup(m)) raw[k] = m;   // 📦 v0.1.110: 이 방 기록만(예전엔 그날 모든 방)
   const after = computeToday(raw).standings, rest = {};
   for (const [k, v] of Object.entries(raw || {})) if (String(k) !== String(W.gameId)) rest[k] = v;
   const before = computeToday(rest).standings, pre = {}; before.forEach(p => { pre[p.name] = p.rank; });
@@ -2318,8 +2350,8 @@ function computeToday(matchesObj) {
 }
 async function getToday(day) {
   const d = day || dayKey();
-  const [raw, nraw] = await Promise.all([fetchDay(d), getJson(`${FIREBASE_DB}/${T}/days/${d}/normals.json`)]);
-  const inRoom = m => !room || !m.roomName || m.roomName === room.name;   // 🚪 방 이름별(이름 없는 옛 기록은 모든 방에) · 방 밖이면 전부
+  const [raw, nraw] = await Promise.all([fetchDay(d), fetchDayRoom('normals', d)]);
+  const inRoom = sameGroup;   // 📦 v0.1.110: 같은 방 번호 또는 (같은 이름 + 지금 방 사람이 그 판에) · 이름 없는 옛 기록은 모든 방 · 방 밖이면 전부
   const raw2 = {}; for (const [k, m] of Object.entries(raw || {})) if (m && inRoom(m)) raw2[k] = m;
   const normals = Object.values(nraw || {}).filter(m => m && Array.isArray(m.us) && inRoom(m)).sort((a, b) => (b.ts || 0) - (a.ts || 0)).map(m => Object.assign({}, m, {
     fun: normalFun(m), players: (m.stats || []).filter(p => m.us.some(n => norm(n) === norm(p.summonerName))).map(p => ({ name: p.summonerName, champId: p.championId, champ: p.championName, k: p.kills, d: p.deaths, a: p.assists, damage: p.damage })),
@@ -2360,7 +2392,19 @@ async function getAugments() {
 // ── 👤 개인 내전 프로필 — 지금까지의 모든 날 기록을 사람별로 모음 ─────────────────
 // 사람 키 = 'p:'+puuid(앱으로 들어온 사람) 또는 'n:'+이름(앱 없이 방장이 추가한 사람·옛 기록)
 // 판별 순서: 경기 기록의 ids(이름→puuid) → 게임 결과(stats)의 puuid(이름 매칭) → 계정 목록 이름 → 이름
-const fetchAllDays = () => getJson(`${FIREBASE_DB}/${T}/days.json`);
+// 📦 v0.1.110: 지난 날 기록은 한 번만 받아 둠(경기 6시간 뒤면 투표·팟지도 고정) · 오늘·어제만 매번 · 예전 = 열 때마다 모든 날 통째
+const _pastDays = {};
+async function fetchAllDays() {
+  const keys = await getJson(`${FIREBASE_DB}/${T}/days.json?shallow=true`);
+  if (!keys || typeof keys !== 'object' || keys.error) return getJson(`${FIREBASE_DB}/${T}/days.json`);
+  const fresh = new Set([dayKey(), dayKey(Date.now() - 86400e3)]), out = {};
+  await Promise.all(Object.keys(keys).map(async k => {
+    if (!fresh.has(k) && _pastDays[k]) { out[k] = _pastDays[k]; return; }
+    const v = await getJson(`${FIREBASE_DB}/${T}/days/${k}.json`);
+    if (v && typeof v === 'object' && !v.error) { out[k] = v; if (!fresh.has(k)) _pastDays[k] = v; }
+  }));
+  return out;
+}
 // ── 🧭 증강 가이드(v0.1.72 · v0.1.74 플랜 방식) — 챔피언 선택 화면에서 「이 챔피언이면 이런 증강 노려보자」(게임 전 정해진 추천 = 라이엇 정책 허용 범위) ──
 // 게임 중 증강 3개가 뜬 순간 등급을 매기는 방식(블리츠·OP.GG)은 안 함 — 정책상 게임 중 실시간 선택 도움은 막혀 있고, 롤이 그 정보를 주지도 않음.
 // v0.1.74: 카테고리 4개(성능·꿀잼·조합·함정)는 나눠 채우기 어렵다(사장님) → 챔피언마다 「플랜」 몇 개 = 이름 + 노릴 증강 묶음 + 한 줄 설명
@@ -2950,6 +2994,7 @@ app.on('before-quit', (e) => {
   const jobs = [];
   if (_live) jobs.push(fbSet(`${T}/conns/${config.deviceId}`, null));   // 🚦 내 자리 비움
   if (account) jobs.push(fbSet(`${T}/presence/${account.puuid}`, null));
+  if (account && room) jobs.push(fbSet(`${RP()}/members/${account.puuid}`, null));   // 📦 방 사람 칸
   if (account) jobs.push(fbSet(`${RP()}/lobby/join/${account.puuid}`, null));
   if (config.isHost) jobs.push(fbCas(`${RP()}/host`, cur => cur && account && cur.puuid === account.puuid ? { value: null } : { err: 'not mine' }));
   if (!jobs.length) return;
