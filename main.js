@@ -2644,6 +2644,17 @@ function statOf(m, name, key) {
   const list = m.stats || [];
   return (key.startsWith('p:') && list.find(p => p.puuid === key.slice(2))) || list.find(p => norm(p.summonerName) === norm(name)) || null;
 }
+// 🏠 v0.1.115: 아수라장 내전 점수 = 서버 경기 기록 전부(이 앱으로 진행·기록한 판만 · 사장님) — 프로필과 같은 사람 찾기(matchKeyOf·statOf)로 그 사람 판을 모아 rating.inhouseScore
+function inhouseOf(idx, key) {
+  const recs = [];
+  for (const m of idx.matches) {
+    const me = [...m.teamA, ...m.teamB].find(n => matchKeyOf(idx, m, n) === key); if (!me) continue;
+    const st = statOf(m, me, key); if (!st) continue;   // 수동 기록(선수 기록 없음)은 못 셈
+    const team = m.teamA.some(x => normName(x) === normName(me)) ? 'teamA' : 'teamB';
+    recs.push({ ts: m.ts, stats: m.stats, me: st, win: m.winner === team });
+  }
+  return makeRating.inhouseScore(recs);
+}
 // 🏅 전적 기반 점수(v0.1.111 · rating.js) — 내 롤 클라에서 읽어 today/ratings/{puuid}에 요약만 · 로그인 20초 뒤·판 끝 90초 뒤·30분마다(10분 안 다시 안 함) · 게임 중엔 안 함
 let rating = null, _ratingAt = 0, _ratingBusy = false;
 async function ratingUpdate(force) {
@@ -2651,9 +2662,13 @@ async function ratingUpdate(force) {
   _ratingBusy = true;
   try {
     const me = account.puuid, out = await rating.collect(me);
-    if (account && account.puuid === me && (out.custom || out.mayhem)) {   // v0.1.114: 아수라장 내전(custom)·일반(mayhem) 두 개
+    if (!account || account.puuid !== me) return;
+    _ratingAt = Date.now();   // 아수라장 일반 판이 없어도 10분 안엔 다시 안 함
+    // 🏠 v0.1.115: 아수라장 내전 = 서버 경기 기록(이 앱으로 진행한 판 전부) → 공개만 여기서(올리지 않음 · 프로필도 기록에서 바로 계산)
+    const idx = await profileIndex().catch(() => null); if (idx) tierReveal(me, inhouseOf(idx, 'p:' + me), 'custom');
+    if (out.mayhem) {   // 아수라장 일반 = 롤 전적(매칭 큐 2400)
       const w = await fbSet(`${T}/ratings/${me}`, out); if (!w.ok) console.log('[rating] 올리기 실패 ' + w.err);
-      _ratingAt = Date.now(); _ratings[me] = { v: out, at: Date.now() }; tierReveal(me, out.custom, 'custom'); tierReveal(me, out.mayhem, 'mayhem');
+      _ratings[me] = { v: out, at: Date.now() }; tierReveal(me, out.mayhem, 'mayhem');
     }
   } catch (e) { console.log('[rating] ' + (e && e.message)); } finally { _ratingBusy = false; }
 }
@@ -2731,7 +2746,10 @@ async function getProfile(arg) {
   P.mates = Object.values(mates).filter(x => x.games >= MIN).sort((x, y) => rate(y) - rate(x) || y.games - x.games).slice(0, 3);
   P.rivals = Object.values(rivals).filter(x => x.games >= MIN).sort((x, y) => rate(x) - rate(y) || y.games - x.games).slice(0, 3);
   for (const x of [...Object.values(mates), ...Object.values(rivals)]) { const pk = idx.nameToPuuid[x.name]; const a = pk && idx.accounts[pk]; if (a && a.name) x.name = normName(a.name); }   // 닉변한 사람은 지금 이름으로
-  if (key.startsWith('p:')) P.rating = await getRating(key.slice(2)).catch(() => null);   // 🏅 솔로 랭크·칼바람·아수라장
+  if (key.startsWith('p:')) {   // 🏅 아수라장 일반(서버 요약 = 그 사람 롤 전적) + 🏠 아수라장 내전(서버 경기 기록에서 바로 · v0.1.115 — 옛 v0.1.114 앱이 올린 custom은 무시)
+    const R = await getRating(key.slice(2)).catch(() => null), ih = inhouseOf(idx, key);
+    P.rating = R || ih ? Object.assign({}, R || {}, { custom: ih }) : null;
+  }
   return P;
 }
 

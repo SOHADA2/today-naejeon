@@ -239,16 +239,18 @@ const tierLabel = (tier, div) => `${TIER_KO[tier] || tier}${div ? ' ' + div : ''
 //   v0.1.114(사장님): **아수라장 내전**(사용자 설정 게임) · **아수라장 일반**(내전 제외) 두 줄 · 솔로 랭크·칼바람은 뺌
 function ratingRow(R, me) {
   // 🏅 큰 줄(`.pf-mh` — ⚠️ `.pf-big`은 아래 전적 칸이 이미 씀) · 「?」 = 근거 펼치기(마우스 올림 설명은 작은 칸에서 잘려서 누르는 방식)
-  const row = (x, label, src) => {
+  //   v0.1.115: 내전 = 투데이 내전으로 기록된 아수라장 내전 전부(서버 기록) · 일반 = 롤 전적
+  const row = (x, label, src, from, none) => {
     const st = x && x.s != null && x.n >= 5 ? scoreTier(x.s) : null;
-    const why = x && x.n ? `최신 ${src} <b>${x.n}판</b>(롤 전적) 기준으로 매겼어요 · 점수 = 승률 + 경기력(팀 안 딜 순위·킬 관여·KDA) · 최근 판일수록 크게 · 8점마다 한 티어 · <b>우리끼리 점수</b>(공식 랭크 아님)` : `롤을 켜 두면 최근 ${src} 전적(5판부터)으로 티어를 매겨요 · 우리끼리 점수(공식 랭크 아님)`;
+    const why = x && x.n ? `${src} <b>${x.n}판</b>(${from}) 기준으로 매겼어요 · 점수 = 승률 + 경기력(팀 안 딜 순위·킬 관여·KDA) · 최근 판일수록 크게 · 8점마다 한 티어 · <b>우리끼리 점수</b>(공식 랭크 아님)` : `${none} · 우리끼리 점수(공식 랭크 아님)`;
     const big = (cls, emb, main, sub) => `<div class="pf-mh ${cls}"><i class="pf-emb"><b>${emb}</b></i><div class="pf-mh-tx"><span>${label}</span><b>${main}</b><em>${sub}</em></div><button class="pf-mh-q" onclick="this.classList.toggle('on');this.parentNode.nextElementSibling.hidden=!this.classList.contains('on')">?</button></div><div class="pf-mh-why" hidden>${why}</div>`;
     return !x ? big('none', '', '—', R ? '최근 전적 없음' : '아직 없음')
       : st ? big('t-' + st.tier.toLowerCase(), st.div || '', tierLabel(st.tier, st.div), `${x.s}점 · ${x.n}판 ${x.w}승 · 승률 ${Math.round(x.wr * 100)}%`)
       : big('none', '', `배치 ${x.pl || x.n}/5`, `${x.n}판 ${x.w}승 · 5판부터 티어가 나와요`);
   };
   const when = R && R.at ? `<div class="pf-rt-at">전적 기준 · ${new Date(R.at).getMonth() + 1}/${new Date(R.at).getDate()} ${String(new Date(R.at).getHours()).padStart(2, "0")}:${String(new Date(R.at).getMinutes()).padStart(2, "0")}</div>` : (me ? '<div class="pf-rt-at">롤을 켜 두면 내 전적으로 매겨져요</div>' : '');
-  return `${row(R && R.custom, '아수라장 내전 티어', '아수라장 내전(사용자 설정 게임)')}${row(R && R.mayhem, '아수라장 티어 · 일반', '아수라장 일반 판(내전 제외)')}${when}`;
+  return `${row(R && R.custom, '아수라장 내전 티어', '투데이 내전으로 기록된 아수라장 내전', '처음 기록부터 전부', '투데이 내전으로 아수라장 내전을 5판 하면 티어가 나와요')}`
+    + `${row(R && R.mayhem, '아수라장 티어 · 일반', '최신 아수라장 일반 판(내전 제외)', '롤 전적', '롤을 켜 두면 최근 아수라장 일반 판(5판부터)으로 티어를 매겨요')}${when}`;
 }
 async function renderProfile() {
   const body = $('pf-body'), arg = _pfArg;
