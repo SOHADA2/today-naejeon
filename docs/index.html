@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <script>document.documentElement.classList.add('js');</script>
 <style>
-/* 장식 대신 글자와 실제 화면으로 — 색은 바탕·글자 세 단계 + 금색 하나(팀 색은 오프닝 팀 나누기에만) */
+/* 장식 대신 글자와 실제 화면으로 — 색은 바탕·글자 세 단계 + 금색 하나(팀 색은 오프닝·드래프트에만) */
 :root {
   --bg:#0a0e12; --bg-2:#10161c; --rule:#1f2830; --rule-2:#2c3843;
   --ink:#ece6da; --ink-2:#a9a396; --ink-3:#6c6a63;
@@ -39,35 +39,40 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 .mono { font-family:var(--mono); font-feature-settings:'tnum'; letter-spacing:0; }
 ::selection { background:var(--gold); color:#111; }
 :focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
+.t1 { color:var(--t1); } .t2 { color:var(--t2); }
 
-/* ── 오프닝: 이름표 10개가 접속 → 두 팀으로 나뉨 → 동전이 선픽을 정함 → 화면이 열림 ── */
+/* ── 오프닝: 접속 → 팀장 → 드래프트 픽(앱의 사선 띠) → 동전이 화면에 박혀 유리가 갈라짐 → 조각이 떨어지며 팟지 영상 ── */
 #intro { position:fixed; inset:0; z-index:100; overflow:hidden; }
-#intro .half { position:absolute; top:0; bottom:0; width:50.5%; background:var(--bg); transition:transform .75s var(--ease); }
-#intro .half.l { left:0; } #intro .half.r { right:0; }
-#intro.open .half.l { transform:translateX(-101%); } #intro.open .half.r { transform:translateX(101%); }
-#intro .stage { position:absolute; inset:0; transition:opacity .35s ease, transform .75s var(--ease); }
-#intro.open .stage { opacity:0; transform:scale(1.04); }
-.in-line { position:absolute; left:50%; top:12%; bottom:12%; width:1px; background:var(--rule); transform:scaleY(0); transform-origin:top; transition:transform .6s var(--ease); }
-#intro.split .in-line { transform:scaleY(1); }
-#intro.narrow .in-line { display:none; }
-.in-h { position:absolute; top:0; font:800 clamp(18px, 2.4vw, 26px) var(--sans); letter-spacing:-0.03em; opacity:0; transform:translateY(8px); transition:opacity .4s ease, transform .4s var(--ease); }
+#intro .bg { position:absolute; inset:0; background:var(--bg); }
+#intro .stage { position:absolute; inset:0; }
+#intro.shake .stage { animation:shake .34s linear; }
+@keyframes shake { 0%,100% { transform:none; } 15% { transform:translate(-7px, 4px); } 30% { transform:translate(6px, -5px); } 45% { transform:translate(-4px, -3px); } 60% { transform:translate(4px, 3px); } 80% { transform:translate(-2px, 1px); } }
+.in-h { position:absolute; top:0; font:800 clamp(18px, 2.4vw, 26px) var(--sans); letter-spacing:-0.03em; opacity:0; }
 .in-h.a { color:var(--t1); } .in-h.b { color:var(--t2); }
-#intro.split .in-h { opacity:1; transform:none; }
-.chip { position:absolute; left:0; top:0; width:min(156px, 37vw); height:38px; display:flex; align-items:center; gap:8px; padding:0 12px; background:var(--bg-2); border:1px solid var(--rule-2); font-size:14px; font-weight:700; white-space:nowrap; opacity:0;
-  transition:border-color .5s ease; will-change:transform, opacity; }
-.chip i { flex:none; width:7px; height:7px; border-radius:50%; background:#3ddc84; }
-.chip.ta { border-color:var(--t1); } .chip.tb { border-color:var(--t2); }
-.chip.ta i { background:var(--t1); } .chip.tb i { background:var(--t2); }
-.coin { position:absolute; left:50%; top:50%; width:clamp(96px, 13vw, 150px); aspect-ratio:1; margin:calc(clamp(96px, 13vw, 150px) / -2) 0 0 calc(clamp(96px, 13vw, 150px) / -2); perspective:800px; opacity:0; pointer-events:none; }
+.chip { position:absolute; left:0; top:0; height:40px; display:flex; align-items:center; gap:9px; padding:0 12px 0 4px; background:var(--bg-2); border:1px solid var(--rule-2); font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; opacity:0; transition:border-color .4s ease; will-change:transform, opacity; }
+.chip img { flex:none; width:30px; height:30px; background:var(--rule); }
+.chip em { font-style:normal; font-size:10px; font-weight:800; color:#0a0e12; padding:1px 5px; margin-left:auto; display:none; }
+.chip.cap em { display:inline; }
+.chip.ta { border-color:var(--t1); } .chip.ta em { background:var(--t1); }
+.chip.tb { border-color:var(--t2); } .chip.tb em { background:var(--t2); }
+/* 픽 띠 = 앱 드래프트 연출(팀 색 사선 띠에 「TEAM n · PICK n」 + 이름이 쾅) */
+.band { position:absolute; left:-10%; right:-10%; height:clamp(96px, 15vh, 140px); transform:rotate(-7deg) scaleX(0); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; pointer-events:none; opacity:.96; }
+.band.a { background:var(--t1); transform-origin:left center; } .band.b { background:var(--t2); transform-origin:right center; }
+.band small { font:700 clamp(11px, 1.2vw, 14px) var(--mono); letter-spacing:.14em; color:rgba(10,14,18,.75); }
+.band b { font:900 clamp(30px, 5.4vw, 64px) var(--sans); letter-spacing:-0.04em; color:#0a0e12; line-height:1.05; }
+.coin { position:absolute; left:50%; top:50%; width:150px; height:150px; margin:-75px 0 0 -75px; perspective:700px; opacity:0; pointer-events:none; }
 .coin .spin { position:absolute; inset:0; transform-style:preserve-3d; }
 .coin img { position:absolute; inset:0; width:100%; height:100%; backface-visibility:hidden; -webkit-backface-visibility:hidden; }
 .coin img.b { transform:rotateY(180deg); }
-.in-msg { position:absolute; left:0; right:0; top:calc(50% + 90px); text-align:center; font:850 clamp(26px, 4vw, 44px) var(--sans); letter-spacing:-0.04em; opacity:0; transform:translateY(10px); transition:opacity .35s ease, transform .35s var(--ease); }
-.in-msg.show { opacity:1; transform:none; }
-.in-msg small { display:block; margin-top:6px; font:600 14px var(--sans); letter-spacing:-0.01em; color:var(--ink-3); }
-.in-skip { position:absolute; right:var(--pad); bottom:calc(24px + env(safe-area-inset-bottom)); font-size:13px; color:var(--ink-3); padding:8px 0; }
+.crack { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.crack path { fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.flash { position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; }
+.in-msg { position:absolute; left:0; right:0; text-align:center; font:900 clamp(34px, 6vw, 72px) var(--sans); letter-spacing:-0.045em; opacity:0; text-shadow:0 4px 30px rgba(0,0,0,.8); }
+.in-msg small { display:block; margin-top:6px; font:700 15px var(--sans); letter-spacing:-0.01em; color:var(--ink); }
+.shard { position:absolute; inset:0; background:var(--bg); will-change:transform, opacity; }
+.in-skip { position:absolute; right:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font-size:13px; color:var(--ink-3); padding:8px 0; z-index:3; }
 .in-skip:hover { color:var(--ink); }
-.in-cap { position:absolute; left:var(--pad); bottom:calc(24px + env(safe-area-inset-bottom)); font:500 12px var(--mono); color:var(--ink-3); }
+.in-cap { position:absolute; left:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font:500 12px var(--mono); color:var(--ink-3); z-index:3; }
 
 /* 머리 */
 .top { position:sticky; top:0; z-index:20; background:rgba(10,14,18,0.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--rule); }
@@ -81,27 +86,30 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 .btn-dl:hover { background:#e4c47e; }
 .btn-dl .arrow { font-family:var(--mono); }
 
-/* 첫 화면 — 제목이 한 줄씩 올라옴 */
-.hero { padding:clamp(48px, 9vw, 120px) 0 clamp(28px, 4vw, 48px); }
-.hero h1 { font-size:clamp(44px, 9.2vw, 132px); line-height:1.02; font-weight:850; letter-spacing:-0.055em; }
+/* 첫 화면 = 팟지 영상 화면 가득 + 그 위에 제목(좁은 화면은 영상 아래에 제목) */
+.hero { position:relative; height:calc(100svh - 56px); min-height:560px; overflow:hidden; background:#000; }
+.hero video { position:absolute; inset:0; width:100%; height:100%; max-width:none; object-fit:cover; transform:scale(1.07); transform-origin:50% 62%; }   /* 영상 맨 위 앱 창 띠는 화면 밖으로 */
+.hero .shade { position:absolute; inset:0; background:linear-gradient(to top, rgba(10,14,18,.94) 0%, rgba(10,14,18,.62) 34%, rgba(10,14,18,0) 66%); pointer-events:none; }
+.hero .copy { position:absolute; left:0; right:0; bottom:clamp(28px, 6vh, 64px); }
+.hero h1 { font-size:clamp(44px, 8.4vw, 124px); line-height:1.02; font-weight:850; letter-spacing:-0.055em; text-shadow:0 2px 24px rgba(0,0,0,.35); }
 .hero h1 .g { color:var(--gold); }
 .ln { display:block; overflow:hidden; padding-bottom:0.04em; }
 .ln > span { display:inline-block; }
 .js .ln > span { transform:translateY(105%); transition:transform .9s var(--ease); }
 .js body.ready .ln > span { transform:none; }
 .js body.ready .ln:nth-child(2) > span { transition-delay:.09s; }
-.hero-row { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 420px); gap:24px 48px; align-items:end; margin-top:clamp(24px, 4vw, 44px); }
+.hero-row { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 420px); gap:20px 48px; align-items:end; margin-top:clamp(18px, 3vh, 32px); }
+.js .hero-row { opacity:0; transform:translateY(14px); transition:opacity .7s ease .25s, transform .8s var(--ease) .25s; }
+.js body.ready .hero-row { opacity:1; transform:none; }
 .hero-row p { font-size:clamp(16px, 1.5vw, 19px); color:var(--ink-2); max-width:34em; }
 .hero-row p b { color:var(--ink); font-weight:700; }
 .dl-box { display:flex; flex-direction:column; gap:10px; align-items:flex-start; }
 .dl-box .btn-dl { padding:16px 22px; font-size:17px; }
 .dl-meta { font-size:13px; color:var(--ink-3); }
 .dl-meta .mono { color:var(--ink-2); }
-
-.reel { background:#000; border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); }
-.reel video { width:100%; aspect-ratio:1440 / 838; max-height:86vh; object-fit:contain; margin:0 auto; }
-.reel-cap { display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px 24px; padding:14px var(--pad); max-width:var(--max); margin:0 auto; font-size:13px; color:var(--ink-3); }
-.reel-cap b { color:var(--ink-2); font-weight:600; }
+.hero-tag { position:absolute; top:18px; right:var(--pad); display:flex; gap:14px; align-items:center; font-size:12.5px; color:rgba(236,230,218,.75); }
+.hero-tag button { font-size:12.5px; padding:6px 10px; border:1px solid rgba(236,230,218,.35); background:rgba(10,14,18,.45); }
+.hero-tag button:hover { border-color:var(--ink); }
 
 /* 스크롤하면 살짝 떠오름(한 번) */
 .js [data-rv] { opacity:0; transform:translateY(22px); transition:opacity .7s ease, transform .8s var(--ease); }
@@ -130,7 +138,6 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 .feat ul { list-style:none; margin-top:20px; border-top:1px solid var(--rule); max-width:38em; }
 .feat li { padding:12px 0; border-bottom:1px solid var(--rule); color:var(--ink-2); font-size:15px; }
 .feat li b { color:var(--ink); font-weight:700; }
-.t1 { color:var(--t1); } .t2 { color:var(--t2); }
 .more { list-style:none; border-top:1px solid var(--rule-2); }
 .more > div { display:grid; grid-template-columns:minmax(0, 170px) minmax(0, 1fr); gap:6px 32px; padding:18px 0; border-bottom:1px solid var(--rule); }
 .more dt { font-weight:700; font-size:15px; }
@@ -182,29 +189,38 @@ footer p + p { margin-top:6px; }
   .top nav { display:none; }
   .top .btn-dl { margin-left:auto; }
 }
+@media (max-width:760px) {   /* 휴대폰: 영상은 원래 비율로 위에, 제목은 아래에 */
+  .hero { height:auto; min-height:0; overflow:visible; background:var(--bg); }
+  .hero video { position:relative; inset:auto; height:auto; aspect-ratio:1440 / 838; object-fit:cover; transform:none; background:#000; }
+  .hero .shade { display:none; }
+  .hero .copy { position:relative; bottom:auto; padding:28px 0 8px; }
+  .hero-tag { position:static; justify-content:space-between; padding:10px var(--pad) 0; color:var(--ink-3); }
+  .hero-tag button { background:none; border-color:var(--rule-2); color:var(--ink-2); }
+}
 @media (max-width:560px) {
   .flow { grid-template-columns:minmax(0, 1fr); }
   .flow li, .flow li + li { padding:20px 0 16px; border-left:0; border-bottom:1px solid var(--rule); }
   .more > div { grid-template-columns:minmax(0, 1fr); }
   .dl-box, .dl-box .btn-dl { width:100%; }
   .dl-box .btn-dl { justify-content:center; }
-  .reel-cap { font-size:12px; }
-  .chip { height:34px; font-size:13px; padding:0 10px; }
+  .chip { height:36px; font-size:13px; gap:7px; }
+  .chip img { width:26px; height:26px; }
 }
 @media (prefers-reduced-motion:reduce) {
-  .js .ln > span, .js [data-rv] { transform:none !important; opacity:1 !important; transition:none !important; }
+  .js .ln > span, .js [data-rv], .js .hero-row { transform:none !important; opacity:1 !important; transition:none !important; }
 }
 </style>
 </head>
 <body>
 
 <div id="intro" hidden>
-  <div class="half l"></div><div class="half r"></div>
+  <div class="bg"></div>
   <div class="stage">
-    <div class="in-line"></div>
     <span class="in-h a">1팀</span><span class="in-h b">2팀</span>
     <div class="coin"><div class="spin"><img class="a" src="img/coin-t1.webp" alt=""><img class="b" src="img/coin-t2.webp" alt=""></div></div>
+    <svg class="crack" aria-hidden="true"></svg>
     <div class="in-msg"></div>
+    <div class="flash"></div>
   </div>
   <span class="in-cap">TODAY NAEJEON</span>
   <button class="in-skip" type="button">건너뛰기 →</button>
@@ -219,22 +235,22 @@ footer p + p { margin-top:6px; }
 </header>
 
 <main id="top">
-  <section class="hero">
-    <div class="wrap">
-      <h1><span class="ln"><span>오늘 모인 사람끼리,</span></span><span class="ln"><span>롤 <span class="g">내전</span> 한 판.</span></span></h1>
-      <div class="hero-row" data-rv>
-        <p>방을 만들고 팀만 나누면 나머지는 앱이 해요. <b>결과 기록, MVP 투표, 오늘 순위</b>, 그리고 판이 끝나면 <b>그 판 최고의 장면</b>까지.</p>
-        <div class="dl-box">
-          <a class="btn btn-dl js-dl" href="https://github.com/SOHADA2/today-naejeon/releases/latest">Windows용 무료 다운로드 <span class="arrow">↓</span></a>
-          <span class="dl-meta">Windows 10·11 · 자동 업데이트 · <span class="mono js-ver">최신 버전</span></span>
+  <section class="hero" aria-label="첫 화면 — 실제 내전에서 앱이 만든 최고의 장면">
+    <video id="reel" src="img/potg.mp4" poster="img/potg-poster.jpg" muted loop playsinline preload="auto"></video>
+    <div class="shade"></div>
+    <div class="hero-tag"><span>실제 내전 장면 · 자야 트리플킬</span><button type="button" id="snd" aria-pressed="false">소리 켜기</button></div>
+    <div class="copy">
+      <div class="wrap">
+        <h1><span class="ln"><span>오늘 모인 사람끼리,</span></span><span class="ln"><span>롤 <span class="g">내전</span> 한 판.</span></span></h1>
+        <div class="hero-row">
+          <p>방을 만들고 팀만 나누면 나머지는 앱이 해요. <b>결과 기록, MVP 투표, 오늘 순위</b>, 그리고 판이 끝나면 지금 보는 것 같은 <b>그 판 최고의 장면</b>까지.</p>
+          <div class="dl-box">
+            <a class="btn btn-dl js-dl" href="https://github.com/SOHADA2/today-naejeon/releases/latest">Windows용 무료 다운로드 <span class="arrow">↓</span></a>
+            <span class="dl-meta">Windows 10·11 · 자동 업데이트 · <span class="mono js-ver">최신 버전</span></span>
+          </div>
         </div>
       </div>
     </div>
-  </section>
-
-  <section class="reel" aria-label="실제 내전에서 앱이 만든 최고의 장면">
-    <video src="img/potg.mp4" poster="img/potg-poster.jpg" controls muted loop playsinline preload="metadata"></video>
-    <p class="reel-cap"><span><b>실제 내전 장면</b> · 자야 트리플킬, 앱이 리플레이로 찍고 편집한 그대로</span><span>소리는 스피커 버튼으로</span></p>
   </section>
 
   <section class="sec" id="how">
@@ -388,86 +404,152 @@ fetch('https://api.github.com/repos/SOHADA2/today-naejeon/releases/latest')
   .catch(() => {});
 
 const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-const reel = document.querySelector('.reel video');
-function ready() {   // 오프닝이 끝나면(또는 없으면) 제목이 올라오고 영상 재생
-  document.body.classList.add('ready');
-  if (reel && !reduce) reel.play().catch(() => {});
-}
+const reel = document.getElementById('reel');
+const playReel = () => { if (reel && !reduce) reel.play().catch(() => {}); };
+playReel();   // 오프닝 뒤에서 미리 재생(유리가 깨지면 이미 움직이는 장면이 드러남)
+document.getElementById('snd').addEventListener('click', e => { reel.muted = !reel.muted; if (!reel.muted) reel.play().catch(() => {}); e.currentTarget.textContent = reel.muted ? '소리 켜기' : '소리 끄기'; e.currentTarget.setAttribute('aria-pressed', String(!reel.muted)); });
+function ready() { document.body.classList.add('ready'); playReel(); }
 
 // 스크롤하면 한 번 떠오름
 const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('seen'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' }) : null;
 document.querySelectorAll('[data-rv]').forEach(el => io ? io.observe(el) : el.classList.add('seen'));
 
-// ── 오프닝(약 4.5초): 이름표 10개 접속 → 두 팀으로 나뉨 → 동전이 선픽 → 화면이 열림 ──
-const NAMES = ['미드장인', '정글러버', '서폿요정', '원딜왕', '칼바람고수', '포로사랑', '눈덩이장인', '탑솔러', '한타장인', '와드요정'];
-const intro = document.getElementById('intro');
+// ── 오프닝(약 6초) ──
+const P = [['미드장인', 103], ['정글러버', 64], ['서폿요정', 412], ['원딜왕', 222], ['칼바람고수', 157], ['포로사랑', 99], ['눈덩이장인', 86], ['탑솔러', 51], ['한타장인', 498], ['와드요정', 360]];
+const ICON = id => `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${id}.png`;
+const intro = document.getElementById('intro'), stage = intro.querySelector('.stage');
+const EASE = 'cubic-bezier(.2,.8,.2,1)';
 let timers = [], running = false;
 const later = (ms, f) => timers.push(setTimeout(f, ms));
-function finish(fast) {
+const anim = (el, kf, o) => el.animate(kf, Object.assign({ fill: 'both', easing: EASE }, o));
+function cleanup() {
+  intro.hidden = true; document.body.classList.remove('intro-on');
+  intro.querySelectorAll('.chip, .band, .shard').forEach(x => x.remove());
+  intro.querySelector('.crack').innerHTML = ''; intro.classList.remove('shake');
+  intro.querySelector('.bg').style.display = '';
+}
+function finish(skip) {   // 건너뛰기 = 바로 조각 떨어뜨리기
   if (!running) return;
   running = false; timers.forEach(clearTimeout); timers = [];
-  intro.classList.add('open');
-  setTimeout(() => { intro.hidden = true; intro.classList.remove('open', 'split'); document.body.classList.remove('intro-on'); }, fast ? 650 : 800);
-  ready();
+  if (skip) { shatter(innerWidth / 2, innerHeight / 2, 420); }
   try { sessionStorage.setItem('tn-intro', '1'); } catch (_) {}
+}
+// 유리 금(앱 동전 연출처럼 바퀴살이 꺾이며 뻗고 둥근 금 몇 겹) — 반환 = 바퀴살 끝 각도들(조각 나누기용)
+function drawCrack(cx, cy) {
+  const svg = intro.querySelector('.crack'), W = innerWidth, H = innerHeight, R = Math.hypot(W, H);
+  const n = 12 + Math.floor(Math.random() * 4), angs = [];
+  let d = '';
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.35; angs.push(a);
+    let x = cx, y = cy, r = 0, aa = a; d += `M${x.toFixed(1)} ${y.toFixed(1)}`;
+    while (r < R) { r += 40 + Math.random() * 90; aa += (Math.random() - 0.5) * 0.28; x = cx + Math.cos(aa) * r; y = cy + Math.sin(aa) * r; d += ` L${x.toFixed(1)} ${y.toFixed(1)}`; }
+  }
+  angs.sort((p, q) => p - q);
+  let rings = '';
+  for (const rr of [70 + Math.random() * 30, 170 + Math.random() * 60, 330 + Math.random() * 90]) {
+    for (let i = 0; i < angs.length; i++) {
+      if (Math.random() < 0.3) continue;
+      const a1 = angs[i], a2 = angs[(i + 1) % angs.length] + (i + 1 === angs.length ? Math.PI * 2 : 0), j = rr * (0.85 + Math.random() * 0.3);
+      rings += `M${(cx + Math.cos(a1) * j).toFixed(1)} ${(cy + Math.sin(a1) * j).toFixed(1)} L${(cx + Math.cos((a1 + a2) / 2) * j * 1.04).toFixed(1)} ${(cy + Math.sin((a1 + a2) / 2) * j * 1.04).toFixed(1)} L${(cx + Math.cos(a2) * j).toFixed(1)} ${(cy + Math.sin(a2) * j).toFixed(1)}`;
+    }
+  }
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = `<path d="${d}" stroke="rgba(0,0,0,.55)" stroke-width="3" pathLength="1"/><path d="${d}" stroke="rgba(255,255,255,.85)" stroke-width="1.2" pathLength="1"/><path d="${rings}" stroke="rgba(255,255,255,.55)" stroke-width="1" pathLength="1"/>`;
+  svg.querySelectorAll('path').forEach((p, i) => { p.style.strokeDasharray = '1'; p.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: i === 2 ? 260 : 170, delay: i === 2 ? 90 : 0, easing: 'cubic-bezier(.1,.7,.3,1)', fill: 'both' }); });
+  return angs;
+}
+// 화면(어두운 바탕 + 금)을 바퀴살 사이 조각으로 나눠 떨어뜨림 → 뒤의 팟지 영상
+function shatter(cx, cy, dur, angs) {
+  const W = innerWidth, H = innerHeight, R = Math.hypot(W, H) * 1.2;
+  if (!angs) { angs = []; for (let i = 0; i < 12; i++) angs.push((i / 12) * Math.PI * 2); }
+  const snap = intro.querySelector('.crack').outerHTML;
+  intro.querySelector('.bg').style.display = 'none'; stage.style.opacity = '0';
+  angs.forEach((a1, i) => {
+    const a2 = angs[(i + 1) % angs.length] + (i + 1 === angs.length ? Math.PI * 2 : 0), mid = (a1 + a2) / 2;
+    const s = document.createElement('div'); s.className = 'shard';
+    s.style.clipPath = `polygon(${cx}px ${cy}px, ${cx + Math.cos(a1) * R}px ${cy + Math.sin(a1) * R}px, ${cx + Math.cos(mid) * R}px ${cy + Math.sin(mid) * R}px, ${cx + Math.cos(a2) * R}px ${cy + Math.sin(a2) * R}px)`;
+    s.innerHTML = snap;
+    intro.appendChild(s);
+    const dist = 60 + Math.random() * 120;
+    anim(s, [{ transform: 'none', opacity: 1 }, { transform: `translate(${Math.cos(mid) * dist}px, ${Math.sin(mid) * dist + 260}px) rotate(${(Math.random() - 0.5) * 24}deg)`, opacity: 0 }], { duration: dur + Math.random() * 260, delay: Math.random() * 120, easing: 'cubic-bezier(.5,0,.75,.4)' });
+  });
+  setTimeout(ready, 60);
+  setTimeout(cleanup, dur + 450);
 }
 function playIntro() {
   if (running) return;
   running = true;
-  const stage = intro.querySelector('.stage'), coin = intro.querySelector('.coin'), spin = coin.querySelector('.spin'), msg = intro.querySelector('.in-msg');
-  stage.querySelectorAll('.chip').forEach(c => c.remove());
-  msg.className = 'in-msg'; msg.textContent = ''; coin.style.cssText = ''; spin.style.cssText = '';
-  intro.hidden = false; intro.classList.remove('open', 'split'); document.body.classList.add('intro-on');
+  cleanup(); intro.hidden = false; document.body.classList.add('intro-on'); stage.style.opacity = '';
+  const coin = intro.querySelector('.coin'), spin = coin.querySelector('.spin'), msg = intro.querySelector('.in-msg'), flash = intro.querySelector('.flash');
+  [coin, spin, msg, flash].forEach(x => x.getAnimations().forEach(a => a.cancel()));
   const W = innerWidth, H = innerHeight, narrow = W < 1000, pad = Math.max(20, Math.min(64, W * 0.05));
-  const cw = narrow ? Math.min(156, (W - 2 * pad - 16) / 2) : 156, ch = W < 560 ? 34 : 38, gap = W < 560 ? 8 : 10;
-  intro.classList.toggle('narrow', narrow);
-  const order = NAMES.slice().sort(() => Math.random() - 0.5);   // 매번 다른 팀
-  // 넓은 화면 = 두 팀 줄 사이 가운데에 동전 · 좁은 화면(1000px 미만) = 두 팀 줄을 양 끝 위쪽에, 동전·선픽 글자는 그 아래
-  const colA = narrow ? pad : W * 0.3 - cw / 2, colB = narrow ? W - pad - cw : W * 0.7 - cw / 2, block = 5 * ch + 4 * gap;
-  const top0 = narrow ? Math.max(84, H * 0.47 - block) : H / 2 - block / 2 + 12;
-  const coinSize = Math.max(96, Math.min(150, W * 0.13)), coinTop = narrow ? top0 + block + 28 : H / 2 - coinSize / 2;
-  const coinEl = intro.querySelector('.coin'), msgEl = intro.querySelector('.in-msg');
-  coinEl.style.top = coinTop + 'px'; coinEl.style.marginTop = '0px'; msgEl.style.top = (coinTop + coinSize + (narrow ? 14 : 18)) + 'px';
-  for (const [k, x] of [['a', colA], ['b', colB]]) { const h = intro.querySelector('.in-h.' + k); h.style.left = x + 'px'; h.style.top = (top0 - (W < 560 ? 40 : 48)) + 'px'; }   // 팀 이름 = 첫 이름표 바로 위
+  const cw = narrow ? Math.min(170, (W - 2 * pad - 16) / 2) : 170, ch = W < 560 ? 36 : 40, gap = W < 560 ? 8 : 10, block = 5 * ch + 4 * gap;
+  const colA = narrow ? pad : W * 0.29 - cw / 2, colB = narrow ? W - pad - cw : W * 0.71 - cw / 2;
+  const top0 = narrow ? Math.max(84, H * 0.42 - block) : H / 2 - block / 2 + 14;
+  const bandY = narrow ? Math.min(H - 150, top0 + block + 40) : H / 2 - 60;   // 픽 띠 높이(좁으면 팀 줄 아래)
+  for (const [k, x] of [['a', colA], ['b', colB]]) { const h = intro.querySelector('.in-h.' + k); h.style.left = x + 'px'; h.style.top = (top0 - (W < 560 ? 40 : 48)) + 'px'; h.getAnimations().forEach(a => a.cancel()); }
+  const order = P.slice().sort(() => Math.random() - 0.5);
   const placed = [];
-  const chips = order.map((n, i) => {
-    const el = document.createElement('div'); el.className = 'chip'; el.innerHTML = '<i></i>' + n; el.style.width = cw + 'px';
-    // 흩어진 자리(가운데 동전 자리는 비움)
-    let x, y, k = 0;   // 가운데 동전 자리와 다른 이름표를 피해서(40번 해 보고 안 되면 그냥)
-    do { x = W * 0.06 + Math.random() * (W * 0.88 - cw); y = H * 0.12 + Math.random() * (H * 0.76 - ch); }
-    while (k++ < 40 && ((Math.abs(x + cw / 2 - W / 2) < cw * 0.9 && Math.abs(y - H / 2) < 110) || placed.some(p => Math.abs(p[0] - x) < cw + 8 && Math.abs(p[1] - y) < ch + 8)));
-    placed.push([x, y]);
-    el.style.transform = `translate(${x}px, ${y}px)`; el._at = el.style.transform;
+  const chips = order.map(([name, champ], i) => {   // ① 접속(흩어진 자리 · 서로 안 겹치게)
+    const el = document.createElement('div'); el.className = 'chip'; el.style.width = cw + 'px';
+    el.innerHTML = `<img src="${ICON(champ)}" alt="" onerror="this.style.visibility='hidden'">${name}<em>팀장</em>`;
+    let x, y, k = 0;
+    do { x = W * 0.06 + Math.random() * (W * 0.88 - cw); y = H * 0.12 + Math.random() * (H * 0.76 - ch); } while (k++ < 40 && placed.some(p => Math.abs(p[0] - x) < cw + 8 && Math.abs(p[1] - y) < ch + 8));
+    placed.push([x, y]); el._at = `translate(${x}px, ${y}px)`; el.style.transform = el._at;
     stage.appendChild(el);
-    el.animate([{ opacity: 0, transform: `translate(${x}px, ${y + 10}px) scale(.9)` }, { opacity: 1, transform: el._at }], { duration: 320, delay: 150 + i * 105, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' });   // 접속
+    anim(el, [{ opacity: 0, transform: `translate(${x}px, ${y + 10}px) scale(.9)` }, { opacity: 1, transform: el._at }], { duration: 300, delay: 120 + i * 95 });
     return el;
   });
-  later(1550, () => {   // 두 팀으로
-    intro.classList.add('split');
-    chips.forEach((el, i) => {
-      const a = i % 2 === 0, row = Math.floor(i / 2);
-      el.classList.add(a ? 'ta' : 'tb');
-      const to = `translate(${a ? colA : colB}px, ${top0 + row * (ch + gap)}px)`;
-      el.getAnimations().forEach(x => x.cancel()); el.style.opacity = '1';
-      el.animate([{ transform: el._at }, { transform: to }], { duration: 800, delay: row * 45 + (a ? 0 : 20), easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' });
-      el._at = to;
+  const seat = (el, team, row, dur, delay) => {   // 팀 줄 자리로
+    const to = `translate(${team === 'a' ? colA : colB}px, ${top0 + row * (ch + gap)}px)`;
+    el.getAnimations().forEach(a => a.cancel()); el.style.opacity = '1';
+    anim(el, [{ transform: el._at }, { transform: to }], { duration: dur, delay: delay || 0 });
+    el._at = to; el.classList.add(team === 'a' ? 'ta' : 'tb');
+  };
+  later(1250, () => {   // ② 팀장
+    intro.querySelectorAll('.in-h').forEach(h => anim(h, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 400 }));
+    chips[0].classList.add('cap'); chips[1].classList.add('cap');
+    seat(chips[0], 'a', 0, 650); seat(chips[1], 'b', 0, 650, 40);
+  });
+  // ③ 드래프트 픽(스네이크: 1·2·2·1·1·2·2·1) — 앞 넷은 띠가 크게 쾅, 나머지는 빠르게
+  const snake = ['a', 'b', 'b', 'a', 'a', 'b', 'b', 'a'], rows = { a: 1, b: 1 };
+  let t = 1850;
+  snake.forEach((team, k) => {
+    const el = chips[2 + k], row = rows[team]++, big = k < 4, at = t;
+    later(at, () => {
+      if (big) {
+        const band = document.createElement('div'); band.className = 'band ' + team; band.style.top = bandY + 'px';
+        band.innerHTML = `<small>TEAM ${team === 'a' ? 1 : 2} · PICK ${k + 1}</small><b>${el.textContent.replace('팀장', '')}</b>`;
+        stage.appendChild(band);
+        anim(band, [{ transform: 'rotate(-7deg) scaleX(0)' }, { transform: 'rotate(-7deg) scaleX(1)', offset: 0.28 }, { transform: 'rotate(-7deg) scaleX(1)', opacity: 0.96, offset: 0.72 }, { transform: `rotate(-7deg) scaleX(1) translateX(${team === 'a' ? -14 : 14}%)`, opacity: 0 }], { duration: 430, easing: 'cubic-bezier(.3,.7,.3,1)' });
+        anim(band.querySelector('b'), [{ filter: 'blur(8px)', transform: 'scale(1.25)', opacity: 0 }, { filter: 'blur(0)', transform: 'scale(1)', opacity: 1, offset: 0.35 }, { filter: 'blur(0)', transform: 'scale(1)', opacity: 1 }], { duration: 430 });
+        setTimeout(() => band.remove(), 460);
+      }
+      seat(el, team, row, big ? 520 : 380, big ? 180 : 0);
     });
+    t += big ? 440 : 170;
   });
-  const first = Math.random() < 0.5 ? 1 : 2;
-  later(2550, () => {   // 동전: 떨어지며 돌다가 선픽 면으로
-    coin.style.opacity = '1';
-    const turns = 5 * 360 + (first === 2 ? 180 : 0);
-    coin.animate([{ transform: 'translateY(-60vh) scale(.6)' }, { transform: 'translateY(0) scale(1.08)', offset: 0.72 }, { transform: 'translateY(-14px) scale(1)', offset: 0.86 }, { transform: 'translateY(0) scale(1)' }], { duration: 1150, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'forwards' });
-    spin.animate([{ transform: 'rotateY(0deg) rotateX(18deg)' }, { transform: `rotateY(${turns}deg) rotateX(0deg)` }], { duration: 1150, easing: 'cubic-bezier(.2,.7,.25,1)', fill: 'forwards' });
+  // ④ 동전이 멀리서 돌며 화면으로 날아와 박힘 → 유리 금 · 섬광 · 흔들림 · 선픽
+  const hit = t + 380, first = Math.random() < 0.5 ? 1 : 2, cx = W / 2, cy = narrow ? top0 + block + 75 * 1.35 + 22 : H / 2;   // 좁으면 팀 줄 아래
+  later(t, () => {
+    coin.style.left = cx + 'px'; coin.style.top = cy + 'px';
+    anim(coin, [{ opacity: 0, transform: 'scale(.15)' }, { opacity: 1, transform: 'scale(.35)', offset: 0.25 }, { opacity: 1, transform: 'scale(1.35)' }], { duration: 380, easing: 'cubic-bezier(.55,0,.9,.4)' });   // 점점 빨라지며 다가옴
+    anim(spin, [{ transform: 'rotateY(0deg) rotateX(25deg)' }, { transform: `rotateY(${4 * 360 + (first === 2 ? 180 : 0)}deg) rotateX(0deg)` }], { duration: 380, easing: 'linear' });
   });
-  later(3650, () => {
-    msg.innerHTML = `<span class="${first === 1 ? 't1' : 't2'}">${first}팀 선픽!</span><small>${(first === 1 ? order[0] : order[1])} 팀장이 먼저 골라요</small>`;
-    msg.classList.add('show');
-    chips.forEach((el, i) => { if ((i % 2 === 0) !== (first === 1)) el.animate([{ opacity: 1 }, { opacity: 0.45 }], { duration: 350, fill: 'forwards' }); });
+  later(hit, () => {
+    const angs = drawCrack(cx, cy);
+    intro.classList.remove('shake'); void intro.offsetWidth; intro.classList.add('shake');
+    anim(flash, [{ opacity: 0.55 }, { opacity: 0 }], { duration: 260, easing: 'ease-out' });
+    anim(coin, [{ transform: 'scale(1.35)' }, { transform: 'scale(1.24)', offset: 0.3 }, { transform: 'scale(1.3)' }], { duration: 300 });   // 박혀서 턱
+    chips.forEach(el => anim(el, [{ opacity: 1 }, { opacity: 0.35 }], { duration: 300, easing: 'ease-out' }));
+    msg.style.top = (cy + 75 * 1.3 + 14) + 'px';
+    msg.innerHTML = `<span class="${first === 1 ? 't1' : 't2'}">${first}팀 선픽!</span><small>${chips[first === 1 ? 0 : 1].textContent.replace('팀장', '')} 팀장이 먼저 골라요</small>`;
+    anim(msg, [{ opacity: 0, transform: 'scale(1.15)' }, { opacity: 1, transform: 'none' }], { duration: 260, delay: 120 });
+    later(1050, () => { running = false; shatter(cx, cy, 760, angs); try { sessionStorage.setItem('tn-intro', '1'); } catch (_) {} });
   });
-  later(4550, () => finish(false));
 }
-['click', 'keydown', 'wheel', 'touchstart'].forEach(ev => intro.addEventListener(ev, () => finish(true), { passive: true }));
+intro.querySelector('.in-skip').addEventListener('click', e => { e.stopPropagation(); finish(true); });
+['click', 'wheel', 'touchstart'].forEach(ev => intro.addEventListener(ev, () => finish(true), { passive: true }));
 addEventListener('keydown', () => running && finish(true));
 document.getElementById('replay').addEventListener('click', () => { scrollTo(0, 0); document.body.classList.remove('ready'); setTimeout(playIntro, 60); });
 
