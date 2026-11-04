@@ -99,6 +99,7 @@ contextBridge.exposeInMainWorld('api', {
   onPotgWait: (cb) => ipcRenderer.on('potg-wait', (_e, d) => cb(d)),           // ⏳ 팟지 기다림 화면
   onPotgWaitProg: (cb) => ipcRenderer.on('potg-wait-prog', (_e, d) => cb(d)),
   potgGuess: (i) => ipcRenderer.send('potg-guess', i),                          // 🔮 팟지 예측
+  potgCancel: () => ipcRenderer.send('potg-cancel'),                            // 🚫 팟지 건너뛰기(녹화하는 사람만 · v0.1.118)
   potgReplay: () => ipcRenderer.send('potg-replay'),
   potgOpen: (card) => ipcRenderer.send('potg-open', card),   // 🎮 「오늘」 탭 일반 판 팟지
 });

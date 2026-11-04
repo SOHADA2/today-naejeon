@@ -46,6 +46,7 @@ async function run(name, opt) {
   const rr = makeReplayRec({ lcuRaw, lolDir: () => lolDir, log: m => opt.v && console.log('   ', m), kill: async () => { st.killed++; st.api = false; st.phase = 'EndOfGame'; }, liveBase: 'https://127.0.0.1:29990', docsDir, outDir, loadWaitSec: 6, restoreFile: path.join(TMP, name, 'restore.json'),
     hideWindow: () => { st.hidden = true; st.hides++; return { stop: () => { st.hidden = false; return 3; }, show: () => { st.hidden = false; st.shown++; } }; } });
   const t = Date.now();
+  if (opt.cancelAfter) setTimeout(() => rr.cancel(), opt.cancelAfter);   // 🚫 v0.1.118 팟지 건너뛰기
   const out = await rr.record(opt.parts ? { gameId: GID, parts: opt.parts } : { gameId: GID, from: 644, to: 650, focus: 'ap렉사이서폿', champ: opt.champ || '볼리베어' });
   srv.close();
   const cfg = fs.readFileSync(path.join(lolDir, 'Config', 'game.cfg'), 'utf8');
@@ -85,6 +86,11 @@ async function run(name, opt) {
   ok(r.st.render.fieldOfView === 68, `리플레이 카메라 시야 68로 바꿈(${r.st.render.fieldOfView})`);
   console.log('■ realgame — 녹화 도중 실제 게임이 시작됨(v0.1.80)'); r = await run('realgame', { realGameAfter: 4500, parts: [{ from: 644, to: 650, focus: 'ap렉사이서폿', champ: '볼리베어' }, { from: 600, to: 606, focus: '탱커왕', champ: '말파이트' }] });
   ok(Array.isArray(r.out) && r.out.every(x => x === null) && r.st.killed === 0, `녹화 멈추고 실제 게임은 안 끔(영상 ${JSON.stringify(r.out)} · 끈 횟수 ${r.st.killed})`);
+  const cfgBack = c => /\[General\]\r\nEnableReplayApi=1\r\nWindowMode=2\r\n\[Performance\]/.test(c) && !/Width=|Height=/.test(c);   // ok 시나리오와 같은 기준(EnableReplayApi=1만 남고 창 설정은 원래대로)
+  console.log('■ skip — 녹화 도중 「팟지 건너뛰기」(v0.1.118)'); r = await run('skip', { cancelAfter: 4500, parts: [{ from: 644, to: 650, focus: 'ap렉사이서폿', champ: '볼리베어' }, { from: 600, to: 606, focus: '탱커왕', champ: '말파이트' }] });
+  ok(Array.isArray(r.out) && r.out.every(x => x === null) && r.st.killed === 1 && cfgBack(r.cfg) && !r.restoreLeft && Number(r.sec) < 12, `영상 없음 ${JSON.stringify(r.out)} · 리플레이 닫음 ${r.st.killed}번 · 창 설정 되돌림 ${cfgBack(r.cfg)} · ${r.sec}초`);
+  console.log('■ skip0 — 리플레이 열기 전에 건너뛰기'); r = await run('skip0', { cancelAfter: 300 });
+  ok(r.out === null && !r.calls.some(c => c.endsWith('/watch')) && r.st.killed === 0, `안 열고 그만(${r.sec}초)`);
   console.log('■ ingame — 실제 게임 중'); r = await run('ingame', { phase: 'InProgress' });
   ok(r.out === null && !r.calls.some(c => c.endsWith('/watch')) && r.st.killed === 0, '아무것도 안 열고 아무것도 안 닫음');
   console.log(fail ? `\n❌ ${fail}건 실패` : '\n✅ 전부 통과');

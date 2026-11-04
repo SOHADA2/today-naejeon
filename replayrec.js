@@ -105,7 +105,7 @@ function makeReplayRec(d) {
   // ② 리플레이 파일 준비(최대 90초)
   async function waitRofl(gameId) {
     let asked = false;
-    for (let i = 0; i < 45; i++) {
+    for (let i = 0; i < 45 && !_cancel; i++) {
       const m = await d.lcuRaw('GET', `/lol-replays/v1/metadata/${gameId}`);
       const st = m.status === 200 && m.data ? m.data.state : null;
       if (st === 'watch') return true;
@@ -135,7 +135,9 @@ function makeReplayRec(d) {
   //   → 리플레이 열 때 새로 생긴 프로세스 번호만 끔 · 번호를 모르면 롤이 「리플레이 보는 중」일 때만(실제 게임도 2999 /replay를 열 수 있어 그건 안 믿음)
   const gamePids = () => new Promise(r => { if (process.platform !== 'win32') return r([]); execFile('tasklist', ['/FI', 'IMAGENAME eq League of Legends.exe', '/FO', 'CSV', '/NH'], { windowsHide: true }, (e, out) => r(String(out || '').split(/\r?\n/).map(l => (l.match(/^"League of Legends\.exe","(\d+)"/) || [])[1]).filter(Boolean).map(Number))); });
   const REAL = ['ChampSelect', 'GameStart', 'InProgress', 'Reconnect', 'ReadyCheck', 'Matchmaking'];   // 이 상태가 되면 실제 게임·큐 → 녹화 그만
-  async function realGame() { const ph = await d.lcuRaw('GET', '/lol-gameflow/v1/gameflow-phase'); return ph.status === 200 && REAL.includes(ph.data) ? ph.data : null; }
+  // 🚫 v0.1.118: 녹화하는 사람이 「이번 판 팟지 건너뛰기」(사장님: 쓸만한 장면 없는 노잼판) → cancel() — 실제 게임 시작처럼 「그만」으로 처리(리플레이 닫기·소리 켜기·설정 되돌림은 finally 그대로)
+  let _cancel = false;
+  async function realGame() { if (_cancel) return '건너뛰기(녹화한 사람)'; const ph = await d.lcuRaw('GET', '/lol-gameflow/v1/gameflow-phase'); return ph.status === 200 && REAL.includes(ph.data) ? ph.data : null; }
   async function closeReplay(pid) {
     if (pid) { try { await d.kill(pid); log(`리플레이 닫음(프로세스 ${pid}만)`); } catch (_) {} return; }
     const ph = await d.lcuRaw('GET', '/lol-gameflow/v1/gameflow-phase');
@@ -153,11 +155,13 @@ function makeReplayRec(d) {
   const parts0 = ps => ps.map(() => null);
   async function recordParts(gameId, parts) {
     const t0 = Date.now(), sec = () => ((Date.now() - t0) / 1000).toFixed(1);
+    _cancel = false;
     const ph = await d.lcuRaw('GET', '/lol-gameflow/v1/gameflow-phase');
     if (ph.status !== 200) { log('롤 클라 연결 없음'); return null; }
     if (['GameStart', 'InProgress', 'Reconnect', 'ChampSelect', 'Matchmaking', 'ReadyCheck'].includes(ph.data)) { log('게임/큐/챔프 선택 중이라 녹화 안 함: ' + ph.data); return null; }   // 큐 잡는 중에 리플레이를 열면 큐가 꼬임(일반 판은 바로 다음 큐를 잡는 경우가 많음)
     log(`게임 ${gameId} ${parts.map(p => p.from + '~' + p.to).join(', ')}초 녹화 시작 · 창구 ${ensureReplayApi()}`);
-    if (!await waitRofl(gameId)) return null;
+    if (!await waitRofl(gameId)) { if (_cancel) log('건너뛰기 — 리플레이 열기 전에 그만'); return null; }
+    if (_cancel) { log('건너뛰기 — 리플레이 열기 전에 그만'); return null; }
     log(`리플레이 준비됨 (${sec()}초)`);
     const cfg = cfgForRecord(); if (cfg) log(`창 모드 1920×1080 (원래 ${JSON.stringify(cfg.before)})`);
     const hid = d.hideWindow ? d.hideWindow() : null;   // 리플레이 창이 뜨면 바로 화면 밖으로
@@ -174,7 +178,7 @@ function makeReplayRec(d) {
     };
     try {
       let len = 0;   // ④ 리플레이 로딩(최대 120초)
-      for (let i = 0; i < (d.loadWaitSec || 120) && !len; i++) {
+      for (let i = 0; i < (d.loadWaitSec || 120) && !len && !_cancel; i++) {
         const p = await live('GET', '/replay/playback'); if (p.status === 200 && p.data && p.data.length > 0) { len = p.data.length; break; }
         // 🔇 v0.1.117: 로딩 동안에도 끔(사장님: 녹화할 때 소리가 남 — 실기 ap렉사이서폿 PC: 열기 요청 → 열림까지 ~50초 로딩 소리가 다 나고 열린 뒤에야 껐음)
         //   → 리플레이 프로세스가 생기면 1초마다 소리 세션을 찾아 바로 끔(세션은 소리가 나기 시작할 때 생김)
@@ -191,6 +195,7 @@ function makeReplayRec(d) {
       return outs;
       async function recordOne({ from, to, focus, champ, fov, cam, camAt, camRamp, seq, direct }, pi) {   // cam = 처음 카메라에 덧붙일 render 값(예: {cameraMode:'tps'}) · camAt = [{t: 게임 초, set: render 값}] 녹화 중 그 시각에 바꿈(섞은 연출 · v0.1.87 시험)   // 장면 하나(되감기 → 카메라 → 녹화 → 파일)
         if (pi) log(`── 장면 ${pi + 1} · ${from}~${to}초`);
+        if (_cancel) return null;
         if (!muted) await mute(true);   // 열 때 소리 세션이 아직 없었으면 여기서
           to = Math.min(to, len - 0.5); from = Math.max(0, Math.min(from, to - 3));
           // v0.1.34: 앞 구간(PRE초) 먼저 재생해 화면·카메라가 자리 잡은 뒤 녹화 — 전엔 되감기(seek)가 끝나기 전에 녹화가 시작돼
@@ -198,7 +203,7 @@ function makeReplayRec(d) {
           const PRE = makeReplayRec.PRE, startAt = Math.max(0, from - PRE);
           const seekTo = async t => {   // 되감기 끝날 때까지(최대 40초)
             await live('POST', '/replay/playback', { time: t, paused: true, speed: 1 });
-            for (let i = 0; i < 80; i++) { await sleep(500); const p = await live('GET', '/replay/playback'); if (p.data && !p.data.seeking && Math.abs((p.data.time || 0) - t) < 1.5) return true; }
+            for (let i = 0; i < 80 && !_cancel; i++) { await sleep(500); const p = await live('GET', '/replay/playback'); if (p.data && !p.data.seeking && Math.abs((p.data.time || 0) - t) < 1.5) return true; }
             return false;
           };
           // v0.1.81: 첫 장면이 빈 곳으로 시작하던 것(사장님) — 멈춘 채 카메라를 붙이면 주인공 쪽으로 다 못 옮긴 채 녹화가 시작됨
@@ -220,7 +225,7 @@ function makeReplayRec(d) {
             await seekTo(Math.max(0, t0));
             await live('POST', '/replay/playback', { time: Math.max(0, t0), paused: false, speed });
             const pts = [], st = Date.now(), lim = st + (t1 - t0) / speed * 1000 + 15000;
-            while (Date.now() < lim) {
+            while (Date.now() < lim && !_cancel) {
               const [p, r] = await Promise.all([live('GET', '/replay/playback'), live('GET', '/replay/render')]);
               const t = p.data && p.data.time, cp = r.data && r.data.cameraPosition;
               if (t != null && cp && Date.now() - st > 250) pts.push({ t, x: cp.x - O.x, y: cp.y - O.y, z: cp.z - O.z });   // 붙는 동안(처음 0.25초)은 버림
@@ -303,6 +308,7 @@ function makeReplayRec(d) {
           if (champ && !(r.data && r.data.selectionName)) { await live('POST', '/replay/render', Object.assign({ selectionName: champ }, view)); log('카메라: 챔피언 이름으로 다시 지정'); }   // 게임 이름이 안 먹으면
           if (cam) await live('POST', '/replay/render', cam);
           if (direct) seq = Object.assign({}, seq, await directSeq(direct, warmAt, to + 0.6));   // 🎥 연출 카메라(소개 → 교전)
+          if (_cancel) return null;   // 🚫 미리 보기 도중 건너뛰기
           // seq = 키프레임 연출(롤이 매 프레임 이어 줌 · /replay/sequence 형식 {fieldOfView: [{time, value, blend}], …}) — camAt(0.1초마다 render 바꾸기)은 계단식이라 슬로모션에서 버벅여 보였음(2026-11-01)
           await live('POST', '/replay/sequence', seq || {});   // 앞 장면 연출이 남지 않게 늘 새로
           if (fov) await live('POST', '/replay/render', { fieldOfView: fov });   // v0.1.80: 시야 넓히기(먼 사거리 · 주인공이 화면 끝에 걸리던 것)
@@ -387,7 +393,7 @@ function makeReplayRec(d) {
     }
   }
 
-  return { record, ensureReplayApi, restorePending: () => restoreCfg(null), borderlessOn, borderlessOff, _findClip: findClip };
+  return { record, cancel: () => { _cancel = true; }, ensureReplayApi, restorePending: () => restoreCfg(null), borderlessOn, borderlessOff, _findClip: findClip };
 }
 
 // v0.1.58: 롤은 startTime을 안 기다리고 재생이 시작되는 startAt(= from − PRE)부터 바로 찍음(실측: 540~556 요청 → 538.1초에 이미 녹화 중 · 영상 18.9초)

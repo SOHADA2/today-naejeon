@@ -157,11 +157,26 @@
     const first = !V;
     V = v; room.style.display = '';
     if (first) { autoAt = Date.now(); $('wr-steps').innerHTML = STEPS(v).map(s => `<span>${E(s)}</span>`).join(''); }
-    $('wr-who').textContent = v.who && v.me && v.who === v.me ? '내 PC에서 리플레이로 찍는 중' : v.who ? `${v.who}님 PC에서 리플레이로 찍는 중` : '리플레이로 찍는 중';   // v0.1.92: 방장 본인은 자기 PC가 찍는 걸 알게
+    $('wr-who').textContent = v.skipped ? `${v.skipped === v.me ? '내가' : v.skipped + '님이'} 이번 판 팟지를 건너뛰었어요`   // 🚫 v0.1.118
+      : v.who && v.me && v.who === v.me ? '내 PC에서 리플레이로 찍는 중' : v.who ? `${v.who}님 PC에서 리플레이로 찍는 중` : '리플레이로 찍는 중';   // v0.1.92: 방장 본인은 자기 PC가 찍는 걸 알게
+    room.classList.toggle('skipped', !!v.skipped);
+    skipBtn(v);
     prog(); render();
     clearInterval(timer); timer = setInterval(() => render(), 1000);   // 자동 넘김 확인(그리는 건 바뀔 때만)
   }
-  function hide() { room.style.display = 'none'; V = null; sigs = {}; tab = null; clearInterval(timer); }
+  // 🚫 v0.1.118 팟지 건너뛰기(사장님: 노잼판) — 녹화하는 PC에만(v.canSkip) · 실수 방지로 두 번 눌러야(3초 안) · 누르면 main 'potg-cancel'
+  let armT = null;
+  function skipBtn(v) {
+    const b = $('wr-skip'); if (!b) return;
+    b.hidden = !v.canSkip || !!v.skipped;
+    if (b.hidden) { b.classList.remove('arm'); return; }
+    b.onclick = () => {
+      if (!b.classList.contains('arm')) { b.classList.add('arm'); b.textContent = '한 번 더 누르면 건너뛰어요'; clearTimeout(armT); armT = setTimeout(() => { b.classList.remove('arm'); b.textContent = '팟지 건너뛰기'; }, 3000); return; }
+      clearTimeout(armT); b.disabled = true; b.textContent = '건너뛰는 중…';
+      try { window.api.potgCancel(); } catch (_) {}
+    };
+  }
+  function hide() { room.style.display = 'none'; V = null; sigs = {}; tab = null; clearInterval(timer); const b = $('wr-skip'); if (b) { b.hidden = true; b.disabled = false; b.classList.remove('arm'); b.textContent = '팟지 건너뛰기'; } }
   if (window.api && window.api.onPotgWait) {
     window.api.onPotgWait(show);
     window.api.onPotgWaitProg(p => { if (V) prog(p); });

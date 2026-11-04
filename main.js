@@ -1664,7 +1664,7 @@ async function waitView(W) {
   const mine = g[fbKeyOf(me)];
   const P = _recLocal ? Object.assign({ sub: _recToastMsg.sub }, recProgNow() || {}) : potgRecRaw ? { pct: potgRecRaw.pct, left: potgRecRaw.left, sub: potgRecRaw.sub } : null;
   const votes = W.kind === 'match' && sessionData && sessionData.game && String(sessionData.game.id) === String(W.gameId) ? { done: Object.keys(sessionData.votes || {}).length, all: [...(sessionData.teamA || []), ...(sessionData.teamB || [])].length } : null;
-  return { gameId: W.gameId, kind: W.kind, who: W.who, hero: !!W.hero, me, cands: W.cands || [], counts, mine: mine ? mine.i : null, voters: Object.keys(g).length,
+  return { gameId: W.gameId, kind: W.kind, who: W.who, hero: !!W.hero, me, skipped: W.skipped || null, canSkip: !!_recLocal && !_potgSkip, cands: W.cands || [], counts, mine: mine ? mine.i : null, voters: Object.keys(g).length,
     kills: W.kills || [], gameTime: rec.gameTime || null, stats, augs: used, today: C.today, prog: P, votes, queue: rec.queue || null };
 }
 async function openPotgWait(W) {
@@ -1736,6 +1736,11 @@ async function hostPotg(s) {
       if (hero) { try { hero.splash = await potg.splashFor(hero.championId, hero.skin); } catch (_) {} card.hero = hero; }
     } catch (e) { console.log('[potg] 숨은 영웅 고르기 오류', e && e.message); }
     const publish = async () => {   // 모두에게 보여주기(showAt = 다 같이 시작할 시각)
+      if (card.skipped) {   // 🚫 녹화한 사람이 건너뜀 → 팟지 없음(카드도 안 띄움)
+        const none = await skipPublish(card, `${T}/days/${s.game.day}/matches/${s.game.id}`), cur = sessionData && sessionData.game;
+        if (!cur || String(cur.id) === card.gameId) await fbUpdate(`${RP()}/session`, { potg: none });
+        return;
+      }
       await potgWaitFinish(card, `${T}/days/${s.game.day}/matches/${s.game.id}`).catch(() => {});   // 🔮 예측 결과
       card.pending = null; card.pendingAt = null; card.showAt = Date.now() + 1500;
       await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: card });
@@ -1807,6 +1812,7 @@ async function normalPotg(rec) {
     if (hero) { hero.normal = card.normal; try { hero.splash = await potg.splashFor(hero.championId, hero.skin); } catch (_) {} card.hero = hero; }
   } catch (err) { console.log('[normal] 숨은 영웅 고르기 오류', err && err.message); }
   const publish = async () => {
+    if (card.skipped) { await skipPublish(card, path); return; }   // 🚫 녹화한 사람이 건너뜀 → 팟지 없음
     await potgWaitFinish(card, path).catch(() => {});   // 🔮 예측 결과
     card.pending = null; card.pendingAt = null; card.showAt = Date.now() + 1500;
     await fbUpdate(path, { potg: card });
@@ -1942,8 +1948,25 @@ async function champRanges() {
   return _ranges || {};
 }
 async function potgFov(championId) { const r = (await champRanges())[championId]; return RANGED_FORMS.has(Number(championId)) || r >= 500 ? FOV_RANGED : FOV_BASE; }
+// 🚫 v0.1.118: 팟지 건너뛰기(사장님: 쓸만한 장면 없는 노잼판 — 「팟지 준비 중」일 때 녹화하는 PC가 취소) — 기다림 화면 버튼(녹화하는 사람에게만) → 'potg-cancel'
+//   → replayRec.cancel()(녹화 멈춤·리플레이 닫기·소리 켜기) · 영상 안 올림 · potgWait.skipped(다른 사람 화면에 「○○님이 건너뛰었어요」) → 5초 뒤 지움 · 기록 potg = {none, skipped, by}
+let _potgSkip = false;
+ipcMain.on('potg-cancel', () => {
+  if (!_recLocal || !replayRec || _potgSkip) return;
+  _potgSkip = true; try { replayRec.cancel(); } catch (_) {}
+  _recLog.push(`${new Date().toTimeString().slice(0, 8)} 🚫 팟지 건너뛰기(${config.myName || '녹화한 사람'})`);
+  recStage('팟지 건너뛰는 중…');
+  fbUpdate(`${RP()}/potgWait`, { skipped: config.myName || '녹화한 사람' }).catch(() => {});
+});
+async function skipPublish(card, path) {   // 건너뛴 판 = 팟지 없음으로 기록(카드도 안 띄움)
+  await new Promise(r => setTimeout(r, 5000));   // 다른 사람 기다림 화면에 「건너뛰었어요」가 보일 시간
+  await potgWaitFinish(card, path).catch(() => {});
+  const none = { none: true, skipped: true, gameId: String(card.gameId), by: config.myName || null };
+  await fbUpdate(path, { potg: none }).catch(() => {});
+  return none;
+}
 async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹화 기록 남길 경기 기록 경로 } → [팟지 영상 meta, 숨은 영웅 영상 meta] (실패한 쪽은 null)
-  replayBusy = true; _recLog = [];
+  replayBusy = true; _recLog = []; _potgSkip = false;
   const H = card.hero;   // v0.1.44: 숨은 영웅이 있으면 리플레이 한 번 열어 두 장면을 이어서 녹화
   _recParts = H ? 2 : 1; _recCur = 1; _recLocal = true;   // 🎬 방장(과 그 판 팀원)에게 녹화 중 안내
   _recPlayers = card.normal ? (card.normal.us || []) : [...((sessionData && sessionData.teamA) || []), ...((sessionData && sessionData.teamB) || [])];
@@ -1962,8 +1985,9 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   const metas = [null, null], whys = [], secs = [null, null], ups = [], LIMIT = H ? 260000 : 180000;
   try {
     const files = await Promise.race([recP, new Promise(r => setTimeout(() => r(null), LIMIT))]);
-    if (!files) whys.push(Date.now() - t0 >= LIMIT - 1000 ? `${LIMIT / 60000}분 초과` : '녹화 안 됨');
-    for (let i = 0; files && i < parts.length; i++) {
+    if (_potgSkip) { whys.push('건너뜀(녹화한 사람)'); card.skipped = true; }   // 🚫 v0.1.118 — 영상이 있어도 안 올림
+    else if (!files) whys.push(Date.now() - t0 >= LIMIT - 1000 ? `${LIMIT / 60000}분 초과` : '녹화 안 됨');
+    for (let i = 0; files && !_potgSkip && i < parts.length; i++) {
       const file = files[i], tag = i ? '숨은 영웅' : '팟지';
       if (!file) { whys.push(tag + ' 녹화 안 됨'); continue; }
       let buf = fs.readFileSync(file);
