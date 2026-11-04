@@ -1,12 +1,24 @@
-// 서버 규칙 시험(v0.1.97 · 70건) — 인증 없는 요청(= 누구나)으로 허용/차단 확인 · 시험 경로 = 2000-01-01·rt_ 접두 · 끝나면 관리자로 정리(GAPI=관리자 토큰 스크립트 경로 · CLAUDE.md 서버 규칙)
+// 서버 규칙 시험(v0.1.97 · 70건 + 2단계 표식 없는 요청 5건) — 기본 = 익명 로그인 표식을 붙인 요청(= 앱 설치본)으로 허용/차단 확인 + 표식 없는 요청 전부 거절 · RT_NOAUTH=1 = 1단계(표식 없이) · 시험 경로 = 2000-01-01·rt_ 접두 · 끝나면 관리자로 정리(GAPI=관리자 토큰 스크립트 경로 · CLAUDE.md 서버 규칙)
 const { execFileSync } = require('child_process');
 const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app';
 const admin = (m, p, body) => execFileSync('node', [process.env.GAPI || require('path').join(__dirname, 'gapi.cjs'), m, `${DB}/${p}.json`].concat(body ? [JSON.stringify(body)] : [])).toString().trim();
-const req = async (method, p, body, h) => (await fetch(`${DB}/${p}.json`, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: h })).status;
+let TOK = '';   // 🔐 2단계(2026-11-04~): 앱처럼 익명 로그인 표식을 붙여 시험 · RT_NOAUTH=1이면 표식 없이(1단계 규칙 시험용)
+const req = async (method, p, body, h, noauth) => (await fetch(`${DB}/${p}.json${TOK && !noauth ? `?auth=${TOK}` : ''}`, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: h })).status;
 let pass = 0, fail = 0;
 const t = async (name, want, method, p, body, h) => { const s = await req(method, p, body, h); const ok = want === 'ok' ? s === 200 : s === 401 || s === 403 || s === 412; ok ? pass++ : fail++; console.log(ok ? '✅' : '❌', want === 'ok' ? '허용' : '차단', name, s); };
 const SV = { '.sv': 'timestamp' }, D = 'today/days/2000-01-01';
 (async () => {
+  if (process.env.RT_NOAUTH !== '1') {
+    const K = 'AIzaSyDhVbSzNQ306LUTcPo44Ru9G4_RqV9Dl_E';   // 웹 앱 키(공개용 식별자)
+    TOK = (await (await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${K}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"returnSecureToken":true}' })).json()).idToken || '';
+    if (!TOK) { console.log('익명 로그인 실패'); process.exit(1); }
+    const nt = async (name, method, p, body) => { const s = await req(method, p, body, undefined, true); const ok = s === 401 || s === 403; ok ? pass++ : fail++; console.log(ok ? '✅' : '❌', '차단', name, s); };
+    await nt('표식 없이 읽기 — 방 목록', 'GET', 'today/roomList');
+    await nt('표식 없이 읽기 — 경기 기록', 'GET', 'today/days');
+    await nt('표식 없이 쓰기 — 접속 표시', 'PUT', 'today/presence/rt_noauth', { name: 'x', at: 1 });
+    await nt('표식 없이 쓰기 — 자리 신호', 'PUT', 'today/conns/rt_noauth', 1);
+    const fake = await fetch(`${DB}/today/roomList.json?auth=abc.def.ghi`); const fok = fake.status === 401 || fake.status === 403; fok ? pass++ : fail++; console.log(fok ? '✅' : '❌', '차단 가짜 표식으로 읽기', fake.status);
+  }
   // 📒 경기 기록
   await t('기록 만들기 — 서버 시각 없음', 'deny', 'PUT', `${D}/matches/rt_a`, { gameId: 'rt_a', ts: Date.now() }, { 'if-match': 'null_etag' });
   await t('기록 만들기 — 서버 시각 sv', 'ok', 'PUT', `${D}/matches/rt_1`, { gameId: 'rt_1', ts: Date.now(), sv: SV, stats: { a: 1 } }, { 'if-match': 'null_etag' });

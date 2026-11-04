@@ -1,10 +1,10 @@
 {
   "rules": {
     "today": {
-      ".read": true,
+      ".read": "auth != null",
       "presence": {
         "$k": {
-          ".write": true,
+          ".write": "auth != null",
           ".validate": "$k.length <= 80 && newData.hasChildren(['name', 'at'])",
           "name": {
             ".validate": "newData.isString() && newData.val().length <= 40"
@@ -34,13 +34,13 @@
       },
       "conns": {
         "$dev": {
-          ".write": true,
+          ".write": "auth != null",
           ".validate": "newData.isNumber() && $dev.length <= 40"
         }
       },
       "roomList": {
         "$rid": {
-          ".write": true,
+          ".write": "auth != null",
           ".validate": "$rid.length <= 40 && newData.hasChild('name')",
           "name": {
             ".validate": "newData.isString() && newData.val().length <= 40"
@@ -70,7 +70,7 @@
       },
       "rooms": {
         "$rid": {
-          ".write": "$rid !== '_none'",
+          ".write": "auth != null && ($rid !== '_none')",
           ".validate": "$rid.length <= 40",
           "session": {},
           "lobby": {},
@@ -86,36 +86,36 @@
       },
       "bridge": {
         "gamePhase": {
-          ".write": true
+          ".write": "auth != null"
         },
         "inGame": {
-          ".write": true
+          ".write": "auth != null"
         },
         "champSelect": {
-          ".write": true
+          ".write": "auth != null"
         },
         "lastChampPicks": {
-          ".write": true
+          ".write": "auth != null"
         },
         "eogStats": {
-          ".write": true
+          ".write": "auth != null"
         },
         "connected": {
-          ".write": true
+          ".write": "auth != null"
         },
         "operators": {
           "$id": {
-            ".write": true
+            ".write": "auth != null"
           }
         }
       },
       "potg": {
         "raw": {
           "$day": {
-            ".write": "!newData.exists()",
+            ".write": "auth != null && (!newData.exists())",
             "$gid": {
               "$k": {
-                ".write": true
+                ".write": "auth != null"
               }
             }
           }
@@ -123,9 +123,9 @@
       },
       "clips": {
         "$day": {
-          ".write": "!newData.exists()",
+          ".write": "auth != null && (!newData.exists())",
           "$gid": {
-            ".write": true,
+            ".write": "auth != null",
             "meta": {},
             "c": {
               "$i": {
@@ -140,7 +140,7 @@
       },
       "accounts": {
         "$puuid": {
-          ".write": "newData.exists()",
+          ".write": "auth != null && (newData.exists())",
           ".validate": "$puuid.length <= 80",
           "name": {
             ".validate": "newData.isString() && newData.val().length <= 40"
@@ -162,19 +162,19 @@
       "augGuide": {
         "champs": {
           "$id": {
-            ".write": true
+            ".write": "auth != null"
           }
         },
         "hist": {
           "$id": {
             "$k": {
-              ".write": "!data.exists() || (!newData.exists() && data.child('at').val() < now - 259200000)"
+              ".write": "auth != null && (!data.exists() || (!newData.exists() && data.child('at').val() < now - 259200000))"
             }
           }
         },
         "recent": {
           "$k": {
-            ".write": "!data.exists() || (!newData.exists() && data.child('at').val() < now - 259200000)"
+            ".write": "auth != null && (!data.exists() || (!newData.exists() && data.child('at').val() < now - 259200000))"
           }
         }
       },
@@ -184,27 +184,27 @@
           "$kind": {
             ".validate": "$kind === 'matches' || $kind === 'normals'",
             "$gid": {
-              ".write": "!data.exists() && newData.exists() && newData.child('sv').val() === now",
+              ".write": "auth != null && (!data.exists() && newData.exists() && newData.child('sv').val() === now)",
               "potg": {
-                ".write": "data.parent().child('sv').val() > now - 21600000"
+                ".write": "auth != null && (data.parent().child('sv').val() > now - 21600000)"
               },
               "potgRec": {
-                ".write": "data.parent().child('sv').val() > now - 21600000"
+                ".write": "auth != null && (data.parent().child('sv').val() > now - 21600000)"
               },
               "guess": {
-                ".write": "data.parent().child('sv').val() > now - 21600000"
+                ".write": "auth != null && (data.parent().child('sv').val() > now - 21600000)"
               },
               "mvp": {
-                ".write": "data.parent().child('sv').val() > now - 21600000"
+                ".write": "auth != null && (data.parent().child('sv').val() > now - 21600000)"
               },
               "svp": {
-                ".write": "data.parent().child('sv').val() > now - 21600000"
+                ".write": "auth != null && (data.parent().child('sv').val() > now - 21600000)"
               },
               "manner": {
-                ".write": "data.parent().child('sv').val() > now - 21600000"
+                ".write": "auth != null && (data.parent().child('sv').val() > now - 21600000)"
               },
               "votes": {
-                ".write": "data.parent().child('sv').val() > now - 21600000"
+                ".write": "auth != null && (data.parent().child('sv').val() > now - 21600000)"
               }
             }
           }

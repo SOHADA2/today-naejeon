@@ -16,7 +16,7 @@
 6. 앱 배포 = package.json 버전↑ → main 푸시(release.yml 자동 빌드 · 켜면 3분 안에 받으면 바로 설치·재시작).
 
 ## ⏳ 남은 일 (2026-11-04 기준 · 중요한 순)
-- 🔐 **인증 2단계**(먼저 하면 옛 앱 전부 401): ① 친구들 앱이 전부 v0.1.98+인지(`today/presence/*/app`) ② 1시간 넘게 켜 둬도 표식 교체·재연결 되는지 실기 ③ `node tools/rules-auth.cjs > rules.auth.json` → gapi로 적용 + 중계 `wrangler.toml` `REQUIRE_AUTH = "1"` 다시 deploy ④ 표식 없이 서버에 붙는 개발 도구(`tools/potg-seed.mjs`·`lobby-report.cjs` 등) 손보기.
+- ✅ **인증 2단계 적용(2026-11-04 · 사장님: 켜면 알아서 업데이트되니 바로)** — `database.rules.json` = 2단계본(모든 읽기·쓰기 `auth != null` · `tools/rules-auth.cjs`는 이제 멱등) · 중계 `REQUIRE_AUTH = "1"` deploy(표식 없으면 401 · 바뀐 직후 수십 초는 예전 값) · 시험 `node tools/rules-test.cjs` = **75건**(익명 표식 붙인 70건 + 표식 없음/가짜 표식 거절 5건 · `RT_NOAUTH=1`이면 표식 없이 = 1단계용). 옛 앱(≤v0.1.97 · 조조와빈찬합·애블린 v0.1.89, 럼블홀릭 v0.1.80이 마지막 기록)은 켜면 Firebase 전부 401이지만 **업데이트는 GitHub라 그대로 받아 3분 안 재시작** → 정상. 되돌리기 = scratchpad 백업이 아니라 `git show HEAD~1:database.rules.json`로 이전본을 gapi PUT. ⏭️ 남은 것: 표식 없이 서버에 붙는 개발 도구(`tools/potg-seed.mjs`·`lobby-report.cjs`·`potg-report.cjs`·`days-report.cjs`·`aug-seed.cjs` 등)는 이제 401 → 쓸 일 생기면 `tools/gapi.cjs`(관리자)나 익명 표식(rules-test.cjs 방식) 붙이기 · GitHub Actions `aug-seed.yml`·`potg-check.yml`도 같은 이유로 실패함(쓰면 고칠 것).
 - 🗑️ **옛 사이트 DB(aramchaos) `today/` 삭제** — 새 DB로 다 옮겨진 것 확인 + 45MB 백업(`문서	oday-naejeon-backupold-site-db-today-2026-11-02.json`, 그 PC에만) · 대량 삭제라 자동 권한 검사가 막음 → 사장님이 Firebase 콘솔에서 `today`만 직접(했는지 = `curl …aramchaos…/today.json?shallow=true`가 null).
 - ⚠️ **홈페이지(aramchaos) DB 규칙이 루트 `.read/.write: true` 완전 공개**(2026-11-02 발견) — 누구나 사이트 전체 삭제 가능 · aram 리포 작업(투데이 내전 아님).
 - ❓ 기존 홈페이지(sohada2.github.io/aram) 맨 아래 「투데이 내전 다운로드」 버튼 = 새 홈페이지로 연결 / 빼기 / 그대로 — 사장님 답 대기.
