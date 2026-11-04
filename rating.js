@@ -5,7 +5,8 @@
 //    판마다 상세(/lol-match-history/v1/games/{id} · 10명)로 팀 안 딜 순위·킬 관여·KDA → 경기력 · 상세는 userData에 보관(한 번만 받음)
 //  · 점수 0~100 = 승률(판 수 적으면 50% 쪽으로 당김) 55% + 경기력 45% · 최근 판일수록 무게(0.96^n) · 5판 안 되면 「배치 중 n/5」
 //  · 등급 = S+ S A+ A B+ B C+ C D(공식 랭크와 헷갈리지 않게 글자 등급 · 「MMR」이라 부르지 않음 — 라이엇 정책)
-//  ⚠️ 실기 확인 전(이 PC엔 롤 없음): 전적 목록이 몇 판까지 오는지·항목 이름 → 올리는 요약의 `src`(받은 판 수)로 확인
+//  ⚠️ 실기(2026-11-04 집 PC): 롤 전적 목록은 begIndex/endIndex를 **무시하고 늘 최근 20판**만 줌(current-summoner·puuid 주소 둘 다 · 0~199도 20판)
+//    → 첫 쪽에서 새 판이 없으면 그만 읽음 + 받은 판 요약을 이 PC에 **모아 둠**(큐마다 최근 40판 · 예전엔 이번 목록에 없는 판을 지워 20판을 못 넘었음)
 const fs = require('fs'), path = require('path');
 const Q = { aram: { ids: [450], modes: ['ARAM'] }, mayhem: { ids: [2400], modes: ['KIWI'] } };
 const MAX_GAMES = 40, MIN_GAMES = 5, PAGE = 20, MAX_PAGES = 10;
@@ -61,13 +62,13 @@ module.exports = function makeRating(d) {   // d = { lcuGet(path) → data|null,
   let cache = {}; try { cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8')) || {}; } catch (_) {}
   async function collect(puuid) {
     const rk = await d.lcuGet('/lol-ranked/v1/current-ranked-stats').catch(() => null);
-    const list = [];
-    for (let p = 0; p < MAX_PAGES; p++) {   // 최근 전적 목록(한 번에 20판씩)
+    const list = [], ids = new Set();
+    for (let p = 0; p < MAX_PAGES; p++) {   // 최근 전적 목록(한 번에 20판씩 — 실제로는 롤이 늘 같은 최근 20판을 줌)
       const r = await d.lcuGet(`/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=${p * PAGE}&endIndex=${(p + 1) * PAGE}`).catch(() => null);
       const games = (r && r.games && r.games.games) || [];
-      list.push(...games);
+      let fresh = 0; for (const g of games) if (g && !ids.has(g.gameId)) { ids.add(g.gameId); list.push(g); fresh++; }
       const have = { aram: 0, mayhem: 0 }; for (const g of list) { const q = queueOf(g); if (q) have[q]++; }
-      if (games.length < PAGE || (have.aram >= MAX_GAMES && have.mayhem >= MAX_GAMES)) break;
+      if (games.length < PAGE || !fresh || (have.aram >= MAX_GAMES && have.mayhem >= MAX_GAMES)) break;   // 새 판이 없으면 그만(같은 20판 반복)
     }
     const seen = new Set(), want = { aram: [], mayhem: [] };
     for (const g of list.sort((x, y) => (y.gameCreation || 0) - (x.gameCreation || 0))) {
@@ -81,13 +82,14 @@ module.exports = function makeRating(d) {   // d = { lcuGet(path) → data|null,
       const c = g && compactGame(g, puuid);
       if (c) { cache[id] = Object.assign({ p: puuid }, c); fetched++; }
     }
-    const keep = new Set([...want.aram, ...want.mayhem].map(String));
-    for (const id of Object.keys(cache)) if (!keep.has(id) && cache[id].p === puuid) delete cache[id];   // 40판 밖으로 밀려난 판은 버림
+    // 모아 둔 판 = 이번에 받은 판 + 예전에 받아 둔 판(롤이 최근 20판만 줘서 지난 판은 여기 모아 둔 게 유일한 기록) · 큐마다 최근 40판만 남김
+    const pool = q => Object.entries(cache).filter(([, c]) => c && c.p === puuid && c.q === q).sort((x, y) => y[1].t - x[1].t);
+    for (const q of Object.keys(Q)) for (const [id] of pool(q).slice(MAX_GAMES)) delete cache[id];
     try { fs.writeFileSync(cacheFile, JSON.stringify(cache)); } catch (_) {}
-    const mine = q => want[q].map(id => cache[id]).filter(Boolean).sort((x, y) => y.t - x.t);
+    const mine = q => pool(q).map(([, c]) => c);
     const out = { at: Date.now(), v: 1, solo: soloOf(rk), aram: scoreQueue(mine('aram')), mayhem: scoreQueue(mine('mayhem')),
-      src: { list: list.length, aram: want.aram.length, mayhem: want.mayhem.length, ranked: !!rk } };
-    d.log(`🏅 점수 — 전적 ${list.length}판(칼바람 ${want.aram.length} · 아수라장 ${want.mayhem.length} · 새로 받은 상세 ${fetched}) · 솔로 ${out.solo ? out.solo.tier + ' ' + (out.solo.div || '') : '없음'} · 칼바람 ${out.aram ? (out.aram.gr || '배치 ' + out.aram.pl) : '-'} · 아수라장 ${out.mayhem ? (out.mayhem.gr || '배치 ' + out.mayhem.pl) : '-'}`);
+      src: { list: list.length, aram: mine('aram').length, mayhem: mine('mayhem').length, ranked: !!rk } };
+    d.log(`🏅 점수 — 전적 목록 ${list.length}판(이번에 칼바람 ${want.aram.length} · 아수라장 ${want.mayhem.length} · 새로 받은 상세 ${fetched} · 모아 둔 칼바람 ${out.src.aram} · 아수라장 ${out.src.mayhem}) · 솔로 ${out.solo ? out.solo.tier + ' ' + (out.solo.div || '') : '없음'} · 칼바람 ${out.aram ? (out.aram.gr || '배치 ' + out.aram.pl) : '-'} · 아수라장 ${out.mayhem ? (out.mayhem.gr || '배치 ' + out.mayhem.pl) : '-'}`);
     return out;
   }
   return { collect, _compactGame: compactGame, _scoreQueue: scoreQueue, _soloOf: soloOf, _gradeOf: gradeOf };
