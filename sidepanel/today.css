@@ -310,7 +310,7 @@
 .age-top b { flex:1; }
 .age-top small { order:5; flex-basis:100%; margin-left:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .age-top b + .age-histbtn { margin-left:0; }
-/* 🏅 전적 기반 점수(v0.1.111) · v0.1.113: 아수라장 = 맨 위 큰 줄(티어 문장 + 티어 이름) · 솔로 랭크·칼바람 = 아래 작은 두 칸
+/* 🏅 전적 기반 점수(v0.1.111) · v0.1.113: 큰 줄(티어 문장 + 티어 이름) · v0.1.114: 아수라장 내전·일반 두 줄(솔로·칼바람 작은 칸은 뺌)
    티어 색 = --tc(롤 티어 느낌 · 공식 문장 그림은 안 씀 — 우리끼리 점수) · 문장 = 비스듬히 자른 방패 도형(움직임 없음) */
 .t-iron { --tc:#a0948f; } .t-bronze { --tc:#c68e66; } .t-silver { --tc:#b7c4ce; } .t-gold { --tc:#e6bf62; } .t-platinum { --tc:#55c9bd; }
 .t-emerald { --tc:#43d27f; } .t-diamond { --tc:#8c9cff; } .t-master { --tc:#cd78e4; } .t-grandmaster { --tc:#ec6157; } .t-challenger { --tc:#f4d987; }
@@ -332,10 +332,4 @@
 .pf-mh-tx b { font:800 21px var(--f-body); line-height:26px; color:var(--tc); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .pf-mh.none .pf-mh-tx b { color:var(--dim); font-size:16px; }
 .pf-mh-tx em { font-style:normal; font-size:10px; color:var(--ink-soft); font-family:var(--f-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pf-rts { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px; margin-bottom:4px; }
-.pf-rt { display:flex; flex-direction:column; align-items:flex-start; text-align:left; gap:1px; padding:6px 7px; min-width:0; background:rgba(255,255,255,0.03); border:1px solid var(--hair); clip-path:var(--cut-sm); }
-.pf-rt span { font-size:10px; font-weight:700; color:var(--dim); white-space:nowrap; }
-.pf-rt b { font:800 13px var(--f-body); line-height:20px; color:var(--tc, var(--ink)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
-.pf-rt em { font-style:normal; font-size:10px; color:var(--ink-soft); font-family:var(--f-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
-.pf-rt.none b { color:var(--dim); }
 .pf-rt-at { margin:0 2px 12px; font-size:10px; color:var(--dim); }

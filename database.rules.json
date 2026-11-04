@@ -336,6 +336,32 @@
               ".validate": false
             }
           },
+          "custom": {
+            "s": {
+              ".validate": "newData.isNumber()"
+            },
+            "gr": {
+              ".validate": "newData.isString() && newData.val().length <= 2"
+            },
+            "n": {
+              ".validate": "newData.isNumber()"
+            },
+            "w": {
+              ".validate": "newData.isNumber()"
+            },
+            "wr": {
+              ".validate": "newData.isNumber()"
+            },
+            "kda": {
+              ".validate": "newData.isNumber()"
+            },
+            "pl": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
           "src": {
             "list": {
               ".validate": "newData.isNumber()"
@@ -348,6 +374,9 @@
             },
             "ranked": {
               ".validate": "newData.isBoolean()"
+            },
+            "custom": {
+              ".validate": "newData.isNumber()"
             },
             "$other": {
               ".validate": false

@@ -1,21 +1,26 @@
 // 🏅 아수라장 티어 공개(v0.1.113 · 사장님: 처음 내전 켜고 내 티어가 정해질 때 애니메이션으로 · ?에 간단한 근거 + 최신 아수라장 판 기준이라고)
-//   main tierReveal → 'tier-reveal' {tier, div, rank(아이언 0~챌린저 9), s, n, w, wr, kda, prev, dir: first|up|down}
+//   main tierReveal → 'tier-reveal' {kind, tier, div, rank(아이언 0~챌린저 9), s, n, w, wr, kda, prev, dir: first|up|down}
 //   카드 한 번: 문장이 위에서 떨어져 박힘 → 빛이 한 번 훑음 → 티어 이름·점수 → 9초 뒤 저절로 닫힘(「?」를 열면 「확인」 누를 때까지)
 //   애니메이션은 전부 한 번만(WAAPI · 성능 규칙: 무한 반복 금지) · 문장 = 티어 색 방패 도형(공식 문장 그림 안 씀 — 우리끼리 점수)
 (function () {
   const KO = { IRON: '아이언', BRONZE: '브론즈', SILVER: '실버', GOLD: '골드', PLATINUM: '플래티넘', EMERALD: '에메랄드', DIAMOND: '다이아몬드', MASTER: '마스터', GRANDMASTER: '그랜드마스터', CHALLENGER: '챌린저' };
-  let box = null, timer = null;
+  //   v0.1.114: kind = 'custom'(아수라장 내전 · 사용자 설정 게임) | 'mayhem'(아수라장 일반) · 둘이 한꺼번에 오면 차례로(줄 세움)
+  let box = null, timer = null, open = false;
+  const queue = [];
   function close() {
-    clearTimeout(timer); timer = null; if (!box || box.style.display === 'none') return;
+    clearTimeout(timer); timer = null; if (!box || !open) return;
+    open = false;
     const a = box.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: 'ease-in' });
-    a.onfinish = () => { box.style.display = 'none'; };
+    a.onfinish = () => { if (open) return; box.style.display = 'none'; if (queue.length) setTimeout(() => show(queue.shift()), 250); };
   }
   function show(d) {
     if (!d || !d.tier) return;
+    if (open) { queue.push(d); return; }
     if (!box) { box = document.createElement('div'); box.className = 'trv'; document.body.appendChild(box); }
-    clearTimeout(timer);
-    const name = KO[d.tier] || d.tier, head = d.dir === 'up' ? 'PROMOTED' : d.dir === 'down' ? 'TIER UPDATE' : 'MAYHEM TIER';
-    const sub = d.dir === 'up' ? `${KO[d.prev] || d.prev}에서 승급했어요` : d.dir === 'down' ? `${KO[d.prev] || d.prev}에서 내려왔어요` : '내 아수라장 티어가 정해졌어요';
+    clearTimeout(timer); open = true;
+    const custom = d.kind === 'custom', what = custom ? '아수라장 내전' : '아수라장';
+    const name = KO[d.tier] || d.tier, head = d.dir === 'up' ? 'PROMOTED' : d.dir === 'down' ? 'TIER UPDATE' : custom ? 'IN-HOUSE MAYHEM TIER' : 'MAYHEM TIER';
+    const sub = d.dir === 'up' ? `${what} · ${KO[d.prev] || d.prev}에서 승급했어요` : d.dir === 'down' ? `${what} · ${KO[d.prev] || d.prev}에서 내려왔어요` : `내 ${what} 티어가 정해졌어요`;
     box.className = `trv t-${String(d.tier).toLowerCase()}`;
     box.innerHTML = `<div class="trv-card">
       <span class="trv-en lb-sec-en">${head}</span>
@@ -23,7 +28,7 @@
       <b class="trv-name">${name}${d.div ? ` <span class="num">${d.div}</span>` : ''}</b>
       <span class="trv-sub">${sub}</span>
       <span class="trv-stat num">${d.s}점 · ${d.n}판 ${d.w}승 · 승률 ${Math.round((d.wr || 0) * 100)}%</span>
-      <div class="trv-why" hidden>최신 아수라장 <b>${d.n}판</b>(내 롤 전적) 기준으로 매겼어요<br>점수 = 승률 + 경기력(팀 안 딜 순위·킬 관여·KDA) · 최근 판일수록 크게<br>8점마다 한 티어 · <b>우리끼리 점수</b>(공식 랭크 아님) · 판을 할수록 다시 매겨져요</div>
+      <div class="trv-why" hidden>최신 ${custom ? '아수라장 <b>내전</b>(사용자 설정 게임)' : '아수라장 <b>일반 판</b>(내전 제외)'} <b>${d.n}판</b>(내 롤 전적) 기준으로 매겼어요<br>점수 = 승률 + 경기력(팀 안 딜 순위·킬 관여·KDA) · 최근 판일수록 크게<br>8점마다 한 티어 · <b>우리끼리 점수</b>(공식 랭크 아님) · 판을 할수록 다시 매겨져요</div>
       <div class="trv-btns"><button class="trv-q" title="근거">?</button><button class="trv-ok ui-btn-gold">확인</button></div>
     </div>`;
     box.style.display = '';

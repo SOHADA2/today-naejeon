@@ -2651,20 +2651,25 @@ async function ratingUpdate(force) {
   _ratingBusy = true;
   try {
     const me = account.puuid, out = await rating.collect(me);
-    if (account && account.puuid === me && (out.solo || out.aram || out.mayhem)) { await fbSet(`${T}/ratings/${me}`, out); _ratingAt = Date.now(); _ratings[me] = { v: out, at: Date.now() }; tierReveal(me, out.mayhem); }
+    if (account && account.puuid === me && (out.custom || out.mayhem)) {   // v0.1.114: 아수라장 내전(custom)·일반(mayhem) 두 개
+      const w = await fbSet(`${T}/ratings/${me}`, out); if (!w.ok) console.log('[rating] 올리기 실패 ' + w.err);
+      _ratingAt = Date.now(); _ratings[me] = { v: out, at: Date.now() }; tierReveal(me, out.custom, 'custom'); tierReveal(me, out.mayhem, 'mayhem');
+    }
   } catch (e) { console.log('[rating] ' + (e && e.message)); } finally { _ratingBusy = false; }
 }
 // 🏅 v0.1.113: 아수라장 티어 공개(사장님: 처음 티어가 정해질 때 애니메이션으로 · ?에 근거) — 내 아수라장 티어가 **처음 정해지거나 바뀌면**(승급·강등 · 단계만 바뀐 건 안 띄움)
-//   왼쪽 창에 한 번(overlay/tierreveal.js) · 계정마다 마지막으로 본 티어 = config.mayhemTier{puuid: 티어} · 왼쪽 창이 안 보이면 다음 계산(30분) 때 다시 시도
-function tierReveal(puuid, x) {
+//   왼쪽 창에 한 번(overlay/tierreveal.js) · 계정마다 마지막으로 본 티어 = config.mayhemTier / customTier {puuid: 티어} · 왼쪽 창이 안 보이면 다음 계산(30분) 때 다시 시도
+//   v0.1.114: kind = 'custom'(아수라장 내전) | 'mayhem'(아수라장 일반) — 둘 다 새로 정해지면 카드가 차례로(내전 먼저)
+function tierReveal(puuid, x, kind) {
   if (!x || x.s == null || !(x.n >= 5) || inGame || !overlayWin || overlayWin.isDestroyed() || !overlayWin.isVisible()) return;
-  const t = makeRating.tierOf(x.s), seen = config.mayhemTier || {}, prev = seen[puuid] || null;
+  const key = kind === 'custom' ? 'customTier' : 'mayhemTier';
+  const t = makeRating.tierOf(x.s), seen = config[key] || {}, prev = seen[puuid] || null;
   if (prev === t.tier) return;
   const order = ['IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER', 'GRANDMASTER', 'CHALLENGER'];
   const dir = !prev ? 'first' : order.indexOf(t.tier) > order.indexOf(prev) ? 'up' : 'down';
-  try { overlayWin.webContents.send('tier-reveal', { tier: t.tier, div: t.div, rank: t.rank, s: x.s, n: x.n, w: x.w, wr: x.wr, kda: x.kda, prev, dir }); } catch (_) { return; }
-  config.mayhemTier = Object.assign({}, seen, { [puuid]: t.tier }); saveConfig();
-  console.log(`[rating] 🏅 아수라장 티어 공개 ${prev || '처음'} → ${t.tier} ${t.div || ''} (${x.s}점 · ${x.n}판)`);
+  try { overlayWin.webContents.send('tier-reveal', { kind: kind || 'mayhem', tier: t.tier, div: t.div, rank: t.rank, s: x.s, n: x.n, w: x.w, wr: x.wr, kda: x.kda, prev, dir }); } catch (_) { return; }
+  config[key] = Object.assign({}, seen, { [puuid]: t.tier }); saveConfig();
+  console.log(`[rating] 🏅 ${kind === 'custom' ? '아수라장 내전' : '아수라장'} 티어 공개 ${prev || '처음'} → ${t.tier} ${t.div || ''} (${x.s}점 · ${x.n}판)`);
 }
 const _ratings = {};
 async function getRating(puuid) {   // 프로필용(1분 캐시)

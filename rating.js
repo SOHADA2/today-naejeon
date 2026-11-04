@@ -1,4 +1,4 @@
-// ── 🏅 전적 기반 점수(v0.1.111 · 사장님: 솔로 랭크 티어 + 칼바람 점수 + 아수라장 점수 — 한 사람당 3개) ─────────────
+// ── 🏅 전적 기반 점수(v0.1.111 · 사장님: 솔로 랭크 티어 + 칼바람 점수 + 아수라장 점수 — 한 사람당 3개 · v0.1.114부터 아수라장 내전·아수라장 일반 2개) ─────────────
 // 각자 앱이 자기 롤 클라이언트(LCU)에서 조용히 읽음(화면·마우스 안 건드림) → today/ratings/{puuid}에 요약만 올림 → 프로필에서 누구 것이든 봄
 //  · 솔로 랭크 = 공식 티어 그대로(/lol-ranked/v1/current-ranked-stats · 솔로 없으면 자유 랭크)
 //  · 칼바람(큐 450)·아수라장(큐 2400 · 모드 KIWI) = 최근 전적(/lol-match-history/v1/products/lol/current-summoner/matches)에서 각 40판까지
@@ -7,8 +7,10 @@
 //  · 등급 = S+ S A+ A B+ B C+ C D(공식 랭크와 헷갈리지 않게 글자 등급 · 「MMR」이라 부르지 않음 — 라이엇 정책)
 //  ⚠️ 실기(2026-11-04 집 PC): 롤 전적 목록은 begIndex/endIndex를 **무시하고 늘 최근 20판**만 줌(current-summoner·puuid 주소 둘 다 · 0~199도 20판)
 //    → 첫 쪽에서 새 판이 없으면 그만 읽음 + 받은 판 요약을 이 PC에 **모아 둠**(큐마다 최근 40판 · 예전엔 이번 목록에 없는 판을 지워 20판을 못 넘었음)
+//  ⚙️ v0.1.114(사장님): **아수라장 일반**(매칭 큐 2400)과 **아수라장 내전**(사용자 설정 게임 · 실측 큐 3270 · gameType CUSTOM_GAME · 모드 KIWI)을 따로 ·
+//    솔로 랭크·칼바람은 뺌(안 읽고 안 올림 · 서버 규칙은 옛 앱 때문에 그 칸들을 그대로 허용)
 const fs = require('fs'), path = require('path');
-const Q = { aram: { ids: [450], modes: ['ARAM'] }, mayhem: { ids: [2400], modes: ['KIWI'] } };
+const Q = { mayhem: 1, custom: 1 };   // 모아 두는 큐(이름만 · 판별은 queueOf)
 const MAX_GAMES = 40, MIN_GAMES = 5, PAGE = 20, MAX_PAGES = 10;
 const GRADES = [[75, 'S+'], [70, 'S'], [65, 'A+'], [60, 'A'], [55, 'B+'], [50, 'B'], [45, 'C+'], [40, 'C'], [-1, 'D']];
 const gradeOf = s => GRADES.find(([min]) => s >= min)[1];
@@ -21,8 +23,10 @@ function tierOf(s) {
 }
 const r3 = v => Math.round(v * 1000) / 1000;
 
-function queueOf(g) {   // 이 판이 칼바람/아수라장인지
-  for (const [k, q] of Object.entries(Q)) if (q.ids.includes(Number(g.queueId)) || (g.queueId == null && q.modes.includes(g.gameMode))) return k;
+function queueOf(g) {   // 이 판이 아수라장 내전(custom)/아수라장 일반(mayhem)인지 — 내전을 먼저(같은 KIWI 모드라서)
+  const q = g.queueId == null ? null : Number(g.queueId);
+  if (q === 3270 || (g.gameType === 'CUSTOM_GAME' && g.gameMode === 'KIWI')) return 'custom';
+  if (q === 2400 || (q == null && g.gameMode === 'KIWI')) return 'mayhem';
   return null;
 }
 // 상세(10명) → 나 한 사람 요약 { q, t, win, k, d, a, dr(팀 안 딜 순위 0~1 · 1 = 1등), kp(킬 관여), sec }
@@ -70,22 +74,21 @@ function makeRating(d) {   // d = { lcuGet(path) → data|null, userData, log }
   const cacheFile = path.join(d.userData, 'rating-games.json');
   let cache = {}; try { cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8')) || {}; } catch (_) {}
   async function collect(puuid) {
-    const rk = await d.lcuGet('/lol-ranked/v1/current-ranked-stats').catch(() => null);
     const list = [], ids = new Set();
     for (let p = 0; p < MAX_PAGES; p++) {   // 최근 전적 목록(한 번에 20판씩 — 실제로는 롤이 늘 같은 최근 20판을 줌)
       const r = await d.lcuGet(`/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=${p * PAGE}&endIndex=${(p + 1) * PAGE}`).catch(() => null);
       const games = (r && r.games && r.games.games) || [];
       let fresh = 0; for (const g of games) if (g && !ids.has(g.gameId)) { ids.add(g.gameId); list.push(g); fresh++; }
-      const have = { aram: 0, mayhem: 0 }; for (const g of list) { const q = queueOf(g); if (q) have[q]++; }
-      if (games.length < PAGE || !fresh || (have.aram >= MAX_GAMES && have.mayhem >= MAX_GAMES)) break;   // 새 판이 없으면 그만(같은 20판 반복)
+      const have = { custom: 0, mayhem: 0 }; for (const g of list) { const q = queueOf(g); if (q) have[q]++; }
+      if (games.length < PAGE || !fresh || (have.custom >= MAX_GAMES && have.mayhem >= MAX_GAMES)) break;   // 새 판이 없으면 그만(같은 20판 반복)
     }
-    const seen = new Set(), want = { aram: [], mayhem: [] };
+    const seen = new Set(), want = { custom: [], mayhem: [] };
     for (const g of list.sort((x, y) => (y.gameCreation || 0) - (x.gameCreation || 0))) {
       const q = queueOf(g); if (!q || seen.has(g.gameId) || want[q].length >= MAX_GAMES) continue;
       seen.add(g.gameId); want[q].push(g.gameId);
     }
     let fetched = 0;
-    for (const id of [...want.aram, ...want.mayhem]) {   // 상세 = 처음 한 번만(판 기록은 안 바뀜)
+    for (const id of [...want.custom, ...want.mayhem]) {   // 상세 = 처음 한 번만(판 기록은 안 바뀜)
       if (cache[id] && cache[id].p === puuid) continue;
       const g = await d.lcuGet(`/lol-match-history/v1/games/${id}`).catch(() => null);
       const c = g && compactGame(g, puuid);
@@ -94,11 +97,13 @@ function makeRating(d) {   // d = { lcuGet(path) → data|null, userData, log }
     // 모아 둔 판 = 이번에 받은 판 + 예전에 받아 둔 판(롤이 최근 20판만 줘서 지난 판은 여기 모아 둔 게 유일한 기록) · 큐마다 최근 40판만 남김
     const pool = q => Object.entries(cache).filter(([, c]) => c && c.p === puuid && c.q === q).sort((x, y) => y[1].t - x[1].t);
     for (const q of Object.keys(Q)) for (const [id] of pool(q).slice(MAX_GAMES)) delete cache[id];
+    for (const [id, c] of Object.entries(cache)) if (c && c.p === puuid && !Q[c.q]) delete cache[id];   // 예전 칼바람(aram) 요약 등 이제 안 쓰는 큐
     try { fs.writeFileSync(cacheFile, JSON.stringify(cache)); } catch (_) {}
     const mine = q => pool(q).map(([, c]) => c);
-    const out = { at: Date.now(), v: 1, solo: soloOf(rk), aram: scoreQueue(mine('aram')), mayhem: scoreQueue(mine('mayhem')),
-      src: { list: list.length, aram: mine('aram').length, mayhem: mine('mayhem').length, ranked: !!rk } };
-    d.log(`🏅 점수 — 전적 목록 ${list.length}판(이번에 칼바람 ${want.aram.length} · 아수라장 ${want.mayhem.length} · 새로 받은 상세 ${fetched} · 모아 둔 칼바람 ${out.src.aram} · 아수라장 ${out.src.mayhem}) · 솔로 ${out.solo ? out.solo.tier + ' ' + (out.solo.div || '') : '없음'} · 칼바람 ${out.aram ? (out.aram.gr || '배치 ' + out.aram.pl) : '-'} · 아수라장 ${out.mayhem ? (out.mayhem.gr || '배치 ' + out.mayhem.pl) : '-'}`);
+    const out = { at: Date.now(), v: 2, custom: scoreQueue(mine('custom')), mayhem: scoreQueue(mine('mayhem')),
+      src: { list: list.length, custom: mine('custom').length, mayhem: mine('mayhem').length } };
+    const lab = x => x ? (x.gr ? `${x.s}점(${x.n}판)` : '배치 ' + x.pl) : '-';
+    d.log(`🏅 점수 — 전적 목록 ${list.length}판(이번에 내전 ${want.custom.length} · 일반 ${want.mayhem.length} · 새로 받은 상세 ${fetched}) · 아수라장 내전 ${lab(out.custom)} · 아수라장 일반 ${lab(out.mayhem)}`);
     return out;
   }
   return { collect, _compactGame: compactGame, _scoreQueue: scoreQueue, _soloOf: soloOf, _gradeOf: gradeOf };
