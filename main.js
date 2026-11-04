@@ -23,6 +23,7 @@ const T = 'today';                  // ⚠️ 이 앱의 모든 쓰기 루트 �
 const { buildTeams, normName } = require('./teams');   // ⚔️ 홈페이지 makeTeams 1:1 이식(밸런스 계산)
 const bridge = require('./bridge');                    // 🔌 내장 브릿지(LCU EOG 캡처 → today/bridge)
 const makeReplayRec = require('./replayrec');           // 🎬 팟지 영상 = 방장 PC가 리플레이를 열어 그 장면만 녹화(v0.1.33)
+const makeRating = require('./rating');                // 🏅 전적 기반 점수(솔로 랭크·칼바람·아수라장)
 const makePotg = require('./potg');                    // 🎬 팟지(게임 중 킬·체력 수집 → 방장이 최고 장면 고름 → 가운데 창)
 let potg = null, replayRec = null, replayBusy = false;   // replayBusy = 리플레이 녹화 중(그동안 2999가 열려도 「게임 시작」으로 보지 않음)                                        // app ready 뒤 생성(userData 경로 필요)
 
@@ -961,7 +962,8 @@ async function pollGame() {
     if (inGame) { hideOverlay(); hideLeftPanel(); _slotDoneFormed = lastFormed; hideSlotMarker(); closePotg(); if (potg) potg.startCollect(bridge.getGameId()); }   // 🎬 팟지 수집 시작   // 게임 시작 → 양쪽 패널 완전히 숨김(전투 중 정보 미노출, 새 폼 재설계 예정) · 좌측 내 정보 패널도 숨김(클라 창 사라지며 floatPanels가 잠깐 띄우는 레이스 차단) · applyRaise/floatPanels가 inGame return이라 재등장 없음
     else { setTimeout(tryInstallUpdate, 90000); hideOverlay(); userHid = false; latestPlayers = []; _lastRaise = null; evalRaise(); recGameEnded(); if (potg) potg.stopCollect(bridge.getGameId()).catch(() => {}); }   // 🎬 수집 올림   // 게임 종료 → 로비 층위 재적용 · 📼 「기록 저장 중」 시작
     broadcast('state', { inGame, label: inGame ? '게임 중' : '대기' });
-    if (!inGame) { _rawPlayers = []; ingameHidden = false; hideIngame(); hideAugRank(); ocrStop(); augState.showing = null; setTimeout(() => { if (!inGame) borderlessOff(); }, 4000); }
+    if (!inGame) { setTimeout(() => ratingUpdate(true), 90000);   // 🏅 판 끝 → 전적에 들어간 뒤 점수 다시
+      _rawPlayers = []; ingameHidden = false; hideIngame(); hideAugRank(); ocrStop(); augState.showing = null; setTimeout(() => { if (!inGame) borderlessOff(); }, 4000); }
     else { _ingameAt = Date.now(); Object.assign(augState, { hot: 0, lastLv: 0, showing: null, champId: 0, n: 0 }); }   // 🎯 새 게임 → 증강 순위 처음부터   // 🖥️ 게임 끝 → 정보 창 닫고 화면 모드 원래대로
   }
   if (inGame && config.ingame && !ingameHidden) ingameUpdate(_rawPlayers);
@@ -1215,6 +1217,7 @@ function setAccount(acc) {
     beatPresence();
     fbUpdate(`${T}/accounts/${acc.puuid}`, { name: acc.gameName, tag: acc.tagLine || null, icon: acc.iconId || null, lastSeen: Date.now() }).catch(() => {});
     if (!_presenceTimer) _presenceTimer = setInterval(beatPresence, PRESENCE_MS);
+    setTimeout(() => ratingUpdate(true), 20000);   // 🏅 롤 로그인 → 전적 점수
   }
   broadcast('account', { account, isHost: !!config.isHost, switched: !!(prev && acc && prev.puuid !== acc.puuid) });
   broadcast('myname', config.myName);
@@ -2641,6 +2644,23 @@ function statOf(m, name, key) {
   const list = m.stats || [];
   return (key.startsWith('p:') && list.find(p => p.puuid === key.slice(2))) || list.find(p => norm(p.summonerName) === norm(name)) || null;
 }
+// 🏅 전적 기반 점수(v0.1.111 · rating.js) — 내 롤 클라에서 읽어 today/ratings/{puuid}에 요약만 · 로그인 20초 뒤·판 끝 90초 뒤·30분마다(10분 안 다시 안 함) · 게임 중엔 안 함
+let rating = null, _ratingAt = 0, _ratingBusy = false;
+async function ratingUpdate(force) {
+  if (!rating || !account || inGame || _ratingBusy || (!force && Date.now() - _ratingAt < 10 * 60e3) || (force && Date.now() - _ratingAt < 60e3)) return;
+  _ratingBusy = true;
+  try {
+    const me = account.puuid, out = await rating.collect(me);
+    if (account && account.puuid === me && (out.solo || out.aram || out.mayhem)) { await fbSet(`${T}/ratings/${me}`, out); _ratingAt = Date.now(); _ratings[me] = { v: out, at: Date.now() }; }
+  } catch (e) { console.log('[rating] ' + (e && e.message)); } finally { _ratingBusy = false; }
+}
+const _ratings = {};
+async function getRating(puuid) {   // 프로필용(1분 캐시)
+  const x = _ratings[puuid]; if (x && Date.now() - x.at < 60e3) return x.v;
+  const v = await getJson(`${FIREBASE_DB}/${T}/ratings/${encodeURIComponent(puuid)}.json`).catch(() => null);
+  _ratings[puuid] = { v: v && !v.error ? v : null, at: Date.now() };
+  return _ratings[puuid].v;
+}
 async function getProfile(arg) {
   const idx = await profileIndex();
   let key = null;
@@ -2694,6 +2714,7 @@ async function getProfile(arg) {
   P.mates = Object.values(mates).filter(x => x.games >= MIN).sort((x, y) => rate(y) - rate(x) || y.games - x.games).slice(0, 3);
   P.rivals = Object.values(rivals).filter(x => x.games >= MIN).sort((x, y) => rate(x) - rate(y) || y.games - x.games).slice(0, 3);
   for (const x of [...Object.values(mates), ...Object.values(rivals)]) { const pk = idx.nameToPuuid[x.name]; const a = pk && idx.accounts[pk]; if (a && a.name) x.name = normName(a.name); }   // 닉변한 사람은 지금 이름으로
+  if (key.startsWith('p:')) P.rating = await getRating(key.slice(2)).catch(() => null);   // 🏅 솔로 랭크·칼바람·아수라장
   return P;
 }
 
@@ -2938,6 +2959,9 @@ else {
     }));
     try { replayRec.restorePending(); } catch (_) {}   // 지난번에 녹화하다 앱이 꺼졌으면 game.cfg 창 설정 되돌림
     setTimeout(() => { if (!inGame && lobbyPhase !== 'ChampSelect') borderlessOff(); }, 15000);   // 🖥️ 지난번 게임 중 앱이 꺼졌으면 화면 모드 원래대로(롤이 게임 중이면 기다림)
+    rating = makeRating({ userData: app.getPath('userData'), log: m => { try { console.log(m); } catch (_) {} },
+      lcuGet: async p => { const r = await bridge.lcuRaw('GET', p); return r && r.status >= 200 && r.status < 300 ? r.data : null; } });
+    setInterval(() => ratingUpdate(false), 30 * 60e3);
     potg = makePotg({ T, FIREBASE_DB, fbSet, fbDelete, getJson, getToken: fbToken, dayKey, normName, userData: app.getPath('userData'), getPlayers: () => latestPlayers, log: (m) => { try { console.log(m); } catch (_) {} } });
     setTimeout(() => potg.cleanup().catch(() => {}), 8000); setInterval(() => potg.cleanup().catch(() => {}), 30 * 60 * 1000);   // 🎬 3일 지난 영상·수집 지우기
     bridge.start({ getToken: fbToken, getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, onLobbySeat, onChampSelect, onNormal: (e) => recordNormal(e).catch(err => console.log('[normal] 오류', err && err.message)), fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });

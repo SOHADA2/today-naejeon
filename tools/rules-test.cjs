@@ -90,6 +90,11 @@ const SV = { '.sv': 'timestamp' }, D = 'today/days/2000-01-01';
   await t('영상 모르는 칸', 'deny', 'PUT', 'today/clips/2000-01-01/rt_g/junk', 'x');
   await t('영상 지난 날 지우기', 'ok', 'DELETE', 'today/clips/2000-01-01');
   await t('영상 통째 지우기', 'deny', 'DELETE', 'today/clips');
+  // 🏅 전적 기반 점수(v0.1.111)
+  await t('점수 올리기', 'ok', 'PUT', 'today/ratings/rt_acc', { at: Date.now(), v: 1, solo: { tier: 'GOLD', div: 'II', lp: 45, w: 30, l: 28, q: 'solo' }, aram: { s: 62, gr: 'A', n: 40, w: 23, wr: 0.575, kda: 3.1 }, mayhem: { pl: 3, n: 3, w: 2 }, src: { list: 100, aram: 40, mayhem: 3, ranked: true } });
+  await t('점수 — 모르는 칸', 'deny', 'PATCH', 'today/ratings/rt_acc', { junk: 1 });
+  await t('점수 — 등급 글자 너무 김', 'deny', 'PATCH', 'today/ratings/rt_acc/aram', { gr: 'SSS+' });
+  await t('점수 통째 지우기', 'deny', 'DELETE', 'today/ratings');
   // 🪪 계정
   await t('계정 갱신(PATCH)', 'ok', 'PATCH', 'today/accounts/rt_acc', { name: '시험', tag: 'KR1', icon: 1, lastSeen: 1 });
   await t('계정 — 모르는 칸', 'deny', 'PATCH', 'today/accounts/rt_acc', { junk: 'x' });
@@ -103,6 +108,6 @@ const SV = { '.sv': 'timestamp' }, D = 'today/days/2000-01-01';
   for (const k of ['session', 'lobby', 'host', 'normalLive', 'potgWait', 'potgRec']) await t(`옛 칸 today/${k} 쓰기`, 'deny', 'PUT', `today/${k}`, { a: 1 });
   await t('설정 바꾸기', 'deny', 'PUT', 'today/config/clipProxy', 'https://evil.example');
   console.log(`\n통과 ${pass} · 실패 ${fail}`);
-  for (const p of [D, 'today/accounts/rt_acc', 'today/augGuide/champs/rt_x', 'today/presence/rt_p', 'today/bridge/junk', 'today/days/hack']) admin('DELETE', p);
+  for (const p of [D, 'today/ratings/rt_acc', 'today/accounts/rt_acc', 'today/augGuide/champs/rt_x', 'today/presence/rt_p', 'today/bridge/junk', 'today/days/hack']) admin('DELETE', p);
   console.log('정리 끝');
 })();

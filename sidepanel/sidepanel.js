@@ -226,6 +226,20 @@ const pct = (w, g) => g ? Math.round(w / g * 100) : 0;
 const kdaOf = (k, d, a) => ((k + a) / Math.max(1, d)).toFixed(2);
 let _augMapP = null;
 const augMapP = async () => _augMapP || (_augMapP = await window.api.getAugments().catch(() => ({})) || {});
+// 🏅 전적 기반 점수(v0.1.111) — 솔로 랭크(공식 티어) · 칼바람 · 아수라장(최근 전적으로 계산한 글자 등급 S+~D) 세 칸
+const TIER_KO = { IRON: '아이언', BRONZE: '브론즈', SILVER: '실버', GOLD: '골드', PLATINUM: '플래티넘', EMERALD: '에메랄드', DIAMOND: '다이아', MASTER: '마스터', GRANDMASTER: '그마', CHALLENGER: '챌린저' };
+const DIV_NUM = { I: 1, II: 2, III: 3, IV: 4 };
+function ratingRow(R, me) {
+  const cell = (label, main, sub, cls, tip) => `<div class="pf-rt ${cls || ''}" title="${escH(tip || '')}"><span>${label}</span><b>${main}</b><em>${sub}</em></div>`;
+  const so = R && R.solo;
+  const solo = so ? cell('솔로 랭크', escH(TIER_KO[so.tier] || so.tier), `${so.div && DIV_NUM[so.div] ? DIV_NUM[so.div] + ' · ' : ''}${so.lp}LP${so.q === 'flex' ? ' · 자유' : ''}`, 'tier', `${so.w}승 ${so.l}패${so.q === 'flex' ? ' · 솔로 랭크가 없어 자유 랭크' : ''}`)
+    : cell('솔로 랭크', R ? '언랭' : '—', R ? '배치 전' : '아직 없음', 'none');
+  const q = (label, x) => !x ? cell(label, '—', R ? '최근 전적 없음' : '아직 없음', 'none')
+    : x.gr ? cell(label, escH(x.gr), `${x.s}점 · ${x.n}판`, 'g-' + x.gr[0].toLowerCase(), `최근 ${x.n}판 ${x.w}승 · 승률 ${Math.round(x.wr * 100)}% · KDA ${x.kda} · 점수 = 승률 + 경기력(팀 안 딜 순위·킬 관여·KDA) · 최근 판일수록 크게`)
+    : cell(label, `배치 ${x.pl}/5`, `${x.n}판 ${x.w}승`, 'none', '5판부터 등급이 나와요');
+  const when = R && R.at ? `<div class="pf-rt-at">전적 기준 · ${new Date(R.at).getMonth() + 1}/${new Date(R.at).getDate()} ${String(new Date(R.at).getHours()).padStart(2, "0")}:${String(new Date(R.at).getMinutes()).padStart(2, "0")}</div>` : (me ? '<div class="pf-rt-at">롤을 켜 두면 내 전적으로 매겨져요</div>' : '');
+  return `<div class="pf-rts">${solo}${q('칼바람', R && R.aram)}${q('아수라장', R && R.mayhem)}</div>${when}`;
+}
 async function renderProfile() {
   const body = $('pf-body'), arg = _pfArg;
   body.innerHTML = '<div class="td-empty">불러오는 중…</div>';
@@ -235,7 +249,8 @@ async function renderProfile() {
   $('pf-title').textContent = arg.me ? '내 프로필' : '프로필';
   if (!P || !P.ok) { body.innerHTML = `<div class="td-empty">${escH((P && P.err) || '프로필을 불러오지 못했어요')}</div>`; return; }
   const head = `<div class="pf-head"><div class="pf-nm">${escH(P.name)}${P.tag ? `<small>#${escH(P.tag)}</small>` : ''}${P.me ? '<span class="pf-me">나</span>' : ''}</div>`
-    + `<div class="pf-sub">${P.games ? `첫 내전 ${md(P.first)} · 내전 ${P.days}일 · 마지막 ${md(P.last)}` : '아직 내전 기록이 없어요'}</div></div>`;
+    + `<div class="pf-sub">${P.games ? `첫 내전 ${md(P.first)} · 내전 ${P.days}일 · 마지막 ${md(P.last)}` : '아직 내전 기록이 없어요'}</div></div>`
+    + (P.key && String(P.key).startsWith('p:') ? ratingRow(P.rating, P.me) : '');   // 🏅 앱으로 들어온 사람만(손님은 전적을 못 읽음)
   if (!P.games) { body.innerHTML = head + '<div class="td-empty">내전을 한 판 하면 여기에 기록이 쌓여요</div>'; return; }
   const streak = P.streak > 0 ? `<b class="w">${P.streak}연승</b>` : `<b class="l">${-P.streak}연패</b>`;
   const big = `<div class="pf-big">`

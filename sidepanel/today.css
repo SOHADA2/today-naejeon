@@ -310,3 +310,14 @@
 .age-top b { flex:1; }
 .age-top small { order:5; flex-basis:100%; margin-left:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .age-top b + .age-histbtn { margin-left:0; }
+/* 🏅 전적 기반 점수(v0.1.111) — 솔로 랭크·칼바람·아수라장 세 칸(같은 크기·같은 자리) */
+.pf-rts { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; margin-bottom:4px; }
+.pf-rt { display:flex; flex-direction:column; align-items:flex-start; text-align:left; gap:1px; padding:7px 6px; min-width:0; background:rgba(255,255,255,0.03); border:1px solid var(--hair); clip-path:var(--cut-sm); }
+.pf-rt span { font-size:10px; font-weight:700; color:var(--dim); white-space:nowrap; }
+.pf-rt b { font:700 18px var(--f-num); letter-spacing:0.01em; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pf-rt.tier b { font:800 13px var(--f-body); line-height:22px; max-width:100%; }
+.pf-rt em { font-style:normal; font-size:10px; color:var(--ink-soft); font-family:var(--f-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pf-rt.g-s b { color:var(--gold-hi); } .pf-rt.g-s { border-color:var(--gold-line); background:var(--gold-soft); }
+.pf-rt.g-a b { color:#9fd8c9; } .pf-rt.g-b b { color:#a9b8c8; } .pf-rt.g-c b, .pf-rt.g-d b { color:#c98a7a; }
+.pf-rt.none b { color:var(--dim); font:800 13px var(--f-body); line-height:22px; }
+.pf-rt-at { margin:0 2px 12px; font-size:10px; color:var(--dim); }

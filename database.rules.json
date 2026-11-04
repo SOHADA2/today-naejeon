@@ -250,6 +250,113 @@
       },
       "config": {
         ".write": false
+      },
+      "ratings": {
+        "$puuid": {
+          ".write": "auth != null && $puuid.length <= 80",
+          ".validate": "newData.hasChildren(['at'])",
+          "at": {
+            ".validate": "newData.isNumber()"
+          },
+          "v": {
+            ".validate": "newData.isNumber()"
+          },
+          "solo": {
+            "tier": {
+              ".validate": "newData.isString() && newData.val().length <= 20"
+            },
+            "div": {
+              ".validate": "newData.isString() && newData.val().length <= 4"
+            },
+            "lp": {
+              ".validate": "newData.isNumber()"
+            },
+            "w": {
+              ".validate": "newData.isNumber()"
+            },
+            "l": {
+              ".validate": "newData.isNumber()"
+            },
+            "q": {
+              ".validate": "newData.isString() && newData.val().length <= 5"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "aram": {
+            "s": {
+              ".validate": "newData.isNumber()"
+            },
+            "gr": {
+              ".validate": "newData.isString() && newData.val().length <= 2"
+            },
+            "n": {
+              ".validate": "newData.isNumber()"
+            },
+            "w": {
+              ".validate": "newData.isNumber()"
+            },
+            "wr": {
+              ".validate": "newData.isNumber()"
+            },
+            "kda": {
+              ".validate": "newData.isNumber()"
+            },
+            "pl": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "mayhem": {
+            "s": {
+              ".validate": "newData.isNumber()"
+            },
+            "gr": {
+              ".validate": "newData.isString() && newData.val().length <= 2"
+            },
+            "n": {
+              ".validate": "newData.isNumber()"
+            },
+            "w": {
+              ".validate": "newData.isNumber()"
+            },
+            "wr": {
+              ".validate": "newData.isNumber()"
+            },
+            "kda": {
+              ".validate": "newData.isNumber()"
+            },
+            "pl": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "src": {
+            "list": {
+              ".validate": "newData.isNumber()"
+            },
+            "aram": {
+              ".validate": "newData.isNumber()"
+            },
+            "mayhem": {
+              ".validate": "newData.isNumber()"
+            },
+            "ranked": {
+              ".validate": "newData.isBoolean()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
       }
     }
   }
