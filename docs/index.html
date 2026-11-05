@@ -45,9 +45,9 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
    일러스트·글자만 · 빛·흔들림·사선 띠 없음 · 소리 없음 */
 #intro { position:fixed; inset:0; z-index:100; overflow:hidden; background:#06090c; }
 #intro[hidden] { display:none; }
-/* 첫 장면 = 칼바람 공식 비주얼(롤 클라이언트 칼바람 대기방 배경 · 하울링 어비스 얼음 절벽과 얼어붙은 왕) — 카메라가 천천히 내려앉음 */
+/* 첫 장면 = 실제 칼바람 나락 영상(2026-11-05 · 집 PC 롤 리플레이 카메라로 촬영 · img/aram-open.mp4 5.3초) — 하늘에서 얼음 다리 전체 → 한타로 파고듦 → 다리 위를 날아 한타 위로 솟음 · 영상이 안 되면 첫 장면 그림(poster) */
 .ab { position:absolute; inset:0; overflow:hidden; opacity:0; }
-.ab img { width:100%; height:100%; max-width:none; object-fit:cover; object-position:50% 72%; }
+.ab video { display:block; width:100%; height:100%; max-width:none; object-fit:cover; object-position:50% 50%; }
 .ab-shade { position:absolute; inset:0; background:linear-gradient(to top, rgba(6,9,12,.88) 0%, rgba(6,9,12,.25) 42%, rgba(6,9,12,0) 62%); }
 .ab-copy { position:absolute; left:var(--pad); right:var(--pad); bottom:clamp(80px, 15vh, 150px); text-align:center; }
 .ab-copy > * { opacity:0; }
@@ -298,7 +298,7 @@ footer p + p { margin-top:6px; }
 <body>
 
 <div id="intro" hidden>
-  <div class="ab"><img src="img/aram-abyss.jpg" alt=""><div class="ab-shade"></div><div class="ab-copy"><p class="ab-k"><i></i><span>HOWLING ABYSS</span><i></i></p><h2 class="ab-t" aria-label="칼바람 나락"></h2><div class="ab-line"></div><p class="ab-s">오늘 모인 열 명, 다리 위의 한 판</p></div></div>
+  <div class="ab"><video src="img/aram-open.mp4" poster="img/aram-open.jpg" muted playsinline preload="auto"></video><div class="ab-shade"></div><div class="ab-copy"><p class="ab-k"><i></i><span>HOWLING ABYSS</span><i></i></p><h2 class="ab-t" aria-label="칼바람 나락"></h2><div class="ab-line"></div><p class="ab-s">오늘 모인 열 명, 다리 위의 한 판</p></div></div>
   <div class="pi-bg"><img src="img/potg-splash.jpg" alt=""></div>
   <div class="pi-shade"></div>
   <div class="pi-copy">
@@ -500,7 +500,7 @@ const anim = (el, kf, o) => el.animate(kf, Object.assign({ easing: EASE, fill: '
 const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('seen'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' }) : null;
 document.querySelectorAll('[data-rv]').forEach(el => io ? io.observe(el) : el.classList.add('seen'));
 
-// ── 오프닝(약 5.5초) = 칼바람 공식 비주얼 → 앱의 팟지 소개 화면: 스킨 일러스트 → PLAY OF THE GAME · 이름 · TRIPLE KILL → 일러스트로 파고들며 실제 팟지 영상 ──
+// ── 오프닝(약 8초) = 실제 칼바람 나락 영상(5초) → 앱의 팟지 소개 화면: 스킨 일러스트 → PLAY OF THE GAME · 이름 · TRIPLE KILL → 일러스트로 파고들며 실제 팟지 영상 ──
 const intro = document.getElementById('intro'), $i = s => intro.querySelector(s);
 let timers = [], running = false;
 const later = (ms, f) => timers.push(setTimeout(f, ms));
@@ -522,11 +522,12 @@ function playIntro() {
   running = true;
   [intro, ...intro.querySelectorAll('*')].forEach(el => el.getAnimations().forEach(a => a.cancel()));
   intro.hidden = false; document.body.classList.add('intro-on');
-  const ab = $i('.ab'), abImg = ab.querySelector('img'), bg = $i('.pi-bg'), img = bg.querySelector('img');
+  const ab = $i('.ab'), abImg = ab.querySelector('video'), bg = $i('.pi-bg'), img = bg.querySelector('img');
   $i('.pi-shade').style.opacity = '0'; $i('.pi-copy').style.opacity = '0';
   // ① 칼바람 나락 — 위에서 천천히 내려앉으며 이름
   anim(ab, [{ opacity: 0 }, { opacity: 1 }], { duration: 800, easing: 'ease' });
-  anim(abImg, [{ transform: 'scale(1.16) translateY(-3%)' }, { transform: 'scale(1.04) translateY(0)' }], { duration: 2600, easing: 'cubic-bezier(.25,.1,.25,1)' });
+  try { abImg.currentTime = 0; const pp = abImg.play(); if (pp) pp.catch(() => {}); } catch (_) {}   // 자동 재생이 막히면 첫 장면 그림(poster) 그대로
+  anim(abImg, [{ transform: 'scale(1.08)' }, { transform: 'scale(1.04)' }], { duration: 5000, easing: 'cubic-bezier(.25,.1,.25,1)' });
   // 제목 = 글자마다 아래에서 밀려 올라오고(가려진 칸 안) 자간이 조여짐 · 위 줄은 양옆 선이 그어지며 · 아래 금색 선이 가운데서 퍼짐
   const tt = $i('.ab-t'); tt.innerHTML = [...'칼바람 나락'].map(c => c === ' ' ? '<span class="sp"></span>' : `<span class="c"><span>${c}</span></span>`).join('');
   anim($i('.ab-k'), [{ opacity: 0, letterSpacing: '.8em' }, { opacity: 1, letterSpacing: '.42em' }], { duration: 1100, delay: 200, easing: 'cubic-bezier(.2,.7,.2,1)' });
@@ -536,9 +537,10 @@ function playIntro() {
   anim($i('.ab-line'), [{ opacity: 1, transform: 'scaleX(0)' }, { opacity: 1, transform: 'scaleX(1)' }], { duration: 700, delay: 1000 });
   anim($i('.ab-s'), [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 560, delay: 1250 });
   // ② 그 판의 주인공 — 팟지 소개 화면(앱이 실제로 띄우는 그대로)
-  const T = 2500;
+  const T = 5000;   // 영상(5.4초) 끝나기 직전에 팟지 소개로
+  // 제목은 하늘에서 본 다리 위에서만 — 영상이 한타로 파고들면(3.3초) 빠져서 싸움이 보이게
+  later(3300, () => anim($i('.ab-copy'), [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-10px) scale(1.03)' }], { duration: 420, easing: 'ease-in' }));
   later(T, () => {
-    anim($i('.ab-copy'), [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(1.04)' }], { duration: 340, easing: 'ease-in' });
     anim(abImg, [{ transform: 'scale(1.04)' }, { transform: 'scale(1.2)' }], { duration: 700, easing: 'cubic-bezier(.5,0,.3,1)' });
     anim(bg, [{ opacity: 0 }, { opacity: 1 }], { duration: 620, delay: 120, easing: 'ease' });
     anim(img, [{ transform: 'scale(1.16)' }, { transform: 'scale(1.03)', offset: 0.22, easing: 'cubic-bezier(.2,.7,.3,1)' }, { transform: 'scale(1.09)' }], { duration: 3000, easing: 'linear' });

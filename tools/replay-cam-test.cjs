@@ -9,7 +9,8 @@
 //   결과 = 출력폴더의 webm(1920×1080) + 로그의 「카메라 {sel, att, mode, fov…}」 → ffmpeg로 킬 시각 프레임을 뽑아 비교(docs/screen-layout.md 3절)
 const fs = require('fs'), path = require('path'), os = require('os'), https = require('https'), { spawn, execFile } = require('child_process');
 const repo = path.join(__dirname, '..');
-const [gameId, from, to, focus, champ, fovs, killsArg, outArg] = process.argv.slice(2);
+const [gameId, from, to, focus, champ, fovsArg, killsArg, outArg] = process.argv.slice(2);
+const fovs = fovsArg && fovsArg.startsWith('@') ? fs.readFileSync(fovsArg.slice(1), 'utf8') : fovsArg;   // @파일 = 연출을 파일에서(키프레임이 많으면 명령줄 길이 한도를 넘음)
 if (!gameId || !fovs) { console.log('사용: node tools/replay-cam-test.cjs <게임번호> <시작초> <끝초> <주인공 이름> <챔피언 이름> <연출,…> [킬 시각,…] [출력폴더]'); process.exit(1); }
 const kills = String(killsArg || '').split(',').map(Number).filter(Number.isFinite).sort((a, b) => a - b);
 const out = outArg || fs.mkdtempSync(path.join(os.tmpdir(), 'replay-cam-'));
