@@ -45,6 +45,15 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
    일러스트·글자만 · 빛·흔들림·사선 띠 없음 · 소리 없음 */
 #intro { position:fixed; inset:0; z-index:100; overflow:hidden; background:#06090c; }
 #intro[hidden] { display:none; }
+/* 첫 장면 = 칼바람 공식 비주얼(롤 클라이언트 칼바람 대기방 배경 · 하울링 어비스 얼음 절벽과 얼어붙은 왕) — 카메라가 천천히 내려앉음 */
+.ab { position:absolute; inset:0; overflow:hidden; opacity:0; }
+.ab img { width:100%; height:100%; max-width:none; object-fit:cover; object-position:50% 72%; }
+.ab-shade { position:absolute; inset:0; background:linear-gradient(to top, rgba(6,9,12,.88) 0%, rgba(6,9,12,.25) 42%, rgba(6,9,12,0) 62%); }
+.ab-copy { position:absolute; left:var(--pad); right:var(--pad); bottom:clamp(80px, 15vh, 150px); text-align:center; }
+.ab-copy > * { opacity:0; }
+.ab-k { font:700 clamp(11px, 1vw, 13px) var(--mono); letter-spacing:.32em; color:#9ccfe8; }
+.ab-t { margin-top:clamp(8px, 1.4vh, 14px); font-size:clamp(44px, 6.6vw, 96px); font-weight:850; letter-spacing:-0.055em; line-height:1; }
+.ab-s { margin-top:clamp(10px, 1.6vh, 16px); font-size:clamp(14px, 1.3vw, 18px); font-weight:600; color:var(--ink-2); }
 .pi-bg { position:absolute; inset:0; opacity:0; }
 .pi-bg img { width:100%; height:100%; max-width:none; object-fit:cover; object-position:60% 28%; }
 .pi-shade { position:absolute; inset:0; background:linear-gradient(to top, rgba(6,9,12,.94) 0%, rgba(6,9,12,.6) 30%, rgba(6,9,12,0) 62%), linear-gradient(to right, rgba(6,9,12,.62) 0%, rgba(6,9,12,0) 55%); }
@@ -281,6 +290,7 @@ footer p + p { margin-top:6px; }
 <body>
 
 <div id="intro" hidden>
+  <div class="ab"><img src="img/aram-abyss.jpg" alt=""><div class="ab-shade"></div><div class="ab-copy"><p class="ab-k">HOWLING ABYSS</p><p class="ab-t">칼바람 나락</p><p class="ab-s">오늘 모인 열 명, 다리 위의 한 판</p></div></div>
   <div class="pi-bg"><img src="img/potg-splash.jpg" alt=""></div>
   <div class="pi-shade"></div>
   <div class="pi-copy">
@@ -482,7 +492,7 @@ const anim = (el, kf, o) => el.animate(kf, Object.assign({ easing: EASE, fill: '
 const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('seen'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' }) : null;
 document.querySelectorAll('[data-rv]').forEach(el => io ? io.observe(el) : el.classList.add('seen'));
 
-// ── 오프닝 = 앱의 팟지 소개 화면(약 4초): 스킨 일러스트 → PLAY OF THE GAME · 이름 · TRIPLE KILL → 일러스트로 파고들며 실제 팟지 영상 ──
+// ── 오프닝(약 5.5초) = 칼바람 공식 비주얼 → 앱의 팟지 소개 화면: 스킨 일러스트 → PLAY OF THE GAME · 이름 · TRIPLE KILL → 일러스트로 파고들며 실제 팟지 영상 ──
 const intro = document.getElementById('intro'), $i = s => intro.querySelector(s);
 let timers = [], running = false;
 const later = (ms, f) => timers.push(setTimeout(f, ms));
@@ -504,18 +514,29 @@ function playIntro() {
   running = true;
   [intro, ...intro.querySelectorAll('*')].forEach(el => el.getAnimations().forEach(a => a.cancel()));
   intro.hidden = false; document.body.classList.add('intro-on');
-  const bg = $i('.pi-bg'), img = bg.querySelector('img');
-  // 일러스트 = 처음부터 끝까지 천천히 다가옴(한 번)
-  anim(bg, [{ opacity: 0 }, { opacity: 1 }], { duration: 700, easing: 'ease' });
-  anim(img, [{ transform: 'scale(1.03)' }, { transform: 'scale(1.11)' }], { duration: 3300, easing: 'linear' });
-  later(350, () => anim($i('.pi-k'), [{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 520 }));
-  later(700, () => anim($i('.pi-who'), [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 480 }));
-  later(1250, () => anim($i('.pi-big'), [{ opacity: 0, transform: 'translateX(-28px)' }, { opacity: 1, transform: 'none' }], { duration: 520 }));
-  later(1650, () => anim($i('.pi-tags'), [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 380 }));
-  // 일러스트로 파고들며 걷힘 → 뒤에서 돌고 있는 실제 팟지 영상
-  later(3200, () => {
+  const ab = $i('.ab'), abImg = ab.querySelector('img'), bg = $i('.pi-bg'), img = bg.querySelector('img');
+  $i('.pi-shade').style.opacity = '0'; $i('.pi-copy').style.opacity = '0';
+  // ① 칼바람 나락 — 위에서 천천히 내려앉으며 이름
+  anim(ab, [{ opacity: 0 }, { opacity: 1 }], { duration: 800, easing: 'ease' });
+  anim(abImg, [{ transform: 'scale(1.16) translateY(-3%)' }, { transform: 'scale(1.04) translateY(0)' }], { duration: 2600, easing: 'cubic-bezier(.25,.1,.25,1)' });
+  [['.ab-k', 300], ['.ab-t', 520], ['.ab-s', 900]].forEach(([q, t]) => later(t, () => anim($i(q), [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 560 })));
+  // ② 그 판의 주인공 — 팟지 소개 화면(앱이 실제로 띄우는 그대로)
+  const T = 2150;
+  later(T, () => {
+    anim($i('.ab-copy'), [{ opacity: 1 }, { opacity: 0 }], { duration: 300, easing: 'ease-in' });
+    anim(abImg, [{ transform: 'scale(1.04)' }, { transform: 'scale(1.2)' }], { duration: 700, easing: 'cubic-bezier(.5,0,.3,1)' });
+    anim(bg, [{ opacity: 0 }, { opacity: 1 }], { duration: 620, delay: 120, easing: 'ease' });
+    anim(img, [{ transform: 'scale(1.16)' }, { transform: 'scale(1.03)', offset: 0.22, easing: 'cubic-bezier(.2,.7,.3,1)' }, { transform: 'scale(1.09)' }], { duration: 3000, easing: 'linear' });
+    $i('.pi-copy').style.opacity = ''; anim($i('.pi-shade'), [{ opacity: 0 }, { opacity: 1 }], { duration: 620, delay: 120, easing: 'ease' });
+  });
+  later(T + 350, () => anim($i('.pi-k'), [{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 520 }));
+  later(T + 650, () => anim($i('.pi-who'), [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 480 }));
+  later(T + 1100, () => anim($i('.pi-big'), [{ opacity: 0, transform: 'translateX(-28px)' }, { opacity: 1, transform: 'none' }], { duration: 520 }));
+  later(T + 1450, () => anim($i('.pi-tags'), [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 380 }));
+  // ③ 일러스트로 파고들며 걷힘 → 뒤에서 돌고 있는 실제 팟지 영상
+  later(T + 2750, () => {
     running = false;
-    anim(img, [{ transform: 'scale(1.11)' }, { transform: 'scale(1.3)' }], { duration: 700, easing: 'cubic-bezier(.5,0,.3,1)' });
+    anim(img, [{ transform: 'scale(1.09)' }, { transform: 'scale(1.3)' }], { duration: 700, easing: 'cubic-bezier(.5,0,.3,1)' });
     anim($i('.pi-copy'), [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateX(-24px)' }], { duration: 380, easing: 'ease-in' });
     anim(intro, [{ opacity: 1 }, { opacity: 0 }], { duration: 650, delay: 120, easing: 'ease' });
     setTimeout(ready, 260);
