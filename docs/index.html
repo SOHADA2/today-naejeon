@@ -342,8 +342,8 @@ footer p + p { margin-top:6px; }
     <div class="wrap">
       <h2 data-rv>진행 순서</h2>
       <ol class="flow" data-rv>
-        <li><span class="n">01</span><h3>방 만들기</h3><p>롤에 로그인한 계정으로 바로 접속됩니다. 한 명이 방을 만들고 나머지는 입장하면 됩니다.</p></li>
-        <li><span class="n">02</span><h3>팀 나누기</h3><p>랜덤, 팀장 드래프트, 방장 직접 배치 중에서 고릅니다. 시작하면 모두의 화면에 팀이 표시됩니다.</p></li>
+        <li><span class="n">01</span><h3>방 만들기</h3><p>롤에 로그인한 계정으로 바로 들어갑니다. 한 명이 방을 만들면 나머지는 그 방에 들어오면 됩니다.</p></li>
+        <li><span class="n">02</span><h3>팀 나누기</h3><p>랜덤, 팀장 드래프트, 방장 직접 배치 중에서 고르고 시작을 누르면 다들 화면에 팀이 뜹니다.</p></li>
         <li><span class="n">03</span><h3>게임</h3><p>사용자 설정 게임은 평소대로 하시면 됩니다. 끝나면 승패와 KDA가 자동으로 저장됩니다.</p></li>
         <li><span class="n">04</span><h3>투표와 순위</h3><p>MVP와 매너왕을 뽑고 오늘 순위를 확인합니다. 그리고 한 판 더.</p></li>
       </ol>
@@ -353,16 +353,16 @@ footer p + p { margin-top:6px; }
   <section class="sec" id="features">
     <div class="wrap">
       <h2 data-rv>기능</h2>
-      <p class="sec-lead" data-rv>롤 클라이언트 양옆에 작은 창 두 개가 붙습니다. 게임 중 거슬리면 <kbd>Shift</kbd>+<kbd>F7</kbd>로 숨길 수 있습니다.</p>
+      <p class="sec-lead" data-rv>롤 클라이언트 양옆에 작은 창 두 개가 붙습니다. 숨기려면 <kbd>Shift</kbd>+<kbd>F7</kbd>.</p>
 
       <div class="feat" data-rv>
         <div class="shot"><div class="mock" data-mock="rooms" role="img" aria-label="방 목록에서 방에 들어가 대기실 자리에 앉는 화면"><div class="mk-top"><span>TODAY NAEJEON</span><em><b>방 목록</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div></div>
         <div>
-          <h3>방</h3>
-          <p>다른 모임이 같은 시간에 써도 섞이지 않습니다. 팀, 기록, 순위 모두 방마다 따로 관리됩니다.</p>
+          <h3>방 목록</h3>
+          <p>친구가 만든 방을 목록에서 골라 들어갑니다. 그날 기록과 순위는 방마다 따로 쌓입니다.</p>
           <ul>
             <li>방을 만든 사람이 방장이 되고, 방장이 나가면 남은 사람이 자동으로 이어받습니다.</li>
-            <li>비밀번호를 걸면 아는 사람만 들어올 수 있습니다.</li>
+            <li>방에 비밀번호를 걸 수도 있습니다.</li>
             <li>모두 나가면 방은 자동으로 사라집니다.</li>
           </ul>
         </div>
@@ -372,12 +372,12 @@ footer p + p { margin-top:6px; }
         <div class="shot"><div class="mock" data-mock="draft" role="img" aria-label="드래프트: 팀장 두 명, 선픽 동전, 차례대로 팀원 뽑기"><div class="mk-top"><span>TODAY NAEJEON</span><em><b>드래프트</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div></div>
         <div>
           <h3>팀장 드래프트</h3>
-          <p>팀장 두 명을 정하고, 동전으로 선픽을 정한 뒤, 번갈아 한 명씩 지명합니다. 한 차례에 30초 제한이 있어 늘어지지 않습니다.</p>
+          <p>팀장 두 명을 정하고, 동전으로 선픽을 정한 뒤, 번갈아 한 명씩 데려갑니다. 한 차례에 30초씩입니다.</p>
           <ul>
             <li><b>랜덤</b>: 버튼 한 번으로 팀이 나뉩니다.</li>
             <li><b>드래프트</b>: <span class="t1">1팀</span>, <span class="t2">2팀</span> 팀장이 번갈아 뽑습니다.</li>
             <li><b>직접</b>: 방장이 팀을 배치합니다. 지난 판 팀 그대로 가는 것도 버튼 하나면 됩니다.</li>
-            <li>이번 판을 쉬는 사람은 관전으로 빠질 수 있습니다.</li>
+            <li>이번 판을 쉬는 사람은 관전으로 빠집니다.</li>
           </ul>
         </div>
       </div>
@@ -386,11 +386,11 @@ footer p + p { margin-top:6px; }
         <div class="shot"><div class="mock" data-mock="vote" role="img" aria-label="1팀 승리 뒤 MVP 투표가 쌓여 결정되는 화면"><div class="mk-top"><span>TODAY NAEJEON</span><em><b>투표</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div></div>
         <div>
           <h3>결과 저장과 투표</h3>
-          <p>게임이 끝나면 승패, KDA, 딜량, 증강까지 저장됩니다. 정산 화면을 바로 넘겨도 전적에서 다시 가져옵니다.</p>
+          <p>게임이 끝나면 승패, KDA, 딜량, 고른 증강까지 저장됩니다.</p>
           <ul>
             <li>MVP는 진 팀이 이긴 팀에서, SVP는 이긴 팀이 진 팀에서 뽑습니다.</li>
             <li>매너왕은 모두가 함께 뽑습니다.</li>
-            <li>투표하는 동안 방장 PC가 리플레이로 그 판 하이라이트를 만들고, 완성되면 모두의 화면에 재생됩니다.</li>
+            <li>투표하는 동안 방장 PC가 리플레이로 그 판 하이라이트를 만들고, 다 되면 같이 봅니다.</li>
           </ul>
         </div>
       </div>
@@ -401,7 +401,7 @@ footer p + p { margin-top:6px; }
           <h3>오늘 순위</h3>
           <p>그날 판들을 모아 승률, MVP·매너왕 횟수, KDA로 순위를 매깁니다. 판마다 누가 어느 팀이었는지도 볼 수 있습니다.</p>
           <ul>
-            <li>하루 기준은 새벽 6시입니다. 자정을 넘긴 판도 같은 날로 집계됩니다.</li>
+            <li>하루는 새벽 6시에 넘어갑니다. 새벽 2시에 한 판도 그날 순위에 들어갑니다.</li>
             <li>이름을 누르면 전적, 자주 하는 챔피언, 같이 하면 잘 이기는 팀원과 천적까지 담긴 프로필이 열립니다.</li>
           </ul>
         </div>
@@ -428,9 +428,9 @@ footer p + p { margin-top:6px; }
       <div data-rv>
         <ol class="steps">
           <li><div><b>설치 파일 받기</b><span>위 다운로드 버튼으로 <code>today-naejeon-setup.exe</code>를 받습니다.</span></div></li>
-          <li><div><b>파란 경고창에서 「추가 정보」 → 「실행」</b><span>개인이 만든 무료 앱이라 서명이 없어서 뜨는 창입니다. 문제없습니다.</span></div></li>
-          <li><div><b>롤에 로그인</b><span>로그인한 계정으로 바로 접속됩니다. 따로 가입할 필요는 없습니다.</span></div></li>
-          <li><div><b>끝</b><span>업데이트는 앱을 켤 때 자동으로 됩니다.</span></div></li>
+          <li><div><b>파란 경고창에서 「추가 정보」 → 「실행」</b><span>개인이 만든 무료 앱이라 서명이 없어서 이 창이 뜹니다.</span></div></li>
+          <li><div><b>롤에 로그인</b><span>로그인해 둔 롤 계정으로 바로 들어갑니다.</span></div></li>
+          <li><div><b>끝</b><span>업데이트는 앱을 켤 때 알아서 받습니다.</span></div></li>
         </ol>
         <div class="win" role="img" aria-label="Windows PC 보호 경고창 예시">
           <div class="t">Windows의 PC 보호</div>
@@ -448,10 +448,10 @@ footer p + p { margin-top:6px; }
       <div data-rv><h2>질문</h2></div>
       <div class="faq" data-rv>
         <details><summary>돈이 드나요?</summary><p>무료이고, 광고도 없습니다.</p></details>
-        <details><summary>다 같이 설치해야 하나요?</summary><p>가능하면 모두 설치하는 것을 권장합니다. 설치하지 않은 친구도 방장이 손님으로 팀에 넣을 수 있지만, 투표와 자동 기록은 설치한 사람만 됩니다.</p></details>
+        <details><summary>다 같이 설치해야 하나요?</summary><p>다 같이 까는 게 좋습니다. 안 깐 친구도 방장이 손님으로 팀에 넣을 수 있지만, 투표와 자동 기록은 깐 사람만 됩니다.</p></details>
         <details><summary>계정 비밀번호를 가져가나요?</summary><p>아니요. 켜져 있는 롤 클라이언트에서 로그인한 닉네임, 경기 결과, 전적만 받아 옵니다. 비밀번호는 볼 수도 없고 저장하지도 않습니다.</p></details>
-        <details><summary>게임이나 계정에 문제는 없나요?</summary><p>게임 안 정보를 바꾸거나 대신 플레이하는 기능은 없습니다. 롤 클라이언트의 대기방과 경기 결과를 읽기만 하고, 하이라이트를 찍을 때만 방장 PC에서 리플레이를 엽니다.</p></details>
-        <details><summary>예전 내전 사이트 시즌 기록과 같이 쌓이나요?</summary><p>아니요. 투데이 내전은 따로 돌아가는 별도 앱입니다. 기존 내전 오버레이와 한 PC에 같이 설치해도 됩니다.</p></details>
+        <details><summary>게임이나 계정에 문제는 없나요?</summary><p>롤 클라이언트에 뜨는 대기방과 경기 결과를 읽기만 합니다. 리플레이는 하이라이트를 찍을 때 방장 PC에서만 엽니다.</p></details>
+        <details><summary>예전 내전 사이트 시즌 기록과 같이 쌓이나요?</summary><p>아니요. 별개 앱이라 기록도 따로 쌓입니다. 기존 내전 오버레이와 같이 깔아 써도 됩니다.</p></details>
         <details><summary>「지금은 자리가 꽉 찼어요」가 떠요.</summary><p>무료 서버라 동시 접속 인원에 한도가 있습니다. 켜 둔 채 기다리시면 자리가 나는 대로 자동으로 들어갑니다.</p></details>
         <details><summary>Mac에서도 되나요?</summary><p>지금은 Windows만 지원합니다.</p></details>
       </div>
