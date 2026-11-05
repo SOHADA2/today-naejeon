@@ -79,8 +79,9 @@ const rr = makeReplayRec(Object.assign(makeReplayRec.defaults(), {
     if (v.startsWith('{')) return JSON.parse(v);   // 직접 지정: {"fov":45,"cam":{"cameraRotation":{"x":0,"y":40,"z":0}},"from":883,"to":887}
     return { fov: +v || undefined };
   };
-  const names = String(fovs).includes('{') ? String(fovs).split(';') : String(fovs).split(',');   // JSON 연출은 ; 로 나눔
-  const parts = names.map(v => Object.assign({}, base, preset(v)));   // 연출에 from/to가 있으면 그 구간
+  const mod = fovsArg && fovsArg.startsWith('!') ? require(path.resolve(fovsArg.slice(1))) : null;   // !파일.cjs = 장면 배열을 JS로(함수 probe 등 · 위치 조사)
+  const names = mod ? mod.map((_, i) => 'js' + i) : String(fovs).includes('{') ? String(fovs).split(';') : String(fovs).split(',');   // JSON 연출은 ; 로 나눔
+  const parts = mod ? mod.map(m => Object.assign({}, base, m)) : names.map(v => Object.assign({}, base, preset(v)));   // 연출에 from/to가 있으면 그 구간
   console.log('연출', names.join(' / '), '· 킬', kills.join(', ') || '-', '· 출력', out);
   const files = await rr.record({ gameId: +gameId, parts });
   console.log('영상', JSON.stringify(files, null, 1));

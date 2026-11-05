@@ -1,5 +1,5 @@
 // 🎬 홈페이지 오프닝 칼바람 나락 촬영 동선(2026-11-05 · docs/img/aram-open.mp4) — 롤 리플레이 카메라 키프레임 3장면을 replay-cam-test 연출 파일로 출력
-//   사용(롤 있는 PC · 설치된 앱은 끄고): node tools/aram-open-shots.cjs 498 > shots.txt && node tools/replay-cam-test.cjs 8445370954 498 510 울퉁쓰 말파이트 @shots.txt "" <출력폴더>
+//   사용(롤 있는 PC · 설치된 앱은 끄고): node tools/aram-open/shots-ice.cjs 498 > shots.txt && node tools/replay-cam-test.cjs 8445370954 498 510 <이름> <챔피언> @shots.txt "" <출력폴더>
 //   판마다 맵 모습이 다름(얼음 칼바람·필트오버 다리·아이오니아 벚꽃) — 8445370954(16.22) = 얼음 · FIGHT = 그 판 한타 자리(전적 타임라인 킬 위치) · 같은 패치에서만 리플레이가 열림
 //   편집 = ②(하늘) 0~2.35초 + ①(질주) 5.6~10.4초 1.45배 · 0.25초 겹침 · 색 보정 → 1600폭 crf 27(명령은 CLAUDE.md 홈페이지 줄)
 const A = 43.7 * Math.PI / 180, C = { x: 6534, z: 6335 }, G = -170;   // G = 땅 높이(추정 · 첫 촬영으로 확인)

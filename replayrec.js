@@ -193,7 +193,7 @@ function makeReplayRec(d) {
       for (let pi = 0; pi < parts.length; pi++) outs.push(aborted || (aborted = await realGame()) ? null : await recordOne(parts[pi], pi).catch(e => { log(`장면 ${pi + 1} 오류 ${e && e.message}`); return null; }));
       if (aborted) log('실제 게임·큐가 시작돼 녹화 그만: ' + aborted);
       return outs;
-      async function recordOne({ from, to, focus, champ, fov, cam, camAt, camRamp, seq, direct, speed }, pi) {   // cam = 처음 카메라에 덧붙일 render 값(예: {cameraMode:'tps'}) · camAt = [{t: 게임 초, set: render 값}] 녹화 중 그 시각에 바꿈(섞은 연출 · v0.1.87 시험)   // 장면 하나(되감기 → 카메라 → 녹화 → 파일)
+      async function recordOne({ from, to, focus, champ, fov, cam, camAt, camRamp, seq, direct, speed, probe }, pi) {   // cam = 처음 카메라에 덧붙일 render 값(예: {cameraMode:'tps'}) · camAt = [{t: 게임 초, set: render 값}] 녹화 중 그 시각에 바꿈(섞은 연출 · v0.1.87 시험)   // 장면 하나(되감기 → 카메라 → 녹화 → 파일)
         if (pi) log(`── 장면 ${pi + 1} · ${from}~${to}초`);
         if (_cancel) return null;
         if (!muted) await mute(true);   // 열 때 소리 세션이 아직 없었으면 여기서
@@ -235,6 +235,7 @@ function makeReplayRec(d) {
             await live('POST', '/replay/playback', { paused: true, speed: 1 });
             return pts.length >= 5 ? pts : null;
           };
+          if (typeof probe === 'function') { await probe({ live, seekTo, scout, log }); return null; }   // 🧪 시험 도구 전용(위치 조사 등 · 녹화 안 함 · 앱은 안 씀)
           // 🗺️ 칼바람 나락 다리 지도(2026-11-01 · 이 PC 전적의 칼바람 20판 타임라인 위치 4,068개): 중심 (6534, 6335) · 다리 방향 43.7°
           //   [다리 방향 위치 s, 걸어 다닌 곳의 옆 위치 2%, 98%] — 600 간격 · 리플레이 x,z = 타임라인 x,y
           const LANE12 = [[-7200,-840,334],[-6600,-1121,1344],[-6000,-1040,935],[-5400,-1251,1085],[-4800,-1308,872],[-4200,-691,779],[-3600,-621,845],[-3000,-544,819],[-2400,-608,791],[-1800,-623,793],[-1200,-559,763],[-600,-583,658],[0,-603,544],[600,-540,722],[1200,-569,771],[1800,-579,741],[2400,-530,825],[3000,-589,617],[3600,-486,678],[4200,-698,701],[4800,-1071,969],[5400,-1143,1005],[6000,-1058,837],[6600,-1138,400],[7200,-607,256]];
