@@ -504,7 +504,7 @@ const anim = (el, kf, o) => el.animate(kf, Object.assign({ easing: EASE, fill: '
 const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('seen'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' }) : null;
 document.querySelectorAll('[data-rv]').forEach(el => io ? io.observe(el) : el.classList.add('seen'));
 
-// ── 오프닝(약 11초) = 실제 칼바람 나락 영상(8.5초 · 맵 여러 개 → 자야 포탄) → 앱의 팟지 소개 화면: 스킨 일러스트 → PLAY OF THE GAME · 이름 · TRIPLE KILL → 일러스트로 파고들며 실제 팟지 영상 ──
+// ── 오프닝(약 13초) = 실제 칼바람 나락 영상(10초 · 맵 여러 개 → 자야 포탄) → 앱의 팟지 소개 화면: 스킨 일러스트 → PLAY OF THE GAME · 이름 · TRIPLE KILL → 일러스트로 파고들며 실제 팟지 영상 ──
 const intro = document.getElementById('intro'), $i = s => intro.querySelector(s);
 let timers = [], running = false;
 const later = (ms, f) => timers.push(setTimeout(f, ms));
@@ -531,7 +531,7 @@ function playIntro() {
   // ① 칼바람 나락 — 위에서 천천히 내려앉으며 이름
   anim(ab, [{ opacity: 0 }, { opacity: 1 }], { duration: 800, easing: 'ease' });
   try { abImg.currentTime = 0; const pp = abImg.play(); if (pp) pp.catch(() => {}); } catch (_) {}   // 자동 재생이 막히면 첫 장면 그림(poster) 그대로
-  anim(abImg, [{ transform: 'scale(1.06)' }, { transform: 'scale(1.03)' }], { duration: 8000, easing: 'cubic-bezier(.25,.1,.25,1)' });
+  anim(abImg, [{ transform: 'scale(1.06)' }, { transform: 'scale(1.03)' }], { duration: 10000, easing: 'cubic-bezier(.25,.1,.25,1)' });
   // 제목 = 글자마다 아래에서 밀려 올라오고(가려진 칸 안) 자간이 조여짐 · 위 줄은 양옆 선이 그어지며 · 아래 금색 선이 가운데서 퍼짐
   const tt = $i('.ab-t'); tt.innerHTML = [...'칼바람 나락'].map(c => c === ' ' ? '<span class="sp"></span>' : `<span class="c"><span>${c}</span></span>`).join('');
   anim($i('.ab-k'), [{ opacity: 0, letterSpacing: '.8em' }, { opacity: 1, letterSpacing: '.42em' }], { duration: 1100, delay: 200, easing: 'cubic-bezier(.2,.7,.2,1)' });
@@ -541,7 +541,7 @@ function playIntro() {
   anim($i('.ab-line'), [{ opacity: 1, transform: 'scaleX(0)' }, { opacity: 1, transform: 'scaleX(1)' }], { duration: 700, delay: 1000 });
   anim($i('.ab-s'), [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 560, delay: 1250 });
   // ② 그 판의 주인공 — 팟지 소개 화면(앱이 실제로 띄우는 그대로)
-  const T = 8250;   // 영상(8.5초 · 마지막 = 자야가 포탄 타고 날아감) 끝나기 직전에 팟지 소개로
+  const T = 9800;   // 영상(10초 · 마지막 = 자야가 포탄 타고 날아가 착지 → 카메라가 돌며 멀어짐) 끝나기 직전에 팟지 소개로
   // 제목은 앞쪽(얼음 다리 → 필트오버 → 아이오니아)에서만 — 3.3초에 빠져서 뒤의 한타·포탄이 보이게
   later(3300, () => anim($i('.ab-copy'), [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-10px) scale(1.03)' }], { duration: 420, easing: 'ease-in' }));
   // 날아가는 자야 → 자야 일러스트: 영상이 확 당겨지며 흐려지고 밝아짐 + 분홍 빛줄기가 대각선으로 스침 + 섬광 속에서 일러스트가 튀어나옴
