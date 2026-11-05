@@ -41,32 +41,32 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 :focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
 .t1 { color:var(--t1); } .t2 { color:var(--t2); }
 
-/* ── 오프닝 = 아수라장 증강 선택(약 3초): 카드 셋이 올라옴 → 가운데 리롤 → 「투데이 내전」 카드 선택 → 첫 화면 ──
-   평평한 카드·얇은 등급 테두리 · 움직임은 감속 곡선 하나 · 빛·흐림·흔들림·사선 띠 없음 · 소리 없음 */
-#intro { position:fixed; inset:0; z-index:100; overflow:hidden; background:var(--bg); display:flex; align-items:center; justify-content:center; }
+/* ── 오프닝 = 칼바람 다리 훑기(약 5초): 파랑 기지 → 빨강 기지로 날아감 → 전체 → 양 팀 5명이 가운데로 → 한타 → 그 자리로 파고들며 팟지 영상이 열림 ──
+   평평한 지도·얇은 선·팀 색은 기지·포탑·선수 테두리만 · 빛·흐림·흔들림 없음 · 소리 없음 */
+#intro { position:fixed; inset:0; z-index:100; overflow:hidden; background:#06090c; }
 #intro[hidden] { display:none; }
-.aug-stage { display:flex; flex-direction:column; align-items:center; gap:clamp(20px, 3.4vh, 34px); padding:0 16px; margin-top:-4vh; }
-.aug-k { font:500 12px var(--mono); letter-spacing:.08em; color:var(--ink-3); opacity:0; }
-.aug-k b { color:var(--ink); font:700 12.5px var(--sans); letter-spacing:0; }
-.aug-row { display:flex; gap:clamp(8px, 1.6vw, 22px); perspective:1400px; }
-.aug-slot { position:relative; opacity:0; padding-bottom:44px; }
-.aug { position:relative; width:clamp(104px, 16vw, 224px); aspect-ratio:224 / 320; transform-style:preserve-3d; }
-.aug-f { --c:var(--gold); position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; background:var(--bg-2); border:1px solid var(--c); display:flex; flex-direction:column; align-items:center; text-align:center; padding:clamp(16px, 2.4vw, 30px) clamp(8px, 1.2vw, 18px) clamp(12px, 1.6vw, 20px); }
-.aug-f.pri { --c:#b6a4ee; }
-.aug-f.back { transform:rotateY(180deg); }
-.aug-f::before { content:''; position:absolute; left:0; right:0; top:0; height:3px; background:var(--c); }
-.aug-ic { width:clamp(46px, 5.4vw, 76px); aspect-ratio:1; border:1.5px solid var(--c); border-radius:50%; display:grid; place-items:center; background:#0b1015; }
-.aug-ic img { width:60%; height:60%; }
-.aug-ic img.app { width:72%; height:72%; }
-.aug-f b { margin-top:clamp(12px, 2.2vh, 22px); font-size:clamp(13.5px, 1.4vw, 19px); font-weight:800; letter-spacing:-0.03em; line-height:1.25; word-break:keep-all; }
-.aug-r { margin-top:6px; font:600 10.5px var(--mono); letter-spacing:.08em; color:var(--c); }
-.aug-f p { margin-top:auto; font-size:clamp(11.5px, 0.95vw, 13.5px); color:var(--ink-2); line-height:1.5; word-break:keep-all; }
-.aug-rr { position:absolute; left:50%; bottom:0; transform:translateX(-50%); font:600 12.5px var(--sans); color:var(--ink-3); border:1px solid var(--rule-2); padding:6px 14px; white-space:nowrap; background:var(--bg); transition:color .25s ease, border-color .25s ease; }
-.aug-rr.on { color:var(--gold); border-color:var(--gold); }
+#intro.hole { -webkit-mask-image:radial-gradient(circle at var(--hx) var(--hy), transparent var(--hole), #000 calc(var(--hole) + 1.5px)); mask-image:radial-gradient(circle at var(--hx) var(--hy), transparent var(--hole), #000 calc(var(--hole) + 1.5px)); }
+.op-map { position:absolute; left:0; top:0; width:1600px; height:900px; transform-origin:0 0; opacity:0; }
+.op-svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+.op-svg .plat { fill:#0e141a; stroke-width:2.5; stroke-opacity:.45; }
+.op-svg .lane { fill:#121a21; stroke:#34414d; stroke-width:2.5; }
+.op-svg .cont { fill:none; stroke:#121a20; stroke-width:2; }
+.op-svg .pl { stroke:#1e2831; stroke-width:2; }
+.op-svg .mid { fill:none; stroke:#1f2932; stroke-width:2; stroke-dasharray:14 18; }
+.op-svg .tw { fill:#0b1015; stroke-width:3; }
+.op-svg .ta { stroke:var(--t1); } .op-svg .tb { stroke:var(--t2); }
+.op-svg .fa { fill:var(--t1); } .op-svg .fb { fill:var(--t2); }
+.op-svg .relic { fill:none; stroke:#3c4a3f; stroke-width:2.5; }
+.op-ch { position:absolute; left:0; top:0; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%; border:3px solid var(--c); background:#0b1015; overflow:hidden; opacity:0; }
+.op-ch.a { --c:var(--t1); } .op-ch.b { --c:var(--t2); }
+.op-ch img { display:block; width:100%; height:100%; transform:rotate(var(--r, 0deg)) scale(1.12); transition:filter .25s ease; }
+.op-ch.dead img { filter:grayscale(1) brightness(.5); }
+.op-ring { position:absolute; left:0; top:0; width:76px; height:76px; margin:-38px 0 0 -38px; border-radius:50%; border:2px solid var(--c); opacity:0; pointer-events:none; }
+.op-step { position:absolute; left:0; right:0; top:clamp(22px, 5vh, 44px); text-align:center; font:500 11.5px var(--mono); letter-spacing:.1em; color:var(--ink-3); }
+.op-step b { margin-right:10px; font:700 13.5px var(--sans); letter-spacing:-0.01em; color:var(--ink); }
 .in-skip { position:absolute; right:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font-size:13px; color:var(--ink-3); padding:8px 0; }
 .in-skip:hover { color:var(--ink); }
 .in-cap { position:absolute; left:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font:500 12px var(--mono); color:var(--ink-3); }
-@media (max-width:600px) { .aug-f p { display:none; } .aug-r { margin-top:auto; } .aug-rr { font-size:11.5px; padding:5px 9px; } }
 
 /* 머리 */
 .top { position:sticky; top:0; z-index:20; background:rgba(10,14,18,0.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--rule); }
@@ -285,14 +285,8 @@ footer p + p { margin-top:6px; }
 <body>
 
 <div id="intro" hidden>
-  <div class="aug-stage">
-    <p class="aug-k">ARAM: MAYHEM · <b>증강 선택</b></p>
-    <div class="aug-row">
-      <div class="aug-slot"><div class="aug"><div class="aug-f"><span class="aug-ic"><img src="img/aug/protagonistssignatureweapon.png" alt=""></span><b>운명의 무기</b><span class="aug-r">GOLD</span><p>첫 전설급 아이템이 처치 관여마다 강해져요.</p></div></div><span class="aug-rr">↻ 리롤</span></div>
-      <div class="aug-slot"><div class="aug"><div class="aug-f pri"><span class="aug-ic"><img src="img/aug/drawyoursword.png" alt=""></span><b>검을 뽑아라</b><span class="aug-r">PRISMATIC</span><p>근접 챔피언이 되어 여러 능력치를 얻어요.</p></div><div class="aug-f pri back"><span class="aug-ic"><img class="app" src="img/icon.png" alt=""></span><b>투데이 내전</b><span class="aug-r">PRISMATIC</span><p>오늘 모인 사람끼리 팀을 나누고, 기록·투표·최고의 장면까지.</p></div></div><span class="aug-rr">↻ 리롤</span></div>
-      <div class="aug-slot"><div class="aug"><div class="aug-f"><span class="aug-ic"><img src="img/aug/bees.png" alt=""></span><b>벌이다!!!</b><span class="aug-r">GOLD</span><p>스킬이 적중하면 가끔 벌집이 날아가요.</p></div></div><span class="aug-rr">↻ 리롤</span></div>
-    </div>
-  </div>
+  <div class="op-map"><svg class="op-svg" viewBox="0 0 1600 900" aria-hidden="true"></svg></div>
+  <p class="op-step"></p>
   <span class="in-cap">TODAY NAEJEON</span>
   <button class="in-skip" type="button">건너뛰기 →</button>
 </div>
@@ -486,41 +480,104 @@ const anim = (el, kf, o) => el.animate(kf, Object.assign({ easing: EASE, fill: '
 const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('seen'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' }) : null;
 document.querySelectorAll('[data-rv]').forEach(el => io ? io.observe(el) : el.classList.add('seen'));
 
-// ── 오프닝 = 아수라장 증강 선택(약 3초): 카드 셋이 올라옴 → 가운데 리롤 → 「투데이 내전」 선택 → 화면이 걷히며 팟지 영상 ──
+// ── 오프닝 = 칼바람 다리 훑기(약 5초): 파랑 기지 → 빨강 기지 → 전체 → 양 팀 5명이 가운데로 → 한타 → 그 자리로 파고들며 팟지 영상 ──
 const intro = document.getElementById('intro'), $i = s => intro.querySelector(s);
+const opMap = $i('.op-map'), opSvg = $i('.op-svg');
 let timers = [], running = false;
 const later = (ms, f) => timers.push(setTimeout(f, ms));
-function closeIntro(dur) {
+// 다리 = 왼쪽 아래(1팀 기지) → 오른쪽 위(2팀 기지) 대각선 · 지도 단위 1600×900
+const LB = [180, 770], LD = [1240, -640], LL = Math.hypot(LD[0], LD[1]);
+const LN = [-LD[1] / LL, LD[0] / LL];   // 다리에 수직
+const LP = (t, o) => [LB[0] + LD[0] * t + LN[0] * (o || 0), LB[1] + LD[1] * t + LN[1] * (o || 0)];
+const LANE_DEG = Math.atan2(LD[1], LD[0]) * 180 / Math.PI;   // −27.3°
+const OPC = { a: [103, 64, 412, 222, 157], b: [99, 86, 51, 498, 360] };
+let HOLE = false;   // 가운데부터 구멍이 열리는 전환(등록된 CSS 변수 애니메이션) — 안 되는 브라우저는 그냥 흐려짐
+try { CSS.registerProperty({ name: '--hole', syntax: '<length>', inherits: false, initialValue: '0px' }); HOLE = true; } catch (e) { HOLE = !!(e && e.name === 'InvalidModificationError'); }
+
+function drawMap() {
+  if (opSvg.childElementCount) return;
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const f = p => p[0].toFixed(1) + ' ' + p[1].toFixed(1), W0 = 92;
+  const L = [], R = [];
+  for (let t = 0.05; t <= 0.951; t += 0.025) { const w = W0 + (rnd() - 0.5) * 16; L.push(LP(t, -w)); R.push(LP(t, w + (rnd() - 0.5) * 6)); }
+  const lane = 'M' + L.map(f).join(' L') + ' L' + R.reverse().map(f).join(' L') + ' Z';
+  let cont = '';
+  for (const o of [150, 188, 236, 300]) for (const s of [-1, 1]) { const pts = []; for (let t = 0.08; t <= 0.921; t += 0.04) pts.push(LP(t, s * (o + (rnd() - 0.5) * 16))); cont += 'M' + pts.map(f).join(' L'); }
+  let pl = '';
+  for (let t = 0.08; t < 0.93; t += 0.03) pl += 'M' + f(LP(t, -W0 * 0.92)) + ' L' + f(LP(t, -W0 * 0.72)) + ' M' + f(LP(t, W0 * 0.72)) + ' L' + f(LP(t, W0 * 0.92));
+  const hex = (t, r, cls) => { const [x, y] = LP(t); let d = ''; for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i + Math.PI / 6; d += (i ? ' L' : 'M') + (x + Math.cos(a) * r).toFixed(1) + ' ' + (y + Math.sin(a) * r).toFixed(1); } return `<path d="${d} Z" class="tw ${cls}"/>`; };
+  const tower = (t, o, k) => { const [x, y] = LP(t, o); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" class="tw t${k}"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.5" class="f${k}"/>`; };
+  const inhib = (t, k) => { const [x, y] = LP(t); return `<rect x="${(x - 11).toFixed(1)}" y="${(y - 11).toFixed(1)}" width="22" height="22" class="tw t${k}" transform="rotate(${LANE_DEG.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})"/>`; };
+  const side = (k, m) => { const T = t => (m ? 1 - t : t); const [bx, by] = LP(T(0.015)); return `<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="170" class="plat t${k}"/>`; };
+  const items = k => { const T = t => (k === 'b' ? 1 - t : t); return hex(T(0.015), 32, 't' + k) + hex(T(0.015), 13, 't' + k) + tower(T(0.08), -50, k) + tower(T(0.08), 50, k) + inhib(T(0.155), k) + tower(T(0.215), 0, k) + tower(T(0.335), 0, k); };
+  const relic = o => { const [x, y] = LP(0.5, o); return `<path d="M${x - 9} ${y} L${x + 9} ${y} M${x} ${y - 9} L${x} ${y + 9}" class="relic"/>`; };
+  opSvg.innerHTML = `<path d="${cont}" class="cont"/>` + side('a', 0) + side('b', 1)
+    + `<path d="${lane}" class="lane"/><path d="${pl}" class="pl"/><path d="M${f(LP(0.1))} L${f(LP(0.9))}" class="mid"/>`
+    + relic(-58) + relic(58) + items('a') + items('b');
+}
+const cam = (tx, ty, rot, s, p) => `translate(${tx}px, ${ty}px) rotate(${rot}deg) scale(${s}) translate(${-p[0]}px, ${-p[1]}px)`;
+function finishIntro() {
+  intro.hidden = true; intro.classList.remove('hole');
+  [intro, ...intro.querySelectorAll('*')].forEach(el => el.getAnimations().forEach(a => a.cancel()));
+  document.body.classList.remove('intro-on');
+}
+function closeIntro(dur) {   // 건너뛰기 = 그냥 흐려짐
   if (!running) return;
   running = false; timers.forEach(clearTimeout); timers = [];
   anim(intro, [{ opacity: 1 }, { opacity: 0 }], { duration: dur, easing: 'ease' });
   setTimeout(ready, dur * 0.3);
-  setTimeout(() => { intro.hidden = true; intro.getAnimations().forEach(a => a.cancel()); document.body.classList.remove('intro-on'); }, dur + 40);
+  setTimeout(finishIntro, dur + 40);
   try { sessionStorage.setItem('tn-intro', '1'); } catch (_) {}
 }
 function playIntro() {
   if (running) return;
   running = true;
+  drawMap();
   [intro, ...intro.querySelectorAll('*')].forEach(el => el.getAnimations().forEach(a => a.cancel()));
-  intro.hidden = false; document.body.classList.add('intro-on');
-  const slots = [...intro.querySelectorAll('.aug-slot')], card = slots[1].querySelector('.aug'), rr = slots.map(s => s.querySelector('.aug-rr'));
-  rr[1].textContent = '↻ 리롤'; rr[1].classList.remove('on');
-  const UP = 'translateY(-10px) rotateY(180deg)';
-  anim($i('.aug-k'), [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 420 });
-  slots.forEach((s, i) => anim(s, [{ opacity: 0, transform: 'translateY(40px)' }, { opacity: 1, transform: 'none' }], { duration: 620, delay: 180 + i * 140 }));
-  // 가운데 카드 리롤 — 버튼이 눌리고 카드가 뒤집혀 「투데이 내전」
-  later(1250, () => anim(rr[1], [{ transform: 'translateX(-50%) scale(1)' }, { transform: 'translateX(-50%) scale(.92)', offset: 0.4 }, { transform: 'translateX(-50%) scale(1)' }], { duration: 240 }));
-  later(1380, () => anim(card, [{ transform: 'none' }, { transform: 'rotateY(180deg)' }], { duration: 640, easing: 'cubic-bezier(.55,0,.25,1)' }));
-  // 고름 — 나머지는 흐려지고 고른 카드가 살짝 올라옴
-  later(2250, () => {
-    slots.forEach((s, i) => { if (i !== 1) anim(s, [{ opacity: 1 }, { opacity: 0.25 }], { duration: 320 }); });
-    anim(card, [{ transform: 'rotateY(180deg)' }, { transform: UP }], { duration: 360 });
-    rr[1].textContent = '선택'; rr[1].classList.add('on');
+  opMap.querySelectorAll('.op-ch, .op-ring').forEach(x => x.remove());
+  intro.classList.remove('hole'); intro.hidden = false; document.body.classList.add('intro-on');
+  const W = innerWidth, H = innerHeight, tall = H > W * 1.1;
+  const rotF = tall ? -90 - LANE_DEG : 0, rotS = tall ? rotF : -LANE_DEG;   // 넓은 화면 = 훑을 땐 다리를 가로로 눕혔다 원래 대각선으로 · 세로 화면 = 다리를 세로로
+  const fit = tall ? Math.min(W / 520, H / 1640) : Math.min(W / 1640, H / 940);
+  const ss = tall ? W * 0.6 / 184 : Math.max(fit * 1.6, H * 0.42 / 184);
+  const mid = LP(0.5), cx = W / 2, cy = H / 2 + 14;
+  const k0 = cam(cx, cy, rotS, ss, LP(0.06)), k1 = cam(cx, cy, rotS, ss, LP(0.94)), k2 = cam(cx, cy, rotF, fit, mid);
+  const step = h => { const el = $i('.op-step'); el.innerHTML = h; anim(el, [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: 320 }); };
+  anim(opMap, [{ opacity: 0 }, { opacity: 1 }], { duration: 420, easing: 'ease' });
+  anim(opMap, [{ transform: k0 }, { transform: k1, offset: 0.65, easing: 'cubic-bezier(.5,0,.45,1)' }, { transform: k2 }], { duration: 2600, easing: 'cubic-bezier(.4,.05,.45,1)' }).id = 'cam';
+  step('<b>칼바람 나락</b>HOWLING ABYSS');
+  // 양 팀 5명이 기지에서 다리 가운데로
+  const offs = [-56, -28, 0, 28, 56], ch = { a: [], b: [] };
+  for (const k of ['a', 'b']) OPC[k].forEach((id, i) => {
+    const el = document.createElement('div'); el.className = 'op-ch ' + k; el.style.setProperty('--r', -rotF + 'deg');
+    el.innerHTML = `<img src="https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${id}.png" alt="" onerror="this.style.visibility='hidden'">`;
+    const s = k === 'a' ? LP(0.04 + i * 0.008, offs[i]) : LP(0.96 - i * 0.008, offs[i]);
+    const e = k === 'a' ? LP(0.445 - (i % 2) * 0.028, offs[i]) : LP(0.555 + (i % 2) * 0.028, offs[i]);
+    el._p = e; opMap.appendChild(el); ch[k].push(el);
+    anim(el, [{ opacity: 0, transform: `translate(${s[0]}px, ${s[1]}px)` }, { opacity: 1, transform: `translate(${s[0]}px, ${s[1]}px)`, offset: 0.12 }, { opacity: 1, transform: `translate(${e[0]}px, ${e[1]}px)` }], { duration: 1150, delay: 2350 + i * 60, easing: 'cubic-bezier(.3,.1,.25,1)' });
   });
-  later(2900, () => {
-    slots.forEach((s, i) => { if (i !== 1) anim(s, [{ opacity: 0.25, transform: 'none' }, { opacity: 0, transform: 'translateY(14px)' }], { duration: 320, easing: 'ease-in' }); });
-    anim(card, [{ transform: UP }, { transform: UP + ' scale(1.05)' }], { duration: 560 });
-    closeIntro(620);
+  later(2500, () => step('<b>오늘의 내전</b>5 VS 5'));
+  // 한타 — 쓰러진 쪽은 흑백, 잡은 팀 색 고리가 한 번 퍼짐
+  later(3550, () => step('<b>한타</b>TEAMFIGHT'));
+  [['b', 1, 3700], ['a', 3, 3950], ['b', 3, 4150], ['b', 0, 4300]].forEach(([k, i, t]) => later(t, () => {
+    const v = ch[k][i], r = document.createElement('div'); r.className = 'op-ring'; r.style.setProperty('--c', k === 'a' ? 'var(--t2)' : 'var(--t1)');
+    opMap.appendChild(r); v.classList.add('dead');
+    anim(r, [{ opacity: 0.9, transform: `translate(${v._p[0]}px, ${v._p[1]}px) scale(.55)` }, { opacity: 0, transform: `translate(${v._p[0]}px, ${v._p[1]}px) scale(1.5)` }], { duration: 650, easing: 'cubic-bezier(.2,.7,.3,1)' });
+  }));
+  // 그 자리로 파고들며 가운데부터 열림 → 팟지 영상
+  later(4550, () => {
+    step('<b>최고의 장면</b>PLAY OF THE GAME');
+    const rr = reel ? reel.getBoundingClientRect() : { left: 0, top: 0, width: W, height: H };
+    const hx = rr.left + rr.width / 2, hy = Math.max(60, Math.min(H - 60, rr.top + rr.height / 2));
+    opMap.getAnimations().forEach(a => { if (a.id === 'cam') { try { a.commitStyles(); } catch (_) {} a.cancel(); } });
+    anim(opMap, [{ transform: k2 }, { transform: cam(hx, hy, rotF, fit * 7, mid) }], { duration: 950, easing: 'cubic-bezier(.55,0,.3,1)' });
+    if (HOLE) {
+      intro.style.setProperty('--hx', hx + 'px'); intro.style.setProperty('--hy', hy + 'px'); intro.classList.add('hole');
+      anim(intro, [{ '--hole': '0px' }, { '--hole': Math.hypot(W, H) + 'px' }], { duration: 800, delay: 150, easing: 'cubic-bezier(.6,0,.35,1)' });
+    } else anim(intro, [{ opacity: 1 }, { opacity: 0 }], { duration: 700, delay: 250, easing: 'ease' });
+    later(300, ready);
+    later(1000, () => { running = false; finishIntro(); });
+    try { sessionStorage.setItem('tn-intro', '1'); } catch (_) {}
   });
 }
 intro.querySelector('.in-skip').addEventListener('click', e => { e.stopPropagation(); closeIntro(400); });
