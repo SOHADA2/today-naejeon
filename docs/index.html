@@ -62,11 +62,11 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 .op-ch img { display:block; width:100%; height:100%; transform:rotate(var(--r, 0deg)) scale(1.12); transition:filter .25s ease; }
 .op-ch.dead img { filter:grayscale(1) brightness(.5); }
 .op-ring { position:absolute; left:0; top:0; width:76px; height:76px; margin:-38px 0 0 -38px; border-radius:50%; border:2px solid var(--c); opacity:0; pointer-events:none; }
-.op-step { position:absolute; left:0; right:0; top:clamp(22px, 5vh, 44px); text-align:center; font:500 11.5px var(--mono); letter-spacing:.1em; color:var(--ink-3); }
+.op-step { position:absolute; left:0; right:0; top:clamp(22px, 5vh, 44px); text-align:center; font:500 12.5px var(--sans); color:var(--ink-3); }
 .op-step b { margin-right:10px; font:700 13.5px var(--sans); letter-spacing:-0.01em; color:var(--ink); }
 .in-skip { position:absolute; right:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font-size:13px; color:var(--ink-3); padding:8px 0; }
 .in-skip:hover { color:var(--ink); }
-.in-cap { position:absolute; left:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font:500 12px var(--mono); color:var(--ink-3); }
+.in-cap { position:absolute; left:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font:600 12.5px var(--sans); color:var(--ink-3); }
 
 /* 머리 */
 .top { position:sticky; top:0; z-index:20; background:rgba(10,14,18,0.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--rule); }
@@ -287,7 +287,7 @@ footer p + p { margin-top:6px; }
 <div id="intro" hidden>
   <div class="op-map"><svg class="op-svg" viewBox="0 0 1600 900" aria-hidden="true"></svg></div>
   <p class="op-step"></p>
-  <span class="in-cap">TODAY NAEJEON</span>
+  <span class="in-cap">투데이 내전</span>
   <button class="in-skip" type="button">건너뛰기 →</button>
 </div>
 
@@ -545,7 +545,7 @@ function playIntro() {
   const step = h => { const el = $i('.op-step'); el.innerHTML = h; anim(el, [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: 320 }); };
   anim(opMap, [{ opacity: 0 }, { opacity: 1 }], { duration: 420, easing: 'ease' });
   anim(opMap, [{ transform: k0 }, { transform: k1, offset: 0.65, easing: 'cubic-bezier(.5,0,.45,1)' }, { transform: k2 }], { duration: 2600, easing: 'cubic-bezier(.4,.05,.45,1)' }).id = 'cam';
-  step('<b>칼바람 나락</b>HOWLING ABYSS');
+  step('<b>칼바람 나락</b>다리 끝에서 끝까지');
   // 양 팀 5명이 기지에서 다리 가운데로
   const offs = [-56, -28, 0, 28, 56], ch = { a: [], b: [] };
   for (const k of ['a', 'b']) OPC[k].forEach((id, i) => {
@@ -556,9 +556,9 @@ function playIntro() {
     el._p = e; opMap.appendChild(el); ch[k].push(el);
     anim(el, [{ opacity: 0, transform: `translate(${s[0]}px, ${s[1]}px)` }, { opacity: 1, transform: `translate(${s[0]}px, ${s[1]}px)`, offset: 0.12 }, { opacity: 1, transform: `translate(${e[0]}px, ${e[1]}px)` }], { duration: 1150, delay: 2350 + i * 60, easing: 'cubic-bezier(.3,.1,.25,1)' });
   });
-  later(2500, () => step('<b>오늘의 내전</b>5 VS 5'));
+  later(2500, () => step('<b>오늘의 내전</b>5 대 5'));
   // 한타 — 쓰러진 쪽은 흑백, 잡은 팀 색 고리가 한 번 퍼짐
-  later(3550, () => step('<b>한타</b>TEAMFIGHT'));
+  later(3550, () => step('<b>한타</b>다리 한가운데'));
   [['b', 1, 3700], ['a', 3, 3950], ['b', 3, 4150], ['b', 0, 4300]].forEach(([k, i, t]) => later(t, () => {
     const v = ch[k][i], r = document.createElement('div'); r.className = 'op-ring'; r.style.setProperty('--c', k === 'a' ? 'var(--t2)' : 'var(--t1)');
     opMap.appendChild(r); v.classList.add('dead');
@@ -566,7 +566,7 @@ function playIntro() {
   }));
   // 그 자리로 파고들며 가운데부터 열림 → 팟지 영상
   later(4550, () => {
-    step('<b>최고의 장면</b>PLAY OF THE GAME');
+    step('<b>최고의 장면</b>앱이 리플레이로 찍어요');
     const rr = reel ? reel.getBoundingClientRect() : { left: 0, top: 0, width: W, height: H };
     const hx = rr.left + rr.width / 2, hy = Math.max(60, Math.min(H - 60, rr.top + rr.height / 2));
     opMap.getAnimations().forEach(a => { if (a.id === 'cam') { try { a.commitStyles(); } catch (_) {} a.cancel(); } });
