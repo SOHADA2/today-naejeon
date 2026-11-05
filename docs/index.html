@@ -14,7 +14,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <script>document.documentElement.classList.add('js');</script>
 <style>
 /* 장식 대신 글자와 실제 화면으로 — 색은 바탕·글자 세 단계 + 금색 하나(팀 색은 오프닝·드래프트에만) */
@@ -41,32 +41,28 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 :focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
 .t1 { color:var(--t1); } .t2 { color:var(--t2); }
 
-/* ── 오프닝 = 칼바람 다리 훑기(약 5초): 파랑 기지 → 빨강 기지로 날아감 → 전체 → 양 팀 5명이 가운데로 → 한타 → 그 자리로 파고들며 팟지 영상이 열림 ──
-   평평한 지도·얇은 선·팀 색은 기지·포탑·선수 테두리만 · 빛·흐림·흔들림 없음 · 소리 없음 */
+/* ── 오프닝 = 앱의 팟지 소개 화면 그대로(약 4초): 그 판 주인공 스킨 일러스트가 화면 가득 천천히 다가옴 → PLAY OF THE GAME · 이름 · TRIPLE KILL → 일러스트로 파고들며 실제 팟지 영상 ──
+   일러스트·글자만 · 빛·흔들림·사선 띠 없음 · 소리 없음 */
 #intro { position:fixed; inset:0; z-index:100; overflow:hidden; background:#06090c; }
 #intro[hidden] { display:none; }
-#intro.hole { -webkit-mask-image:radial-gradient(circle at var(--hx) var(--hy), transparent var(--hole), #000 calc(var(--hole) + 1.5px)); mask-image:radial-gradient(circle at var(--hx) var(--hy), transparent var(--hole), #000 calc(var(--hole) + 1.5px)); }
-.op-map { position:absolute; left:0; top:0; width:1600px; height:900px; transform-origin:0 0; opacity:0; }
-.op-svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
-.op-svg .plat { fill:#0e141a; stroke-width:2.5; stroke-opacity:.45; }
-.op-svg .lane { fill:#121a21; stroke:#34414d; stroke-width:2.5; }
-.op-svg .cont { fill:none; stroke:#121a20; stroke-width:2; }
-.op-svg .pl { stroke:#1e2831; stroke-width:2; }
-.op-svg .mid { fill:none; stroke:#1f2932; stroke-width:2; stroke-dasharray:14 18; }
-.op-svg .tw { fill:#0b1015; stroke-width:3; }
-.op-svg .ta { stroke:var(--t1); } .op-svg .tb { stroke:var(--t2); }
-.op-svg .fa { fill:var(--t1); } .op-svg .fb { fill:var(--t2); }
-.op-svg .relic { fill:none; stroke:#3c4a3f; stroke-width:2.5; }
-.op-ch { position:absolute; left:0; top:0; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%; border:3px solid var(--c); background:#0b1015; overflow:hidden; opacity:0; }
-.op-ch.a { --c:var(--t1); } .op-ch.b { --c:var(--t2); }
-.op-ch img { display:block; width:100%; height:100%; transform:rotate(var(--r, 0deg)) scale(1.12); transition:filter .25s ease; }
-.op-ch.dead img { filter:grayscale(1) brightness(.5); }
-.op-ring { position:absolute; left:0; top:0; width:76px; height:76px; margin:-38px 0 0 -38px; border-radius:50%; border:2px solid var(--c); opacity:0; pointer-events:none; }
-.op-step { position:absolute; left:0; right:0; top:clamp(22px, 5vh, 44px); text-align:center; font:500 12.5px var(--sans); color:var(--ink-3); }
-.op-step b { margin-right:10px; font:700 13.5px var(--sans); letter-spacing:-0.01em; color:var(--ink); }
+.pi-bg { position:absolute; inset:0; opacity:0; }
+.pi-bg img { width:100%; height:100%; max-width:none; object-fit:cover; object-position:60% 28%; }
+.pi-shade { position:absolute; inset:0; background:linear-gradient(to top, rgba(6,9,12,.94) 0%, rgba(6,9,12,.6) 30%, rgba(6,9,12,0) 62%), linear-gradient(to right, rgba(6,9,12,.62) 0%, rgba(6,9,12,0) 55%); }
+.pi-copy { position:absolute; left:var(--pad); right:var(--pad); bottom:clamp(72px, 13vh, 132px); }
+.pi-k { display:flex; align-items:center; gap:12px; font:700 clamp(12px, 1.05vw, 14px) var(--mono); letter-spacing:.26em; color:var(--gold); clip-path:inset(0 100% 0 0); }
+.pi-k i { flex:none; width:40px; height:1.5px; background:var(--gold); }
+.pi-who { display:flex; align-items:center; gap:clamp(10px, 1.2vw, 16px); margin-top:clamp(12px, 2vh, 18px); opacity:0; }
+.pi-who img { flex:none; width:clamp(44px, 4.6vw, 64px); height:clamp(44px, 4.6vw, 64px); border:1.5px solid var(--t1); }
+.pi-who b { display:block; font-size:clamp(30px, 4.6vw, 64px); font-weight:850; letter-spacing:-0.045em; line-height:1.05; }
+.pi-who span { display:block; margin-top:4px; font-size:clamp(13px, 1.1vw, 15px); font-weight:600; color:var(--ink-2); }
+.pi-big { margin-top:clamp(8px, 1.6vh, 16px); font:italic 700 clamp(60px, 10.5vw, 156px)/0.88 'Barlow Condensed', var(--sans); letter-spacing:0; opacity:0; }
+.pi-tags { display:flex; gap:6px; margin-top:clamp(10px, 1.8vh, 16px); opacity:0; }
+.pi-tags span { font-size:13px; font-weight:700; padding:3px 10px; background:rgba(10,14,18,.72); color:var(--ink-2); }
+.pi-tags .on { background:var(--t1); color:#06101c; }
 .in-skip { position:absolute; right:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font-size:13px; color:var(--ink-3); padding:8px 0; }
 .in-skip:hover { color:var(--ink); }
 .in-cap { position:absolute; left:var(--pad); bottom:calc(22px + env(safe-area-inset-bottom)); font:600 12.5px var(--sans); color:var(--ink-3); }
+@media (max-width:760px) { .pi-bg img { object-position:62% 30%; } }
 
 /* 머리 */
 .top { position:sticky; top:0; z-index:20; background:rgba(10,14,18,0.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--rule); }
@@ -285,8 +281,14 @@ footer p + p { margin-top:6px; }
 <body>
 
 <div id="intro" hidden>
-  <div class="op-map"><svg class="op-svg" viewBox="0 0 1600 900" aria-hidden="true"></svg></div>
-  <p class="op-step"></p>
+  <div class="pi-bg"><img src="img/potg-splash.jpg" alt=""></div>
+  <div class="pi-shade"></div>
+  <div class="pi-copy">
+    <p class="pi-k"><i></i>PLAY OF THE GAME</p>
+    <div class="pi-who"><img src="img/xayah.png" alt=""><div><b>애긔반달곰</b><span><span class="t1" style="display:inline">1팀</span> · 자야</span></div></div>
+    <p class="pi-big">TRIPLE KILL</p>
+    <p class="pi-tags"><span class="on">트리플킬</span><span>에이스</span></p>
+  </div>
   <span class="in-cap">투데이 내전</span>
   <button class="in-skip" type="button">건너뛰기 →</button>
 </div>
@@ -480,44 +482,12 @@ const anim = (el, kf, o) => el.animate(kf, Object.assign({ easing: EASE, fill: '
 const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('seen'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' }) : null;
 document.querySelectorAll('[data-rv]').forEach(el => io ? io.observe(el) : el.classList.add('seen'));
 
-// ── 오프닝 = 칼바람 다리 훑기(약 5초): 파랑 기지 → 빨강 기지 → 전체 → 양 팀 5명이 가운데로 → 한타 → 그 자리로 파고들며 팟지 영상 ──
+// ── 오프닝 = 앱의 팟지 소개 화면(약 4초): 스킨 일러스트 → PLAY OF THE GAME · 이름 · TRIPLE KILL → 일러스트로 파고들며 실제 팟지 영상 ──
 const intro = document.getElementById('intro'), $i = s => intro.querySelector(s);
-const opMap = $i('.op-map'), opSvg = $i('.op-svg');
 let timers = [], running = false;
 const later = (ms, f) => timers.push(setTimeout(f, ms));
-// 다리 = 왼쪽 아래(1팀 기지) → 오른쪽 위(2팀 기지) 대각선 · 지도 단위 1600×900
-const LB = [180, 770], LD = [1240, -640], LL = Math.hypot(LD[0], LD[1]);
-const LN = [-LD[1] / LL, LD[0] / LL];   // 다리에 수직
-const LP = (t, o) => [LB[0] + LD[0] * t + LN[0] * (o || 0), LB[1] + LD[1] * t + LN[1] * (o || 0)];
-const LANE_DEG = Math.atan2(LD[1], LD[0]) * 180 / Math.PI;   // −27.3°
-const OPC = { a: [103, 64, 412, 222, 157], b: [99, 86, 51, 498, 360] };
-let HOLE = false;   // 가운데부터 구멍이 열리는 전환(등록된 CSS 변수 애니메이션) — 안 되는 브라우저는 그냥 흐려짐
-try { CSS.registerProperty({ name: '--hole', syntax: '<length>', inherits: false, initialValue: '0px' }); HOLE = true; } catch (e) { HOLE = !!(e && e.name === 'InvalidModificationError'); }
-
-function drawMap() {
-  if (opSvg.childElementCount) return;
-  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const f = p => p[0].toFixed(1) + ' ' + p[1].toFixed(1), W0 = 92;
-  const L = [], R = [];
-  for (let t = 0.05; t <= 0.951; t += 0.025) { const w = W0 + (rnd() - 0.5) * 16; L.push(LP(t, -w)); R.push(LP(t, w + (rnd() - 0.5) * 6)); }
-  const lane = 'M' + L.map(f).join(' L') + ' L' + R.reverse().map(f).join(' L') + ' Z';
-  let cont = '';
-  for (const o of [150, 188, 236, 300]) for (const s of [-1, 1]) { const pts = []; for (let t = 0.08; t <= 0.921; t += 0.04) pts.push(LP(t, s * (o + (rnd() - 0.5) * 16))); cont += 'M' + pts.map(f).join(' L'); }
-  let pl = '';
-  for (let t = 0.08; t < 0.93; t += 0.03) pl += 'M' + f(LP(t, -W0 * 0.92)) + ' L' + f(LP(t, -W0 * 0.72)) + ' M' + f(LP(t, W0 * 0.72)) + ' L' + f(LP(t, W0 * 0.92));
-  const hex = (t, r, cls) => { const [x, y] = LP(t); let d = ''; for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i + Math.PI / 6; d += (i ? ' L' : 'M') + (x + Math.cos(a) * r).toFixed(1) + ' ' + (y + Math.sin(a) * r).toFixed(1); } return `<path d="${d} Z" class="tw ${cls}"/>`; };
-  const tower = (t, o, k) => { const [x, y] = LP(t, o); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" class="tw t${k}"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.5" class="f${k}"/>`; };
-  const inhib = (t, k) => { const [x, y] = LP(t); return `<rect x="${(x - 11).toFixed(1)}" y="${(y - 11).toFixed(1)}" width="22" height="22" class="tw t${k}" transform="rotate(${LANE_DEG.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})"/>`; };
-  const side = (k, m) => { const T = t => (m ? 1 - t : t); const [bx, by] = LP(T(0.015)); return `<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="170" class="plat t${k}"/>`; };
-  const items = k => { const T = t => (k === 'b' ? 1 - t : t); return hex(T(0.015), 32, 't' + k) + hex(T(0.015), 13, 't' + k) + tower(T(0.08), -50, k) + tower(T(0.08), 50, k) + inhib(T(0.155), k) + tower(T(0.215), 0, k) + tower(T(0.335), 0, k); };
-  const relic = o => { const [x, y] = LP(0.5, o); return `<path d="M${x - 9} ${y} L${x + 9} ${y} M${x} ${y - 9} L${x} ${y + 9}" class="relic"/>`; };
-  opSvg.innerHTML = `<path d="${cont}" class="cont"/>` + side('a', 0) + side('b', 1)
-    + `<path d="${lane}" class="lane"/><path d="${pl}" class="pl"/><path d="M${f(LP(0.1))} L${f(LP(0.9))}" class="mid"/>`
-    + relic(-58) + relic(58) + items('a') + items('b');
-}
-const cam = (tx, ty, rot, s, p) => `translate(${tx}px, ${ty}px) rotate(${rot}deg) scale(${s}) translate(${-p[0]}px, ${-p[1]}px)`;
 function finishIntro() {
-  intro.hidden = true; intro.classList.remove('hole');
+  intro.hidden = true;
   [intro, ...intro.querySelectorAll('*')].forEach(el => el.getAnimations().forEach(a => a.cancel()));
   document.body.classList.remove('intro-on');
 }
@@ -532,51 +502,24 @@ function closeIntro(dur) {   // 건너뛰기 = 그냥 흐려짐
 function playIntro() {
   if (running) return;
   running = true;
-  drawMap();
   [intro, ...intro.querySelectorAll('*')].forEach(el => el.getAnimations().forEach(a => a.cancel()));
-  opMap.querySelectorAll('.op-ch, .op-ring').forEach(x => x.remove());
-  intro.classList.remove('hole'); intro.hidden = false; document.body.classList.add('intro-on');
-  const W = innerWidth, H = innerHeight, tall = H > W * 1.1;
-  const rotF = tall ? -90 - LANE_DEG : 0, rotS = tall ? rotF : -LANE_DEG;   // 넓은 화면 = 훑을 땐 다리를 가로로 눕혔다 원래 대각선으로 · 세로 화면 = 다리를 세로로
-  const fit = tall ? Math.min(W / 520, H / 1640) : Math.min(W / 1640, H / 940);
-  const ss = tall ? W * 0.6 / 184 : Math.max(fit * 1.6, H * 0.42 / 184);
-  const mid = LP(0.5), cx = W / 2, cy = H / 2 + 14;
-  const k0 = cam(cx, cy, rotS, ss, LP(0.06)), k1 = cam(cx, cy, rotS, ss, LP(0.94)), k2 = cam(cx, cy, rotF, fit, mid);
-  const step = h => { const el = $i('.op-step'); el.innerHTML = h; anim(el, [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: 320 }); };
-  anim(opMap, [{ opacity: 0 }, { opacity: 1 }], { duration: 420, easing: 'ease' });
-  anim(opMap, [{ transform: k0 }, { transform: k1, offset: 0.65, easing: 'cubic-bezier(.5,0,.45,1)' }, { transform: k2 }], { duration: 2600, easing: 'cubic-bezier(.4,.05,.45,1)' }).id = 'cam';
-  step('<b>칼바람 나락</b>다리 끝에서 끝까지');
-  // 양 팀 5명이 기지에서 다리 가운데로
-  const offs = [-56, -28, 0, 28, 56], ch = { a: [], b: [] };
-  for (const k of ['a', 'b']) OPC[k].forEach((id, i) => {
-    const el = document.createElement('div'); el.className = 'op-ch ' + k; el.style.setProperty('--r', -rotF + 'deg');
-    el.innerHTML = `<img src="https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${id}.png" alt="" onerror="this.style.visibility='hidden'">`;
-    const s = k === 'a' ? LP(0.04 + i * 0.008, offs[i]) : LP(0.96 - i * 0.008, offs[i]);
-    const e = k === 'a' ? LP(0.445 - (i % 2) * 0.028, offs[i]) : LP(0.555 + (i % 2) * 0.028, offs[i]);
-    el._p = e; opMap.appendChild(el); ch[k].push(el);
-    anim(el, [{ opacity: 0, transform: `translate(${s[0]}px, ${s[1]}px)` }, { opacity: 1, transform: `translate(${s[0]}px, ${s[1]}px)`, offset: 0.12 }, { opacity: 1, transform: `translate(${e[0]}px, ${e[1]}px)` }], { duration: 1150, delay: 2350 + i * 60, easing: 'cubic-bezier(.3,.1,.25,1)' });
-  });
-  later(2500, () => step('<b>오늘의 내전</b>5 대 5'));
-  // 한타 — 쓰러진 쪽은 흑백, 잡은 팀 색 고리가 한 번 퍼짐
-  later(3550, () => step('<b>한타</b>다리 한가운데'));
-  [['b', 1, 3700], ['a', 3, 3950], ['b', 3, 4150], ['b', 0, 4300]].forEach(([k, i, t]) => later(t, () => {
-    const v = ch[k][i], r = document.createElement('div'); r.className = 'op-ring'; r.style.setProperty('--c', k === 'a' ? 'var(--t2)' : 'var(--t1)');
-    opMap.appendChild(r); v.classList.add('dead');
-    anim(r, [{ opacity: 0.9, transform: `translate(${v._p[0]}px, ${v._p[1]}px) scale(.55)` }, { opacity: 0, transform: `translate(${v._p[0]}px, ${v._p[1]}px) scale(1.5)` }], { duration: 650, easing: 'cubic-bezier(.2,.7,.3,1)' });
-  }));
-  // 그 자리로 파고들며 가운데부터 열림 → 팟지 영상
-  later(4550, () => {
-    step('<b>최고의 장면</b>앱이 리플레이로 찍어요');
-    const rr = reel ? reel.getBoundingClientRect() : { left: 0, top: 0, width: W, height: H };
-    const hx = rr.left + rr.width / 2, hy = Math.max(60, Math.min(H - 60, rr.top + rr.height / 2));
-    opMap.getAnimations().forEach(a => { if (a.id === 'cam') { try { a.commitStyles(); } catch (_) {} a.cancel(); } });
-    anim(opMap, [{ transform: k2 }, { transform: cam(hx, hy, rotF, fit * 7, mid) }], { duration: 950, easing: 'cubic-bezier(.55,0,.3,1)' });
-    if (HOLE) {
-      intro.style.setProperty('--hx', hx + 'px'); intro.style.setProperty('--hy', hy + 'px'); intro.classList.add('hole');
-      anim(intro, [{ '--hole': '0px' }, { '--hole': Math.hypot(W, H) + 'px' }], { duration: 800, delay: 150, easing: 'cubic-bezier(.6,0,.35,1)' });
-    } else anim(intro, [{ opacity: 1 }, { opacity: 0 }], { duration: 700, delay: 250, easing: 'ease' });
-    later(300, ready);
-    later(1000, () => { running = false; finishIntro(); });
+  intro.hidden = false; document.body.classList.add('intro-on');
+  const bg = $i('.pi-bg'), img = bg.querySelector('img');
+  // 일러스트 = 처음부터 끝까지 천천히 다가옴(한 번)
+  anim(bg, [{ opacity: 0 }, { opacity: 1 }], { duration: 700, easing: 'ease' });
+  anim(img, [{ transform: 'scale(1.03)' }, { transform: 'scale(1.11)' }], { duration: 3300, easing: 'linear' });
+  later(350, () => anim($i('.pi-k'), [{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 520 }));
+  later(700, () => anim($i('.pi-who'), [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 480 }));
+  later(1250, () => anim($i('.pi-big'), [{ opacity: 0, transform: 'translateX(-28px)' }, { opacity: 1, transform: 'none' }], { duration: 520 }));
+  later(1650, () => anim($i('.pi-tags'), [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 380 }));
+  // 일러스트로 파고들며 걷힘 → 뒤에서 돌고 있는 실제 팟지 영상
+  later(3200, () => {
+    running = false;
+    anim(img, [{ transform: 'scale(1.11)' }, { transform: 'scale(1.3)' }], { duration: 700, easing: 'cubic-bezier(.5,0,.3,1)' });
+    anim($i('.pi-copy'), [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateX(-24px)' }], { duration: 380, easing: 'ease-in' });
+    anim(intro, [{ opacity: 1 }, { opacity: 0 }], { duration: 650, delay: 120, easing: 'ease' });
+    setTimeout(ready, 260);
+    setTimeout(finishIntro, 820);
     try { sessionStorage.setItem('tn-intro', '1'); } catch (_) {}
   });
 }
