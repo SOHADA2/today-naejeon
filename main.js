@@ -143,22 +143,36 @@ const CURVE = {
   close: k => k < 0.72 ? Math.pow(k / 0.72, 2.2) : 1 - 0.05 * Math.sin(Math.PI * (k - 0.72) / 0.28),
   open: k => { const x = k - 1; return 1 + 2 * x * x * x + x * x; },
 };
+//   ⚡ v0.1.128 부드럽게(사장님: 최대한 부드럽게) — 실측: 창마다 setInterval(16)이 윈도우 타이머(15.6ms 단위) 때문에 실제론 ~31ms(초당 33번)마다,
+//   두 창이 최대 15ms 어긋나게 움직였음 → 모든 창을 한 타이머로 같은 순간에(짧게 다시 확인 = 윈도우가 허락하는 가장 빠른 ~15.6ms · 초당 ~64번)
+//   + 움직이는 동안은 위치만(크기를 매번 바꾸면 화면을 다시 그려 무거움) — 크기는 열릴 땐 시작에, 닫힐 땐 끝에 한 번(그때는 홈·로고가 덮거나 막 나타나는 순간)
+let _animTimer = null;
+function animTick() {
+  _animTimer = null;
+  const now = performance.now();
+  for (const [win, st] of _winAnim) {
+    if (win.isDestroyed()) { _winAnim.delete(win); continue; }
+    if (global.__animLog) global.__animLog.push([win.id, now]);   // 🧪 TN_DOCK_SIM 부드러움 측정용(배포본엔 없음)
+    const k = Math.min(1, (now - st.t0) / st.ms), e = st.curve(k), b = st.to;
+    const x = Math.round(st.from.x + (b.x - st.from.x) * e) | 0, y = Math.round(st.from.y + (b.y - st.from.y) * e) | 0;   // | 0 = -0 → 0(Electron은 -0을 정수로 못 받아 오류 창이 뜸)
+    if (k >= 1) { win.setBounds(b); _winAnim.delete(win); }
+    else if (x !== st.lx || y !== st.ly) { win.setPosition(x, y); st.lx = x; st.ly = y; }
+    if (st.fade) try { win.setOpacity(Math.min(1, k * 2.5)); } catch (_) {}   // 처음 나타날 때 = 다가오며 서서히
+  }
+  if (_winAnim.size) _animTimer = setTimeout(animTick, 4);
+}
 function moveWin(win, to, ms, opt) {
   if (!win || win.isDestroyed() || !to) return;
+  to = { x: Math.round(to.x) | 0, y: Math.round(to.y) | 0, width: Math.round(to.width) | 0, height: Math.round(to.height) | 0 };
   const cur = _winAnim.get(win);
   if (cur) { cur.to = to; return; }
   if (!ms) { win.setBounds(to); return; }
-  const from = win.getBounds(), t0 = Date.now(), st = { to }, curve = CURVE[(opt && opt.curve) || 'smooth'], fade = opt && opt.fade;
-  const step = () => {
-    if (win.isDestroyed()) { clearInterval(st.timer); _winAnim.delete(win); return; }
-    const k = Math.min(1, (Date.now() - t0) / ms), e = curve(k);
-    const b = st.to, at = (a, c) => Math.round(a + (c - a) * e);
-    win.setBounds({ x: at(from.x, b.x), y: at(from.y, b.y), width: at(from.width, b.width), height: at(from.height, b.height) });
-    if (fade) try { win.setOpacity(Math.min(1, k * 2.5)); } catch (_) {}   // 처음 나타날 때 = 다가오며 서서히
-    if (k >= 1) { clearInterval(st.timer); _winAnim.delete(win); }
-  };
-  st.timer = setInterval(step, 16);
-  _winAnim.set(win, st);
+  const curveName = (opt && opt.curve) || 'smooth', from = win.getBounds();
+  if (from.width !== to.width || from.height !== to.height) {   // 크기는 한 번만: 열림·갈라짐 = 시작에(움직이며 나타남) · 닫힘·합쳐짐 = 끝에(그때는 덮임)
+    if (curveName !== 'close') { win.setBounds({ x: from.x, y: from.y, width: to.width, height: to.height }); from.width = to.width; from.height = to.height; }
+  }
+  _winAnim.set(win, { from, to, t0: performance.now(), ms, curve: CURVE[curveName], fade: opt && opt.fade, lx: from.x, ly: from.y });
+  if (!_animTimer) _animTimer = setTimeout(animTick, 0);
 }
 const DOOR_MS = 520;   // 문 닫힘·열림·합쳐짐·갈라짐 한 번 길이(v0.1.127: 튕김까지 보이게 420 → 520)
 // 🚪 창 안 화면을 문짝처럼(경첩 = 바깥쪽 모서리) 살짝 돌리는 연출 — 창 자체는 못 기울여서 안쪽 #panel만(렌더러 door-fx)
