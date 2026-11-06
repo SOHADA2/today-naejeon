@@ -31,7 +31,7 @@
       <b class="trv-name">${name}${d.div ? ` <span class="num">${d.div}</span>` : ''}</b>
       <span class="trv-sub">${sub}</span>
       <span class="trv-stat num">${d.s}점 · ${d.n}판 ${d.w}승 · 승률 ${Math.round((d.wr || 0) * 100)}%</span>
-      <div class="trv-why" hidden>${custom ? `투데이 내전으로 기록된 아수라장 <b>내전 ${d.n}판</b>(처음 기록부터 전부)` : `최신 아수라장 <b>일반 판 ${d.n}판</b>(내 롤 전적 · 내전 제외)`} 기준으로 매겼어요<br>점수 = 승률 + 경기력(팀 안 딜 순위·킬 관여·KDA) · 최근 판일수록 크게<br>8점마다 한 티어 · <b>우리끼리 점수</b>(공식 랭크 아님) · 판을 할수록 다시 매겨져요</div>
+      <div class="trv-why" hidden>${custom ? `투데이 내전으로 기록된 아수라장 <b>내전 ${d.n}판</b>(아수라장 ${d.season || '시즌 3 · 26.21~'} · 기록 전부)` : `아수라장 <b>일반 판 ${d.n}판</b>(${d.season || '시즌 3 · 26.21~'} · 롤 전적 + 투데이 내전으로 같이 한 판 · 내전 제외)`} 기준으로 매겼어요<br>점수 = 승률 + 경기력(팀 안 딜 순위·킬 관여·KDA) · 최근 판일수록 크게<br>8점마다 한 티어 · <b>우리끼리 점수</b>(공식 랭크 아님) · 판을 할수록 다시 매겨져요</div>
       <div class="trv-btns"><button class="trv-q" title="근거">?</button><button class="trv-ok ui-btn-gold">확인</button></div>
     </div>`;
     box.style.display = '';

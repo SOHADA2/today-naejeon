@@ -10,9 +10,13 @@
 //  ⚙️ v0.1.114(사장님): **아수라장 일반**(매칭 큐 2400)과 **아수라장 내전**(사용자 설정 게임 · 실측 큐 3270 · gameType CUSTOM_GAME · 모드 KIWI)을 따로 ·
 //    솔로 랭크·칼바람은 뺌(안 읽고 안 올림 · 서버 규칙은 옛 앱 때문에 그 칸들을 그대로 허용)
 //    → v0.1.115: 내전은 롤 전적이 아니라 우리 서버 경기 기록으로(아래 inhouseScore · 프로필에서 계산) · 롤 전적에선 아수라장 일반만 모음(내전 판별은 일반에서 빼려고만)
+//  🗓️ 2026-11-06(사장님: 20판밖에 안 들어감 → 투데이 내전으로 한 판은 전부 · 아수라장 **큰 업데이트마다 기준점**이 바뀌니 그때부터 계속 누적)
+//    → SEASON(아래) 시작 뒤 판만 · 판 수 상한 없음(예전 40판) · 아수라장 일반 = 롤 전적(이 PC에 계속 모아 둠) + 투데이 내전이 서버에 기록한 「같이 한 일반 판」(main이 extra로 넘김)
+//    ⚠️ 다음 큰 업데이트(시즌) 때 SEASON만 바꾸면 모두 그 날부터 새로 쌓임(잔바리 패치 = 증강 몇 개·수치 조정은 안 바꿈)
 const fs = require('fs'), path = require('path');
+const SEASON = { name: '시즌 3', patch: '26.21', since: Date.parse('2026-10-21T00:00:00+09:00') };   // 아수라장 시즌 3 = 패치 26.21(2026-10-21 · 증강 35개 추가·14개 삭제) · 26.22는 증강 2개 추가 = 잔바리
 const Q = { mayhem: 1 };   // 모아 두는 큐(이름만 · 판별은 queueOf)
-const MAX_GAMES = 40, MIN_GAMES = 5, PAGE = 20, MAX_PAGES = 10;
+const MAX_GAMES = 2000, MIN_GAMES = 5, PAGE = 20, MAX_PAGES = 10;   // MAX_GAMES = 이 PC 보관 파일 안전 상한(시즌 안 판은 사실상 전부)
 const GRADES = [[75, 'S+'], [70, 'S'], [65, 'A+'], [60, 'A'], [55, 'B+'], [50, 'B'], [45, 'C+'], [40, 'C'], [-1, 'D']];
 const gradeOf = s => GRADES.find(([min]) => s >= min)[1];
 // v0.1.113: 화면은 글자 등급 대신 롤 티어 이름(사장님: 롤 티어표처럼) — 8점마다 한 티어 · 2점마다 한 단계(4 → 1) · 마스터부터 단계 없음
@@ -73,38 +77,51 @@ function soloOf(rk) {   // 공식 랭크 → {tier, div, lp, w, l, q}(솔로 우
 //   (사장님: 했던 기록은 모두 적용 · 내전은 이 앱을 통해 진행한 것만) — 롤 전적의 사용자 설정 게임(큐 3270)은 이제 안 셈(앱 밖 커스텀까지 섞이고 최근 20판뿐이라)
 //   아수라장 판 = 그 판 선수 중 누구든 증강이 있음(칼바람 내전이 생기면 빠짐) · 한 판 요약은 롤 전적과 같은 모양 → scoreQueue 그대로(최근 판일수록 크게)
 //   records = [{ ts, stats(10명), me(이 사람 stats 한 줄), win }] 시간순 아무거나
+//   v2026-11-06: 시즌(SEASON) 시작 뒤 판만
+function statGame(r) {   // 서버 기록 한 판(10명 stats · 투데이 내전 형식) → 요약(롤 전적 요약과 같은 모양) · 아수라장(누구든 증강 있음)이 아니거나 시즌 전이면 null
+  const all = Array.isArray(r.stats) ? r.stats : [], me = r.me;
+  if (!me || (r.ts || 0) < SEASON.since || !all.some(p => Array.isArray(p.augments) && p.augments.length)) return null;
+  const team = all.filter(p => p.teamId === me.teamId), dmg = p => p.damage || 0;
+  const above = team.filter(p => dmg(p) > dmg(me)).length, tie = team.filter(p => p !== me && dmg(p) === dmg(me)).length;
+  const teamKills = team.reduce((x, p) => x + (p.kills || 0), 0);
+  return { t: r.ts || 0, win: !!r.win, k: me.kills || 0, d: me.deaths || 0, a: me.assists || 0,
+    dr: team.length > 1 ? r3(1 - (above + tie / 2) / (team.length - 1)) : 0.5, kp: teamKills ? r3(Math.min(1, ((me.kills || 0) + (me.assists || 0)) / teamKills)) : 0 };
+}
 function inhouseScore(records) {
-  const games = [];
-  for (const r of records || []) {
-    const all = Array.isArray(r.stats) ? r.stats : [], me = r.me;
-    if (!me || !all.some(p => Array.isArray(p.augments) && p.augments.length)) continue;   // 아수라장(증강 있음)만
-    const team = all.filter(p => p.teamId === me.teamId), dmg = p => p.damage || 0;
-    const above = team.filter(p => dmg(p) > dmg(me)).length, tie = team.filter(p => p !== me && dmg(p) === dmg(me)).length;
-    const teamKills = team.reduce((x, p) => x + (p.kills || 0), 0);
-    games.push({ t: r.ts || 0, win: !!r.win, k: me.kills || 0, d: me.deaths || 0, a: me.assists || 0,
-      dr: team.length > 1 ? r3(1 - (above + tie / 2) / (team.length - 1)) : 0.5, kp: teamKills ? r3(Math.min(1, ((me.kills || 0) + (me.assists || 0)) / teamKills)) : 0 });
-  }
+  const games = (records || []).map(statGame).filter(Boolean);
   return scoreQueue(games.sort((x, y) => y.t - x.t));
+}
+// 🎮 투데이 내전이 기록한 「같이 한 일반 판」(today/days/*/normals) 중 이 사람 아수라장 일반 판 → [{id, …요약}] (collect의 extra)
+function normalGames(normals, puuid) {
+  const out = [];
+  for (const g of normals || []) {
+    if (!g || !(Number(g.queueId) === 2400 || g.gameMode === 'KIWI')) continue;
+    const me = (g.stats || []).find(p => p && p.puuid === puuid); if (!me) continue;
+    const c = statGame({ ts: g.ts, stats: g.stats, me, win: me.isWin != null ? !!me.isWin : (Number(g.side) === Number(me.teamId) ? !!g.win : !g.win) });
+    if (c) out.push(Object.assign({ id: String(g.gameId), q: 'mayhem' }, c));
+  }
+  return out;
 }
 
 module.exports = makeRating;
 makeRating.tierOf = tierOf;
 makeRating.inhouseScore = inhouseScore;
+makeRating.normalGames = normalGames;
+makeRating.SEASON = SEASON;
 function makeRating(d) {   // d = { lcuGet(path) → data|null, userData, log }
   const cacheFile = path.join(d.userData, 'rating-games.json');
   let cache = {}; try { cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8')) || {}; } catch (_) {}
-  async function collect(puuid) {
+  async function collect(puuid, extra) {   // extra = normalGames(서버 「같이 한 일반 판」) — 롤 전적과 같은 판(gameId)이면 롤 전적 쪽을 씀
     const list = [], ids = new Set();
     for (let p = 0; p < MAX_PAGES; p++) {   // 최근 전적 목록(한 번에 20판씩 — 실제로는 롤이 늘 같은 최근 20판을 줌)
       const r = await d.lcuGet(`/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=${p * PAGE}&endIndex=${(p + 1) * PAGE}`).catch(() => null);
       const games = (r && r.games && r.games.games) || [];
       let fresh = 0; for (const g of games) if (g && !ids.has(g.gameId)) { ids.add(g.gameId); list.push(g); fresh++; }
-      const have = list.filter(g => queueOf(g) === 'mayhem').length;
-      if (games.length < PAGE || !fresh || have >= MAX_GAMES) break;   // 새 판이 없으면 그만(같은 20판 반복)
+      if (games.length < PAGE || !fresh) break;   // 새 판이 없으면 그만(같은 20판 반복)
     }
     const seen = new Set(), want = { mayhem: [] };
     for (const g of list.sort((x, y) => (y.gameCreation || 0) - (x.gameCreation || 0))) {
-      const q = queueOf(g); if (!want[q] || seen.has(g.gameId) || want[q].length >= MAX_GAMES) continue;   // 내전(custom)은 안 모음
+      const q = queueOf(g); if (!want[q] || seen.has(g.gameId) || (g.gameCreation || 0) < SEASON.since) continue;   // 내전(custom)은 안 모음 · 시즌 전 판은 안 셈
       seen.add(g.gameId); want[q].push(g.gameId);
     }
     let fetched = 0;
@@ -114,15 +131,19 @@ function makeRating(d) {   // d = { lcuGet(path) → data|null, userData, log }
       const c = g && compactGame(g, puuid);
       if (c) { cache[id] = Object.assign({ p: puuid }, c); fetched++; }
     }
-    // 모아 둔 판 = 이번에 받은 판 + 예전에 받아 둔 판(롤이 최근 20판만 줘서 지난 판은 여기 모아 둔 게 유일한 기록) · 큐마다 최근 40판만 남김
+    // 모아 둔 판 = 이번에 받은 판 + 예전에 받아 둔 판(롤이 최근 20판만 줘서 지난 판은 여기 모아 둔 게 유일한 기록) · 시즌 전 판은 지움(상한 = 안전용 MAX_GAMES)
     const pool = q => Object.entries(cache).filter(([, c]) => c && c.p === puuid && c.q === q).sort((x, y) => y[1].t - x[1].t);
+    for (const q of Object.keys(Q)) for (const [id, c] of pool(q)) if (c.t < SEASON.since) delete cache[id];
     for (const q of Object.keys(Q)) for (const [id] of pool(q).slice(MAX_GAMES)) delete cache[id];
     for (const [id, c] of Object.entries(cache)) if (c && c.p === puuid && !Q[c.q]) delete cache[id];   // 예전 칼바람(aram) 요약 등 이제 안 쓰는 큐
     try { fs.writeFileSync(cacheFile, JSON.stringify(cache)); } catch (_) {}
-    const mine = q => pool(q).map(([, c]) => c);
-    const out = { at: Date.now(), v: 3, mayhem: scoreQueue(mine('mayhem')), src: { list: list.length, mayhem: mine('mayhem').length } };
+    // + 서버 「같이 한 일반 판」(롤 전적에 없는 판만 · 다른 PC에서 했거나 앱이 롤 전적을 못 읽었던 판)
+    const lcu = pool('mayhem'), have = new Set(lcu.map(([id]) => String(id)));
+    const add = (extra || []).filter(c => c && c.q === 'mayhem' && !have.has(String(c.id)) && c.t >= SEASON.since);
+    const games = [...lcu.map(([, c]) => c), ...add].sort((x, y) => y.t - x.t);
+    const out = { at: Date.now(), v: 3, mayhem: scoreQueue(games), src: { list: list.length, mayhem: games.length } };
     const lab = x => x ? (x.gr ? `${x.s}점(${x.n}판)` : '배치 ' + x.pl) : '-';
-    d.log(`🏅 점수 — 전적 목록 ${list.length}판(이번에 아수라장 일반 ${want.mayhem.length} · 새로 받은 상세 ${fetched}) · 아수라장 일반 ${lab(out.mayhem)}`);
+    d.log(`🏅 점수(아수라장 ${SEASON.name} · ${SEASON.patch}~) — 전적 목록 ${list.length}판(이번에 아수라장 일반 ${want.mayhem.length} · 새로 받은 상세 ${fetched}) · 모아 둔 롤 전적 ${lcu.length} + 투데이 내전 기록 ${add.length} · 아수라장 일반 ${lab(out.mayhem)}`);
     return out;
   }
   return { collect, _compactGame: compactGame, _scoreQueue: scoreQueue, _soloOf: soloOf, _gradeOf: gradeOf };

@@ -9,8 +9,7 @@ html, body { height:100%; background:var(--bg-0); color:var(--ink); overflow:hid
 .pg-top { flex:none; display:flex; align-items:center; justify-content:space-between; height:34px; padding:0 8px 0 14px;
   border-bottom:1px solid var(--line); -webkit-app-region:drag; }
 .pg-en { font-family:var(--f-num); font-weight:700; font-size:13px; letter-spacing:0.18em; color:var(--gold); }
-.pg-x { -webkit-app-region:no-drag; width:26px; height:26px; border:none; background:transparent; color:var(--dim); font-size:14px; cursor:pointer; }
-.pg-x:hover { color:var(--ink); }
+/* .pg-x 색·아이콘 = shared.css .tn-wb */
 
 /* 소개(v0.1.43) — 그 사람이 낀 스킨 일러스트 전체 배경 + 아래 그늘 + 팀 색 사선 띠 + 왼쪽 아래 글자 */
 .pg-intro { position:absolute; inset:34px 0 0 0; z-index:3; overflow:hidden; pointer-events:none; background:var(--bg-0); }

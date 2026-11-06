@@ -2872,12 +2872,13 @@ let _profIdx = null, _profAt = 0;
 async function profileIndex() {
   if (_profIdx && Date.now() - _profAt < 30000) return _profIdx;   // 30초 캐시(탭 오갈 때마다 전체를 다시 받지 않게)
   const [days, accounts] = await Promise.all([fetchAllDays(), fetchAccounts()]);
-  const matches = [];
+  const matches = [], normals = [];
   for (const [day, d] of Object.entries(days || {})) for (const m of Object.values((d && d.matches) || {})) if (m && m.teamA && m.teamB) matches.push({ ...m, day: m.day || day });
+  for (const d of Object.values(days || {})) for (const g of Object.values((d && d.normals) || {})) if (g && Array.isArray(g.stats)) normals.push(g);   // 🏅 아수라장 일반 티어용(같이 한 일반 판)
   matches.sort((a, b) => (a.ts || 0) - (b.ts || 0));   // 시간순
   const nameToPuuid = {};
   for (const [puuid, a] of Object.entries(accounts || {})) if (a && a.name) { const n = normName(a.name); nameToPuuid[n] = nameToPuuid[n] === undefined ? puuid : null; }   // 같은 이름 둘이면 못 씀(null)
-  _profIdx = { matches, accounts: accounts || {}, nameToPuuid }; _profAt = Date.now();
+  _profIdx = { matches, normals, accounts: accounts || {}, nameToPuuid }; _profAt = Date.now();
   return _profIdx;
 }
 function matchKeyOf(idx, m, name) {
@@ -2910,11 +2911,13 @@ async function ratingUpdate(force) {
   if (!rating || !account || inGame || _ratingBusy || (!force && Date.now() - _ratingAt < 10 * 60e3) || (force && Date.now() - _ratingAt < 60e3)) return;
   _ratingBusy = true;
   try {
-    const me = account.puuid, out = await rating.collect(me);
+    // 🗓️ 2026-11-06(사장님): 아수라장 일반 = 롤 전적(이 PC에 계속 모음) + 투데이 내전이 기록한 「같이 한 일반 판」 · 둘 다 시즌(rating.SEASON) 시작 뒤 전부
+    const me = account.puuid, idx = await profileIndex().catch(() => null);
+    const out = await rating.collect(me, idx ? makeRating.normalGames(idx.normals, me) : []);
     if (!account || account.puuid !== me) return;
     _ratingAt = Date.now();   // 아수라장 일반 판이 없어도 10분 안엔 다시 안 함
-    // 🏠 v0.1.115: 아수라장 내전 = 서버 경기 기록(이 앱으로 진행한 판 전부) → 공개만 여기서(올리지 않음 · 프로필도 기록에서 바로 계산)
-    const idx = await profileIndex().catch(() => null); if (idx) tierReveal(me, inhouseOf(idx, 'p:' + me), 'custom');
+    // 🏠 v0.1.115: 아수라장 내전 = 서버 경기 기록(이 앱으로 진행한 판 전부 · 시즌 시작 뒤) → 공개만 여기서(올리지 않음 · 프로필도 기록에서 바로 계산)
+    if (idx) tierReveal(me, inhouseOf(idx, 'p:' + me), 'custom');
     if (out.mayhem) {   // 아수라장 일반 = 롤 전적(매칭 큐 2400)
       const w = await fbSet(`${T}/ratings/${me}`, out); if (!w.ok) console.log('[rating] 올리기 실패 ' + w.err);
       _ratings[me] = { v: out, at: Date.now() }; tierReveal(me, out.mayhem, 'mayhem');
@@ -2931,7 +2934,7 @@ function tierReveal(puuid, x, kind) {
   if (prev === t.tier) return;
   const order = ['IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER', 'GRANDMASTER', 'CHALLENGER'];
   const dir = !prev ? 'first' : order.indexOf(t.tier) > order.indexOf(prev) ? 'up' : 'down';
-  try { overlayWin.webContents.send('tier-reveal', { kind: kind || 'mayhem', tier: t.tier, div: t.div, rank: t.rank, s: x.s, n: x.n, w: x.w, wr: x.wr, kda: x.kda, prev, dir }); } catch (_) { return; }
+  try { overlayWin.webContents.send('tier-reveal', { kind: kind || 'mayhem', season: `${makeRating.SEASON.name} · ${makeRating.SEASON.patch}~`, tier: t.tier, div: t.div, rank: t.rank, s: x.s, n: x.n, w: x.w, wr: x.wr, kda: x.kda, prev, dir }); } catch (_) { return; }
   config[key] = Object.assign({}, seen, { [puuid]: t.tier }); saveConfig();
   console.log(`[rating] 🏅 ${kind === 'custom' ? '아수라장 내전' : '아수라장'} 티어 공개 ${prev || '처음'} → ${t.tier} ${t.div || ''} (${x.s}점 · ${x.n}판)`);
 }
@@ -2997,7 +3000,7 @@ async function getProfile(arg) {
   for (const x of [...Object.values(mates), ...Object.values(rivals)]) { const pk = idx.nameToPuuid[x.name]; const a = pk && idx.accounts[pk]; if (a && a.name) x.name = normName(a.name); }   // 닉변한 사람은 지금 이름으로
   if (key.startsWith('p:')) {   // 🏅 아수라장 일반(서버 요약 = 그 사람 롤 전적) + 🏠 아수라장 내전(서버 경기 기록에서 바로 · v0.1.115 — 옛 v0.1.114 앱이 올린 custom은 무시)
     const R = await getRating(key.slice(2)).catch(() => null), ih = inhouseOf(idx, key);
-    P.rating = R || ih ? Object.assign({}, R || {}, { custom: ih }) : null;
+    P.rating = R || ih ? Object.assign({}, R || {}, { custom: ih, season: `${makeRating.SEASON.name} · ${makeRating.SEASON.patch}~` }) : null;   // season = 「?」 근거에 「아수라장 시즌 3 · 26.21~」
   }
   return P;
 }
