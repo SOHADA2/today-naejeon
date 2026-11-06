@@ -137,23 +137,32 @@ function setDockedFlag(v) {                    // 도킹 상태 → 오버레이
 // 🚪 창 움직임 연출(v0.1.126 · 사장님: 게임 시작 때 문이 닫히듯 · 클라 켜지면 하나였던 창이 좌우로 촥) — 순간 이동 대신 짧게 미끄러짐
 //   움직이는 중에 새 자리가 오면(클라를 끌거나 크기 바꿈) 도착점만 바꿔 그대로 따라감 · ms 없이 부르면 움직이는 중이 아닐 때만 바로 옮김
 const _winAnim = new Map();
-function moveWin(win, to, ms) {
+// 🚪 v0.1.127 움직임 곡선(사장님: 진짜 문처럼 · 튕기는 느낌) — close = 점점 빨라져 맞닿는 순간(72%) 살짝 튕겨 물러났다 멈춤 · open = 제자리를 살짝(3.7%) 지나쳤다 돌아옴
+const CURVE = {
+  smooth: k => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2,
+  close: k => k < 0.72 ? Math.pow(k / 0.72, 2.2) : 1 - 0.05 * Math.sin(Math.PI * (k - 0.72) / 0.28),
+  open: k => { const x = k - 1; return 1 + 2 * x * x * x + x * x; },
+};
+function moveWin(win, to, ms, opt) {
   if (!win || win.isDestroyed() || !to) return;
   const cur = _winAnim.get(win);
   if (cur) { cur.to = to; return; }
   if (!ms) { win.setBounds(to); return; }
-  const from = win.getBounds(), t0 = Date.now(), st = { to };
+  const from = win.getBounds(), t0 = Date.now(), st = { to }, curve = CURVE[(opt && opt.curve) || 'smooth'], fade = opt && opt.fade;
   const step = () => {
     if (win.isDestroyed()) { clearInterval(st.timer); _winAnim.delete(win); return; }
-    const k = Math.min(1, (Date.now() - t0) / ms), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;   // 천천히 → 빠르게 → 천천히
+    const k = Math.min(1, (Date.now() - t0) / ms), e = curve(k);
     const b = st.to, at = (a, c) => Math.round(a + (c - a) * e);
     win.setBounds({ x: at(from.x, b.x), y: at(from.y, b.y), width: at(from.width, b.width), height: at(from.height, b.height) });
+    if (fade) try { win.setOpacity(Math.min(1, k * 2.5)); } catch (_) {}   // 처음 나타날 때 = 다가오며 서서히
     if (k >= 1) { clearInterval(st.timer); _winAnim.delete(win); }
   };
   st.timer = setInterval(step, 16);
   _winAnim.set(win, st);
 }
-const DOOR_MS = 420;   // 문 닫힘·열림·합쳐짐·갈라짐 한 번 길이
+const DOOR_MS = 520;   // 문 닫힘·열림·합쳐짐·갈라짐 한 번 길이(v0.1.127: 튕김까지 보이게 420 → 520)
+// 🚪 창 안 화면을 문짝처럼(경첩 = 바깥쪽 모서리) 살짝 돌리는 연출 — 창 자체는 못 기울여서 안쪽 #panel만(렌더러 door-fx)
+function doorFx(act) { for (const [w, side] of [[overlayWin, 'left'], [leftWin, 'right']]) if (w && !w.isDestroyed()) try { w.webContents.send('door-fx', { act, side, ms: DOOR_MS }); } catch (_) {} }
 function clientRect(pb) {   // 도킹 줄 원시 px → 화면 좌표(배율 반영) + 그 모니터 작업 영역
   const sf = (screen.getPrimaryDisplay().scaleFactor) || 1;
   const cx = pb.x / sf, cy = pb.y / sf, cw = pb.w / sf, ch = pb.h / sf;
@@ -179,11 +188,11 @@ function doorBounds(pb, which) {   // 🚪 문 닫힌 자리 = 두 창이 클라
 }
 function applyDock(pb, ms) {                   // 팀/명단 오버레이 = 클라 '왼쪽' 바깥에 붙임
   if (!overlayWin || !pb) return;
-  moveWin(overlayWin, dockBoundsL(pb), ms);
+  moveWin(overlayWin, dockBoundsL(pb), ms, { curve: 'open' });
 }
 function applyDockLeft(pb, ms) {                // 내 정보 패널 = 클라 '오른쪽' 바깥에 붙임
   if (!leftWin || leftWin.isDestroyed() || !pb) return;
-  moveWin(leftWin, dockBoundsR(pb), ms);
+  moveWin(leftWin, dockBoundsR(pb), ms, { curve: 'open' });
 }
 function hideLeftPanel() { if (leftWin && !leftWin.isDestroyed() && leftWin.isVisible()) leftWin.hide(); leftDockedBounds = null; }
 // 🚪 게임 시작 = 클라가 사라지는 순간 좌우 창이 클라 가운데로 미끄러져 맞닿고(문 닫힘) 숨음 → 게임 끝나고 클라가 돌아오면 가운데에서 좌우로 열림
@@ -195,8 +204,14 @@ function closeDoors() {
   _door = 'closed'; _floating = true; _lastRaise = null; dockedBounds = null; leftDockedBounds = null; setMerged(false);
   hideSlotMarker();
   const pb = _lastRect && rectPb(_lastRect);
-  if (pb) { moveWin(overlayWin, doorBounds(pb, 'left'), DOOR_MS); moveWin(leftWin, doorBounds(pb, 'right'), DOOR_MS); }
-  setTimeout(() => { if (_door === 'closed') { hideOverlay(); if (leftWin && !leftWin.isDestroyed() && leftWin.isVisible()) leftWin.hide(); } }, DOOR_MS + 450);   // 닫힌 문을 잠깐 보여 주고 숨김(로딩 화면이 덮음)
+  if (pb) {
+    moveWin(overlayWin, doorBounds(pb, 'left'), DOOR_MS, { curve: 'close' }); moveWin(leftWin, doorBounds(pb, 'right'), DOOR_MS, { curve: 'close' }); doorFx('close');
+    // 🏠 v0.1.127: 맞닿는 순간 하나로 합쳐지며 우리 로고(사장님) — 닫힌 두 문 자리 그대로
+    //   v0.1.127 다듬기(사장님: 합쳐진 뒤 로고가 어색) — 맞닿는 순간 화면이 어두워지고, 튕김까지 끝나 문이 멈춘 뒤에 로고를 천천히 겹침
+    setTimeout(() => { if (_door === 'closed') doorFx('dim'); }, Math.round(DOOR_MS * 0.72));
+    setTimeout(() => { if (_door !== 'closed') return; const a = doorBounds(pb, 'left'), b = doorBounds(pb, 'right'); showHome({ x: a.x, y: a.y, width: b.x + b.width - a.x, height: a.height }, 'logo', 350); setTimeout(() => { if (_door === 'closed') hidePanelsQuiet(); }, 380); }, DOOR_MS + 60);
+  }
+  setTimeout(() => { if (_door === 'closed') { hideOverlay(); if (leftWin && !leftWin.isDestroyed() && leftWin.isVisible()) leftWin.hide(); hideHome(320); } }, DOOR_MS + 1700);   // 로고를 1초쯤 보여 주고 숨김(로딩 화면이 덮음)
 }
 // 🪟 Win11 창 모서리 둥글림 강제 해제 (roundedCorners:false가 안 먹는 환경 대비 · DWMWA_WINDOW_CORNER_PREFERENCE=33·DONOTROUND=1)
 function forceSquareCorners(win) {
@@ -308,7 +323,7 @@ function updateSlotMarker(p) {   // p=[L,T,R,B] 원시 px(클라 감지됨)
 let clientFg = false, panelFg = false, _lastRaise = null, _dropTimer = null;
 let _ovFocus = false, _lfFocus = false;
 function applyRaise() {
-  if (inGame || _door === 'closed' || _bootWait) return;   // 게임 중엔 pollGame이 오버레이 관리 · 🚪 문 닫힌 동안·켠 직후 첫 도킹 전엔 안 띄움
+  if (inGame || _door === 'closed' || _bootWait || _homeOn) return;   // 게임 중엔 pollGame이 오버레이 관리 · 🚪 문 닫힌 동안·켠 직후 첫 도킹 전·🏠 홈이 떠 있는 동안엔 안 띄움
   // 🪟 도킹/플로팅 모두: 패널은 항상 보임(숨기지 않음)·일반 z-order로.
   //   → 다른 앱을 클릭하면 그 창 뒤로 자연스럽게 가고(사라지지 않음), 클라를 다시 눌러도 억지로 튀어나오지(pop) 않음.
   //   (사장님 요청: "그냥 그 창 뒤로만 가면 되니까 안 사라져도 됨")
@@ -382,7 +397,8 @@ function handleDockLine(line) {
   //   🚪 v0.1.126: 켠 직후 첫 줄 = 바로 붙임 · 합친 창이었으면 좌우로 갈라지며 붙음 · 게임 끝(문 닫힘)이면 클라 가운데에서 문 열리듯
   let ms = 0;
   if (_floating) {
-    _floating = false; _lastRaise = null; dockedBounds = null; leftDockedBounds = null;
+    _floating = false; _lastRaise = null; dockedBounds = null; leftDockedBounds = null; _homePanels = false;
+    hideHome(boot ? 0 : 160);
     if (!boot && !inGame) ms = DOOR_MS;
     if (_door) { _door = null; const pb0 = rectPb(p); moveWin(overlayWin, doorBounds(pb0, 'left')); moveWin(leftWin, doorBounds(pb0, 'right')); }
   }
@@ -391,6 +407,7 @@ function handleDockLine(line) {
   if (fg !== clientFg) { clientFg = fg; }
   const w = p[2] - p[0], h = p[3] - p[1], sig = `${p[0]},${p[1]},${w},${h}`;
   // ◀ 팀·명단 오버레이 = 클라 왼쪽 (숨김 상태여도 위치는 갱신)
+  if (ms) doorFx('open');
   if (sig !== dockedBounds) { dockedBounds = sig; applyDock({ x: p[0], y: p[1], w, h }, ms); }
   setDockedFlag(true); setMerged(false);
   // ▶ 내 정보 = 클라 오른쪽
@@ -621,6 +638,84 @@ function standaloneBounds(which) {
     ? { x: startX, y, width: LW, height: h }                   // ◀ 팀·명단 오버레이(가운데 왼쪽)
     : { x: startX + LW + GAP, y, width: RW, height: h };       // ▶ 내 정보(가운데 오른쪽)
 }
+// ── 🏠 홈 화면(v0.1.127 · 사장님: 롤 클라 없이 투데이 내전만 켰을 때 = 두 창을 붙인 모습 말고 한 화면) ─────────
+//   로고·타이틀 + 방 목록(방마다 들어온 사람) + 앱 켠 사람 전체(롤 로그인 전엔 「게스트」 · 게스트는 보기만)
+//   게임 시작 = 닫힌 문 위에 로고(mode 'logo') · 도킹 켬일 때만(도킹 끔이면 예전처럼 두 창)
+//   홈이 떠 있는 동안 좌우 창은 합친 자리(가운데)에 숨겨 둠 → 클라가 켜지면 그 자리에서 좌우로 갈라짐
+let homeWin = null, _homeOn = false, _homeMode = 'home', _homeTimer = null, _onlineRaw = null, _homeLoaded = false, _homePanels = false;
+const useHome = () => config.dock !== false && !_homePanels;
+function homeRect() { const a = standaloneBounds('left'), b = standaloneBounds('right'); return { x: a.x, y: a.y, width: b.x + b.width - a.x, height: a.height }; }
+function createHomeWin() {
+  homeWin = new BrowserWindow({
+    width: 810, height: 680, frame: false, backgroundColor: '#060b10', show: false, skipTaskbar: true, resizable: false, focusable: true, roundedCorners: false,
+    icon: path.join(__dirname, 'assets', 'icon.png'),
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+  });
+  homeWin.loadFile('home/home.html');
+  homeWin.webContents.on('did-finish-load', () => { _homeLoaded = true; sendHome(); try { homeWin.webContents.send('home-intro', _homeMode); } catch (_) {} });
+  homeWin.on('closed', () => { homeWin = null; _homeLoaded = false; _homeOn = false; });
+  homeWin.on('restore', () => { try { homeWin.setSkipTaskbar(true); } catch (_) {} });
+  forceSquareCorners(homeWin);
+}
+function onlineList() {   // 앱 켠 사람 전체(사장님 선택) = 전역 접속 표시 · 1분 안 신호만 · 나 → 로그인한 사람 → 게스트
+  const now = Date.now(), names = {}, out = [];
+  for (const [id, r] of Object.entries(roomListRaw || {})) if (r && r.name) names[id] = r.name;
+  const myKey = account ? account.puuid : `g_${config.deviceId}`;
+  for (const [k, p] of Object.entries(_onlineRaw || {})) {
+    if (!p || !(now - (p.at || 0) < ONLINE_MS)) continue;
+    out.push({ name: p.name || '게스트', tag: p.tag || '', guest: k.startsWith('g_'), me: k === myKey, room: p.room ? (names[p.room] || '방') : null });
+  }
+  if (!out.some(x => x.me)) out.push({ name: account ? account.gameName : '게스트', tag: account ? (account.tagLine || '') : '', guest: !account, me: true, room: room ? room.name : null });
+  out.sort((a, b) => b.me - a.me || a.guest - b.guest || String(a.name).localeCompare(String(b.name), 'ko'));
+  return out.slice(0, 80);
+}
+function homeView() {
+  const rv = roomsView();
+  return { mode: _homeMode, me: account ? { name: account.gameName, tag: account.tagLine || '' } : null, rooms: rv.rooms, room: rv.room, online: onlineList(), full: rv.full, ready: rv.ready || !!room, ver: app.getVersion() };
+}
+function sendHome() { if (homeWin && !homeWin.isDestroyed() && _homeLoaded) try { homeWin.webContents.send('home', homeView()); } catch (_) {} }
+async function homeRefresh() {   // 홈이 떠 있을 때만 10초마다(접속 표시는 실시간으로 안 받아서 직접 읽음)
+  if (!_homeOn || _homeMode !== 'home') return;
+  if (_live) {
+    try { _onlineRaw = (await getJson(`${FIREBASE_DB}/${T}/presence.json`)) || {}; } catch (_) {}
+    if (room) try { roomListRaw = (await getJson(`${FIREBASE_DB}/${T}/roomList.json`)) || {}; } catch (_) {}   // 방 안이면 방 목록 스트림이 없음
+  }
+  sendHome();
+}
+function fadeWin(win, from, to, ms, done) {
+  const t0 = Date.now(); try { win.setOpacity(from); } catch (_) {}
+  const iv = setInterval(() => {
+    const k = Math.min(1, (Date.now() - t0) / ms);
+    try { if (!win.isDestroyed()) win.setOpacity(from + (to - from) * k); } catch (_) {}
+    if (k >= 1) { clearInterval(iv); if (done) done(); }
+  }, 16);
+}
+function showHome(rect, mode, fadeMs) {
+  if (!homeWin || homeWin.isDestroyed()) createHomeWin();
+  const modeChanged = _homeMode !== mode || !_homeOn;
+  _homeMode = mode; _homeOn = true;
+  homeWin.setBounds(rect);
+  sendHome();
+  if (modeChanged && _homeLoaded) try { homeWin.webContents.send('home-intro', mode); } catch (_) {}
+  if (!homeWin.isVisible()) { try { homeWin.setOpacity(fadeMs ? 0 : 1); } catch (_) {} homeWin.showInactive(); if (fadeMs) fadeWin(homeWin, 0, 1, fadeMs); }
+  clearInterval(_homeTimer); _homeTimer = null;
+  if (mode === 'home') { homeRefresh(); _homeTimer = setInterval(homeRefresh, 10000); }
+}
+function hideHome(fadeMs) {
+  if (!_homeOn) return;
+  _homeOn = false; clearInterval(_homeTimer); _homeTimer = null;
+  if (!homeWin || homeWin.isDestroyed() || !homeWin.isVisible()) return;
+  if (fadeMs) fadeWin(homeWin, 1, 0, fadeMs, () => { if (!_homeOn && homeWin && !homeWin.isDestroyed()) homeWin.hide(); });
+  else homeWin.hide();
+}
+function hidePanelsQuiet() { for (const w of [overlayWin, leftWin]) if (w && !w.isDestroyed() && w.isVisible()) w.hide(); setTimeout(() => doorFx('reset'), 60); }
+// 👤 게스트 접속 표시(롤 로그인 전 · 사장님: 내전을 먼저 켜 두면 게스트로) — today/presence/g_{기기} · 로그인하면 지움
+let _guestOn = false;
+function guestBeat() {
+  const key = `${T}/presence/g_${config.deviceId}`;
+  if (!account && !_away && _live) { _guestOn = true; fbSet(key, { name: '게스트', at: Date.now(), app: app.getVersion() }).then(r => { if (process.env.TN_DOCK_SIM) console.log('[guest] 쓰기', JSON.stringify(r)); }).catch(() => {}); }
+  else if (_guestOn) { _guestOn = false; if (process.env.TN_DOCK_SIM) console.log('[guest] 지움', !!account, !!_away, _live); fbSet(key, null).catch(() => {}); }
+}
 function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표시(첫 전환 때만 위치 세팅)
   if (inGame) { hideLeftPanel(); return; }   // 게임 중엔 내 정보 패널 숨김(오버레이는 pollGame이 관리)
   if (_door === 'closed') { if (GAME_PH.has(lobbyPhase)) return; _door = null; }   // 🚪 문 닫힌 채 게임 진행 중 → 그대로 숨김 · 게임이 아니게 됐으면(닷지·클라 종료) 합친 창으로
@@ -631,17 +726,39 @@ function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표�
   const reposition = !_floating;
   _floating = true; _lastRaise = null;
   if (reposition) { dockedBounds = null; leftDockedBounds = null; }   // 가운데로 옮겼으니 다음 도킹 때 무조건 다시 붙이기
+  if (useHome()) {   // 🏠 v0.1.127 홈 화면
+    if (!reposition) { if (!_homeOn) showHome(homeRect(), 'home'); return; }
+    setMerged(false); setDockedFlag(true);
+    if (wasDocked) {   // 붙어 있다 클라를 끔 → 좌우 창이 가운데로 모여 맞닿는 순간 홈으로 바뀜
+      for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) moveWin(win, standaloneBounds(side), DOOR_MS, { curve: 'close' });
+      doorFx('close');
+      setTimeout(() => { if (_floating && useHome() && _door !== 'closed') doorFx('dim'); }, Math.round(DOOR_MS * 0.72));
+      setTimeout(() => { if (_floating && useHome() && _door !== 'closed') { showHome(homeRect(), 'home', 320); setTimeout(() => { if (_homeOn) hidePanelsQuiet(); }, 350); } }, DOOR_MS + 60);
+    } else {   // 처음(롤 없이 켬) = 홈이 서서히 나타남 · 좌우 창은 합친 자리에 숨겨 둠
+      for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) if (win && !win.isDestroyed()) { win.setBounds(standaloneBounds(side)); if (win.isVisible()) win.hide(); }
+      showHome(homeRect(), 'home', 320);
+    }
+    return;
+  }
+  hideHome(150);
   const hasRight = config.sidePanel !== false && !leftUserHid;
+  let fx = false;
   for (const [win, allowed, side] of [[overlayWin, !userHid && !sampleActive, 'left'], [leftWin, hasRight, 'right']]) {
     if (!win || win.isDestroyed() || !allowed) continue;
-    if (reposition) moveWin(win, standaloneBounds(side), wasDocked ? DOOR_MS : 0);   // 붙어 있다 클라를 끄면 좌우에서 가운데로 모여 한 창이 됨
+    const to = standaloneBounds(side), appear = reposition && !wasDocked && !win.isVisible();
+    if (appear) {   // 처음 나타남 = 양옆 바깥에서 다가와 가운데에서 맞붙음
+      win.setBounds({ ...to, x: to.x + (side === 'left' ? -70 : 70) }); try { win.setOpacity(0); } catch (_) {}
+      moveWin(win, to, DOOR_MS, { curve: 'close', fade: true }); fx = true;
+    } else if (reposition) { moveWin(win, to, wasDocked ? DOOR_MS : 0, { curve: 'close' }); fx = fx || wasDocked; }   // 붙어 있다 클라를 끄면 좌우에서 가운데로 모여 한 창이 됨
     try { if (win.isAlwaysOnTop()) win.setAlwaysOnTop(false, 'normal'); } catch (_) {}   // 바뀔 때만(매 이벤트 재설정=z-order 깜빡임·v0.1.55)
     if (!win.isVisible()) win.showInactive();
   }
+  if (fx) doorFx('close');
   setDockedFlag(hasRight);   // 합친 창 = 두 창이 맞닿는 쪽 테두리 없이(붙었을 때와 같은 모양)
   setMerged(hasRight && !userHid && !sampleActive);
 }
 function showMainPanel() {   // 트레이/재실행 → 내 정보 패널(메인)을 앞으로
+  if (_homeOn && homeWin && !homeWin.isDestroyed()) { try { homeWin.setSkipTaskbar(true); } catch (_) {} homeWin.show(); homeWin.moveTop(); homeWin.focus(); return; }
   if (!leftWin || leftWin.isDestroyed()) createLeftPanel();
   if (config.sidePanel === false) { config.sidePanel = true; saveConfig(); refreshTrayMenu(); }
   leftUserHid = false; leftMinimized = false; try { leftWin.setSkipTaskbar(true); } catch (_) {}
@@ -1021,7 +1138,7 @@ async function pollGame() {
     inGame = nowIn;
     // 게임 중(전체화면)만 위로, 로비/클라에선 같은 층위(클라 활성 시에만 evalRaise가 올림)
     try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setAlwaysOnTop(inGame, inGame ? 'screen-saver' : 'normal'); } catch (_) {}
-    if (inGame) { hideOverlay(); hideLeftPanel(); _slotDoneFormed = lastFormed; hideSlotMarker(); closePotg(); if (potg) potg.startCollect(bridge.getGameId()); }   // 🎬 팟지 수집 시작   // 게임 시작 → 양쪽 패널 완전히 숨김(전투 중 정보 미노출, 새 폼 재설계 예정) · 좌측 내 정보 패널도 숨김(클라 창 사라지며 floatPanels가 잠깐 띄우는 레이스 차단) · applyRaise/floatPanels가 inGame return이라 재등장 없음
+    if (inGame) { hideOverlay(); hideLeftPanel(); hideHome(200); _slotDoneFormed = lastFormed; hideSlotMarker(); closePotg(); if (potg) potg.startCollect(bridge.getGameId()); }   // 🎬 팟지 수집 시작   // 게임 시작 → 양쪽 패널 완전히 숨김(전투 중 정보 미노출, 새 폼 재설계 예정) · 좌측 내 정보 패널도 숨김(클라 창 사라지며 floatPanels가 잠깐 띄우는 레이스 차단) · applyRaise/floatPanels가 inGame return이라 재등장 없음
     else { setTimeout(tryInstallUpdate, 90000); hideOverlay(); userHid = false; latestPlayers = []; _lastRaise = null; evalRaise(); recGameEnded(); if (potg) potg.stopCollect(bridge.getGameId()).catch(() => {}); }   // 🎬 수집 올림   // 게임 종료 → 로비 층위 재적용 · 📼 「기록 저장 중」 시작
     broadcast('state', { inGame, label: inGame ? '게임 중' : '대기' });
     if (!inGame) { setTimeout(() => ratingUpdate(true), 90000);   // 🏅 판 끝 → 전적에 들어간 뒤 점수 다시
@@ -1081,6 +1198,7 @@ function startLive() {   // v0.1.110: 실시간 연결 1개 = 방 밖이면 방 
   _live = true;
   roomStreams();
   connBeat(); setInterval(connBeat, CONN_MS);
+  guestBeat(); setInterval(guestBeat, PRESENCE_MS);   // 👤 v0.1.127 롤 로그인 전 = 게스트 접속 표시
 }
 async function seatGate() {
   const [c, capRaw] = await Promise.all([getJson(`${FIREBASE_DB}/${T}/conns.json`), getJson(`${FIREBASE_DB}/${T}/config/connCap.json`)]);
@@ -1275,6 +1393,7 @@ function setAccount(acc) {
   }
   account = acc;
   config.myName = acc ? acc.gameName : '';
+  try { guestBeat(); sendHome(); } catch (_) {}   // 👤 로그인하면 게스트 표시 지움 · 홈의 「나」 갱신
   if (acc) {
     beatPresence();
     fbUpdate(`${T}/accounts/${acc.puuid}`, { name: acc.gameName, tag: acc.tagLine || null, icon: acc.iconId || null, lastSeen: Date.now() }).catch(() => {});
@@ -2922,6 +3041,16 @@ ipcMain.on('overlay-hide', () => { hideOverlay(); userHid = true; });
 ipcMain.on('overlay-min', () => {
   if (overlayWin && !overlayWin.isDestroyed()) { overlayMinimized = true; try { overlayWin.setSkipTaskbar(false); overlayWin.minimize(); } catch (_) {} }
 });
+// 🏠 홈 화면 버튼 — 최소화 · ✕(숨기기/종료 묻기 = 오른쪽 창 ✕와 같음) · 「대기실 창 열기」(로그인했는데 클라가 내려가 있을 때 = 예전 두 창)
+ipcMain.handle('home-get', () => homeView());
+ipcMain.on('home-min', () => { if (homeWin && !homeWin.isDestroyed()) { try { homeWin.setSkipTaskbar(false); homeWin.minimize(); } catch (_) {} } });
+ipcMain.on('home-close', () => { if (homeWin && !homeWin.isDestroyed()) homeWin.hide(); if (config.closeAsk !== false && !app._quitting) { closeQuitConfirm(); openQuitConfirm('close'); } });
+ipcMain.on('home-panels', () => {
+  if (!account) return;
+  _homePanels = true; hideHome(150);
+  for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) if (win && !win.isDestroyed()) { win.setBounds(standaloneBounds(side)); win.showInactive(); }
+  setMerged(config.sidePanel !== false && !leftUserHid);
+});
 ipcMain.on('side-min', () => {
   if (leftWin && !leftWin.isDestroyed()) { leftMinimized = true; try { leftWin.setSkipTaskbar(false); leftWin.minimize(); } catch (_) {} }
 });
@@ -3093,7 +3222,7 @@ else {
     // 🧪 개발용 TN_DOCK_SIM=1: 롤 없이 창 연출 시험 — 진짜 도킹 감시 대신 global.__dockSim으로 클라 위치·롤 단계·게임 중을 흉내(배포본에선 무시)
     const dockSim = !app.isPackaged && process.env.TN_DOCK_SIM;
     if (dockSim) global.__dockSim = { line: queueDockLine, phase: (ph) => onLobbySeat({ phase: ph, seat: null, custom: null }), game: (v) => { global.__simGame = !!v; pollGame(); },
-      bounds: () => [overlayWin, leftWin].map(w => w && !w.isDestroyed() ? w.getBounds() : null), state: () => ({ _floating, _door, _bootWait, inGame }) };
+      bounds: () => [overlayWin, leftWin, homeWin].map(w => w && !w.isDestroyed() ? w.getBounds() : null), state: () => ({ _floating, _door, _bootWait, inGame, home: _homeOn ? _homeMode : null, live: _live, guest: _guestOn, acct: !!account }) };
     pollGame(); pollSession(); if (!dockSim) startDockStream();
     setInterval(pollGame, 2500);
     setInterval(autoLobbyMode, 3000);   // 🔀 v0.1.82: 대기방을 먼저 감지하고 방장이 나중에 된 경우(앱 재시작·방장 이어받기)도 판단 — 대기방 종류가 바뀐 때만 실제로 바꿈
@@ -3173,6 +3302,7 @@ app.on('before-quit', (e) => {
   const jobs = [];
   if (_live) jobs.push(fbSet(`${T}/conns/${config.deviceId}`, null));   // 🚦 내 자리 비움
   if (account) jobs.push(fbSet(`${T}/presence/${account.puuid}`, null));
+  if (_guestOn) jobs.push(fbSet(`${T}/presence/g_${config.deviceId}`, null));   // 👤 게스트 표시
   if (account && room) jobs.push(fbSet(`${RP()}/members/${account.puuid}`, null));   // 📦 방 사람 칸
   if (account) jobs.push(fbSet(`${RP()}/lobby/join/${account.puuid}`, null));
   if (config.isHost) jobs.push(fbCas(`${RP()}/host`, cur => cur && account && cur.puuid === account.puuid ? { value: null } : { err: 'not mine' }));

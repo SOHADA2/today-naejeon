@@ -47,6 +47,22 @@ function applyAccount(acc, isHost) {
 }
 window.api.onAccount(d => applyAccount(d && d.account, d && d.isHost));
 if (window.api.onMerged) window.api.onMerged(v => { document.body.classList.toggle('merged', !!v); });   // 🚪 합친 창 = 제목은 왼쪽 창 것만
+// 🚪 문 연출(v0.1.127 · 사장님: 창이 진짜 문처럼 · 튕기는 느낌) — 창 자체는 못 기울여서 안쪽 화면(#panel)을 경첩(바깥쪽 모서리) 기준으로 살짝 돌림 · 한 번만(무한 애니메이션 아님)
+if (window.api.onDoorFx) window.api.onDoorFx(d => {
+  const p = document.getElementById('panel'); if (!p || !d) return;
+  if (d.act === 'dim' || d.act === 'reset') {   // 🚪 맞닿은 뒤 서서히 어두워짐(로고·홈으로 넘어가기 전) · reset = 되돌림
+    p.getAnimations().forEach(a => { if (a.id === 'dim') a.cancel(); });
+    if (d.act === 'dim') { const an = p.animate([{ filter: 'brightness(1)' }, { filter: 'brightness(.25)' }], { duration: 300, easing: 'ease-in', fill: 'forwards' }); an.id = 'dim'; }
+    return;
+  }
+  const s = d.side === 'left' ? 1 : -1, r = a => `perspective(1100px) rotateY(${(s * a).toFixed(2)}deg)`;
+  p.style.transformOrigin = d.side === 'left' ? '0% 50%' : '100% 50%';
+  const kf = d.act === 'close'
+    ? [{ transform: r(16) }, { transform: r(9), offset: 0.5 }, { transform: r(0), offset: 0.72 }, { transform: r(-4), offset: 0.84 }, { transform: r(0) }]
+    : [{ transform: r(0) }, { transform: r(14), offset: 0.35 }, { transform: r(6), offset: 0.72 }, { transform: r(-3), offset: 0.88 }, { transform: r(0) }];
+  p.getAnimations().forEach(a => { if (a.id === 'door' || a.id === 'dim') a.cancel(); });
+  const an = p.animate(kf, { duration: d.ms || 520, easing: 'linear' }); an.id = 'door';
+});
 // ── 👑 방장 = 한 명 · 넘겨주기 · 응답 없으면 이어받기 ────────────────────────
 let _hostInfo = { host: null, isHost: false };
 function toast(msg) {

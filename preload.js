@@ -9,7 +9,15 @@ contextBridge.exposeInMainWorld('api', {
   onLobby: (cb) => ipcRenderer.on('lobby', (_e, d) => cb(d)),           // 🚪 대기실
   onMyName: (cb) => ipcRenderer.on('myname', (_e, n) => cb(n)),
   onDocked: (cb) => ipcRenderer.on('docked', (_e, v) => cb(v)),
-  onMerged: (cb) => ipcRenderer.on('merged', (_e, v) => cb(v)),          // 🚪 클라 없을 때 두 창이 맞붙은 한 창 — 머리줄 하나로(왼쪽 제목·오른쪽 버튼)         // 🖥️ 클라 도킹 중이면 각진 모서리
+  onMerged: (cb) => ipcRenderer.on('merged', (_e, v) => cb(v)),
+  onDoorFx: (cb) => ipcRenderer.on('door-fx', (_e, d) => cb(d)),
+  // 🏠 홈 화면(v0.1.127 · 롤 클라 없을 때 한 창) — {mode, me, rooms, room, online, full, ready, ver}
+  getHome: () => ipcRenderer.invoke('home-get'),
+  onHome: (cb) => ipcRenderer.on('home', (_e, d) => cb(d)),
+  onHomeIntro: (cb) => ipcRenderer.on('home-intro', (_e, m) => cb(m)),
+  homeMin: () => ipcRenderer.send('home-min'),
+  homeClose: () => ipcRenderer.send('home-close'),
+  homePanels: () => ipcRenderer.send('home-panels'),          // 🚪 창이 움직이는 동안 안쪽 화면을 문짝처럼(v0.1.127)          // 🚪 클라 없을 때 두 창이 맞붙은 한 창 — 머리줄 하나로(왼쪽 제목·오른쪽 버튼)         // 🖥️ 클라 도킹 중이면 각진 모서리
   onSlotTeam: (cb) => ipcRenderer.on('slot-team', (_e, t) => cb(t)),    // 📍 클라 위 내 팀 마커(1/2)
   onRecToast: (cb) => ipcRenderer.on('rec-toast', (_e, d) => cb(d)),
   onIngame: (cb) => ipcRenderer.on('ingame', (_e, d) => cb(d)),
