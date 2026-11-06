@@ -28,6 +28,7 @@ window.api.onSession(applySession);
 window.api.onMyName(name => { myName = name || ''; render(); });
 window.api.onLobby(d => { lobbyData = d || null; if (d) myIsHost = !!d.isHost; render(); });
 window.api.onDocked(v => { document.body.classList.toggle('docked', !!v); });
+if (window.api.onMerged) window.api.onMerged(v => { document.body.classList.toggle('merged', !!v); });
 
 function showView(v) {
   for (const k of ['rooms', 'lobby', 'rec', 'team', 'draft', 'vote', 'result', 'roster']) el('view-' + k).style.display = v === k ? (k === 'team' ? 'flex' : 'block') : 'none';

@@ -46,6 +46,7 @@ function applyAccount(acc, isHost) {
   if (changed) switchCat(_isHost ? 'team' : 'today');
 }
 window.api.onAccount(d => applyAccount(d && d.account, d && d.isHost));
+if (window.api.onMerged) window.api.onMerged(v => { document.body.classList.toggle('merged', !!v); });   // 🚪 합친 창 = 제목은 왼쪽 창 것만
 // ── 👑 방장 = 한 명 · 넘겨주기 · 응답 없으면 이어받기 ────────────────────────
 let _hostInfo = { host: null, isHost: false };
 function toast(msg) {

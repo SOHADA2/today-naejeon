@@ -125,35 +125,79 @@ public class Win{
 [Win]::Run()`;
 const _dockB64 = (withClient) => Buffer.from(_dockScript.replace('__OUR_PID__', String(process.pid)).replace('__WITH_CLIENT__', withClient ? 'true' : 'false'), 'utf16le').toString('base64');
 
+let _merged = false;   // 🚪 클라 없음 = 두 창이 맞붙은 한 창(머리줄 하나 — 왼쪽 제목·오른쪽 ⚙–✕)
+function setMerged(v) {
+  if (v === _merged) return; _merged = v;
+  for (const w of [overlayWin, leftWin]) if (w && !w.isDestroyed()) w.webContents.send('merged', v);
+}
 function setDockedFlag(v) {                    // 도킹 상태 → 오버레이에 알려 모서리 각지게(각/둥금 전환)
   if (v === dockedNow) return; dockedNow = v;
   if (overlayWin && !overlayWin.isDestroyed()) overlayWin.webContents.send('docked', v);
 }
-function applyDock(pb) {                       // 팀/명단 오버레이 = 클라 '왼쪽' 바깥에 붙임
-  if (!overlayWin || !pb) return;
-  const sf = (screen.getPrimaryDisplay().scaleFactor) || 1;
-  const cx = pb.x / sf, cy = pb.y / sf, cw = pb.w / sf, ch = pb.h / sf;
-  const disp = screen.getDisplayMatching({ x: Math.round(cx), y: Math.round(cy), width: Math.round(cw), height: Math.round(ch) });
-  const dispLeft = disp.workArea.x;
-  let W = Math.min(400, Math.round(cx - dispLeft));   // 클라 왼쪽 바깥 남은 공간(최대 400)
-  if (W < 300) W = 300;
-  let x = Math.round(cx - W);
-  if (x < dispLeft) x = dispLeft;                     // 화면 밖이면 붙임(살짝 겹칠 수 있음)
-  overlayWin.setBounds({ x, y: Math.round(cy), width: W + 2, height: Math.round(ch) });   // +2 클라 쪽으로 겹쳐 틈 제거
+// 🚪 창 움직임 연출(v0.1.126 · 사장님: 게임 시작 때 문이 닫히듯 · 클라 켜지면 하나였던 창이 좌우로 촥) — 순간 이동 대신 짧게 미끄러짐
+//   움직이는 중에 새 자리가 오면(클라를 끌거나 크기 바꿈) 도착점만 바꿔 그대로 따라감 · ms 없이 부르면 움직이는 중이 아닐 때만 바로 옮김
+const _winAnim = new Map();
+function moveWin(win, to, ms) {
+  if (!win || win.isDestroyed() || !to) return;
+  const cur = _winAnim.get(win);
+  if (cur) { cur.to = to; return; }
+  if (!ms) { win.setBounds(to); return; }
+  const from = win.getBounds(), t0 = Date.now(), st = { to };
+  const step = () => {
+    if (win.isDestroyed()) { clearInterval(st.timer); _winAnim.delete(win); return; }
+    const k = Math.min(1, (Date.now() - t0) / ms), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;   // 천천히 → 빠르게 → 천천히
+    const b = st.to, at = (a, c) => Math.round(a + (c - a) * e);
+    win.setBounds({ x: at(from.x, b.x), y: at(from.y, b.y), width: at(from.width, b.width), height: at(from.height, b.height) });
+    if (k >= 1) { clearInterval(st.timer); _winAnim.delete(win); }
+  };
+  st.timer = setInterval(step, 16);
+  _winAnim.set(win, st);
 }
-function applyDockLeft(pb) {                    // 내 정보 패널 = 클라 '오른쪽' 바깥에 붙임
-  if (!leftWin || leftWin.isDestroyed()) return;
+const DOOR_MS = 420;   // 문 닫힘·열림·합쳐짐·갈라짐 한 번 길이
+function clientRect(pb) {   // 도킹 줄 원시 px → 화면 좌표(배율 반영) + 그 모니터 작업 영역
   const sf = (screen.getPrimaryDisplay().scaleFactor) || 1;
   const cx = pb.x / sf, cy = pb.y / sf, cw = pb.w / sf, ch = pb.h / sf;
-  const disp = screen.getDisplayMatching({ x: Math.round(cx), y: Math.round(cy), width: Math.round(cw), height: Math.round(ch) });
-  const dispRight = disp.workArea.x + disp.workArea.width;
-  let x = Math.round(cx + cw) - 2;                            // -2 클라 쪽으로 겹쳐 틈 제거
-  let W = Math.min(400, Math.round(dispRight - x));           // 클라 오른쪽 바깥 남은 공간
-  if (W < 300) W = 300;
-  if (x + W > dispRight) x = Math.max(disp.workArea.x, dispRight - W);   // 화면 밖이면 안으로 당김
-  leftWin.setBounds({ x, y: Math.round(cy), width: W, height: Math.round(ch) });
+  return { cx, cy, cw, ch, disp: screen.getDisplayMatching({ x: Math.round(cx), y: Math.round(cy), width: Math.round(cw), height: Math.round(ch) }) };
+}
+function dockBoundsL(pb) {   // ◀ 팀/명단 오버레이 = 클라 왼쪽 바깥
+  const { cx, cy, ch, disp } = clientRect(pb), dispLeft = disp.workArea.x;
+  let W = Math.min(400, Math.round(cx - dispLeft)); if (W < 300) W = 300;
+  let x = Math.round(cx - W); if (x < dispLeft) x = dispLeft;
+  return { x, y: Math.round(cy), width: W + 2, height: Math.round(ch) };
+}
+function dockBoundsR(pb) {   // ▶ 내 정보 패널 = 클라 오른쪽 바깥
+  const { cx, cy, cw, ch, disp } = clientRect(pb), dispRight = disp.workArea.x + disp.workArea.width;
+  let x = Math.round(cx + cw) - 2;
+  let W = Math.min(400, Math.round(dispRight - x)); if (W < 300) W = 300;
+  if (x + W > dispRight) x = Math.max(disp.workArea.x, dispRight - W);
+  return { x, y: Math.round(cy), width: W, height: Math.round(ch) };
+}
+function doorBounds(pb, which) {   // 🚪 문 닫힌 자리 = 두 창이 클라 가운데에서 맞닿음(높이 = 클라 · 폭 = 붙어 있던 폭)
+  const { cx, cy, cw, ch } = clientRect(pb), mid = Math.round(cx + cw / 2);
+  const wL = dockBoundsL(pb).width, wR = dockBoundsR(pb).width;
+  return which === 'left' ? { x: mid - wL, y: Math.round(cy), width: wL, height: Math.round(ch) } : { x: mid, y: Math.round(cy), width: wR, height: Math.round(ch) };
+}
+function applyDock(pb, ms) {                   // 팀/명단 오버레이 = 클라 '왼쪽' 바깥에 붙임
+  if (!overlayWin || !pb) return;
+  moveWin(overlayWin, dockBoundsL(pb), ms);
+}
+function applyDockLeft(pb, ms) {                // 내 정보 패널 = 클라 '오른쪽' 바깥에 붙임
+  if (!leftWin || leftWin.isDestroyed() || !pb) return;
+  moveWin(leftWin, dockBoundsR(pb), ms);
 }
 function hideLeftPanel() { if (leftWin && !leftWin.isDestroyed() && leftWin.isVisible()) leftWin.hide(); leftDockedBounds = null; }
+// 🚪 게임 시작 = 클라가 사라지는 순간 좌우 창이 클라 가운데로 미끄러져 맞닿고(문 닫힘) 숨음 → 게임 끝나고 클라가 돌아오면 가운데에서 좌우로 열림
+//   _door: null | 'closed'(문 닫고 숨김 · 게임 중) · _bootWait = 켠 직후 첫 도킹 줄 기다림(클라가 이미 켜져 있으면 처음부터 붙은 채로 · 없으면 합친 창)
+const GAME_PH = new Set(['ChampSelect', 'GameStart', 'InProgress', 'Reconnect']);
+let _door = null, _bootWait = true;
+const rectPb = p => ({ x: p[0], y: p[1], w: p[2] - p[0], h: p[3] - p[1] });
+function closeDoors() {
+  _door = 'closed'; _floating = true; _lastRaise = null; dockedBounds = null; leftDockedBounds = null; setMerged(false);
+  hideSlotMarker();
+  const pb = _lastRect && rectPb(_lastRect);
+  if (pb) { moveWin(overlayWin, doorBounds(pb, 'left'), DOOR_MS); moveWin(leftWin, doorBounds(pb, 'right'), DOOR_MS); }
+  setTimeout(() => { if (_door === 'closed') { hideOverlay(); if (leftWin && !leftWin.isDestroyed() && leftWin.isVisible()) leftWin.hide(); } }, DOOR_MS + 450);   // 닫힌 문을 잠깐 보여 주고 숨김(로딩 화면이 덮음)
+}
 // 🪟 Win11 창 모서리 둥글림 강제 해제 (roundedCorners:false가 안 먹는 환경 대비 · DWMWA_WINDOW_CORNER_PREFERENCE=33·DONOTROUND=1)
 function forceSquareCorners(win) {
   if (!win || win.isDestroyed()) return;
@@ -223,6 +267,8 @@ function onLobbySeat(d) {
   if (lobbyPhase === 'ChampSelect' && prevPhase !== 'ChampSelect') borderlessOn();   // 🖥️ 게임 중 정보 창 켠 사람 = 게임 뜨기 전에 테두리 없는 창으로
   else if (prevPhase === 'ChampSelect' && ['Lobby', 'None', 'Matchmaking', 'ReadyCheck'].includes(lobbyPhase) && !inGame) borderlessOff();   // 닷지·취소 → 원래대로
   if (!_floating && clientFg && _lastRect) updateSlotMarker(_lastRect); else hideSlotMarker();
+  // 🚪 문 닫힌 채 게임이 아니게 됨(게임 끝·닷지·클라 종료) → 3초 안에 클라가 돌아오면 거기서 문이 열리고, 안 돌아오면 합친 창으로
+  if (_door === 'closed' && !GAME_PH.has(lobbyPhase)) setTimeout(() => { if (_door === 'closed' && _floating && !inGame && !GAME_PH.has(lobbyPhase)) floatPanels(); }, 3000);
 }
 function updateSlotMarker(p) {   // p=[L,T,R,B] 원시 px(클라 감지됨)
   const t = teamOf(sessionData, config.myName);
@@ -262,7 +308,7 @@ function updateSlotMarker(p) {   // p=[L,T,R,B] 원시 px(클라 감지됨)
 let clientFg = false, panelFg = false, _lastRaise = null, _dropTimer = null;
 let _ovFocus = false, _lfFocus = false;
 function applyRaise() {
-  if (inGame) return;   // 게임 중엔 pollGame이 오버레이 관리
+  if (inGame || _door === 'closed' || _bootWait) return;   // 게임 중엔 pollGame이 오버레이 관리 · 🚪 문 닫힌 동안·켠 직후 첫 도킹 전엔 안 띄움
   // 🪟 도킹/플로팅 모두: 패널은 항상 보임(숨기지 않음)·일반 z-order로.
   //   → 다른 앱을 클릭하면 그 창 뒤로 자연스럽게 가고(사라지지 않음), 클라를 다시 눌러도 억지로 튀어나오지(pop) 않음.
   //   (사장님 요청: "그냥 그 창 뒤로만 가면 되니까 안 사라져도 됨")
@@ -330,19 +376,26 @@ function handleDockLine(line) {
   if (_goneTimer) { clearTimeout(_goneTimer); _goneTimer = null; }   // 클라 다시 나타남 → 종료 확인 취소
   if (quitConfirmWin) closeQuitConfirm();   // 종료 확인창 떠 있으면 닫음(클라 복귀)
   _clientPresent = true;
+  const boot = _bootWait; _bootWait = false;
   // 플로팅 → 도킹 전환: 가운데로 옮겨진 창을 '같은 클라 위치'라도 반드시 다시 붙임
   //   (마지막 좌표 기억 때문에 왼쪽 창만 클라를 움직여야 붙던 문제 — 오른쪽은 게임 중 숨기며 기억이 지워져 괜찮았음)
-  if (_floating) { _floating = false; _lastRaise = null; dockedBounds = null; leftDockedBounds = null; }
+  //   🚪 v0.1.126: 켠 직후 첫 줄 = 바로 붙임 · 합친 창이었으면 좌우로 갈라지며 붙음 · 게임 끝(문 닫힘)이면 클라 가운데에서 문 열리듯
+  let ms = 0;
+  if (_floating) {
+    _floating = false; _lastRaise = null; dockedBounds = null; leftDockedBounds = null;
+    if (!boot && !inGame) ms = DOOR_MS;
+    if (_door) { _door = null; const pb0 = rectPb(p); moveWin(overlayWin, doorBounds(pb0, 'left')); moveWin(leftWin, doorBounds(pb0, 'right')); }
+  }
   _lastRect = p;
   const fg = p[4] === 1;                            // 클라 또는 우리 창이 지금 활성인가(한 묶음 — 도킹 스크립트 Snap)
   if (fg !== clientFg) { clientFg = fg; }
   const w = p[2] - p[0], h = p[3] - p[1], sig = `${p[0]},${p[1]},${w},${h}`;
   // ◀ 팀·명단 오버레이 = 클라 왼쪽 (숨김 상태여도 위치는 갱신)
-  if (sig !== dockedBounds) { dockedBounds = sig; applyDock({ x: p[0], y: p[1], w, h }); }
-  setDockedFlag(true);
+  if (sig !== dockedBounds) { dockedBounds = sig; applyDock({ x: p[0], y: p[1], w, h }, ms); }
+  setDockedFlag(true); setMerged(false);
   // ▶ 내 정보 = 클라 오른쪽
-  if (config.sidePanel !== false && !leftUserHid && sig !== leftDockedBounds) { leftDockedBounds = sig; applyDockLeft({ x: p[0], y: p[1], w, h }); }
-  evalRaise();          // 표시/숨김·위로 = 클라 활성 여부에 따라(다른 창 위에 안 뜨게)
+  if (config.sidePanel !== false && !leftUserHid && sig !== leftDockedBounds) { leftDockedBounds = sig; applyDockLeft({ x: p[0], y: p[1], w, h }, ms); }
+  if (ms || boot) applyRaise(); else evalRaise();   // 표시/숨김·위로 = 클라 활성 여부에 따라(다른 창 위에 안 뜨게) · 움직임 연출 땐 바로 보여야 보임
   updateSlotMarker(p);  // 📍 내 팀 마커
 }
 // 🪟 클라 창을 끄는 동안 위치 이벤트가 프레임보다 잦게 쏟아짐 → 줄마다 패널을 옮기면 투명창 재그리기가 밀려 끊김.
@@ -532,6 +585,7 @@ function createOverlay() {
   });
   overlayWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   overlayWin.loadFile('overlay/overlay.html');
+  overlayWin.webContents.on('did-finish-load', () => { try { overlayWin.webContents.send('merged', _merged); } catch (_) {} });
   overlayWin.on('focus', () => { _ovFocus = true; setPanelFg(); });   // 패널 클릭=활성 유지
   overlayWin.on('blur', () => { _ovFocus = false; setPanelFg(); });
   overlayWin.on('closed', () => { overlayWin = null; _ovFocus = false; setPanelFg(); });
@@ -549,6 +603,7 @@ function createLeftPanel() {
   });
   leftWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   leftWin.loadFile('sidepanel/sidepanel.html');
+  leftWin.webContents.on('did-finish-load', () => { try { leftWin.webContents.send('merged', _merged); } catch (_) {} });
   leftWin.on('focus', () => { _lfFocus = true; setPanelFg(); });   // 패널 클릭=활성 유지
   leftWin.on('blur', () => { _lfFocus = false; setPanelFg(); });
   leftWin.on('closed', () => { leftWin = null; _lfFocus = false; setPanelFg(); });
@@ -558,9 +613,9 @@ function createLeftPanel() {
 function standaloneBounds(which) {
   // 클라 없음 = 좌우 끝에 벌리지 않고 두 패널을 화면 가운데에 나란히 모음
   const wa = screen.getPrimaryDisplay().workArea;
-  const h = Math.min(760, wa.height - 100);
+  const h = Math.min(680, wa.height - 100);
   const y = Math.round(wa.y + (wa.height - h) / 2);
-  const LW = 430, RW = 380, GAP = 10;                          // 좌(팀·명단) · 우(내 정보) · 사이 간격
+  const LW = 430, RW = 380, GAP = 0;                           // 좌(팀·명단) · 우(내 정보) · 🚪 v0.1.126: 틈 없이 맞붙여 가로로 긴 한 창처럼
   const startX = Math.round(wa.x + (wa.width - (LW + GAP + RW)) / 2);
   return which === 'left'
     ? { x: startX, y, width: LW, height: h }                   // ◀ 팀·명단 오버레이(가운데 왼쪽)
@@ -568,16 +623,23 @@ function standaloneBounds(which) {
 }
 function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표시(첫 전환 때만 위치 세팅)
   if (inGame) { hideLeftPanel(); return; }   // 게임 중엔 내 정보 패널 숨김(오버레이는 pollGame이 관리)
+  if (_door === 'closed') { if (GAME_PH.has(lobbyPhase)) return; _door = null; }   // 🚪 문 닫힌 채 게임 진행 중 → 그대로 숨김 · 게임이 아니게 됐으면(닷지·클라 종료) 합친 창으로
+  const wasDocked = !_floating && !!dockedBounds;
+  _bootWait = false;
+  // 🚪 v0.1.126: 붙어 있다가 게임 시작으로 클라가 사라짐 → 문 닫히듯 가운데로 모였다가 숨음
+  if (wasDocked && GAME_PH.has(lobbyPhase) && _lastRect && config.dock !== false) { closeDoors(); return; }
   const reposition = !_floating;
   _floating = true; _lastRaise = null;
   if (reposition) { dockedBounds = null; leftDockedBounds = null; }   // 가운데로 옮겼으니 다음 도킹 때 무조건 다시 붙이기
-  for (const [win, allowed, side] of [[overlayWin, !userHid && !sampleActive, 'left'], [leftWin, config.sidePanel !== false && !leftUserHid, 'right']]) {
+  const hasRight = config.sidePanel !== false && !leftUserHid;
+  for (const [win, allowed, side] of [[overlayWin, !userHid && !sampleActive, 'left'], [leftWin, hasRight, 'right']]) {
     if (!win || win.isDestroyed() || !allowed) continue;
-    if (reposition) win.setBounds(standaloneBounds(side));
+    if (reposition) moveWin(win, standaloneBounds(side), wasDocked ? DOOR_MS : 0);   // 붙어 있다 클라를 끄면 좌우에서 가운데로 모여 한 창이 됨
     try { if (win.isAlwaysOnTop()) win.setAlwaysOnTop(false, 'normal'); } catch (_) {}   // 바뀔 때만(매 이벤트 재설정=z-order 깜빡임·v0.1.55)
     if (!win.isVisible()) win.showInactive();
   }
-  setDockedFlag(false);
+  setDockedFlag(hasRight);   // 합친 창 = 두 창이 맞닿는 쪽 테두리 없이(붙었을 때와 같은 모양)
+  setMerged(hasRight && !userHid && !sampleActive);
 }
 function showMainPanel() {   // 트레이/재실행 → 내 정보 패널(메인)을 앞으로
   if (!leftWin || leftWin.isDestroyed()) createLeftPanel();
@@ -942,7 +1004,7 @@ async function sendAugShot() {   // Shift+F8 — 지금 게임 화면 + 읽은 �
 // ── 폴링 루프 ──────────────────────────────────────────────────────────────
 async function pollGame() {
   if (replayBusy) return;   // 🎬 팟지 리플레이 녹화 중 = 리플레이 게임 창이라 실제 게임 아님(패널 숨김·「기록 저장 중」·수집이 잘못 켜지지 않게)
-  const list = await liveClientPlayerList();
+  const list = (global.__simGame !== undefined) ? (global.__simGame ? [] : null) : await liveClientPlayerList();   // 🧪 TN_DOCK_SIM 흉내(배포본엔 없음)
   const nowIn = Array.isArray(list);
   if (nowIn) { sampleActive = false; unmuteLeftover(); }   // 실게임 시작 → 미리보기 해제 · 🔇 지난 녹화에서 못 푼 리플레이 음소거가 있으면 풂
   else if (sampleActive) return;            // 미리보기 유지 중(실게임 아님) → 건드리지 않음
@@ -3024,11 +3086,15 @@ else {
     createLeftPanel();
     createSlotWin();
     _startTs = Date.now();
-    floatPanels();
+    setTimeout(() => { if (_bootWait) floatPanels(); }, 2000);   // 🚪 v0.1.126: 첫 도킹 줄을 기다림(클라 켜져 있으면 처음부터 붙은 채로) · 2초 안에 안 오면 합친 창
     squareAllPanels(); setTimeout(squareAllPanels, 1500);
     makeTray();
     globalShortcut.register(TOGGLE_HOTKEY, toggleOverlay);
-    pollGame(); pollSession(); startDockStream();
+    // 🧪 개발용 TN_DOCK_SIM=1: 롤 없이 창 연출 시험 — 진짜 도킹 감시 대신 global.__dockSim으로 클라 위치·롤 단계·게임 중을 흉내(배포본에선 무시)
+    const dockSim = !app.isPackaged && process.env.TN_DOCK_SIM;
+    if (dockSim) global.__dockSim = { line: queueDockLine, phase: (ph) => onLobbySeat({ phase: ph, seat: null, custom: null }), game: (v) => { global.__simGame = !!v; pollGame(); },
+      bounds: () => [overlayWin, leftWin].map(w => w && !w.isDestroyed() ? w.getBounds() : null), state: () => ({ _floating, _door, _bootWait, inGame }) };
+    pollGame(); pollSession(); if (!dockSim) startDockStream();
     setInterval(pollGame, 2500);
     setInterval(autoLobbyMode, 3000);   // 🔀 v0.1.82: 대기방을 먼저 감지하고 방장이 나중에 된 경우(앱 재시작·방장 이어받기)도 판단 — 대기방 종류가 바뀐 때만 실제로 바꿈
     setInterval(() => { augTick().catch(() => {}); }, 400);   // 🎯 증강 순위(켠 사람만 · 게임 중에만 실제로 읽음)

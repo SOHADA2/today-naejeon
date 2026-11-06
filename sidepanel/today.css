@@ -128,6 +128,7 @@
 .pf-aw > div.zero { background:rgba(255,255,255,0.03); border-color:var(--hair); } .pf-aw > div.zero span, .pf-aw > div.zero b { color:var(--dim); }
 /* 좁은 폭(도킹 시 300px까지) — 로고·이름이 겹치지 않게: 이름이 남는 공간을 쓰고 …으로 줄임, 좁으면 영문 라벨 숨김 */
 #sbar .s-brand { flex-shrink:0; }
+body.merged #sbar .s-brand { display:none; }   /* 🚪 합친 창 = 제목은 왼쪽 창 것만 */
 #sbar .s-me { flex:1 1 auto; min-width:0; max-width:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 #sbar .s-sp { display:none; }
 #sbar .s-hostbtn, #sbar .s-winbtn { flex-shrink:0; }
