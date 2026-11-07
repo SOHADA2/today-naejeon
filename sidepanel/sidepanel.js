@@ -267,7 +267,7 @@ function ratingRow(R, me, who) {
     const tap = st ? _pfTiers.push({ kind, season, tier: st.tier, div: st.div, s: x.s, n: x.n, w: x.w, wr: x.wr, kda: x.kda, dir: 'replay', who: me ? null : who }) - 1 : -1;
     const big = (cls, emb, main, sub) => `<div class="pf-mh ${cls}${tap >= 0 ? ' tap' : ''}"${tap >= 0 ? ` onclick="pfTierReplay(${tap})" title="눌러서 티어 공개 다시 보기"` : ''}><i class="pf-emb"><b>${emb}</b></i><div class="pf-mh-tx"><span>${label}</span><b>${main}</b><em>${sub}</em></div><button class="pf-mh-q" onclick="event.stopPropagation();this.classList.toggle('on');this.parentNode.nextElementSibling.hidden=!this.classList.contains('on')">?</button></div><div class="pf-mh-why" hidden>${why}</div>`;
     return !x ? big('none', '', '—', R ? '최근 전적 없음' : '아직 없음')
-      : st ? big('t-' + st.tier.toLowerCase(), st.div || '', tierLabel(st.tier, st.div), `${x.s}점 · ${x.n}판 ${x.w}승 · 승률 ${Math.round(x.wr * 100)}%`)
+      : st ? big('t-' + st.tier.toLowerCase(), st.div || '', tierLabel(st.tier, st.div), `<b>${x.s}점</b> · ${x.n}판 ${x.w}승 · 승률 ${Math.round(x.wr * 100)}%`)
       : big('none', '', `배치 ${x.pl || x.n}/5`, `${x.n}판 ${x.w}승 · 5판부터 티어가 나와요`);
   };
   const when = R && R.at ? `<div class="pf-rt-at">전적 기준 · ${new Date(R.at).getMonth() + 1}/${new Date(R.at).getDate()} ${String(new Date(R.at).getHours()).padStart(2, "0")}:${String(new Date(R.at).getMinutes()).padStart(2, "0")}</div>` : (me ? '<div class="pf-rt-at">롤을 켜 두면 내 전적으로 매겨져요</div>' : '');
