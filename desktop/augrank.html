@@ -38,6 +38,7 @@
     .sc { max-width:100%; overflow:hidden; text-overflow:ellipsis; }
     .pa { display:flex; flex-direction:column; align-items:center; gap:calc(var(--u) * .25); width:calc(var(--u) * 7.2); min-width:0; }
     .pa .ic { position:relative; width:calc(var(--u) * 3.9); height:calc(var(--u) * 3.9); border-radius:50%; background:#1c2632 center/cover; border:calc(var(--u) * .22) solid #8a96a3; }
+    .pa .ic.it { border-radius:14%; border-color:#c8aa6e; }   /* 🗡️ 운명의 무기 첫 템(아이템 아이콘 = 네모) */
     .pa .ic.gold { border-color:#e2b65a; } .pa .ic.prismatic { border-color:#c98bff; } .pa .ic.silver { border-color:#c9d1da; }
     .pa .ic i { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-style:normal; font-weight:900; font-size:calc(var(--u) * 1.8); color:#c9d1da; }
     .pa .nm { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:calc(var(--u) * 1.3); font-weight:800; color:#f5efe2; }
@@ -79,8 +80,11 @@
         const cbTip = !cm ? '조합 자료 없음'
           : gg ? `세 증강을 함께 고른 판 승률 ${pct(cm.wr)} · ${esc(cm.n)}판<br>aramgg${cm.p ? ' · 패치 ' + esc(cm.p) : ''}`
           : `함께 노릴 증강: ${(cm.all || cm.with.map(a => a.name)).map(esc).join(', ')}<br>${cm.src === 'arammayhem' ? 'arammayhem' : '증강 가이드'}${cm.date ? ' · ' + esc(cm.date.slice(0, 7)) : ''}`;
-        const cb = `<span class="cb${cm ? '' : ' none'}"${tip(cbTip)}><span class="hd"><span>🔗 같이 가면 좋은</span></span>`
+        let cb = `<span class="cb${cm ? '' : ' none'}"${tip(cbTip)}><span class="hd"><span>🔗 같이 가면 좋은</span></span>`
           + (cm ? `<span class="ics">${cm.with.slice(0, 2).map(a => pair(a, c)).join('')}</span>` : '<span class="ics none">조합 자료 없음</span>') + '</span>';
+        const D = c.destiny;   // 🗡️ v0.1.141 운명의 무기 카드 = 조합 칸 대신 첫 템 추천(챔피언 유형별 · 유저 가이드 기준)
+        if (D) cb = `<span class="cb"${tip(`<b>운명의 무기 첫 템</b> · ${esc(D.label)}<br>${esc(D.line)}${D.src ? '<br>' + esc(D.src) : ''}<br>첫 전설 템에 붙어 처치 관여마다 커지고, 팔 수 없어요`)}><span class="hd"><span>🗡 첫 템 추천</span></span>`
+          + ((D.items || []).length ? `<span class="ics">${D.items.slice(0, 2).map(i => `<span class="pa"><span class="ic it"${i.icon ? ` style="background-image:url('${esc(i.icon)}')"` : ''}></span><span class="nm">${esc(i.name)}</span></span>`).join('')}</span>` : `<span class="ics none">${esc(D.label)} · 원래 첫 템</span>`) + '</span>';
         const u = c.u || 10;
         document.documentElement.style.setProperty('--tu', u + 'px');
         return `<div class="bd r${r}" style="--u:${u}px;left:${Math.round(c.ax)}px;top:${Math.round(c.ay)}px;width:${Math.round((c.cw || u * 29.6) + u * 1.2)}px">${left}${cb}</div>`;

@@ -168,6 +168,12 @@ function srcNote(plans) {
   if (plans.some(p => p.src === 'aramgg' || (p.link || '').startsWith('https://aramgg.com/'))) return `<div class="ag-src">조합 출처 aramgg.com(중국 서버 경기 승률 · 참고용) · 「↗」= 원문</div>`;
   return plans.some(p => p.link) ? `<div class="ag-src">콤보·등급 출처 arammayhem.com(사이트 편집 평가 · 승률 아님) · 「설명 ↗」= 원문</div>` : '';
 }
+// 🗡️ v0.1.141 「운명의 무기」가 뜨면 첫 템(챔피언 유형별 · 유저 가이드 기준 · main destinyTip)
+function destinyH(d) {
+  if (!d) return '';
+  const its = (d.items || []).map(i => `<span class="ag-pchip"><i class="aug ag-ic ag-item">${i.icon ? `<img src="${i.icon}" alt="" onerror="this.remove()">` : ''}</i><span class="ag-pt"><b>${escH(i.name)}</b></span></span>`).join('');
+  return `<div class="ag-top ag-dest"><div class="ag-top-hd">${ageAug(3081, 'ag-ic')}<b>운명의 무기가 뜨면</b><span class="ag-patch">${escH(d.label)}</span></div>${its ? `<div class="ag-pa">${its}</div>` : ''}<div class="ag-why">${escH(d.line)}</div><div class="ag-src">${d.src ? escH(d.src) + ' · ' : ''}첫 전설 템에 붙어 처치 관여마다 커지고, 팔 수 없어요</div></div>`;
+}
 // ── 챔피언 선택 동안 보는 화면(내 챔피언 + 벤치 챔피언) ──
 function ageLive() {
   const v = AGE.live, list = v.list || [];
@@ -182,7 +188,7 @@ function ageLive() {
     const head = `<div class="ag-champ"><img src="${ageIc(c.id)}" alt="" onerror="this.remove()"><span class="ag-cn"><b>${escH(c.name || '')}</b><small>${c.mine ? '내 챔피언' : '벤치 · 바꾸면 이런 증강'}</small></span>${c.draft && plans.length ? '<span class="ag-draft" title="자료를 보고 미리 채운 초안이에요 — 써 보고 고쳐 주세요">초안</span>' : ''}</div>`;
     const top = c.guide && c.guide.top;
     const topH = top ? `<div class="ag-top"><div class="ag-top-hd"><b>이번 패치 상위 증강</b><span class="ag-patch num cur">${escH(top.patch)}</span></div><div class="ag-pa">${top.augs.map(x => { const r = rec[x.id], sub = [x.wr ? `승률 ${agPct(x.wr)}` : '', r && r.g ? `우리 ${r.g}판 ${r.w}승` : ''].filter(Boolean).join(' · '); return `<span class="ag-pchip"><span class="ag-tier ${tierCls(x.tier)}">${escH(x.tier)}</span>${ageAug(x.id, 'ag-ic')}<span class="ag-pt"><b>${escH(ageName(x.id))}</b>${sub ? `<small>${sub}</small>` : ''}</span></span>`; }).join('')}</div><div class="ag-src">${top.src === 'aramgg' ? `패치 ${escH(top.patch)} · 이 챔피언 추천 순위 · aramgg.com(중국 서버 통계)` : `패치 ${escH(top.patch)} 기준 등급 · arammayhem.com`}</div></div>` : '';
-    body = head + topH + (!plans.length && !top && !(c.guide && c.guide.avoid) ? '<div class="ag-empty">이 챔피언은 아직 준비 중이에요<small>위 「✎ 고치기」로 채우면 모두에게 바로 보여요</small></div>'
+    body = head + topH + destinyH(c.destiny) + (!plans.length && !top && !(c.guide && c.guide.avoid) ? '<div class="ag-empty">이 챔피언은 아직 준비 중이에요<small>위 「✎ 고치기」로 채우면 모두에게 바로 보여요</small></div>'
       : plans.map((p, i) => `<div class="ag-plan"><div class="ag-ph"><span class="ag-pn num">${i + 1}</span>${isGG(p) && !p.title ? `<b class="ag-wrt num">승률 ${p.wr ? agPct(p.wr) : '—'}${p.games ? `<small> · ${p.games}판</small>` : ''}</b>` : `<b>${escH(p.title || (p.src === 'ours' ? '우리가 같이 고른 짝' : p.link ? '추천 콤보' : '추천 플랜'))}</b>${planSrc(p)}`}${p.link ? (p.link.startsWith('https://aramgg.com/') ? `<button class="ag-link" data-u="${escH(p.link)}" title="aramgg에서 자세히 보기(브라우저)" aria-label="aramgg에서 자세히 보기">↗</button>` : `<button class="ag-link" data-u="${escH(p.link)}" title="원문에서 설명 보기(브라우저)">설명 ↗</button>`) : ''}</div>` +
         `<div class="ag-pa">${p.augs.map(a => { const r = rec[a]; return `<span class="ag-pchip">${ageAug(a, 'ag-ic')}<span class="ag-pt"><b>${escH(ageName(a))}</b>${r && r.g ? `<small>우리 ${r.g}판 ${r.w}승</small>` : ''}</span></span>`; }).join('')}</div>` +
         (p.why ? `<div class="ag-why">${escH(p.why)}</div>` : '') + planFoot(p) + '</div>').join('')) + avoidH(c.guide && c.guide.avoid, rec, c.guide && c.guide.gg) + srcNote(plans);

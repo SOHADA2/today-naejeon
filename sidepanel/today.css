@@ -180,6 +180,9 @@ body.merged #sbar .s-brand { display:none; }   /* 🚪 합친 창 = 제목은 �
 #ag-ed .aug b { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:var(--dim); }
 #ag-ed .aug.silver { border-color:#B9C3CC; } #ag-ed .aug.gold { border-color:#E8C46A; } #ag-ed .aug.prismatic { border-color:#C58BFF; }
 #ag-ed .aug.ag-ic { width:30px; height:30px; }
+#ag-ed .aug.ag-item { border-color:var(--gold-line); }   /* 🗡️ v0.1.141 운명의 무기 첫 템 = 아이템 아이콘 */
+#ag-ed .ag-dest { border-left-color:var(--gold); }
+#ag-ed .ag-dest .ag-top-hd .aug { width:22px; height:22px; }
 #ag-ed .aug.ag-ic-s { width:16px; height:16px; vertical-align:-3px; margin-right:3px; }
 .age-intro { font-size:11.5px; color:var(--dim); line-height:1.6; margin-bottom:8px; word-break:keep-all; }
 .age-intro b { color:var(--ink-soft); }
