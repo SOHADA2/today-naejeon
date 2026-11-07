@@ -293,7 +293,7 @@ function onLobbySeat(d) {
   lobbyPhase = d && d.phase || null; lobbySeat = d ? d.seat : null; lobbyCustom = d ? d.custom : null;
   autoLobbyMode(); autoSeat();
   if ((prevPhase === 'ChampSelect') !== (lobbyPhase === 'ChampSelect')) { if (lobbyPhase !== 'ChampSelect') { champSel = null; _champSelSig = ''; } pushAugGuide().catch(() => {}); }   // 🧭 증강 가이드 켜고 끄기
-  if (lobbyPhase === 'ChampSelect' && prevPhase !== 'ChampSelect') borderlessOn();   // 🖥️ 게임 중 정보 창 켠 사람 = 게임 뜨기 전에 테두리 없는 창으로
+  if (lobbyPhase === 'ChampSelect' && prevPhase !== 'ChampSelect') borderlessOn();   // 🎯 증강 순위 켠 사람 = 게임 뜨기 전에 테두리 없는 창으로
   else if (prevPhase === 'ChampSelect' && ['Lobby', 'None', 'Matchmaking', 'ReadyCheck'].includes(lobbyPhase) && !inGame) borderlessOff();   // 닷지·취소 → 원래대로
   if (!_floating && clientFg && _lastRect) updateSlotMarker(_lastRect); else hideSlotMarker();
   // 🚪 문 닫힌 채 게임이 아니게 됨(게임 끝·닷지·클라 종료) → 3초 안에 클라가 돌아오면 거기서 문이 열리고, 안 돌아오면 합친 창으로
@@ -784,7 +784,6 @@ function showMainPanel() {   // 트레이/재실행 → 내 정보 패널(메인
 function showOverlay() { overlayMinimized = false; if (overlayWin) { try { overlayWin.setSkipTaskbar(true); } catch (_) {} if (!overlayWin.isVisible()) overlayWin.showInactive(); } } // 게임 포커스 뺏지 않게
 function hideOverlay() { if (overlayWin && overlayWin.isVisible()) overlayWin.hide(); }
 function toggleOverlay() {
-  if (inGame && config.ingame) { ingameHidden = !ingameHidden; if (ingameHidden) hideIngame(); else ingameUpdate(_rawPlayers); return; }   // 🖥️ 게임 중엔 Shift+F7 = 게임 중 정보 창 켜기/끄기
   if (!overlayWin) return;
   if (overlayWin.isVisible()) { hideOverlay(); userHid = true; }
   else { showOverlay(); userHid = false; }
@@ -801,55 +800,9 @@ function broadcast(channel, payload) {
   for (const w of [overlayWin, leftWin]) if (w && !w.isDestroyed()) w.webContents.send(channel, payload);
 }
 
-// ── 🖥️ 게임 중 정보 창(v0.1.77 · 설정에서 켠 사람만) ─────────────────────────────
-// 롤 화면 위쪽 가운데에 작은 띠 = 우리 팀/상대 팀 아이템 골드 합(=모은 골드 추정)·킬·평균 레벨 — 라이브 클라이언트(2999) playerlist, 2.5초마다
-// ⚖️ 라이엇 정책: 게임 안 점수판(Tab)에 보이는 정보(아이템·킬·레벨)만 합쳐 보여줌 · 상대 쿨타임·안 보이는 정보 X · 클릭 통과(게임 조작 안 막음)
-// 전체 화면(WindowMode=0)이면 어떤 창도 게임 위에 못 뜸 → 켜 두면 챔피언 선택 때 game.cfg를 「테두리 없는 창」(2)으로 바꾸고 게임 끝나면 원래대로
-let ingameWin = null, ingameHidden = false, _rawPlayers = [], _itemPrice = null;
-const ITEMS_URL = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/items.json';
-async function itemPrices() {   // 아이템 번호 → 총 가격(priceTotal) · 12시간 · userData 보관
-  if (_itemPrice && Date.now() - _itemPrice.at < 12 * 3600e3) return _itemPrice.map;
-  const file = path.join(app.getPath('userData'), 'items-cache.json');
-  try { const list = await getJson(ITEMS_URL); if (Array.isArray(list) && list.length) { const map = {}; for (const it of list) if (it && it.id) map[it.id] = it.priceTotal || 0; _itemPrice = { at: Date.now(), map }; try { fs.writeFileSync(file, JSON.stringify(map)); } catch (_) {} return map; } } catch (_) {}
-  if (!_itemPrice) { try { _itemPrice = { at: Date.now() - 11 * 3600e3, map: JSON.parse(fs.readFileSync(file, 'utf8')) }; } catch (_) { _itemPrice = { at: Date.now() - 11.9 * 3600e3, map: {} }; } }
-  return _itemPrice.map;
-}
-function ingameSummary(list, prices, me) {   // → {my:'ORDER'|'CHAOS'|null, t:{ORDER:{gold,kills,lv,n}, CHAOS:{…}}, label:{ORDER,CHAOS}}
-  const t = { ORDER: { gold: 0, kills: 0, lv: 0, n: 0 }, CHAOS: { gold: 0, kills: 0, lv: 0, n: 0 } };
-  let my = null;
-  for (const p of list || []) {
-    const x = t[p.team]; if (!x) continue;
-    x.n++; x.lv += p.level || 0; x.kills += (p.scores && p.scores.kills) || 0;
-    for (const it of p.items || []) x.gold += ((prices && prices[it.itemID]) || it.price || 0) * (it.count > 1 && it.consumable ? it.count : 1);
-    const nm = norm(p.riotIdGameName || p.summonerName || (typeof p.riotId === 'string' ? p.riotId.split('#')[0] : ''));
-    if (me && nm === norm(me)) my = p.team;
-  }
-  for (const k of ['ORDER', 'CHAOS']) t[k].lv = t[k].n ? Math.round(t[k].lv / t[k].n * 10) / 10 : 0;
-  const s = sessionData && ['teams', 'vote', 'result'].includes(sessionData.phase) ? sessionData : null;   // 내전이면 1팀/2팀 이름(1팀 = 대기방 왼쪽 = ORDER)
-  return { my, t, label: s ? { ORDER: '1팀', CHAOS: '2팀' } : null };
-}
-function ingameBounds() {
-  const W = 420, H = 62;
-  let d = screen.getPrimaryDisplay();
-  if (_lastRect) { const sf = d.scaleFactor || 1; d = screen.getDisplayNearestPoint({ x: Math.round(_lastRect[0] / sf), y: Math.round(_lastRect[1] / sf) }) || d; }   // 롤 클라가 있던 모니터
-  const b = d.bounds;
-  return { x: Math.round(b.x + (b.width - W) / 2), y: b.y + 2, width: W, height: H };
-}
-async function ingameUpdate(list) {
-  if (!config.ingame || !inGame || ingameHidden || replayBusy) return;
-  const v = ingameSummary(list, await itemPrices(), (account && account.gameName) || config.myName);
-  if (ingameWin && !ingameWin.isDestroyed()) { try { ingameWin.webContents.send('ingame', v); } catch (_) {} return; }
-  ingameWin = new BrowserWindow(Object.assign(ingameBounds(), {
-    frame: false, transparent: true, resizable: false, movable: false, focusable: false, skipTaskbar: true, alwaysOnTop: true, show: false, hasShadow: false, roundedCorners: false,
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
-  }));
-  ingameWin.setAlwaysOnTop(true, 'screen-saver'); ingameWin.setIgnoreMouseEvents(true);
-  ingameWin.webContents.on('did-finish-load', () => { if (ingameWin && !ingameWin.isDestroyed()) { ingameWin.webContents.send('ingame', v); ingameWin.showInactive(); } });
-  ingameWin.on('closed', () => { ingameWin = null; });
-  ingameWin.loadFile('desktop/ingame.html');
-}
-function hideIngame() { if (ingameWin && !ingameWin.isDestroyed()) { try { ingameWin.destroy(); } catch (_) {} } ingameWin = null; }
-function borderlessOn() { try { if (replayRec && (config.ingame || config.augRank)) replayRec.borderlessOn(); } catch (_) {} }   // 정보 창·증강 순위 둘 다 게임 위에 떠야 함
+// 🖥️ 게임 중 정보 창(v0.1.77 · 양 팀 아이템 골드·킬 띠)은 v0.1.136에서 뺌(사장님: 딱히 도움이 안 됨) · _rawPlayers(2999 playerlist)는 내 챔피언 찾기(myRaw·디스코드 상태)에 계속 씀
+let _rawPlayers = [];
+function borderlessOn() { try { if (replayRec && config.augRank) replayRec.borderlessOn(); } catch (_) {} }   // 증강 순위가 게임 위에 떠야 함(테두리 없는 창)
 function borderlessOff() { try { if (replayRec) replayRec.borderlessOff(); } catch (_) {} }
 
 // ── 🎯 증강 순위(v0.1.78 · 설정에서 켠 사람만 · 베타) ─────────────────────────────
@@ -1156,10 +1109,9 @@ async function pollGame() {
     else { setTimeout(tryInstallUpdate, 90000); hideOverlay(); userHid = false; latestPlayers = []; _lastRaise = null; evalRaise(); recGameEnded(); if (potg) potg.stopCollect(bridge.getGameId()).catch(() => {}); }   // 🎬 수집 올림   // 게임 종료 → 로비 층위 재적용 · 📼 「기록 저장 중」 시작
     broadcast('state', { inGame, label: inGame ? '게임 중' : '대기' });
     if (!inGame) { setTimeout(() => ratingUpdate(true), 90000);   // 🏅 판 끝 → 전적에 들어간 뒤 점수 다시
-      _rawPlayers = []; ingameHidden = false; hideIngame(); hideAugRank(); ocrStop(); augState.showing = null; setTimeout(() => { if (!inGame) borderlessOff(); }, 4000); }
-    else { _ingameAt = Date.now(); Object.assign(augState, { hot: 0, lastLv: 0, showing: null, champId: 0, n: 0 }); }   // 🎯 새 게임 → 증강 순위 처음부터   // 🖥️ 게임 끝 → 정보 창 닫고 화면 모드 원래대로
+      _rawPlayers = []; hideAugRank(); ocrStop(); augState.showing = null; setTimeout(() => { if (!inGame) borderlessOff(); }, 4000); }
+    else { _ingameAt = Date.now(); Object.assign(augState, { hot: 0, lastLv: 0, showing: null, champId: 0, n: 0 }); }   // 🎯 새 게임 → 증강 순위 처음부터
   }
-  if (inGame && config.ingame && !ingameHidden) ingameUpdate(_rawPlayers);
   broadcast('players', { players: latestPlayers });
 }
 
@@ -3257,7 +3209,7 @@ ipcMain.handle('discord-connect', () => dcConnect());
 ipcMain.handle('discord-unlink', () => { config.discordGuild = null; saveConfig(); _dcLinked = null; dcLink(); broadcastSettings(); return true; });
 const dcView = () => ({ app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null, guild: dcGuildOf() ? dcGuildOf().name || '서버' : null, connecting: !!_dcConn });
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
-const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, ingame: !!config.ingame, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
+const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
 ipcMain.handle('settings-get', () => settingsView());
 ipcMain.on('tutorial-open', () => {   // 📘 ⚙ 설정 「사용법 다시 보기」 → 왼쪽 창에 튜토리얼
@@ -3278,13 +3230,8 @@ ipcMain.handle('settings-set', (_e, { key, value }) => {
   else if (key === 'autoSeat') { config.autoSeat = !!value; if (value) { _seatDone = null; _seatKey = null; autoSeat(); } }   // 🪑
   else if (key === 'augRank') {   // 🎯 증강 순위(베타) — 게임 위에 떠야 해서 테두리 없는 창도 같이
     config.augRank = !!value;
-    if (!config.augRank) { hideAugRank(); ocrStop(); try { globalShortcut.unregister(AUG_SHOT_KEY); } catch (_) {} if (!inGame && !config.ingame) borderlessOff(); }
+    if (!config.augRank) { hideAugRank(); ocrStop(); try { globalShortcut.unregister(AUG_SHOT_KEY); } catch (_) {} if (!inGame) borderlessOff(); }
     else { regAugShot(); if (lobbyPhase === 'ChampSelect') borderlessOn(); }
-  }
-  else if (key === 'ingame') {   // 🖥️ 게임 중 정보 창 — 끄면 바꿔 둔 화면 모드도 원래대로(게임 중이면 끝나고)
-    config.ingame = !!value;
-    if (!config.ingame) { hideIngame(); if (!inGame && !config.augRank) borderlessOff(); }
-    else if (lobbyPhase === 'ChampSelect') borderlessOn();
   }
   else return settingsView();
   saveConfig(); broadcastSettings();
