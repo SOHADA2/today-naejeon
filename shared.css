@@ -192,6 +192,7 @@ body { -webkit-font-smoothing:antialiased; font-feature-settings:'tnum' 0; lette
 .trv-why b { color:#F0E6D2; }
 .trv-btns { display:flex; gap:6px; width:100%; margin-top:6px; }
 .trv-btns button { padding:8px 12px; font-size:12.5px; font-weight:700; cursor:pointer; }
-.trv-q { width:34px; flex:none; color:var(--dim); background:transparent; border:1px solid var(--hair); clip-path:var(--cut-sm); }
+.trv-card { position:relative; }
+.trv-q { position:absolute; top:10px; right:10px; width:22px; height:22px; padding:0; font:800 11px var(--f-body); cursor:pointer; color:var(--dim); background:transparent; border:1px solid var(--hair); }   /* v0.1.147 근거 「?」 = 카드 오른쪽 위(프로필 티어 칸과 같은 자리 · 확인 버튼 옆이 어색했음) */
 .trv-q.on { color:var(--tc); border-color:var(--tc); }
 .trv-ok { flex:1; }
