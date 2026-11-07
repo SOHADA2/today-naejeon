@@ -14,12 +14,21 @@ el('ov-min').addEventListener('click', () => window.api.overlayMinimize());
 
 window.api.onState(({ inGame: ig }) => { const was = inGame; inGame = !!ig; if (inGame && !was) _gamePlayed = true; render(); });
 window.api.onPlayers(({ players }) => { roster = players || []; render(); });
+let _sessInit = false;
 function applySession({ session, myName: mn, isHost }) {
   const prevPhase = sessionData && sessionData.phase;
   sessionData = session || null;
   const f = (session && session.teamsFormedAt) || 0;
+  const newTeams = !!(f && f !== _lastFormedSeen && _sessInit);   // 켜고 처음 받은 판 상태(옛 팀)는 소리 안 냄
+  _sessInit = true;
   if (f && f !== _lastFormedSeen) { _lastFormedSeen = f; _gamePlayed = false; }
   if (mn !== undefined) myName = mn || '';
+  // 🔊 v0.1.139 팀 확정 효과음(사장님: 팀 바뀔 때 짧게) — 내 팀 색 「둥–툭–둥」(픽 효과음과 같은 파일) · 막 짜진 팀만(1분 안 · PC 시계 차이 여유) · 관전은 없음
+  //   드래프트는 마지막 픽 때 이미 같은 소리가 나서 건너뜀 · 크기 = ⚙ 효과음 설정
+  if (newTeams && session.phase === 'teams' && session.mode !== 'draft' && Date.now() - f < 60000 && myName) {
+    const me = nn(myName), A = (session.teamA || []).some(x => nn(x) === me), B = (session.teamB || []).some(x => nn(x) === me);
+    if (A || B) pickSound(A);
+  }
   if (isHost !== undefined) myIsHost = !!isHost;
   if (session && session.phase !== prevPhase) _todayAt = 0;   // 단계 바뀜(경기 기록됨 등) → 오늘 순위 새로
   render();
