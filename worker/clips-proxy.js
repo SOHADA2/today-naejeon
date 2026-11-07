@@ -137,12 +137,13 @@ const T1 = /(^|[^0-9])1\s*팀|팀\s*1(?![0-9])|team\s*1(?![0-9])/i, T2 = /(^|[^0
 const isTeam = c => T1.test(c.name) || T2.test(c.name);
 function dc(env, method, p, body) {
   return fetch(`${env.DISCORD_API || DAPI}${p}`, { method, body: body ? JSON.stringify(body) : undefined,
-    headers: { Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`, 'Content-Type': 'application/json', 'User-Agent': 'DiscordBot (https://sohada2.github.io/today-naejeon/, 1)' } });
+    headers: { Authorization: `Bot ${String(env.DISCORD_BOT_TOKEN).trim().replace(/^Bot\s+/i, '')}`, 'Content-Type': 'application/json', 'User-Agent': 'DiscordBot (https://sohada2.github.io/today-naejeon/, 1)' } });
 }
-let _dg = null;
+let _dg = null, _dgErr = null;
 async function dcGuilds(env) {   // 봇이 들어가 있는 서버마다 음성 채널(1분 보관)
   if (_dg && Date.now() - _dg.at < 60e3) return _dg.list;
-  const r = await dc(env, 'GET', '/users/@me/guilds'); if (!r.ok) return [];
+  const r = await dc(env, 'GET', '/users/@me/guilds'); if (!r.ok) { _dgErr = `guilds ${r.status}`; return []; }
+  _dgErr = null;
   const list = await Promise.all((await r.json()).slice(0, 10).map(async g => {
     const c = await dc(env, 'GET', `/guilds/${g.id}/channels`);
     const chans = c.ok ? (await c.json()).filter(x => x.type === 2).map(x => ({ id: x.id, name: x.name || '', parent: x.parent_id || null, pos: x.position || 0 })).sort((a, b) => a.pos - b.pos) : [];
@@ -160,7 +161,7 @@ async function dcPatch(env, gid, uid, cid) {   // 429면 디스코드가 말한 
 }
 async function discordMove(env, moves) {
   const G = await dcGuilds(env);
-  if (!G.length) return { err: 'no guild', moved: [] };
+  if (!G.length) return { err: _dgErr || 'no guild', moved: [] };
   const plan = await Promise.all(moves.map(async m => {   // 지금 어느 서버·채널에 있는지(서버마다 물어봄)
     for (const g of G) {
       const r = await dc(env, 'GET', `/guilds/${g.id}/voice-states/${m.id}`);
