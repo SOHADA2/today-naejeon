@@ -3060,7 +3060,7 @@ function refreshTrayMenu(updateReady) {
     { label: '투데이 내전 종료', click: () => { app._quitting = true; app.quit(); } },
   ];
   if (_updateReady) items.unshift(
-    { label: '🔄 지금 업데이트 (재시작)', click: () => { app._quitting = true; try { autoUpdater.quitAndInstall(); } catch (_) { app.quit(); } } },
+    { label: '🔄 지금 업데이트 (재시작)', click: () => installUpdateNow() },
     { type: 'separator' },
   );
   tray.setContextMenu(Menu.buildFromTemplate(items));
@@ -3109,7 +3109,7 @@ ipcMain.on('quit-confirm', (_e, yes, noAsk) => {
   }
   if (yes && !_clientPresent) { app._quitting = true; app.quit(); }
 });
-ipcMain.on('update-now', () => { app._quitting = true; try { autoUpdater.quitAndInstall(); } catch (_) { app.quit(); } });
+ipcMain.on('update-now', () => installUpdateNow());
 ipcMain.handle('update-info', () => updView());
 ipcMain.on('update-check', () => checkUpdate());
 // ── 🎧 디스코드(v0.1.130) — ① 디스코드 프로필에 지금 상태 ② 팀이 짜지면 음성 채널 1팀/2팀으로 자동 나누기(방장 앱 → 중계 봇) ─────────
@@ -3501,7 +3501,10 @@ else {
 // v0.1.39: 업데이트 알림 = 오른쪽 아래 따로 뜨는 창(게임 중에도 튀어나옴) 대신 왼쪽·오른쪽 창 안에(머리 아래 알림 줄 + ⚙ 점 + 설정의 버전 칸)
 const upd = { state: 'idle', version: null, pct: 0 };   // idle·checking·downloading·ready·latest·error·dev
 const updView = () => Object.assign({ cur: app.getVersion() }, upd);
-function setUpd(p) { Object.assign(upd, p); broadcast('update', updView()); }
+function setUpd(p) {
+  if (upd.state === 'updated' && !p.force && (p.state === 'latest' || p.state === 'checking')) return;   // ✅ 「업데이트됐어요」 몇 초는 확인 결과로 덮지 않음
+  delete p.force; Object.assign(upd, p); broadcast('update', updView());
+}
 function checkUpdate() {
   if (!app.isPackaged) { setUpd({ state: 'dev' }); return; }
   if (upd.state === 'downloading' || upd.state === 'ready') return;
@@ -3514,10 +3517,19 @@ function checkUpdate() {
 let _wantInstall = false;
 function tryInstallUpdate() {
   if (!_wantInstall || upd.state !== 'ready' || inGame || replayBusy || !app.isPackaged) return;
-  app._quitting = true;
-  try { autoUpdater.quitAndInstall(true, true); } catch (_) { app.quit(); }   // 조용히 설치 + 설치 뒤 다시 켜기
+  installUpdateNow();
+}
+// 🔄 v0.1.143 설치 = 언제나 조용히(사장님: 설치할 때 톤앤매너 안 맞는 창 — 「지금 업데이트」는 설치 프로그램 기본 창이 떴음) + 다시 켜기
+//   창이 없는 몇 초 동안 모르고 다시 켜지 않게 우리 창 머리 아래 금색 줄 「설치 중」을 1.2초 보여 주고 끔 · 다시 켜지면 「v… 로 업데이트됐어요」(config.lastVer)
+let _installing = false;
+function installUpdateNow() {
+  if (_installing) return; _installing = true;
+  setUpd({ state: 'installing' });
+  setTimeout(() => { app._quitting = true; try { autoUpdater.quitAndInstall(true, true); } catch (_) { app.quit(); } }, 1200);
 }
 function setupAutoUpdate() {
+  { const was = config.lastVer, now = app.getVersion();   // ✅ 방금 업데이트됨 → 몇 초 알림 줄
+    if (was !== now) { config.lastVer = now; saveConfig(); if (was) { setTimeout(() => { if (upd.state === 'idle' || upd.state === 'latest' || upd.state === 'checking') setUpd({ state: 'updated', from: was }); }, 2500); setTimeout(() => { if (upd.state === 'updated') setUpd({ state: 'latest', from: null, force: true }); }, 11000); } } }
   if (!app.isPackaged) { upd.state = 'dev'; return; }
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;

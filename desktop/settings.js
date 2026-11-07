@@ -25,17 +25,21 @@
     strip.querySelector('.tn-up-x').onclick = () => { hideStrip = true; renderStrip(); };
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
   }
-  function updateNow() { if (confirm('지금 업데이트할까요?\n투데이 내전이 잠깐 꺼졌다가 새 버전으로 다시 켜져요.')) api.updateNow(); }
+  function updateNow() { api.updateNow(); }   // v0.1.143: 윈도우 기본 확인 창 뺌(톤앤매너) — 누르면 「설치 중」 줄 → 조용히 설치 → 다시 켜짐
   const upLine = () => ({
     ready: [`새 버전 <b>v${esc(U.version)}</b> 준비됨`, 'gold'], downloading: [`새 버전 v${esc(U.version || '')} 받는 중 · ${U.pct || 0}%`, ''], checking: ['새 버전 확인 중…', ''],
+    installing: [`새 버전 v${esc(U.version || '')} 설치 중 · 몇 초 뒤 다시 켜져요`, 'gold'], updated: [`v${esc(U.cur || '')}로 업데이트됐어요`, 'ok'],
     latest: ['최신 버전이에요', 'ok'], error: ['업데이트를 확인하지 못했어요', 'err'], dev: ['개발 실행(자동 업데이트 꺼짐)', ''], idle: ['', ''],
   }[U.state] || ['', '']);
   function renderStrip() {
     if (!ui) return;
-    const ready = U.state === 'ready';
+    const ready = U.state === 'ready', inst = U.state === 'installing', done = U.state === 'updated';
     gear.classList.toggle('has-up', ready);
-    strip.style.display = ready && !hideStrip ? '' : 'none';
+    strip.style.display = (ready && !hideStrip) || inst || done ? '' : 'none';
+    strip.classList.toggle('busy', inst || done);   // 설치 중·업데이트됨 = 버튼 숨김
     if (ready) strip.querySelector('.tn-up-tx').innerHTML = `<span>🔄 새 버전 <b>v${esc(U.version)}</b> 준비됨</span><small>재시작하면 바로 적용돼요</small>`;
+    else if (inst) strip.querySelector('.tn-up-tx').innerHTML = `<span>🔄 새 버전 <b>v${esc(U.version || '')}</b> 설치 중</span><small>몇 초 뒤 다시 켜져요 · 끄지 마세요</small>`;
+    else if (done) strip.querySelector('.tn-up-tx').innerHTML = `<span>✅ <b>v${esc(U.cur || '')}</b>로 업데이트됐어요</span><small>${U.from ? `v${esc(U.from)}에서` : ''}</small>`;
   }
   const tog = (key, label, sub) => `<label class="tn-row"><span class="tn-row-tx"><b>${label}</b>${sub ? `<small>${sub}</small>` : ''}</span><input type="checkbox" class="tn-sw" data-k="${key}" ${S[key] ? 'checked' : ''}></label>`;
   function renderPanel() {
