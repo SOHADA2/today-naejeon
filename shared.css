@@ -178,6 +178,12 @@ body { -webkit-font-smoothing:antialiased; font-feature-settings:'tnum' 0; lette
 .trv-emb::before { content:''; position:absolute; inset:7px; background:linear-gradient(180deg, rgba(0,0,0,0.22), rgba(0,0,0,0.05)); clip-path:polygon(50% 0, 100% 20%, 100% 68%, 50% 100%, 0 68%, 0 20%); }
 .trv-emb i { position:absolute; top:0; bottom:0; left:0; width:40%; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.75), transparent); opacity:0; }
 .trv-emb b { position:relative; font-size:34px; font-weight:700; color:rgba(8,12,20,0.82); }
+/* 🏅 v0.1.146 실제 롤 승급 모션(1280×720 투명 영상 · 가운데 문장만 크게) · 강등 = 실제 문장 그림 */
+.trv-vid { position:relative; width:100%; height:150px; margin:2px 0 0; overflow:hidden; }
+.trv-vid video { position:absolute; left:50%; top:50%; width:520px; transform:translate(-50%,-50%); pointer-events:none; }
+.trv-vid img { position:absolute; }
+.trv-emb.rk { width:120px; height:100px; background:none; clip-path:none; overflow:visible; } .trv-emb.rk::before { display:none; }
+.trv-emb.rk img { position:absolute; }
 .trv-name { font-size:26px; font-weight:800; color:var(--tc); line-height:1.2; }
 .trv-name .num { font-size:28px; }
 .trv-sub { font-size:12.5px; color:var(--ink-soft); }

@@ -392,3 +392,9 @@ body.merged #sbar .s-brand { display:none; }   /* 🚪 합친 창 = 제목은 �
 #ag-ed .hn-it { display:inline-flex; flex-direction:column; align-items:center; gap:2px; width:44px; } #ag-ed .hn-it img { width:28px; height:28px; border:1px solid var(--gold-line); }
 #ag-ed .hn-it small { max-width:100%; font-size:10px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 #ag-ed .hn-ar { font-style:normal; color:var(--dim); font-size:11px; margin-bottom:12px; }
+/* 🏅 v0.1.146 프로필 티어 = 실제 롤 문장(2560×1440 그림의 가운데 문장만 잘라 보임) + 단계 숫자(오른쪽 아래 작은 칩) */
+.pf-emb.rk { position:relative; width:66px; height:56px; background:none; clip-path:none; display:block; }
+.pf-emb.rk .rk-c { position:absolute; inset:0; overflow:hidden; }
+.pf-emb.rk img { position:absolute; filter:drop-shadow(0 0 6px color-mix(in srgb, var(--tc) 45%, transparent)); }   /* 크기·자리 = tnEmblem(티어마다 실측) */
+.pf-emb.rk b { position:absolute; right:-4px; bottom:-3px; min-width:17px; height:17px; padding:0 3px; display:grid; place-items:center; font:800 12px var(--f-num); color:#0b1018; background:var(--tc); }
+@media (max-width: 340px) { .pf-emb.rk { zoom:0.82; } }

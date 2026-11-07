@@ -266,7 +266,9 @@ function ratingRow(R, me, who) {
     const st = x && x.s != null && x.n >= 5 ? scoreTier(x.s) : null;
     const why = x && x.n ? `${src} <b>${x.n}판</b>(${from}) 기준으로 매겼어요 · 점수 = 승률 + 경기력(팀 안 딜 순위·킬 관여·KDA) · 최근 판일수록 크게 · 8점마다 한 티어 · <b>우리끼리 점수</b>(공식 랭크 아님)` : `${none} · 우리끼리 점수(공식 랭크 아님)`;
     const tap = st ? _pfTiers.push({ kind, season, tier: st.tier, div: st.div, s: x.s, n: x.n, w: x.w, wr: x.wr, kda: x.kda, dir: 'replay', who: me ? null : who }) - 1 : -1;
-    const big = (cls, emb, main, sub) => `<div class="pf-mh ${cls}${tap >= 0 ? ' tap' : ''}"${tap >= 0 ? ` onclick="pfTierReplay(${tap})" title="눌러서 티어 공개 다시 보기"` : ''}><i class="pf-emb"><b>${emb}</b></i><div class="pf-mh-tx"><span>${label}</span><b>${main}</b><em>${sub}</em></div><button class="pf-mh-q" onclick="event.stopPropagation();this.classList.toggle('on');this.parentNode.nextElementSibling.hidden=!this.classList.contains('on')">?</button></div><div class="pf-mh-why" hidden>${why}</div>`;
+    // 🏅 v0.1.146(사장님: 티어가 조금 이상 → 실제 롤 티어 문장·모션) — 티어가 나온 칸 = 롤 클라이언트 문장 그림(CommunityDragon ranked-emblem) + 단계 숫자 · 배치·없음 = 예전 육각
+    const embH = (cls, emb) => st && cls.startsWith('t-') ? `<i class="pf-emb rk"><span class="rk-c">${window.tnEmblem ? window.tnEmblem(cls.slice(2), 66, 56) : ''}</span>${emb ? `<b class="num">${emb}</b>` : ''}</i>` : `<i class="pf-emb"><b>${emb}</b></i>`;
+    const big = (cls, emb, main, sub) => `<div class="pf-mh ${cls}${tap >= 0 ? ' tap' : ''}"${tap >= 0 ? ` onclick="pfTierReplay(${tap})" title="눌러서 티어 공개 다시 보기"` : ''}>${embH(cls, emb)}<div class="pf-mh-tx"><span>${label}</span><b>${main}</b><em>${sub}</em></div><button class="pf-mh-q" onclick="event.stopPropagation();this.classList.toggle('on');this.parentNode.nextElementSibling.hidden=!this.classList.contains('on')">?</button></div><div class="pf-mh-why" hidden>${why}</div>`;
     return !x ? big('none', '', '—', R ? '최근 전적 없음' : '아직 없음')
       : st ? big('t-' + st.tier.toLowerCase(), st.div || '', tierLabel(st.tier, st.div), `<b>${x.s}점</b> · ${x.n}판 ${x.w}승 · 승률 ${Math.round(x.wr * 100)}%`)
       : big('none', '', `배치 ${x.pl || x.n}/5`, `${x.n}판 ${x.w}승 · 5판부터 티어가 나와요`);
