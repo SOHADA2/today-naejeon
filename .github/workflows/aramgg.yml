@@ -23,6 +23,6 @@ jobs:
       - name: 올리기(바뀐 것만)
         run: |
           git add docs/data/aramgg
-          if git diff --cached --quiet -- docs/data/aramgg/c; then echo "챔피언 자료 그대로 — 커밋 안 함"; exit 0; fi
+          if git diff --cached --quiet -- docs/data/aramgg/c docs/data/aramgg/patches.json; then echo "챔피언 자료·패치 노트 그대로 — 커밋 안 함"; exit 0; fi
           git -c user.name=bot -c user.email=bot@users.noreply.github.com commit -qm "🧭 aramgg 증강 통계 $(date -u +%F)"
           git pull -q --rebase origin main && git push -q origin HEAD:main

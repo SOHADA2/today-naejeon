@@ -351,3 +351,34 @@ body.merged #sbar .s-brand { display:none; }   /* 🚪 합친 창 = 제목은 �
 .pf-mh-tx em { font-style:normal; font-size:10.5px; color:var(--ink-soft); font-family:var(--f-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 @media (max-width: 340px) { .pf-mh { gap:8px; padding:11px 7px 11px 10px; } .pf-emb { width:36px; height:43px; } .pf-emb b { font-size:17px; } .pf-mh-tx > b { font-size:20px; line-height:26px; } .pf-mh::before { width:76px; height:76px; } }   /* 300px 도킹 폭에서 「플래티넘 3」이 안 잘리게 */
 .pf-rt-at { margin:0 2px 12px; font-size:10px; color:var(--dim); }
+
+/* 📰 v0.1.144 패치 노트(증강 아래 「패치」 탭) — 패치마다 접기 · 신규 = 아이콘·이름·설명 · 조정 = 「기본 피해량 50–125 → 25–125」(전 = 흐린 취소선 · 후 = 금색) */
+#pn-body .pn-p { margin-bottom:10px; background:rgba(17,27,36,.7); border:1px solid var(--line); border-left:2px solid var(--gold-line); }
+#pn-body .pn-p[open] { border-left-color:var(--gold); }
+#pn-body summary { list-style:none; display:flex; align-items:center; gap:8px; padding:10px 10px; cursor:pointer; min-width:0; }
+#pn-body summary::-webkit-details-marker { display:none; }
+#pn-body .pn-v { font-size:14px; color:var(--ink); white-space:nowrap; } #pn-body .pn-v .num { color:var(--gold-hi); font-size:16px; }
+#pn-body .pn-d { font-size:11px; color:var(--dim); }
+#pn-body .pn-chips { display:flex; gap:4px; margin-left:auto; flex-wrap:wrap; justify-content:flex-end; min-width:0; }
+#pn-body .pn-chips em { font-style:normal; font-size:10.5px; font-weight:800; padding:1px 6px; color:var(--ink-soft); background:rgba(255,255,255,.06); border:1px solid var(--hair); white-space:nowrap; }
+#pn-body .pn-chips em.new { color:#0b1020; background:#8f98f2; border-color:#8f98f2; } #pn-body .pn-chips em.etc { color:var(--dim); }
+#pn-body .pn-car { flex:none; color:var(--dim); font-size:12px; transition:transform .15s; } #pn-body .pn-p[open] .pn-car { transform:rotate(180deg); }
+#pn-body .pn-sec { margin:6px 10px 6px; padding-top:6px; border-top:1px solid var(--hair); font-size:11.5px; font-weight:800; color:var(--gold-hi); }
+#pn-body .aug { position:relative; display:inline-block; flex:none; width:28px; height:28px; overflow:hidden; background:var(--bg-3); border:1.5px solid var(--mute); border-radius:3px; }
+#pn-body .aug img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+#pn-body .aug.silver { border-color:#B9C3CC; } #pn-body .aug.gold { border-color:#E8C46A; } #pn-body .aug.prismatic { border-color:#C58BFF; }
+#pn-body .pn-new { display:flex; flex-direction:column; gap:5px; padding:0 10px 4px; }
+#pn-body .pn-na { display:flex; gap:8px; align-items:flex-start; padding:6px; background:var(--bg-1); border:1px solid var(--hair); min-width:0; }
+#pn-body .pn-nt { display:flex; flex-direction:column; gap:2px; min-width:0; } #pn-body .pn-nt b { font-size:12.5px; color:var(--ink); }
+#pn-body .pn-nt small { font-size:11px; line-height:1.45; color:var(--ink-soft); word-break:keep-all; }
+#pn-body .pn-our { font-size:10.5px; font-weight:700; color:#8fd3c7; white-space:nowrap; }
+#pn-body .pn-ch { margin:0 10px 6px; padding:6px 7px; background:var(--bg-1); border:1px solid var(--hair); }
+#pn-body .pn-ch-hd { display:flex; align-items:center; gap:7px; min-width:0; margin-bottom:3px; } #pn-body .pn-ch-hd b { font-size:12.5px; color:var(--ink); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#pn-body .pn-l { font-size:11.5px; line-height:1.5; color:var(--ink-soft); padding-left:35px; word-break:keep-all; }
+#pn-body .pn-l .k { color:var(--dim); margin-right:4px; } #pn-body .pn-l .k::after { content:":"; }
+#pn-body .pn-l s { color:var(--dim); } #pn-body .pn-l i { font-style:normal; color:var(--dim); margin:0 4px; } #pn-body .pn-l b { color:var(--gold-hi); font-weight:700; }
+#pn-body .pn-ul { margin:0 10px 6px 26px; padding:0; } #pn-body .pn-ul li { font-size:11.5px; line-height:1.55; color:var(--ink-soft); word-break:keep-all; margin-bottom:2px; }
+#pn-body .pn-src { margin:8px 10px 10px; font-size:10.5px; color:var(--mute); line-height:1.4; } #pn-body .pn-link { padding:0; font:inherit; color:var(--gold-hi); background:none; border:none; cursor:pointer; text-decoration:underline; }
+#pn-body .pn-v2 { display:inline-block; white-space:nowrap; }   /* 「50–125 → 25–125」는 한 덩어리(300px에서 수치 중간이 꺾이던 것) */
+@media (max-width: 340px) { #pn-body .pn-l { padding-left:2px; } #pn-body .pn-chips { flex-direction:row; } }
+#pn-body .pn-bf, #pn-body .pn-af { display:block; } #pn-body .pn-af i { margin-left:0; }

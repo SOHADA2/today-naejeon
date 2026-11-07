@@ -127,6 +127,7 @@ function switchCat(cat) {
   if (cat === 'team') renderLive();
   else if (cat === 'profile') renderProfile();
   else if (cat === 'aug') renderAugEdit();
+  else if (cat === 'patch') renderPatch();   // 📰 v0.1.144 (patchnotes.js)
   else renderToday();
 }
 document.querySelectorAll('.rail-btn').forEach(b => b.addEventListener('click', () => switchCat(b.dataset.cat)));

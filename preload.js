@@ -97,6 +97,7 @@ contextBridge.exposeInMainWorld('api', {
   getAugGuideHist: (champId) => ipcRenderer.invoke('augguide-hist', champId),            // ✍️ 그 챔피언 고친 기록
   getAugGuideRecent: () => ipcRenderer.invoke('augguide-recent'),                        // ✍️ 최근 고친 것(모든 챔피언)
   restoreAugGuide: (champId, k, which) => ipcRenderer.invoke('augguide-restore', { champId, k, which }),   // ✍️ 되돌리기
+  getAugPatches: () => ipcRenderer.invoke('aug-patches'),                   // 📰 v0.1.144 패치 노트
   openAugLink: (url) => ipcRenderer.send('augguide-link', url),   // 🧭 플랜 원문(arammayhem) 기본 브라우저로   // 🧩 증강 번호 → {name, icon, rarity}(최신 패치 데이터)
   // 📼 게임 끝난 뒤 기록 저장 진행 상태 {stage:'get'|'save'|'rec'|'done', since, src, tries, max, problem}
   onRec: (cb) => ipcRenderer.on('rec', (_e, d) => cb(d)),

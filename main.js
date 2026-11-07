@@ -2812,6 +2812,15 @@ async function augGuideView() {
 async function pushAugGuide() { const v = await augGuideView(); broadcast('augguide', v); }
 ipcMain.handle('augguide', () => augGuideView());
 ipcMain.handle('augguide-gg', async (_e, champId) => { const id = Number(champId) || 0; const [guide, gg] = await Promise.all([getGuide(), ggChamp(id).catch(() => null)]); return guideFor(id, guide[id], gg); });   // ✎ 편집 시작 = 보이는 것(aramgg 조합)부터
+// 📰 v0.1.144 패치 노트(사장님: aramgg 「새 증강」 페이지처럼 · 증강 아래 「패치」 탭) = tools/aramgg-fetch.cjs가 하루 한 번 받은 docs/data/aramgg/patches.json + 우리 기록(그 증강 우리 n판 m승)
+let _ggPatch = null, _ggPatchAt = 0;
+ipcMain.handle('aug-patches', async () => {
+  if (!_ggPatch || Date.now() - _ggPatchAt > GG_TTL) { const j = await getJson(`${GG_URL}/patches.json`).catch(() => null); if (j && Array.isArray(j.patches)) { _ggPatch = j; _ggPatchAt = Date.now(); } }
+  if (!_ggPatch) return null;
+  const rec = await augRecords().catch(() => ({})), ours = {};
+  for (const k of Object.keys(rec)) { const a = k.split(':')[1]; if (isTrait(a)) continue; const o = ours[a] = ours[a] || { g: 0, w: 0 }; o.g += rec[k].g; o.w += rec[k].w; }
+  return Object.assign({}, _ggPatch, { ours });
+});
 ipcMain.on('augguide-link', (_e, url) => { if (guideLinkOk(url)) shell.openExternal(url); });   // 플랜 원문 보기(기본 브라우저)
 // 편집(오른쪽 창 「증강」 탭) — 누구나 채울 수 있음 · 저장 = 그 챔피언 칸 통째로 교체(마지막 저장이 이김)
 ipcMain.handle('augguide-all', async () => {

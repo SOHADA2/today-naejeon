@@ -39,6 +39,7 @@
         <button class="rail-btn" data-cat="profile"><span class="ri">👤</span><span class="rl">프로필</span></button>
         <button class="rail-btn on" data-cat="today"><span class="ri">📅</span><span class="rl">오늘</span></button>
         <button class="rail-btn" data-cat="aug"><span class="ri">🧭</span><span class="rl">증강</span></button>
+        <button class="rail-btn" data-cat="patch"><span class="ri">📰</span><span class="rl">패치</span></button>
       </nav>
       <div class="cat">
         <!-- ⚔️ 팀짜기(방장) -->
@@ -66,6 +67,10 @@
           <div id="ag-ed" class="cat-scroll ui-scroll"></div>
         </section>
         <!-- 📅 오늘 -->
+        <section class="cat-view" id="cat-patch" style="display:none;">
+          <div class="cat-hd">패치 노트 <span class="cat-hd-sub">아수라장 증강 변경</span></div>
+          <div id="pn-body" class="cat-scroll ui-scroll"></div>
+        </section>
         <section class="cat-view" id="cat-today" style="display:flex;">
           <div class="cat-hd"><button class="td-nav" id="td-prev" title="이전 날">‹</button><span id="td-day">오늘</span><button class="td-nav" id="td-next" title="다음 날">›</button></div>
           <div id="td-body" class="cat-scroll ui-scroll"></div>
@@ -77,6 +82,7 @@
   <script src="../desktop/settings.js"></script>
   <script src="sidepanel.js"></script>
   <script src="augguide.js"></script>
+  <script src="patchnotes.js"></script>
   <script src="../overlay/tierreveal.js"></script>
 </body>
 </html>

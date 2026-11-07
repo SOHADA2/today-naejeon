@@ -21,6 +21,50 @@ async function get(u, json) {
   }
   return null;
 }
+// 📰 v0.1.144 패치 노트(/ko/new-augments · 하루 한 번) → patches.json = {at, src, patches:[{patch, date, link, added:[{id, name, rarity, desc}], changes:[{id, name, lines:[{k, from, to}]}], notes:[{title, items:[…]}]}]}
+//   사장님: 사이트에 최신 패치 노트가 잘 정리돼 있음 → 우리 앱 「패치」 탭(증강 아래)에서 보게 · 출처 aramgg.com + 원문 링크
+const ENT = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&#x27;': "'", '&nbsp;': ' ' };
+const txt = s => String(s || '').replace(/<[^>]+>/g, '').replace(/&[#\w]+;/g, m => ENT[m] || m).replace(/\s+/g, ' ').trim();
+const RAR = { '골드': 'gold', '실버': 'silver', '프리즘': 'prismatic' };
+function parsePatches(html) {
+  const out = [], starts = [...html.matchAll(/<section[^>]*data-patch-changelog[^>]*>/g)].map(m => m.index);
+  starts.forEach((st, i) => {
+    const sec = html.slice(st, starts[i + 1] || html.indexOf('</main>', st) > 0 ? (starts[i + 1] || html.indexOf('</main>', st)) : st + 200000);
+    const patch = (/<h2[^>]*>\s*패치\s*([\d.]+)/.exec(sec) || [])[1]; if (!patch) return;
+    const date = (/<time[^>]*datetime="([^"]+)"/.exec(sec) || [])[1] || '';
+    const link = (/href="(\/ko\/patch-notes\/[^"]+)"/.exec(sec) || [])[1] || '';
+    const added = [];
+    for (const m of sec.matchAll(/<a href="\/ko\/augments\/(\d+)"[^>]*data-added-augment-card[^>]*>([\s\S]*?)<\/a>/g)) {
+      const b = m[2], name = txt((/<strong[^>]*>([\s\S]*?)<\/strong>/.exec(b) || [])[1]);
+      const rar = txt((/<\/strong>\s*<span[^>]*>([\s\S]*?)<\/span>/.exec(b) || [])[1]);
+      const desc = txt((/<p[^>]*data-added-augment-summary[^>]*>([\s\S]*?)<\/p>/.exec(b) || [])[1]);
+      if (name) added.push({ id: +m[1], name, rarity: RAR[rar] || '', desc: desc.slice(0, 300) });
+    }
+    const changes = [];
+    for (const m of sec.matchAll(/<article[^>]*>([\s\S]*?)<\/article>/g)) {
+      const b = m[1], a = /<a href="\/ko\/augments\/(\d+)"[^>]*>([\s\S]*?)<\/a>/.exec(b); if (!a) continue;
+      const lines = [];
+      for (const p of b.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)) {
+        const x = p[1];
+        const kv = /<span[^>]*>([\s\S]*?)<\/span>\s*<del[^>]*>([\s\S]*?)<\/del>[\s\S]*?<strong[^>]*>([\s\S]*?)<\/strong>/.exec(x);
+        if (kv) { lines.push({ k: txt(kv[1]).replace(/:\s*$/, ''), from: txt(kv[2]), to: txt(kv[3]) }); continue; }
+        const bf = /<span[^>]*>\s*변경 전:\s*<\/span>\s*<del[^>]*>([\s\S]*?)<\/del>/.exec(x); if (bf) { lines.push({ k: '', from: txt(bf[1]), to: null }); continue; }
+        const af = /<span[^>]*>\s*변경 후:\s*<\/span>([\s\S]*)/.exec(x);
+        if (af) { const last = lines[lines.length - 1]; if (last && last.to === null) last.to = txt(af[1]); else lines.push({ k: '', from: '', to: txt(af[1]) }); }
+      }
+      for (const l of lines) { if (l.from === '-') l.from = ''; if (l.to == null) l.to = ''; }
+      if (lines.length) changes.push({ id: +a[1], name: txt(a[2]), lines: lines.slice(0, 8) });
+    }
+    const notes = [];
+    for (const m of sec.matchAll(/<section[^>]*data-patch-manual-section[^>]*>([\s\S]*?)<\/section>/g)) {
+      const title = txt((/<h3[^>]*>([\s\S]*?)<\/h3>/.exec(m[1]) || [])[1]);
+      const items = [...m[1].matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map(x => txt(x[1])).filter(Boolean).slice(0, 20);
+      if (title && items.length) notes.push({ title, items });
+    }
+    out.push({ patch, date, link: link ? 'https://aramgg.com' + link : '', added, changes, notes });
+  });
+  return out.slice(0, 4);
+}
 function parseGlobal(html) {   // 전체 증강 등급표: T1~T5 제목 뒤 카드(<article> … /ko/augments/{id} … 승률 n%)
   const heads = [...html.matchAll(/>T([1-5])</g)].map(m => ({ at: m.index, t: +m[1] }));
   const g = {};
@@ -44,6 +88,15 @@ function compactChamp(d, st) {
 }
 (async () => {
   fs.mkdirSync(path.join(OUT, 'c'), { recursive: true });
+  { // 📰 패치 노트 먼저(요청 1번) · --patches=파일 이면 그 HTML로만(시험)
+    const pf = (process.argv.find(a => a.startsWith('--patches=')) || '').split('=')[1];
+    const ph = pf ? fs.readFileSync(pf, 'utf8') : await get('/ko/new-augments');
+    const P = ph ? parsePatches(ph) : [];
+    let same = false; try { same = JSON.stringify(JSON.parse(fs.readFileSync(path.join(OUT, 'patches.json'), 'utf8')).patches) === JSON.stringify(P); } catch (_) {}   // 같으면 안 바꿈(매일 쓸데없는 커밋 X)
+    if (P.length && !same) { fs.writeFileSync(path.join(OUT, 'patches.json'), JSON.stringify({ at: Date.now(), src: 'aramgg.com', patches: P })); console.log('패치 노트', P.map(p => `${p.patch}(신규 ${p.added.length} · 조정 ${p.changes.length} · 메모 ${p.notes.length})`).join(' / ')); }
+    else console.log(P.length ? '패치 노트 그대로' : '패치 노트 못 읽음 — 그대로');
+    if (pf) return;
+  }
   const html = await get('/ko/augments'); const g = html ? parseGlobal(html) : {};
   // ℹ️ 2026-11-02 확인: 증강 짝 자료는 champion-details의 augment_trios(챔피언당 판 수 151+ 조합 5개)뿐 · /ko/augments/{id}엔 챔피언 궁합만 · 짝 전용 data 파일 없음(404)
   console.log('전체 증강 등급', Object.keys(g).length);
