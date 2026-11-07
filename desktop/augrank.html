@@ -83,8 +83,8 @@
         let cb = `<span class="cb${cm ? '' : ' none'}"${tip(cbTip)}><span class="hd"><span>🔗 같이 가면 좋은</span></span>`
           + (cm ? `<span class="ics">${cm.with.slice(0, 2).map(a => pair(a, c)).join('')}</span>` : '<span class="ics none">조합 자료 없음</span>') + '</span>';
         const D = c.destiny;   // 🗡️ v0.1.141 운명의 무기 카드 = 조합 칸 대신 첫 템 추천(챔피언 유형별 · 유저 가이드 기준)
-        if (D) cb = `<span class="cb"${tip(`<b>운명의 무기 첫 템</b> · ${esc(D.label)}<br>${esc(D.line)}${D.src ? '<br>' + esc(D.src) : ''}<br>첫 전설 템에 붙어 처치 관여마다 커지고, 팔 수 없어요`)}><span class="hd"><span>🗡 첫 템 추천</span></span>`
-          + ((D.items || []).length ? `<span class="ics">${D.items.slice(0, 2).map(i => `<span class="pa"><span class="ic it"${i.icon ? ` style="background-image:url('${esc(i.icon)}')"` : ''}></span><span class="nm">${esc(i.name)}</span></span>`).join('')}</span>` : `<span class="ics none">${esc(D.label)} · 원래 첫 템</span>`) + '</span>';
+        if (D) cb = `<span class="cb"${tip(`<b>운명의 무기 첫 템</b> · ${esc(D.label)}<br>${esc(D.line)}${(D.items || []).length ? '<br>' + D.items.map(i => esc(i.name)).join(' · ') : ''}${D.src ? '<br>' + esc(D.src) : ''}<br>첫 전설 템에 붙어 처치 관여마다 커지고, 팔 수 없어요`)}><span class="hd"><span>🗡 첫 템 추천</span></span>`
+          + ((D.items || []).length ? `<span class="ics">${D.items.slice(0, 2).map(i => `<span class="pa"><span class="ic it"${i.icon ? ` style="background-image:url('${esc(i.icon)}')"` : ''}></span><span class="nm">${esc(i.short || i.name)}</span></span>`).join('')}</span>` : `<span class="ics none">${esc(D.label)} · 원래 첫 템</span>`) + '</span>';
         const u = c.u || 10;
         document.documentElement.style.setProperty('--tu', u + 'px');
         return `<div class="bd r${r}" style="--u:${u}px;left:${Math.round(c.ax)}px;top:${Math.round(c.ay)}px;width:${Math.round((c.cw || u * 29.6) + u * 1.2)}px">${left}${cb}</div>`;

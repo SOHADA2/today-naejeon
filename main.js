@@ -2730,6 +2730,7 @@ const DESTINY = {
   bruiser: { label: '브루저', items: [], line: '정리된 추천은 적어요 · 히드라가 좋았다는 유저 평', src: '칼바람 갤러리' },
   tank: { label: '탱커·서포터', items: [], line: '유저 추천 정리가 아직 없어요 · 원래 가던 첫 템으로', src: '' },
 };
+const DESTINY_SHORT = { 6695: '독사', 3036: '도미닉', 4645: '그림자불꽃', 3135: '공허' };   // 게임 중 배지는 칸이 좁아 유저들이 부르는 짧은 이름(v0.1.142 · 「도미닉 경의…」 잘림)
 const CRIT_FIGHTERS = new Set([157, 777, 23]);   // 야스오·요네·트린다미어 = 치명타
 // 태그·수치로 어긋나는 챔피언(2026-11-07 전체 확인): 키아나 = AD 암살자 · 벨베스 = 브루저 · 세라핀·벡스 = AP · 피오라·이렐리아·카밀·바이·비에고·암베사·브라이어 = 브루저 · 마스터 이 = 치명타
 const DESTINY_FIX = { 246: 'lethal', 200: 'bruiser', 147: 'mage', 711: 'mage', 114: 'bruiser', 39: 'bruiser', 164: 'bruiser', 254: 'bruiser', 234: 'bruiser', 799: 'bruiser', 233: 'bruiser', 11: 'crit' };
@@ -2768,7 +2769,7 @@ async function destinyTip(champId) {   // → {kind, label, items:[{id,name,icon
   const [meta, items] = await Promise.all([champMeta(), destinyItems()]);
   const k = destinyKind(champId, meta); if (!k) return null;
   const D = DESTINY[k];
-  return { kind: k, label: D.label, line: D.line, src: D.src, items: D.items.map(id => Object.assign({ id }, items[id] || { name: '#' + id, icon: '' })) };
+  return { kind: k, label: D.label, line: D.line, src: D.src, items: D.items.map(id => Object.assign({ id, short: DESTINY_SHORT[id] || null }, items[id] || { name: '#' + id, icon: '' })) };
 }
 const isTrait = id => !!(_aug && _aug[id] && _aug[id].trait);   // 🎸 헤드라이너 특성(증강 아님)
 let _augPairs = {};   // 🧩 v0.1.140 챔피언 → {'a,b': {g, w}} = 이 챔피언으로 두 증강을 같이 고른 판(조합 자료 없는 챔피언용)

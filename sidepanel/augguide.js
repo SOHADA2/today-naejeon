@@ -172,7 +172,7 @@ function srcNote(plans) {
 function destinyH(d) {
   if (!d) return '';
   const its = (d.items || []).map(i => `<span class="ag-pchip"><i class="aug ag-ic ag-item">${i.icon ? `<img src="${i.icon}" alt="" onerror="this.remove()">` : ''}</i><span class="ag-pt"><b>${escH(i.name)}</b></span></span>`).join('');
-  return `<div class="ag-top ag-dest"><div class="ag-top-hd">${ageAug(3081, 'ag-ic')}<b>운명의 무기가 뜨면</b><span class="ag-patch">${escH(d.label)}</span></div>${its ? `<div class="ag-pa">${its}</div>` : ''}<div class="ag-why">${escH(d.line)}</div><div class="ag-src">${d.src ? escH(d.src) + ' · ' : ''}첫 전설 템에 붙어 처치 관여마다 커지고, 팔 수 없어요</div></div>`;
+  return `<div class="ag-top ag-dest"><div class="ag-top-hd">${ageAug(3081, 'ag-ic')}<b>운명의 무기가 뜨면</b></div>${its ? `<div class="ag-pa">${its}</div>` : ''}<div class="ag-why"><b class="ag-dk">${escH(d.label)}</b> · ${escH(d.line)}</div><div class="ag-src">${d.src ? escH(d.src) + ' · ' : ''}첫 전설 템에 붙어 처치 관여마다 커지고, 팔 수 없어요</div></div>`;
 }
 // ── 챔피언 선택 동안 보는 화면(내 챔피언 + 벤치 챔피언) ──
 function ageLive() {
