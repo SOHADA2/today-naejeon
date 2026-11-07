@@ -737,14 +737,22 @@ function renderLobby() {
     b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyMode(b.dataset.kind)); };   // 내전 = main이 마지막에 고른 방식으로
   });
   el('lb-sub').style.display = normal ? 'none' : '';
-  { // 🎧 v0.1.134 방장에게 한 번: 이 방에서 쓸 디스코드 서버가 없으면 「서버 연결」 한 줄(닫으면 다시 안 뜸)
-    const dn = el('lb-dcn'), S = _set || {}, show = myIsHost && L.room && S.discord && S.discord.app && !L.dcGuild && !S.dcNudgeOff;
-    dn.style.display = show ? '' : 'none';
-    if (show) {
-      dn.innerHTML = `<span class="lb-dcn-ic">${DC_ICO}</span><span class="lb-dcn-t"><b>디스코드 음성 채널 자동 나누기</b><small>팀이 정해지면 1팀·2팀 채널로</small></span><button class="lb-mini" id="lb-dcn-go">서버 연결</button><button class="lb-dcn-x" id="lb-dcn-x" title="닫기(⚙ 설정 → 디스코드에서 언제든)">✕</button>`;
-      el('lb-dcn-go').onclick = () => window.api.discordConnect && window.api.discordConnect().then(r => { if (r && !r.ok && r.err) alert('디스코드 서버 연결 · ' + r.err); }).catch(() => {});
-      el('lb-dcn-x').onclick = () => { window.api.setSetting('dcNudgeOff', true); _set = Object.assign({}, _set, { dcNudgeOff: true }); dn.style.display = 'none'; };
+  { // 🎧 디스코드 한 줄 — ① 나 = 방 서버에 아직 없음 → 「들어가기」(v0.1.138 · 방장이 넣은 초대 링크) ② 방장 = 서버 연결 안 됨 → 「서버 연결」(v0.1.134) · 초대 링크 없음 → 「링크 넣기」
+    const dn = el('lb-dcn'), S = _set || {}, J = L.dcJoin;
+    let h = '', go = null, x = null;
+    if (L.room && J) {
+      h = `<span class="lb-dcn-ic">${DC_ICO}</span><span class="lb-dcn-t"><b>디스코드 「${esc(J.name)}」 서버에 들어와 주세요</b><small>팀이 정해지면 1팀·2팀 음성 채널로 옮겨져요</small></span><button class="lb-mini" id="lb-dcn-go">들어가기</button><button class="lb-dcn-x" id="lb-dcn-x" title="닫기(이 서버는 다시 안 띄움)">✕</button>`;
+      go = () => window.api.discordJoin({ code: J.code, gid: J.gid }); x = () => window.api.discordJoin({ gid: J.gid, off: true });
+    } else if (myIsHost && L.room && S.discord && S.discord.app && !S.dcNudgeOff && (!L.dcGuild || !L.dcInv)) {
+      const inv = !!L.dcGuild;   // 서버는 있는데 초대 링크가 없음
+      h = `<span class="lb-dcn-ic">${DC_ICO}</span><span class="lb-dcn-t"><b>${inv ? '친구들이 들어올 디스코드 초대 링크' : '디스코드 음성 채널 자동 나누기'}</b><small>${inv ? '넣어 두면 서버에 없는 사람에게 「들어가기」' : '팀이 정해지면 1팀·2팀 채널로'}</small></span><button class="lb-mini" id="lb-dcn-go">${inv ? '링크 넣기' : '서버 연결'}</button><button class="lb-dcn-x" id="lb-dcn-x" title="닫기(⚙ 설정 → 디스코드에서 언제든)">✕</button>`;
+      go = inv ? () => { const g = document.querySelector('.tn-gear'); if (g) g.click(); setTimeout(() => { const bd = document.querySelector('.tn-set-body'), t = bd && [...bd.querySelectorAll('.tn-sec')].find(e => e.textContent === '디스코드'); if (t) bd.scrollTop = t.offsetTop - 50; const ib = document.querySelector('.tn-set [data-act=dcinv]'); if (ib) ib.click(); }, 80); }
+        : () => window.api.discordConnect && window.api.discordConnect().then(r => { if (r && !r.ok && r.err) alert('디스코드 서버 연결 · ' + r.err); }).catch(() => {});
+      x = () => { window.api.setSetting('dcNudgeOff', true); _set = Object.assign({}, _set, { dcNudgeOff: true }); dn.style.display = 'none'; };
     }
+    dn.style.display = h ? '' : 'none';
+    if (h && dn.dataset.h !== h) { dn.innerHTML = h; dn.dataset.h = h; }
+    if (h) { el('lb-dcn-go').onclick = go; el('lb-dcn-x').onclick = x; }
   }
   document.querySelectorAll('.lb-seg').forEach(b => {
     b.classList.toggle('on', b.dataset.mode === L.mode);

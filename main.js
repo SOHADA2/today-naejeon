@@ -1519,7 +1519,7 @@ function lobbyView() {
   const sd = L.sides || {}, sides = {};
   for (const n of inNames) { const t = sd[fbKeyOf(n)]; if (t === 'teamA' || t === 'teamB') sides[n] = t; }
   return { members, sides, mode: ['draft', 'manual', 'normal'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
-    dcGuild: dcRoomGuild(members), hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members), room: room ? { id: room.id, name: room.name, priv: room.priv } : null };
+    dcGuild: dcRoomGuild(members), dcInv: !!((dcRoomInfo(members) || {}).inv), dcJoin: dcJoinView(members), hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members), room: room ? { id: room.id, name: room.name, priv: room.priv } : null };
 }
 // 🔄 버전 비교(v0.1.56) — 대기실 내 자리 「업데이트 필요」·내 안내 줄
 const verCmp = (a, b) => { const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return 0; };
@@ -3074,9 +3074,10 @@ function dcLink() {   // 내 디스코드 번호·켜짐·연결한 서버 → t
     if (_dcLinked && _dcLinked !== k && _dcLinked.startsWith(account.puuid + ':')) { _dcLinked = k; fbUpdate(`${T}/discord/${account.puuid}`, { on: false, at: Date.now() }).catch(() => {}); }
     return;
   }
-  const k = `${account.puuid}:${u.id}:${u.name}:${G ? G.id + G.name : ''}:${dayKey(Date.now())}`;
+  const inv = dcInvOf();
+  const k = `${account.puuid}:${u.id}:${u.name}:${G ? G.id + G.name : ''}:${inv || ''}:${dayKey(Date.now())}`;
   if (k === _dcLinked) return; _dcLinked = k;
-  const v = Object.assign({ id: u.id, name: u.name || null, at: Date.now(), on: true }, G ? { g: G.id, gn: String(G.name || '').slice(0, 60) || null } : {});
+  const v = Object.assign({ id: u.id, name: u.name || null, at: Date.now(), on: true }, G ? { g: G.id, gn: String(G.name || '').slice(0, 60) || null } : {}, inv ? { inv } : {});
   fbSet(`${T}/discord/${account.puuid}`, v).then(w => { if (!w || !w.ok) _dcLinked = null; else { _dcMap = Object.assign({}, _dcMap, { [account.puuid]: v }); broadcast('lobby', lobbyView()); } }).catch(() => { _dcLinked = null; });
 }
 async function dcMapGet(fresh) {   // today/discord 전체(작음 · 1분 보관)
@@ -3085,18 +3086,57 @@ async function dcMapGet(fresh) {   // today/discord 전체(작음 · 1분 보관
   if (m !== undefined) { const ch = JSON.stringify(m) !== JSON.stringify(_dcMap); _dcMap = m || {}; _dcMapAt = Date.now(); if (ch) broadcast('lobby', lobbyView()); }
   return _dcMap || {};
 }
-function dcRoomGuild(members) {   // 🎧 v0.1.134 이 방에서 쓸 디스코드 서버 이름(내가 연결 → 방 사람 중 가장 많이 연결) · 대기실 「서버 연결」 안내를 숨길지
-  const G = dcGuildOf(); if (G) return G.name || '서버';
-  const cnt = {};
-  for (const m of members || []) { const v = _dcMap && _dcMap[m.key]; if (v && v.g) { const k = v.gn || v.g; cnt[k] = (cnt[k] || 0) + 1; } }
-  return Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0] || null;
+// 🎧 v0.1.134/138 이 방에서 쓸 디스코드 서버 = 내가 연결한 서버 → 방 사람 중 가장 많이 연결한 서버 · 초대 코드 = 내 것 → 방장 것 → 그 서버를 연결한 아무나
+function dcRoomInfo(members) {
+  const G = dcGuildOf(), mine = dcInvOf();
+  if (G) return { id: G.id, name: G.name || '서버', inv: mine || null };
+  const cnt = {}, any = {};
+  for (const m of members || []) { const v = _dcMap && _dcMap[m.key]; if (v && v.g) { cnt[v.g] = (cnt[v.g] || 0) + 1; any[v.g] = any[v.g] || v; } }
+  const gid = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0]; if (!gid) return null;
+  const hv = hostRec && _dcMap && _dcMap[hostRec.puuid];
+  const withInv = (hv && hv.g === gid && hv.inv) ? hv : (members || []).map(m => _dcMap && _dcMap[m.key]).find(v => v && v.g === gid && v.inv);
+  return { id: gid, name: any[gid].gn || '서버', inv: withInv ? withInv.inv : null };
 }
+const dcRoomGuild = members => { const i = dcRoomInfo(members); return i ? i.name : null; };
+function dcJoinView(members) {   // 🎧 v0.1.138 나에게 「디스코드 서버 들어가기」(그 서버에 아직 없을 때만 · 봇이 확인 · 확인 못 하면(디스코드 꺼짐) 보여 줌 · ✕ = 그 서버엔 다시 안 띄움)
+  const i = dcRoomInfo(members); if (!i || !i.inv || !room) return null;
+  if (config.dcJoinOff && config.dcJoinOff[i.id]) return null;
+  if (_dcMember && _dcMember.g === i.id && _dcMember.in) return null;
+  if (discord && discord.user && !(_dcMember && _dcMember.g === i.id)) { dcMemberCheck(i.id).catch(() => {}); return null; }   // 아직 확인 전 = 잠깐 숨김
+  return { gid: i.id, name: i.name, code: i.inv };
+}
+let _dcMember = null, _dcMemBusy = false;   // {g, id, in, at}
+async function dcMemberCheck(gid) {   // 내가 그 서버에 있는지(중계 → 봇 · 1분 보관)
+  const u = discord && discord.user; if (!u || !gid || _dcMemBusy || !potg) return;
+  if (_dcMember && _dcMember.g === gid && _dcMember.id === u.id && Date.now() - _dcMember.at < 60000) return;
+  _dcMemBusy = true;
+  try {
+    const { status, j } = await potg.pxJson('/discord/member', { guild: gid, id: u.id }).catch(() => ({ status: 0 }));
+    if (status === 200 && j && typeof j.in === 'boolean') { const ch = !_dcMember || _dcMember.in !== j.in || _dcMember.g !== gid; _dcMember = { g: gid, id: u.id, in: j.in, at: Date.now() }; if (ch) broadcast('lobby', lobbyView()); }
+  } finally { _dcMemBusy = false; }
+}
+const DC_INV = /^(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/([A-Za-z0-9-]{2,32})\/?$/;
+const dcInvOf = () => config.discordInvite && /^[A-Za-z0-9-]{2,32}$/.test(config.discordInvite) ? config.discordInvite : null;
+ipcMain.handle('discord-invite', (_e, link) => {   // ⚙ 「초대 링크」 저장(비우면 지움)
+  link = String(link || '').trim();
+  if (!link) config.discordInvite = null;
+  else { const m = DC_INV.exec(link) || (/^[A-Za-z0-9-]{2,32}$/.test(link) ? [0, link] : null); if (!m) return { ok: false, err: 'discord.gg/… 모양의 초대 링크를 넣어 주세요' }; config.discordInvite = m[1]; }
+  saveConfig(); _dcLinked = null; dcLink(); broadcastSettings(); broadcast('lobby', lobbyView());
+  return { ok: true, code: dcInvOf() };
+});
+ipcMain.handle('discord-join', (_e, { code, gid, off }) => {   // 대기실 「들어가기」 · ✕
+  if (off && gid) { config.dcJoinOff = Object.assign({}, config.dcJoinOff, { [gid]: true }); saveConfig(); broadcast('lobby', lobbyView()); return true; }
+  if (!/^[A-Za-z0-9-]{2,32}$/.test(code || '')) return false;
+  shell.openExternal('https://discord.gg/' + code);
+  if (gid) setTimeout(() => { _dcMember = null; dcMemberCheck(gid).catch(() => {}); }, 30000);   // 들어왔으면 30초 뒤 버튼이 사라짐
+  return true;
+});
 const dcOn = puuid => { const v = _dcMap && _dcMap[puuid]; return !!(v && v.id && v.on !== false); };   // 대기실 🎧
 const dcClip = (s, n) => { s = String(s || '').trim(); return s.length >= 2 ? s.slice(0, n || 128) : null; };
 function dcPresence() {   // 3초마다 · 같은 내용은 discord.js가 안 보냄
   if (!discord) return;
   dcAppId().catch(() => {}); dcLink();
-  if (room && discord.appId) dcMapGet().catch(() => {});
+  if (room && discord.appId) { dcMapGet().catch(() => {}); const i = dcRoomInfo(lobbyView().members); if (i && i.inv) dcMemberCheck(i.id).catch(() => {}); }
   if (config.discordRpc === false || !discord.ready) return discord.setActivity(null);
   const s = sessionData, me = config.myName, rn = room ? (room.priv ? '비공개 방' : room.name) : null;
   const tl = t => t === 'teamA' ? '1팀' : t === 'teamB' ? '2팀' : null;
@@ -3207,7 +3247,7 @@ function dcConnect() {
 }
 ipcMain.handle('discord-connect', () => dcConnect());
 ipcMain.handle('discord-unlink', () => { config.discordGuild = null; saveConfig(); _dcLinked = null; dcLink(); broadcastSettings(); return true; });
-const dcView = () => ({ app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null, guild: dcGuildOf() ? dcGuildOf().name || '서버' : null, connecting: !!_dcConn });
+const dcView = () => ({ invite: dcInvOf(), app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null, guild: dcGuildOf() ? dcGuildOf().name || '서버' : null, connecting: !!_dcConn });
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
 const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }

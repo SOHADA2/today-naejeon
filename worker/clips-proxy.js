@@ -125,6 +125,16 @@ async function route(req, env) {
     const g = await dcGuild(env, gid, true); if (!g) return json({ err: 'bot not in guild' }, 404);
     return json({ id: g.id, name: g.name, t1: g.chans.some(c => T1.test(c.name)), t2: g.chans.some(c => T2.test(c.name)), lobby: g.chans.some(c => LOBBY.test(c.name) && !isTeam(c)) });
   }
+  if (req.method === 'POST' && u.pathname === '/discord/member') {   // 🎧 v0.1.138 이 사람이 그 서버에 들어와 있는지(대기실 「디스코드 서버 들어가기」를 띄울지)
+    if (!uid) return json({ err: 'login required' }, 401);
+    if (!env.DISCORD_BOT_TOKEN) return json({ err: 'no bot' }, 501);
+    const b = await req.json().catch(() => null), gid = String((b && b.guild) || ''), id = String((b && b.id) || '');
+    if (!/^\d{15,21}$/.test(gid) || !/^\d{15,21}$/.test(id)) return json({ err: 'bad request' }, 400);
+    const r = await dc(env, 'GET', `/guilds/${gid}/members/${id}`);
+    if (r.ok) return json({ in: true });
+    if (r.status === 404) { const j = await r.json().catch(() => ({})); if (j.code !== 10004) return json({ in: false }); }   // 10007 서버에 없음 · 10013 그런 계정 없음 → 없음(10004 = 봇이 그 서버에 없음 → 오류)
+    return json({ err: `member ${r.status}` }, 502);
+  }
   if (req.method === 'POST' && u.pathname === '/discord/setup') {   // 🎨 서버 꾸미기(한 번씩 · 배포할 때 --var SETUP_KEY:무작위 를 준 동안만 열림 · 보통 배포엔 없음)
     if (!env.SETUP_KEY || String(env.SETUP_KEY).length < 20 || req.headers.get('x-setup-key') !== env.SETUP_KEY) return json({ err: 'not found' }, 404);
     if (!env.DISCORD_BOT_TOKEN) return json({ err: 'no bot' }, 501);

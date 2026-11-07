@@ -41,6 +41,8 @@ contextBridge.exposeInMainWorld('api', {
   setSetting: (key, value) => ipcRenderer.invoke('settings-set', { key, value }),
   discordConnect: () => ipcRenderer.invoke('discord-connect'),             // 🎧 v0.1.131 디스코드 서버 연결(봇 초대 화면)
   discordUnlink: () => ipcRenderer.invoke('discord-unlink'),
+  discordInvite: (link) => ipcRenderer.invoke('discord-invite', link),       // 🎧 v0.1.138 방장 초대 링크
+  discordJoin: (o) => ipcRenderer.invoke('discord-join', o),
   onSettings: (cb) => ipcRenderer.on('settings', (_e, d) => cb(d)),
   quitApp: () => ipcRenderer.send('app-quit'),
   quitConfirm: (yes, noAsk) => ipcRenderer.send('quit-confirm', yes, !!noAsk),

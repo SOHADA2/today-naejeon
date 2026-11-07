@@ -6,6 +6,7 @@
   const api = window.api; if (!api || !api.getSettings) return;
   const $ = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstChild; };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let invEdit = false;   // 🎧 v0.1.138 초대 링크 입력 중
   let S = { discordRpc: true, discordMove: true, discord: null, autoSeat: true, augRank: false, sfxOn: true, sfxVol: 1, dock: true, sidePanel: true, closeAsk: true, hotkey: 'Shift+F7' }, U = { state: 'idle' }, hideStrip = false;
   const applyVol = () => { window.__tnVol = S.sfxOn ? S.sfxVol : 0; };
   applyVol();
@@ -55,6 +56,8 @@
         <div class="tn-sec">디스코드</div>
         <div class="tn-row tn-dc"><span class="tn-row-tx"><b>${S.discord && S.discord.on ? `연결됨 · ${esc(S.discord.name || '디스코드')}` : S.discord && S.discord.app ? '디스코드 앱이 꺼져 있어요' : '준비 중'}</b><small>${S.discord && S.discord.on ? '이 PC의 디스코드 앱과 연결' : S.discord && S.discord.app ? 'PC 디스코드 앱을 켜면 저절로 연결돼요' : '디스코드 연동 준비 중이에요'}</small></span><i class="tn-dc-dot${S.discord && S.discord.on ? ' on' : ''}"></i></div>
         ${S.discord && S.discord.app ? `<div class="tn-row tn-dc"><span class="tn-row-tx"><b>${S.discord.guild ? `서버 · ${esc(S.discord.guild)}` : '디스코드 서버'}</b><small>${S.discord.guild ? '팀이 정해지면 이 서버의 1팀·2팀 채널로' : '봇을 우리 서버에 넣고 연결(방장)'}</small></span><button class="tn-btn" data-act="dcgo" ${S.discord.connecting ? 'disabled' : ''}>${S.discord.connecting ? '브라우저에서 고르는 중' : S.discord.guild ? '바꾸기' : '서버 연결'}</button></div>` : ''}
+        ${S.discord && S.discord.app ? (invEdit ? `<div class="tn-row tn-dc"><input class="tn-inv-in" placeholder="https://discord.gg/…  (비우면 지움)" value="${S.discord.invite ? 'https://discord.gg/' + esc(S.discord.invite) : ''}" maxlength="80"><button class="tn-btn" data-act="dcinvsave">저장</button></div>`
+          : `<div class="tn-row tn-dc"><span class="tn-row-tx"><b>초대 링크</b><small>${S.discord.invite ? `discord.gg/${esc(S.discord.invite)} · 서버에 없는 방 사람에게 「들어가기」` : '방장이 넣으면 서버에 없는 친구에게 「들어가기」 버튼'}</small></span><button class="tn-btn" data-act="dcinv">${S.discord.invite ? '바꾸기' : '넣기'}</button></div>`) : ''}
         ${tog('discordRpc', '디스코드에 내 상태 보이기 <span class=\"tn-tip\" data-tip=\"디스코드 프로필에 「투데이 내전 · 대기실 · 방 이름 · 6명 모임」처럼 지금 하고 있는 걸 보여 줘요(디스코드 설정 「활동 상태」가 켜져 있어야 보여요)\">ⓘ</span>', '대기실·드래프트·내전 중')}
         ${tog('discordMove', '음성 채널 자동 나누기 <span class=\"tn-tip\" data-tip=\"내가 방장일 때 팀이 정해지면 디스코드 음성 채널 「1팀」「2팀」으로 옮기고, 게임이 끝나면 원래 채널로 모아요. 서버에 투데이 내전 봇과 「1팀」「2팀」 음성 채널이 있어야 하고, 음성 채널에 들어와 있고 디스코드 앱을 켠 사람만 옮겨요\">ⓘ</span>', '방장일 때 · 1팀/2팀 채널로')}
         <div class="tn-sec">게임 중</div>
@@ -73,10 +76,13 @@
     panel.querySelectorAll('.tn-sw').forEach(c => c.onchange = () => api.setSetting(c.dataset.k, c.checked).then(v => { if (v) { S = v; applyVol(); renderPanel(); } }));
     const r = panel.querySelector('.tn-range'), n = panel.querySelector('.tn-vol-n');
     if (r) { r.oninput = () => { n.textContent = r.value; S.sfxVol = r.value / 100; applyVol(); }; r.onchange = () => api.setSetting('sfxVol', r.value / 100); }
+    { const ii = panel.querySelector('.tn-inv-in'); if (ii) ii.onkeydown = e => { if (e.key === 'Enter') panel.querySelector('[data-act=dcinvsave]').click(); }; }
     panel.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
       if (b.dataset.act === 'tut') { closePanel(); if (api.openTutorial) api.openTutorial(); }
       else if (b.dataset.act === 'up') updateNow();
       else if (b.dataset.act === 'check') api.checkUpdate();
+      else if (b.dataset.act === 'dcinv') { invEdit = true; renderPanel(); const i = panel.querySelector('.tn-inv-in'); if (i) { i.focus(); i.select(); } }
+      else if (b.dataset.act === 'dcinvsave' && api.discordInvite) { const i = panel.querySelector('.tn-inv-in'); api.discordInvite(i ? i.value : '').then(r => { if (r && !r.ok) alert('초대 링크 · ' + r.err); else { invEdit = false; renderPanel(); } }).catch(() => {}); }
       else if (b.dataset.act === 'dcgo' && api.discordConnect) api.discordConnect().then(r => { if (r && !r.ok && r.err) alert('디스코드 서버 연결 · ' + r.err); else if (r && r.ok && r.lack && r.lack.length) alert(`연결됐어요 · 서버에 음성 채널 ${r.lack.join('·')}을 만들어 주세요`); }).catch(() => {});
       else if (b.dataset.act === 'quit' && confirm('투데이 내전을 완전히 종료할까요?')) api.quitApp();
     });

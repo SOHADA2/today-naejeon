@@ -273,6 +273,9 @@
           "gn": {
             ".validate": "newData.isString() && newData.val().length <= 60"
           },
+          "inv": {
+            ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9-]{2,32}$/)"
+          },
           "$other": {
             ".validate": false
           }

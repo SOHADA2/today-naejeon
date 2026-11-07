@@ -93,6 +93,7 @@ async function partB() {
       if (req.url === '/users/@me/guilds') return send(200, [{ id: '700000000000000001', name: '우리 서버' }]);
       if (req.url === '/guilds/700000000000000001/channels') return send(200, CH);
       if (req.url === '/guilds/700000000000000001') return send(200, { id: '700000000000000001', name: '우리 서버' });
+      if ((m = /^\/guilds\/700000000000000001\/members\/(\d+)$/.exec(req.url)) && req.method === 'GET') return m[1] === U.c ? send(404, { message: 'Unknown Member', code: 10007 }) : send(200, { user: { id: m[1] } });
       if (req.url.startsWith('/guilds/7999')) return send(403, { message: 'Missing Access', code: 50001 });
       if ((m = /^\/guilds\/700000000000000001\/voice-states\/(\d+)$/.exec(req.url))) return voice[m[1]] ? send(200, { channel_id: voice[m[1]], user_id: m[1] }) : send(404, { message: 'Unknown Voice State', code: 10065 });
       if (req.method === 'PATCH' && (m = /^\/guilds\/700000000000000001\/members\/(\d+)$/.exec(req.url))) {
@@ -139,6 +140,10 @@ async function partB() {
   const gq = async g => { const x = await W.route(new Request('https://x/discord/guild', { method: 'POST', body: JSON.stringify({ guild: g }), headers: { 'x-tn-app': 'today-naejeon', 'content-type': 'application/json', authorization: `Bearer ${tok}` } }), env); return { st: x.status, j: await x.json() }; };
   r = await gq('700000000000000001'); ok(r.st === 200 && r.j.name === '우리 서버' && r.j.t1 && r.j.t2 && r.j.lobby, `서버 확인 = ${JSON.stringify(r.j)}`);
   r = await gq('799900000000000001'); ok(r.st === 404, `봇 없는 서버 확인 → ${r.st}`);
+  const mq = async (g, id) => { const x = await W.route(new Request('https://x/discord/member', { method: 'POST', body: JSON.stringify({ guild: g, id }), headers: { 'x-tn-app': 'today-naejeon', 'content-type': 'application/json', authorization: `Bearer ${tok}` } }), env); return { st: x.status, j: await x.json() }; };
+  r = await mq('700000000000000001', U.a); ok(r.st === 200 && r.j.in === true, '서버에 있는 사람 → in true');
+  r = await mq('700000000000000001', U.c); ok(r.st === 200 && r.j.in === false, '서버에 없는 사람 → in false');
+  r = await mq('799900000000000001', U.a); ok(r.st === 502, `봇 없는 서버 → ${r.st}`);
   srv.close(); fs.rmSync(tmp, { recursive: true, force: true });
 }
 
