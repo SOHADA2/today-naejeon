@@ -21,17 +21,30 @@ async function renderAugEdit(force) {
   ageList();
 }
 // ── 챔피언 목록(이름 검색 · 채운 챔피언은 금색 · 초안은 점선) ──
-function ageList() {
+// 🧭 v0.1.135(사장님: 챔피언 고르기 전 화면이 비어 있음) — 이번 패치 전체 증강 순위(aramgg T1 승률순) + 우리가 많이 고른 증강(투데이 내전 기록)
+function ageOverview() {
+  const A = AGE.all, G = A.gg, O = A.ours || {}, out = [];
+  const chip = (id, tier, sub) => `<span class="ag-pchip">${tier ? `<span class="ag-tier ${tierCls(tier)}">${tier}</span>` : ''}${ageAug(id, 'ag-ic')}<span class="ag-pt"><b>${escH(ageName(id))}</b>${sub ? `<small>${sub}</small>` : ''}</span></span>`;
+  if (G && G.g) {
+    const top = Object.entries(G.g).filter(([id, v]) => A.augs[id] && v[0] === 1).sort((a, b) => b[1][1] - a[1][1]).slice(0, 8);
+    if (top.length) out.push(`<div class="ag-top"><div class="ag-top-hd"><b>이번 패치 증강 순위</b><span class="ag-patch num cur">${escH(G.p || '')}</span></div><div class="ag-pa">${top.map(([id, v]) => chip(id, 'T' + v[0], `승률 ${agPct(v[1])}`)).join('')}</div><div class="ag-src">모든 챔피언 기준 T1 · 승률순 · aramgg.com(중국 서버 통계)${G.d ? ` · ${escH(G.d.slice(5).replace('-', '/'))}` : ''}</div></div>`);
+  }
+  const ours = Object.entries(O).filter(([id, v]) => A.augs[id] && v.g >= 3).sort((a, b) => b[1].g - a[1].g || b[1].w / b[1].g - a[1].w / a[1].g).slice(0, 8);
+  if (ours.length) out.push(`<div class="ag-top"><div class="ag-top-hd"><b>우리가 많이 고른 증강</b></div><div class="ag-pa">${ours.map(([id, v]) => chip(id, null, `${v.g}판 ${v.w}승 · ${Math.round(v.w / v.g * 100)}%`)).join('')}</div><div class="ag-src">투데이 내전 기록(내전 + 같이 한 일반 판) · 3판 이상</div></div>`);
+  return out.join('');
+}
+function ageList(pre) {
   const { champs, guide } = AGE.all, q = AGE.q.trim().toLowerCase();
   const has = id => guide[id] && guide[id].plans && guide[id].plans.length;
   const ids = Object.keys(champs).map(Number).filter(id => !q || champs[id].name.toLowerCase().includes(q) || champs[id].alias.toLowerCase().includes(q))
     .sort((a, b) => (has(b) ? 1 : 0) - (has(a) ? 1 : 0) || champs[a].name.localeCompare(champs[b].name, 'ko'));
   const done = Object.keys(guide || {}).filter(has).length;
-  $('ag-ed').innerHTML = `<div class="age-intro">챔피언 선택 화면에서 내 챔피언과 벤치 챔피언의 「노려볼 증강」을 보여줘요.<br>채운 챔피언 <b class="num">${done}</b>개 · 저장하면 모두에게 바로 반영돼요.</div>
+  $('ag-ed').innerHTML = (pre || `<div class="age-intro">챔피언 선택 화면에서 내 챔피언과 벤치 챔피언의 「노려볼 증강」을 보여줘요.<br>채운 챔피언 <b class="num">${done}</b>개 · 저장하면 모두에게 바로 반영돼요.</div>`) + ageOverview() + `
+    <div class="age-find">다른 챔피언 보기</div>
     <div id="age-recent">${recentH()}</div>
     <input id="age-q" class="age-q" placeholder="챔피언 이름으로 찾기" value="${escH(AGE.q)}">
     <div class="age-grid">${ids.map(id => `<button class="age-ch${has(id) ? ' has' : ''}${has(id) && guide[id].draft ? ' draft' : ''}" data-id="${id}" title="${escH(champs[id].name)}"><img src="${ageIc(id)}" alt="" onerror="this.style.visibility='hidden'"><span>${escH(champs[id].name)}</span></button>`).join('') || '<div class="td-state">찾는 챔피언이 없어요</div>'}</div>`;
-  const qi = $('age-q'); qi.oninput = () => { AGE.q = qi.value; ageList(); const n = $('age-q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
+  const qi = $('age-q'); qi.oninput = () => { AGE.q = qi.value; ageList(pre); const n = $('age-q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
   $('ag-ed').querySelectorAll('.age-ch').forEach(b => b.onclick = () => ageOpen(Number(b.dataset.id)));
   bindRecent();
   if (!AGE.recent) window.api.getAugGuideRecent().then(r => { AGE.recent = r || []; const box = $('age-recent'); if (box) { box.innerHTML = recentH(); bindRecent(); } }).catch(() => {});
@@ -161,7 +174,7 @@ function ageLive() {
   const tabs = list.length > 1 ? `<div class="ag-tabs">${list.map(x => `<button class="ag-tab${x.id === AGE.liveSel ? ' on' : ''}${x.mine ? ' mine' : ''}" data-id="${x.id}" title="${escH(x.name)}${x.mine ? ' · 내 챔피언' : ' · 벤치'}"><img src="${ageIc(x.id)}" alt="" onerror="this.remove()">${(x.guide.plans || []).length || x.guide.top ? "" : "<s></s>"}</button>`).join('')}</div>` : '';
   const hd = `<div class="ag-live-hd"><span class="lb-sec-en">AUGMENT GUIDE</span><span class="ag-sub">이 챔피언이면 노려볼 증강</span>${c ? `<button class="ag-editbtn" id="ag-editbtn">✎ 고치기</button>` : ''}</div>`;
   let body;
-  if (!c) body = '<div class="ag-empty">챔피언을 고르면 여기에 증강 추천이 떠요</div>';
+  if (!c) return ageList(hd + tabs + '<div class="ag-empty sm">챔피언을 고르면 여기에 그 챔피언 증강 추천이 떠요</div>');   // v0.1.135: 아래에 패치 순위·우리 기록·챔피언 찾기
   else {
     const plans = (c.guide && c.guide.plans) || [], rec = c.rec || {};
     const head = `<div class="ag-champ"><img src="${ageIc(c.id)}" alt="" onerror="this.remove()"><span class="ag-cn"><b>${escH(c.name || '')}</b><small>${c.mine ? '내 챔피언' : '벤치 · 바꾸면 이런 증강'}</small></span>${c.draft && plans.length ? '<span class="ag-draft" title="자료를 보고 미리 채운 초안이에요 — 써 보고 고쳐 주세요">초안</span>' : ''}</div>`;

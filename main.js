@@ -2797,9 +2797,10 @@ ipcMain.handle('augguide-gg', async (_e, champId) => { const id = Number(champId
 ipcMain.on('augguide-link', (_e, url) => { if (guideLinkOk(url)) shell.openExternal(url); });   // 플랜 원문 보기(기본 브라우저)
 // 편집(오른쪽 창 「증강」 탭) — 누구나 채울 수 있음 · 저장 = 그 챔피언 칸 통째로 교체(마지막 저장이 이김)
 ipcMain.handle('augguide-all', async () => {
-  const [guide, champs, augs, rec] = await Promise.all([getGuide(true), getChamps(), getAugments(), augRecords().catch(() => ({}))]);
-  const seen = {}; for (const k of Object.keys(rec)) { const a = k.split(':')[1]; seen[a] = (seen[a] || 0) + rec[k].g; }   // 우리 기록에 나온 증강(편집 목록 위로)
-  return { guide, champs, augs, seen, planMax: PLAN_MAX, planAugs: PLAN_AUGS, titleMax: TITLE_MAX, whyMax: WHY_MAX };
+  const [guide, champs, augs, rec, idx] = await Promise.all([getGuide(true), getChamps(), getAugments(), augRecords().catch(() => ({})), ggIndex().catch(() => null)]);
+  const seen = {}, ours = {};
+  for (const k of Object.keys(rec)) { const a = k.split(':')[1]; seen[a] = (seen[a] || 0) + rec[k].g; const o = ours[a] = ours[a] || { g: 0, w: 0 }; o.g += rec[k].g; o.w += rec[k].w; }   // 우리 기록에 나온 증강(편집 목록 위로 · v0.1.135 「우리가 많이 고른 증강」)
+  return { guide, champs, augs, seen, ours, gg: idx && idx.g ? { p: idx.p, d: idx.d, g: idx.g } : null, planMax: PLAN_MAX, planAugs: PLAN_AUGS, titleMax: TITLE_MAX, whyMax: WHY_MAX };
 });
 // ✍️ 위키 방식 편집(v0.1.76) — 누구나 고침 · 고친 사람·시각이 플랜마다 남음 · 편집마다 기록(전/후) → 「되돌리기」 · 남이 먼저 고쳤으면 덮어쓰지 않고 알림(편집 충돌)
 //   기록 = today/augGuide/hist/{championId}/{키} = {at, by, sum, before:[플랜], after:[플랜]} (챔피언당 최근 30개) · 최근 고친 것 = today/augGuide/recent/{키} = {champ, at, by, sum} (최근 50개)

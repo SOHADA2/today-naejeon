@@ -183,6 +183,9 @@ body.merged #sbar .s-brand { display:none; }   /* 🚪 합친 창 = 제목은 �
 #ag-ed .aug.ag-ic-s { width:16px; height:16px; vertical-align:-3px; margin-right:3px; }
 .age-intro { font-size:11.5px; color:var(--dim); line-height:1.6; margin-bottom:8px; word-break:keep-all; }
 .age-intro b { color:var(--ink-soft); }
+/* v0.1.135 증강 탭 첫 화면(패치 순위·우리 기록 아래 「다른 챔피언 보기」) */
+.age-find { margin:12px 0 6px; font-size:12px; font-weight:800; color:var(--ink-soft); }
+#ag-ed .ag-empty.sm { padding:12px 10px; margin-bottom:10px; font-size:12.5px; }
 .age-q { -webkit-app-region:no-drag; width:100%; box-sizing:border-box; padding:8px 10px; font-size:12.5px; color:var(--ink); background:var(--bg-2); border:1px solid var(--line-2); outline:none; font-family:var(--f-body); }
 .age-q:focus { border-color:var(--gold-line); }
 .age-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(62px, 1fr)); gap:6px; margin:10px 0 14px; }
