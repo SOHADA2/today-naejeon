@@ -2578,12 +2578,14 @@ async function getAugments() {
     const list = await getJson(AUG_URL);
     if (Array.isArray(list) && list.length) {
       const map = {};
-      for (const a of list) if (a && a.id) map[a.id] = {
-        name: a.nameTRA || '#' + a.id,
+      // 🎸 v0.1.140 헤드라이너 특성(사장님: 시즌 3 초반 「헤드라이너」 증강을 고르면 따라오는 특성 — 값이 오르거나 스킬이 강화) = 펜타킬 아이콘(헤비·파워·스래시·둠·이름 빈칸)
+      //   증강이 아니라서 「많이 고른 증강」·우리 기록 짝에서 빼고, 이름은 「헤드라이너 · 헤비」(빈칸이면 「헤드라이너 · 특성」)
+      for (const a of list) if (a && a.id) { const nm = String(a.nameTRA || '').trim(), head = /\/pentakill_(small|large)\.png$/i.test(a.augmentSmallIconPath || ''); map[a.id] = {
+        name: head ? `헤드라이너 · ${nm || '특성'}` : (nm || '증강 #' + a.id), trait: head ? 'headliner' : undefined,
         icon: a.augmentSmallIconPath ? AUG_ICON_BASE + a.augmentSmallIconPath.replace('/lol-game-data/assets', '').toLowerCase() : '',
         rarity: String(a.rarity || '').replace(/^k/, '').toLowerCase(),   // silver / gold / prismatic
         desc: String(a.descriptionTRA || a.desc || '').replace(/<[^>]+>/g, '').slice(0, 300),   // 설명(있으면 · 증강 가이드 편집 화면용)
-      };
+      }; }
       _aug = map; _augAt = Date.now();
       try { fs.writeFileSync(augCachePath(), JSON.stringify({ at: _augAt, map })); } catch (_) {}
     } else if (!_aug) {   // 받기 실패 → 지난번 받아둔 것
@@ -2668,7 +2670,12 @@ function guideFor(id, raw, gg) {
   const human = !!(raw && !raw.draft && g.plans && g.plans.length);
   const A = Object.entries(gg.a);
   const out = Object.assign({}, g, { gg: { p: gg.p, d: gg.d }, top: { patch: gg.p, src: 'aramgg', augs: A.filter(([, v]) => v[3] > 0).sort((p, q) => p[1][3] - q[1][3]).slice(0, 6).map(([a, v]) => ({ id: +a, tier: 'T' + v[0], wr: v[1] })) } });
-  if (!human) out.plans = (gg.c || []).slice(0, 5).map(c => ({ title: '', augs: c[0], why: '', wr: c[1], games: c[2], patch: gg.p, link: GG_PAGE + id, src: 'aramgg' }));
+  if (!human && (gg.c || []).length) out.plans = gg.c.slice(0, 5).map(c => ({ title: '', augs: c[0], why: '', wr: c[1], games: c[2], patch: gg.p, link: GG_PAGE + id, src: 'aramgg' }));
+  // 🧩 v0.1.140 aramgg 조합이 없는 챔피언(46명 · 151판 넘는 조합만 공개) = 옛 arammayhem 추천 조합(초안 플랜 그대로) → 그것도 없으면 우리 기록 짝(2판+ · 많이 · 잘 이긴 순 3개)
+  if (!human && !(out.plans || []).length) {
+    const P = Object.entries(_augPairs[id] || {}).filter(([, v]) => v.g >= 2).sort((a, b) => b[1].g - a[1].g || b[1].w / b[1].g - a[1].w / a[1].g).slice(0, 3);
+    if (P.length) out.plans = P.map(([k, v]) => ({ title: '', augs: k.split(',').map(Number), why: '', wr: Math.round(v.w / v.g * 10000) / 10000, games: v.g, src: 'ours' }));
+  }
   const av = A.filter(([, v]) => v[0] === 5 && v[2] >= 0.02).sort((p, q) => q[1][2] - p[1][2]).slice(0, 3).map(([a]) => +a);
   if (av.length) out.avoid = av; else delete out.avoid;
   return { guide: out, draft: false, src: human ? (raw.src || '') : 'aramgg' };
@@ -2710,17 +2717,22 @@ function cleanTop(t) {
 }
 // 우리 기록 = 지금까지 내전·같이 한 일반 판에서 그 챔피언으로 그 증강을 고른 판 수·승 (프로필과 같은 30초 캐시)
 let _augRec = null, _augRecAt = 0;
+const isTrait = id => !!(_aug && _aug[id] && _aug[id].trait);   // 🎸 헤드라이너 특성(증강 아님)
+let _augPairs = {};   // 🧩 v0.1.140 챔피언 → {'a,b': {g, w}} = 이 챔피언으로 두 증강을 같이 고른 판(조합 자료 없는 챔피언용)
 async function augRecords() {
   if (_augRec && Date.now() - _augRecAt < 30000) return _augRec;
-  const days = await fetchAllDays().catch(() => null);
-  const rec = {};
+  const [days] = await Promise.all([fetchAllDays().catch(() => null), getAugments().catch(() => null)]);
+  const rec = {}, pairs = {};
   for (const d of Object.values(days || {})) for (const kind of ['matches', 'normals']) for (const m of Object.values((d && d[kind]) || {})) {
     for (const st of (m && m.stats) || []) {
       if (!st || !st.championId) continue;
-      for (const id of new Set(st.augments || [])) { const k = st.championId + ':' + id; const x = rec[k] = rec[k] || { g: 0, w: 0 }; x.g++; if (st.isWin) x.w++; }
+      const ids = [...new Set(st.augments || [])].filter(id => !isTrait(id)).sort((a, b) => a - b);
+      for (const id of ids) { const k = st.championId + ':' + id; const x = rec[k] = rec[k] || { g: 0, w: 0 }; x.g++; if (st.isWin) x.w++; }
+      const P = pairs[st.championId] = pairs[st.championId] || {};
+      for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) { const x = P[ids[i] + ',' + ids[j]] = P[ids[i] + ',' + ids[j]] || { g: 0, w: 0 }; x.g++; if (st.isWin) x.w++; }
     }
   }
-  _augRec = rec; _augRecAt = Date.now();
+  _augRec = rec; _augPairs = pairs; _augRecAt = Date.now();
   return rec;
 }
 // 챔피언 선택 화면 상태(브릿지 onChampSelect) → 오른쪽 창 「증강」 탭(v0.1.73: 왼쪽 창은 팀 화면 그대로)
@@ -2751,8 +2763,9 @@ ipcMain.on('augguide-link', (_e, url) => { if (guideLinkOk(url)) shell.openExter
 ipcMain.handle('augguide-all', async () => {
   const [guide, champs, augs, rec, idx] = await Promise.all([getGuide(true), getChamps(), getAugments(), augRecords().catch(() => ({})), ggIndex().catch(() => null)]);
   const seen = {}, ours = {};
-  for (const k of Object.keys(rec)) { const a = k.split(':')[1]; seen[a] = (seen[a] || 0) + rec[k].g; const o = ours[a] = ours[a] || { g: 0, w: 0 }; o.g += rec[k].g; o.w += rec[k].w; }   // 우리 기록에 나온 증강(편집 목록 위로 · v0.1.135 「우리가 많이 고른 증강」)
-  return { guide, champs, augs, seen, ours, gg: idx && idx.g ? { p: idx.p, d: idx.d, g: idx.g } : null, planMax: PLAN_MAX, planAugs: PLAN_AUGS, titleMax: TITLE_MAX, whyMax: WHY_MAX };
+  for (const k of Object.keys(rec)) { const a = k.split(':')[1]; if (isTrait(a)) continue; seen[a] = (seen[a] || 0) + rec[k].g; const o = ours[a] = ours[a] || { g: 0, w: 0 }; o.g += rec[k].g; o.w += rec[k].w; }   // 우리 기록에 나온 증강(편집 목록 위로 · v0.1.135 「우리가 많이 고른 증강」)
+  const champsA = {}; for (const [k, v] of Object.entries(champs || {})) if (+k > 0 && +k < 10000) champsA[k] = v;   // v0.1.140: 특수 모드 챔피언(Jade_ 60000번대 · 이름 같음)이 목록에 두 번씩 나오던 것
+  return { guide, champs: champsA, augs, seen, ours, gg: idx && idx.g ? { p: idx.p, d: idx.d, g: idx.g } : null, planMax: PLAN_MAX, planAugs: PLAN_AUGS, titleMax: TITLE_MAX, whyMax: WHY_MAX };
 });
 // ✍️ 위키 방식 편집(v0.1.76) — 누구나 고침 · 고친 사람·시각이 플랜마다 남음 · 편집마다 기록(전/후) → 「되돌리기」 · 남이 먼저 고쳤으면 덮어쓰지 않고 알림(편집 충돌)
 //   기록 = today/augGuide/hist/{championId}/{키} = {at, by, sum, before:[플랜], after:[플랜]} (챔피언당 최근 30개) · 최근 고친 것 = today/augGuide/recent/{키} = {champ, at, by, sum} (최근 50개)
@@ -2946,7 +2959,7 @@ async function getProfile(arg) {
   }
   P.days = days.size;
   P.champs = Object.values(champs).sort((x, y) => y.games - x.games || y.wins - x.wins).slice(0, 5);
-  P.augs = Object.values(augs).sort((x, y) => y.games - x.games || y.wins - x.wins).slice(0, 6);   // 🧩 많이 고른 증강
+  P.augs = Object.values(augs).filter(x => !isTrait(x.id)).sort((x, y) => y.games - x.games || y.wins - x.wins).slice(0, 6);   // 🧩 많이 고른 증강(🎸 헤드라이너 특성 빼고)
   P.recent = P.recent.slice(-10).reverse();
   const rate = x => x.wins / x.games;
   const MIN = 2;   // 2판 이상 같이(또는 상대로) 한 사람만
