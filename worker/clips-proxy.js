@@ -116,6 +116,12 @@ async function route(req, env) {
     if (!moves.length) return json({ err: 'bad request' }, 400);
     return json(await discordMove(env, moves));
   }
+  if (req.method === 'POST' && u.pathname === '/discord/setup') {   // 🎨 서버 꾸미기(한 번씩 · 배포할 때 --var SETUP_KEY:무작위 를 준 동안만 열림 · 보통 배포엔 없음)
+    if (!env.SETUP_KEY || String(env.SETUP_KEY).length < 20 || req.headers.get('x-setup-key') !== env.SETUP_KEY) return json({ err: 'not found' }, 404);
+    if (!env.DISCORD_BOT_TOKEN) return json({ err: 'no bot' }, 501);
+    const b = await req.json().catch(() => ({}));
+    return json(await discordSetup(env, String(b.guild || ''), !!b.dry, /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(b.icon || '') && b.icon.length < 1.4e6 ? b.icon : null));
+  }
   const m = /^\/clip\/(\d{1,12})$/.exec(u.pathname);
   if (req.method === 'GET' && m) {
     const info = await gh(env, 'GET', `/releases/assets/${m[1]}`); if (!info.ok) return json({ err: 'not found' }, 404);
@@ -190,6 +196,96 @@ async function discordMove(env, moves) {
     out.push(r.ok ? { id: p.id, ok: true, from: p.from, to: p.to, name: p.name } : { id: p.id, ok: false, why: `move ${r.status}` });
   }
   return { moved: out };
+}
+
+// 🎨 2026-11-07 우리 팀 디스코드 서버 꾸미기(관리자 권한을 잠깐 준 동안 한 번 · 다시 돌려도 같은 결과)
+//   이름으로 찾아 고치고 없으면 만듦 · 지우는 것 없음(모르는 채널은 그대로 두고 알려 줌) · 1팀/2팀/대기실 이름은 음성 이동이 찾는 이름 그대로
+const GOLD = 0xC8AA6E, SITE = 'https://sohada2.github.io/today-naejeon/';
+const SETUP = [
+  { cat: '📢 안내', chans: [
+    { name: '📌┃공지', type: 0, ro: true, topic: '투데이 내전 소식 · 업데이트 안내', post: 'notice' },
+    { name: '📖┃사용법', type: 0, ro: true, topic: '처음이면 여기부터 · 설치 · 내전 진행 · 디스코드 연동', post: 'guide' },
+  ] },
+  { cat: '⚔️ 내전', from: /음성/, chans: [
+    { name: '🏠 내전 대기실', type: 2, match: c => LOBBY.test(c.name) || c.name === '일반' },
+    { name: '🔵 1팀', type: 2, match: c => T1.test(c.name) },
+    { name: '🔴 2팀', type: 2, match: c => T2.test(c.name) },
+    { name: '👀 관전석', type: 2, match: c => /관전/.test(c.name) },
+  ] },
+  { cat: '💬 수다', from: /채팅/, chans: [
+    { name: '💬┃잡담', type: 0, topic: '아무 얘기 · 내전 모집', match: c => /일반|잡담/.test(c.name), system: true },
+    { name: '🎬┃팟지-자랑', type: 0, topic: '팟지·숨은 영웅 영상 저장해서 올리기', match: c => /팟지/.test(c.name) },
+    { name: '🏆┃명예의-전당', type: 0, topic: '오늘의 MVP · 티어 승급 · 펜타킬 박제', match: c => /명예/.test(c.name) },
+    { name: '🎮 일반 판', type: 2, match: c => /일반\s*판/.test(c.name) },
+  ] },
+];
+const POSTS = {
+  notice: { embeds: [{ color: GOLD, title: '⚔️ 투데이 내전 서버가 열렸어요',
+    description: `하루 안에 끝나는 인스턴트 내전 · 롤 클라 옆에 붙는 앱으로 **팀 짜기부터 기록·투표·팟지까지 자동**.\n처음이면 <#GUIDE> 부터 봐 주세요.\n\n[📥 투데이 내전 받기](${SITE})` }] },
+  guide: { embeds: [{ color: GOLD, title: '📖 투데이 내전 사용법', url: SITE,
+    description: '롤 · 투데이 내전 · 디스코드 앱 **셋 다 켜 두면** 나머지는 앱이 알아서 해요.',
+    fields: [
+      { name: '① 설치', value: `[홈페이지](${SITE})에서 받기 · 켜 두면 새 버전은 저절로 받아요` },
+      { name: '② 모이기', value: '<#LOBBY> 음성 채널에 들어와서 앱에서 방 만들기 · 들어가기' },
+      { name: '③ 팀 짜기', value: '방장이 방식(랜덤·드래프트·직접)을 고르고 시작 → 팀이 정해지면 <#T1> · <#T2> 음성 채널로 **자동 이동**' },
+      { name: '④ 게임 끝', value: '결과 자동 기록 → 대기실로 **자동 복귀** → MVP·매너왕 투표 → 팟지 영상' },
+      { name: '🎧 디스코드 설정', value: '앱 ⚙ 설정 → 디스코드 · 「내 상태 보이기」 · 「음성 채널 자동 나누기」(방장일 때)' },
+    ],
+    footer: { text: '음성 채널 이름(대기실 · 1팀 · 2팀)을 바꾸면 자동 이동이 못 찾아요' } }] },
+};
+async function dcj(env, method, p, body) {   // → {ok, status, j} · 429면 한 번 기다렸다 다시
+  for (let i = 0; i < 3; i++) {
+    const r = await dc(env, method, p, body);
+    const j = r.status === 204 ? null : await r.json().catch(() => null);
+    if (r.status !== 429) return { ok: r.ok, status: r.status, j };
+    await new Promise(res => setTimeout(res, Math.min(5000, (((j && j.retry_after) || 1) * 1000) | 0)));
+  }
+  return { ok: false, status: 429, j: null };
+}
+async function iconUri(url) { const b = new Uint8Array(await (await fetch(url)).arrayBuffer()); let s = ''; for (const x of b) s += String.fromCharCode(x); return `data:image/png;base64,${btoa(s)}`; }
+async function discordSetup(env, gid, dry, icon) {   // icon = 서버 아이콘 data URI(없으면 앱 아이콘)
+  if (!/^\d{15,21}$/.test(gid)) { const r = await dcj(env, 'GET', '/users/@me/guilds'); return { guilds: (r.j || []).map(x => ({ id: x.id, name: x.name, perm: x.permissions })) }; }   // 서버 번호 없으면 봇이 들어간 서버 목록
+  const log = [], step = (what, r) => { log.push(`${r.ok ? '✅' : '❌'} ${what}${r.ok ? '' : ` ${r.status} ${JSON.stringify(r.j || {}).slice(0, 120)}`}`); return r; };
+  const g = await dcj(env, 'GET', `/guilds/${gid}`); if (!g.ok) return { err: `guild ${g.status}` };
+  const ch = await dcj(env, 'GET', `/guilds/${gid}/channels`); if (!ch.ok) return { err: `channels ${ch.status}` };
+  let chans = ch.j;
+  if (dry) return { guild: g.j.name, chans: chans.map(c => ({ id: c.id, type: c.type, name: c.name, parent: c.parent_id, pos: c.position })) };
+  const RO = [{ id: gid, type: 0, allow: '0', deny: '2048' }];   // @everyone 메시지 보내기 막음(읽기 전용)
+  const used = new Set(), ids = {}, order = [];
+  for (const [ci, S] of SETUP.entries()) {
+    let cat = chans.find(c => c.type === 4 && !used.has(c.id) && (c.name === S.cat || (S.from && S.from.test(c.name))));
+    if (cat) { if (cat.name !== S.cat) step(`카테고리 ${cat.name} → ${S.cat}`, await dcj(env, 'PATCH', `/channels/${cat.id}`, { name: S.cat })); }
+    else { const r = step(`카테고리 ${S.cat} 만듦`, await dcj(env, 'POST', `/guilds/${gid}/channels`, { name: S.cat, type: 4 })); cat = r.j; }
+    if (!cat || !cat.id) continue;
+    used.add(cat.id); order.push({ id: cat.id, position: ci });
+    for (const [k, C] of S.chans.entries()) {
+      let c = chans.find(x => x.type === C.type && !used.has(x.id) && (x.name === C.name || (C.match && C.match(x))));
+      const want = Object.assign({ name: C.name, parent_id: cat.id }, C.topic ? { topic: C.topic } : {}, C.ro ? { permission_overwrites: RO } : {});
+      if (c) step(`${c.name} → ${C.name}`, await dcj(env, 'PATCH', `/channels/${c.id}`, want));
+      else { const r = step(`${C.name} 만듦`, await dcj(env, 'POST', `/guilds/${gid}/channels`, Object.assign({ type: C.type }, want))); c = r.j; }
+      if (!c || !c.id) continue;
+      used.add(c.id); order.push({ id: c.id, position: k });   // 카테고리는 위 PATCH에서 이미 옮김(한꺼번에 순서 맞추기엔 카테고리 바꾸기를 못 넣음)
+      ids[C.post || C.name] = c.id;
+      if (C.system) ids.system = c.id;
+      if (C.type === 2 && /대기실/.test(C.name)) ids.LOBBY = c.id;
+      if (/1팀/.test(C.name)) ids.T1 = c.id; if (/2팀/.test(C.name)) ids.T2 = c.id;
+    }
+  }
+  step('순서 맞춤', await dcj(env, 'PATCH', `/guilds/${gid}/channels`, order));
+  step('서버 이름·아이콘·환영 메시지 채널', await dcj(env, 'PATCH', `/guilds/${gid}`, Object.assign({ name: '투데이 내전', icon: icon || await iconUri(`${SITE}img/icon.png`) }, ids.system ? { system_channel_id: ids.system } : {})));
+  const me = await dcj(env, 'GET', '/users/@me');
+  if (me.ok && !me.j.avatar) step('봇 프로필 사진', await dcj(env, 'PATCH', '/users/@me', { avatar: icon || await iconUri(`${SITE}img/icon.png`) }));
+  for (const key of ['guide', 'notice']) {   // 안내 글(봇이 쓴 게 있으면 고침 · 없으면 새로)
+    const cid = ids[key]; if (!cid) continue;
+    const body = JSON.parse(JSON.stringify(POSTS[key]).replace(/<#(GUIDE|LOBBY|T1|T2)>/g, (m, k) => (k === 'GUIDE' ? ids.guide : ids[k]) ? `<#${k === 'GUIDE' ? ids.guide : ids[k]}>` : k === 'LOBBY' ? '내전 대기실' : k === 'T1' ? '1팀' : k === 'T2' ? '2팀' : '사용법'));
+    const ms = await dcj(env, 'GET', `/channels/${cid}/messages?limit=20`);
+    const mine = ms.ok && me.ok ? (ms.j || []).find(x => x.author && x.author.id === me.j.id) : null;
+    step(`${key} 글 ${mine ? '고침' : '올림'}`, await dcj(env, mine ? 'PATCH' : 'POST', mine ? `/channels/${cid}/messages/${mine.id}` : `/channels/${cid}/messages`, body));
+  }
+  chans = (await dcj(env, 'GET', `/guilds/${gid}/channels`)).j || [];
+  const left = chans.filter(c => !used.has(c.id)).map(c => c.name);
+  _dg = null;   // 음성 이동이 바뀐 채널 이름을 바로 보게
+  return { log, left };
 }
 
 async function cleanup(env) {   // 매일: 3일 지난 clips- 릴리스와 태그 지움(앱 KEEP_DAYS와 같음)
