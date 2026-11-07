@@ -16,7 +16,7 @@
   if (ui) {
     gear = $(`<button class="tn-gear ${minBtn.className}" title="설정 · 버전·업데이트"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M9.44 4.53L9.57 1.89A10.4 10.4 0 0 1 14.43 1.89L14.56 4.53A7.9 7.9 0 0 1 15.48 4.91L15.48 4.91L17.43 3.13A10.4 10.4 0 0 1 20.87 6.57L19.09 8.52A7.9 7.9 0 0 1 19.47 9.44L19.47 9.44L22.11 9.57A10.4 10.4 0 0 1 22.11 14.43L19.47 14.56A7.9 7.9 0 0 1 19.09 15.48L19.09 15.48L20.87 17.43A10.4 10.4 0 0 1 17.43 20.87L15.48 19.09A7.9 7.9 0 0 1 14.56 19.47L14.56 19.47L14.43 22.11A10.4 10.4 0 0 1 9.57 22.11L9.44 19.47A7.9 7.9 0 0 1 8.52 19.09L8.52 19.09L6.57 20.87A10.4 10.4 0 0 1 3.13 17.43L4.91 15.48A7.9 7.9 0 0 1 4.53 14.56L4.53 14.56L1.89 14.43A10.4 10.4 0 0 1 1.89 9.57L4.53 9.44A7.9 7.9 0 0 1 4.91 8.52L4.91 8.52L3.13 6.57A10.4 10.4 0 0 1 6.57 3.13L8.52 4.91A7.9 7.9 0 0 1 9.44 4.53Z M15.3 12A3.3 3.3 0 1 0 8.7 12A3.3 3.3 0 1 0 15.3 12Z" fill="currentColor"/></svg><i class="tn-gear-dot"></i></button>`);
     header.insertBefore(gear, minBtn);
-    strip = $(`<div class="tn-upstrip" style="display:none;"><span class="tn-up-tx"></span><button class="tn-up-go">지금 업데이트</button><button class="tn-up-x" title="닫기(설정 ⚙에서 다시 볼 수 있어요)">✕</button></div>`);
+    strip = $(`<div class="tn-upstrip" style="display:none;"><span class="tn-up-tx"></span><button class="tn-up-go">업데이트</button><button class="tn-up-x" title="닫기(설정 ⚙에서 다시 볼 수 있어요)">✕</button></div>`);
     header.insertAdjacentElement('afterend', strip);
     panel = $(`<div class="tn-set" style="display:none;"></div>`);
     document.body.appendChild(panel);
@@ -37,9 +37,11 @@
     gear.classList.toggle('has-up', ready);
     strip.style.display = (ready && !hideStrip) || inst || done ? '' : 'none';
     strip.classList.toggle('busy', inst || done);   // 설치 중·업데이트됨 = 버튼 숨김
-    if (ready) strip.querySelector('.tn-up-tx').innerHTML = `<span>🔄 새 버전 <b>v${esc(U.version)}</b> 준비됨</span><small>재시작하면 바로 적용돼요</small>`;
-    else if (inst) strip.querySelector('.tn-up-tx').innerHTML = `<span>🔄 새 버전 <b>v${esc(U.version || '')}</b> 설치 중</span><small>몇 초 뒤 다시 켜져요 · 끄지 마세요</small>`;
-    else if (done) strip.querySelector('.tn-up-tx').innerHTML = `<span>✅ <b>v${esc(U.cur || '')}</b>로 업데이트됐어요</span><small>${U.from ? `v${esc(U.from)}에서` : ''}</small>`;
+    // v0.1.148: 두 줄 → 한 줄(사장님: 왼쪽 창 위쪽이 번잡) · 둘째 줄 설명은 마우스 올림(title → tip.js)
+    const tx = strip.querySelector('.tn-up-tx');
+    if (ready) { tx.innerHTML = `<span>🔄 새 버전 <b>v${esc(U.version)}</b> 준비됨</span>`; tx.title = '누르면 잠깐 꺼졌다가 새 버전으로 다시 켜져요'; }
+    else if (inst) { tx.innerHTML = `<span>🔄 <b>v${esc(U.version || '')}</b> 설치 중 · 끄지 마세요</span>`; tx.title = '몇 초 뒤 다시 켜져요'; }
+    else if (done) { tx.innerHTML = `<span>✅ <b>v${esc(U.cur || '')}</b>로 업데이트됐어요</span>`; tx.title = U.from ? `v${U.from}에서` : ''; }
   }
   const tog = (key, label, sub) => `<label class="tn-row"><span class="tn-row-tx"><b>${label}</b>${sub ? `<small>${sub}</small>` : ''}</span><input type="checkbox" class="tn-sw" data-k="${key}" ${S[key] ? 'checked' : ''}></label>`;
   function renderPanel() {

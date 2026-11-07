@@ -68,11 +68,15 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .lb-sub .lb-seg { padding:6px 4px; font-size:12px; }
 .lb-sub .lb-seg.on { color:var(--gold-hi); background:var(--gold-soft); border-color:var(--gold); }
 /* 🎧 방장에게 한 번 「디스코드 서버 연결」 */
-.lb-dcn { display:flex; align-items:center; gap:8px; margin:-2px 0 10px; padding:7px 8px 7px 10px; background:rgba(88,101,242,0.08); border:1px solid rgba(143,152,242,0.35); }
-.lb-dcn-ic { flex:none; color:#a9b0f5; display:inline-flex; } .lb-dcn-ic .dc-ico { width:14px; height:14px; }
-.lb-dcn-t { flex:1; min-width:0; display:flex; flex-direction:column; } .lb-dcn-t b { font-size:12px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .lb-dcn-t small { font-size:10.5px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.lb-dcn .lb-mini { flex:none; }
-.lb-dcn-x { -webkit-app-region:no-drag; flex:none; width:20px; height:20px; padding:0; font-size:11px; color:var(--dim); background:none; border:none; cursor:pointer; } .lb-dcn-x:hover { color:var(--ink); }
+/* v0.1.148 디스코드 = ROOM 줄 오른쪽 작은 칩(따로 상자 두 줄이 위쪽을 번잡하게 함 · 설명은 마우스 올림) */
+.lb-sec.has-dc { align-items:center; }
+.lb-sec.has-dc > #lb-seat-cnt { margin-left:0; }
+.lb-dcn { margin-left:auto; min-width:0; display:inline-flex; align-items:center; height:22px; background:rgba(88,101,242,0.12); border:1px solid rgba(143,152,242,0.4); clip-path:var(--cut-sm); }
+.lb-dcn-go { -webkit-app-region:no-drag; min-width:0; display:inline-flex; align-items:center; gap:5px; height:100%; padding:0 2px 0 8px; font:700 11px var(--f-body); color:#c9cdfb; background:none; border:none; cursor:pointer; }
+.lb-dcn-go:hover { color:#fff; }
+.lb-dcn-go .dc-ico { flex:none; width:13px; height:13px; }
+.lb-dcn-go span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lb-dcn-x { -webkit-app-region:no-drag; flex:none; width:18px; height:100%; padding:0; font-size:9px; color:var(--dim); background:none; border:none; cursor:pointer; } .lb-dcn-x:hover { color:var(--ink); }
 .lb-start.normal:disabled { opacity:1; color:#06101a; background:linear-gradient(180deg, #8FD3FF, var(--t1)); cursor:default; }   /* 🎮 일반판 진행 중 = 눌리는 버튼 아님(상태 표시) */
 .lb-normal { display:block; font-size:11.5px; line-height:1.55; color:var(--ink-soft); } .lb-normal b { color:var(--gold-hi); } .lb-normal .warn { color:#FFB4A8; }
 .lb-seg:disabled:not(.on) { opacity:0.5; }

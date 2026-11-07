@@ -750,16 +750,18 @@ function renderLobby() {
     const dn = el('lb-dcn'), S = _set || {}, J = L.dcJoin;
     let h = '', go = null, x = null;
     if (L.room && J) {
-      h = `<span class="lb-dcn-ic">${DC_ICO}</span><span class="lb-dcn-t"><b>디스코드 「${esc(J.name)}」 서버에 들어와 주세요</b><small>팀이 정해지면 1팀·2팀 음성 채널로 옮겨져요</small></span><button class="lb-mini" id="lb-dcn-go">들어가기</button><button class="lb-dcn-x" id="lb-dcn-x" title="닫기(이 서버는 다시 안 띄움)">✕</button>`;
+      // v0.1.148: 따로 상자(두 줄) → ROOM 줄 오른쪽 작은 칩(사장님: 위쪽이 번잡) · 설명은 마우스 올림
+      h = `<button class="lb-dcn-go" id="lb-dcn-go" title="디스코드 「${esc(J.name)}」 서버에 들어와 주세요 · 팀이 정해지면 1팀·2팀 음성 채널로 옮겨져요">${DC_ICO}<span>디스코드 들어가기</span></button><button class="lb-dcn-x" id="lb-dcn-x" title="닫기(이 서버는 다시 안 띄움)">✕</button>`;
       go = () => window.api.discordJoin({ code: J.code, gid: J.gid }); x = () => window.api.discordJoin({ gid: J.gid, off: true });
     } else if (myIsHost && L.room && S.discord && S.discord.app && !S.dcNudgeOff && (!L.dcGuild || !L.dcInv)) {
       const inv = !!L.dcGuild;   // 서버는 있는데 초대 링크가 없음
-      h = `<span class="lb-dcn-ic">${DC_ICO}</span><span class="lb-dcn-t"><b>${inv ? '친구들이 들어올 디스코드 초대 링크' : '디스코드 음성 채널 자동 나누기'}</b><small>${inv ? '넣어 두면 서버에 없는 사람에게 「들어가기」' : '팀이 정해지면 1팀·2팀 채널로'}</small></span><button class="lb-mini" id="lb-dcn-go">${inv ? '링크 넣기' : '서버 연결'}</button><button class="lb-dcn-x" id="lb-dcn-x" title="닫기(⚙ 설정 → 디스코드에서 언제든)">✕</button>`;
+      h = `<button class="lb-dcn-go" id="lb-dcn-go" title="${inv ? '친구들이 들어올 디스코드 초대 링크 · 넣어 두면 서버에 없는 사람에게 「들어가기」가 떠요' : '디스코드 음성 채널 자동 나누기 · 서버를 연결하면 팀이 정해질 때 1팀·2팀 채널로 옮겨요'}">${DC_ICO}<span>${inv ? '초대 링크 넣기' : '디스코드 연결'}</span></button><button class="lb-dcn-x" id="lb-dcn-x" title="닫기(⚙ 설정 → 디스코드에서 언제든)">✕</button>`;
       go = inv ? () => { const g = document.querySelector('.tn-gear'); if (g) g.click(); setTimeout(() => { const bd = document.querySelector('.tn-set-body'), t = bd && [...bd.querySelectorAll('.tn-sec')].find(e => e.textContent === '디스코드'); if (t) bd.scrollTop = t.offsetTop - 50; const ib = document.querySelector('.tn-set [data-act=dcinv]'); if (ib) ib.click(); }, 80); }
         : () => window.api.discordConnect && window.api.discordConnect().then(r => { if (r && !r.ok && r.err) alert('디스코드 서버 연결 · ' + r.err); }).catch(() => {});
       x = () => { window.api.setSetting('dcNudgeOff', true); _set = Object.assign({}, _set, { dcNudgeOff: true }); dn.style.display = 'none'; };
     }
     dn.style.display = h ? '' : 'none';
+    dn.parentNode.classList.toggle('has-dc', !!h);
     if (h && dn.dataset.h !== h) { dn.innerHTML = h; dn.dataset.h = h; }
     if (h) { el('lb-dcn-go').onclick = go; el('lb-dcn-x').onclick = x; }
   }
@@ -806,7 +808,8 @@ function renderLobby() {
     : Array.from({ length: SEATS }, (_, i) => seat(ins[i], i)).join('');
   el('lb-me').style.display = myName ? '' : 'none';
   { // 🔄 내 앱이 옛 버전이면 나에게만 안내(v0.1.62 · 방장 「업데이트 시키기」는 뺌) — 최신 = 접속한 사람들 앱·받은 새 버전 중 가장 높은 것
-    const ub = el('lb-upd'), mv = me && me.ver, old = !!(mv && L.latest && verLt(mv, L.latest));
+    // v0.1.148: 새 버전을 이미 받았으면(ready) 머리 아래 업데이트 줄이 같은 말을 하니 여기선 안 띄움
+    const ub = el('lb-upd'), mv = me && me.ver, old = !!(mv && L.latest && verLt(mv, L.latest)) && !(_upd && _upd.state === 'ready');
     ub.style.display = old ? '' : 'none';
     if (old) {
       const ready = _upd && _upd.state === 'ready', busy = _upd && (_upd.state === 'downloading' || _upd.state === 'checking');
