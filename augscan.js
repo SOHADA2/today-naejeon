@@ -69,6 +69,14 @@ function rankAugs(ids, g, globalT, rec, globalR, opt) {
     if (combo) { score += 1 + (TS[combo.tier] != null ? TS[combo.tier] : 6) / 10; extra.push('콤보'); }
     // v0.1.107: 함정 표시 뺌(aramgg 챔피언 자료엔 T5가 없어 한 번도 안 떴음 · 사장님 확인)
     const r = rec && rec[id]; if (r && r.g >= 2) { score += (r.w / r.g - 0.5) * 4; extra.push(`우리 ${r.g}판 ${r.w}승`); known = true; }
+    // 🍯 v0.1.145 꿀팁(aramgg 가이드 정리 · opt.tips = {core:[우선순위 순], avoid:[], good:{증강:true}, bad:{증강:true}}) — 순위 표시는 그대로, 점수에만 살짝
+    const T = opt && opt.tips;
+    if (T) {
+      const ci = (T.core || []).indexOf(id);
+      if (ci >= 0) { score += Math.max(0.6, 1.6 - ci * 0.25); extra.push('꿀팁 핵심'); known = true; }
+      else if (T.good && T.good[id]) { score += 0.8; extra.push('꿀팁 추천'); }
+      if ((T.avoid || []).includes(id) || (T.bad && T.bad[id])) { score -= 2; extra.push('꿀팁 비추천'); }
+    }
     if (globalR && globalR[id]) score -= globalR[id] / 10000;   // 동점이면 사이트 전체 순위가 높은 쪽(1~204위)
     const why = [tier ? `${scope} ${tier}` : known ? '' : '등급 없음'].concat(extra).filter(Boolean).join(' · ');
     return { id, score: Math.round(score * 10000) / 10000, why, known, tier, scope, extra, wr, pr };

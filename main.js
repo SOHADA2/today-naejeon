@@ -987,7 +987,8 @@ async function augTick() {
     // 기준 이름 = 지금 하고 있는 챔피언(사장님: 「이 챔피언」 말고 실제 이름 · 신뢰성) — 라이브 클라 championName, 없으면 챔피언 번호로 찾은 이름
     let champName = (me && me.championName) || '';
     if (!champName && champId) { try { const ch = (await getChamps()) || {}; champName = (ch[champId] && ch[champId].name) || ''; } catch (_) {} }
-    const ranks = augscan.rankAugs(ids, guideFor(champId, guide[champId], gg).guide, glob, recMy, augState.globalR, { champName, gg, ggG: ggi && ggi.g });   // 🧭 v0.1.100: aramgg 챔피언 등급 > aramgg 전체 > (없을 때만) arammayhem
+    const tipsC = await tipsFor(champId).catch(() => null), tipV = tipsC && (tipsC.core.length || Object.keys(tipsC.good).length) ? await champTipView(champId).catch(() => null) : null;   // 🍯 v0.1.145
+    const ranks = augscan.rankAugs(ids, guideFor(champId, guide[champId], gg).guide, glob, recMy, augState.globalR, { champName, gg, ggG: ggi && ggi.g, tips: tipsC });   // 🧭 v0.1.100: aramgg 챔피언 등급 > aramgg 전체 > (없을 때만) arammayhem
     const sf = d.scaleFactor || 1, ox = band.x - pr.x, oy = band.y - pr.y;   // 띠 좌표(실제 픽셀) → 그 모니터 기준 화면 좌표(DIP)
     // v0.1.102: 배지 = 카드 **위쪽 빈 곳**(카드 위 끝 0.178H에 아래 끝을 0.015H 걸침 · 아이콘·이름·설명 안 가림) → 창 위 끝 = 화면 0.05H(게임 중 정보 띠 피함)
     //   ay = 배지 아래 끝(이름 줄 0.40H − 0.207H) · u = 화면 높이 1%(DIP) · cw = 카드 폭(0.296H)
@@ -998,7 +999,7 @@ async function augTick() {
     //   두 장 → 세 장으로 다시 그릴 때마다 위치가 달랐음 · 카드 칸 = 화면 가운데, 가운데 ± 0.340H(docs/screen-layout.md) · 이름 줄 = 0.40H → 읽기는 「몇 번째 칸의 어떤 증강」만 정함
     const mid = pr.width / 2 - ox, gap = pr.height * 0.340, slotX = c => mid + Math.max(-1, Math.min(1, Math.round((c.x + c.w / 2 - mid) / gap))) * gap;
     const ayFix = Math.max(60, lift + (pr.height * 0.40 - oy) - pr.height * 0.207);
-    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, ax: slotX(c) / sf, ay: ayFix / sf, u: pr.height / sf / 100, cw: pr.height * 0.296 / sf, rank: ranks[i].rank, why: ranks[i].why, tier: ranks[i].tier, scope: ranks[i].scope, extra: ranks[i].extra, wr: ranks[i].wr, pr: ranks[i].pr, name: (aug[c.id] || {}).name || '', destiny: c.id === DESTINY_ID ? dtip : null, combo: augCombo(c.id, gg, aug, ids, (guide[champId] && guide[champId].plans) || []) }));   // 띠 기준
+    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, ax: slotX(c) / sf, ay: ayFix / sf, u: pr.height / sf / 100, cw: pr.height * 0.296 / sf, rank: ranks[i].rank, why: ranks[i].why, tier: ranks[i].tier, scope: ranks[i].scope, extra: ranks[i].extra, wr: ranks[i].wr, pr: ranks[i].pr, name: (aug[c.id] || {}).name || '', destiny: c.id === DESTINY_ID ? dtip : null, honey: tipV && tipV.build && (tipV.core || []).includes(c.id) ? { build: tipV.build, tip: tipV.tip, items: (tipV.items || []).slice(0, 2), core: tipV.core.indexOf(c.id) + 1 } : null, combo: augCombo(c.id, gg, aug, ids, (guide[champId] && guide[champId].plans) || []) }));   // 띠 기준
     augState.showing = { sig, ids };
     // 🖱️ 카드 영역(실제 픽셀 · docs/screen-layout.md: 카드 너비 0.296H · 위 0.178H ~ 아래 0.66H · 리롤 버튼은 그 아래 0.69~0.73H라 안 겹침)
     augState.rects = found.cards.map(c => { const cx = band.x + slotX(c); return [cx - pr.height * 0.148, pr.y + pr.height * 0.178, cx + pr.height * 0.148, pr.y + pr.height * 0.66]; });
@@ -2730,7 +2731,8 @@ const DESTINY = {
   bruiser: { label: '브루저', items: [], line: '정리된 추천은 적어요 · 히드라가 좋았다는 유저 평', src: '칼바람 갤러리' },
   tank: { label: '탱커·서포터', items: [], line: '유저 추천 정리가 아직 없어요 · 원래 가던 첫 템으로', src: '' },
 };
-const DESTINY_SHORT = { 6695: '독사', 3036: '도미닉', 4645: '그림자불꽃', 3135: '공허' };   // 게임 중 배지는 칸이 좁아 유저들이 부르는 짧은 이름(v0.1.142 · 「도미닉 경의…」 잘림)
+const ITEM_SHORT = { '독사의 송곳니': '독사', '도미닉 경의 인사': '도미닉', '공허의 지팡이': '공허', '라바돈의 죽음모자': '라바돈', '몰락한 왕의 검': '몰왕', '무한의 대검': '무대', '리안드리의 고통': '리안드리', '어둠불꽃 횃불': '횃불', '내셔의 이빨': '내셔', '발걸음 분쇄기': '분쇄기', '쇼진의 창': '쇼진', '징수의 총': '징수', '고속 연사포': '고연포', '정령의 형상': '정령', '지배자의 피갑옷': '피갑옷', '가시 갑옷': '가시', '제국의 명령': '제국', '크라켄 학살자': '크라켄', '불멸의 철갑궁': '철갑궁', '원칙의 원형낫': '원형낫', '스태틱의 단검': '스태틱', '황혼과 새벽': '황혼새벽', '영겁의 지팡이': '영겁', '그림자불꽃': '그림자불꽃' };   // 배지 칸이 좁아 유저들이 부르는 짧은 이름(v0.1.142~ · 이름으로 찾음)
+const shortOf = it => (it && ITEM_SHORT[it.name]) || null;
 const CRIT_FIGHTERS = new Set([157, 777, 23]);   // 야스오·요네·트린다미어 = 치명타
 // 태그·수치로 어긋나는 챔피언(2026-11-07 전체 확인): 키아나 = AD 암살자 · 벨베스 = 브루저 · 세라핀·벡스 = AP · 피오라·이렐리아·카밀·바이·비에고·암베사·브라이어 = 브루저 · 마스터 이 = 치명타
 const DESTINY_FIX = { 246: 'lethal', 200: 'bruiser', 147: 'mage', 711: 'mage', 114: 'bruiser', 39: 'bruiser', 164: 'bruiser', 254: 'bruiser', 234: 'bruiser', 799: 'bruiser', 233: 'bruiser', 11: 'crit' };
@@ -2769,7 +2771,29 @@ async function destinyTip(champId) {   // → {kind, label, items:[{id,name,icon
   const [meta, items] = await Promise.all([champMeta(), destinyItems()]);
   const k = destinyKind(champId, meta); if (!k) return null;
   const D = DESTINY[k];
-  return { kind: k, label: D.label, line: D.line, src: D.src, items: D.items.map(id => Object.assign({ id, short: DESTINY_SHORT[id] || null }, items[id] || { name: '#' + id, icon: '' })) };
+  return { kind: k, label: D.label, line: D.line, src: D.src, items: D.items.map(id => Object.assign({ id, short: shortOf(items[id]) }, items[id] || { name: '#' + id, icon: '' })) };
+}
+// 🍯 v0.1.145 챔피언 꿀팁(사장님: aramgg 가이드를 정리해 게임 중에 — 복잡하지 않게 · 증강 순위 표시는 방해 X · 조합은 반영 OK · 내가 하는 챔피언의 꿀정보)
+//   자료 = docs/data/tips.json(tools/champ-tips.src.json을 사람이 정리 → champ-tips-build.cjs가 번호로 · 홈페이지로 읽어 앱 업데이트 없이 고침 · 3시간 보관)
+//   쓰는 곳: ① 증강 순위 점수(핵심 +·비추천 −) ② 게임 중 배지 오른쪽 칸(그 챔피언 핵심 증강이면 「🍯 빌드」+ 템) ③ 챔피언 선택 증강 탭 「🍯 꿀팁」 카드
+let _tips = null, _tipsAt = 0;
+async function tipsData() {
+  if (_tips && Date.now() - _tipsAt < 3 * 3600e3) return _tips;
+  const j = await getJson('https://sohada2.github.io/today-naejeon/data/tips.json').catch(() => null);
+  if (j && j.champs) { _tips = j; _tipsAt = Date.now(); }
+  return _tips || { champs: {}, augs: {} };
+}
+async function tipsFor(champId) {   // 증강 순위용 {core, avoid, good:{}, bad:{}}
+  const T = await tipsData(), c = T.champs[champId] || {}, good = {}, bad = {};
+  for (const [a, x] of Object.entries(T.augs || {})) { if ((x.good || []).includes(+champId)) good[a] = true; if ((x.bad || []).includes(+champId)) bad[a] = true; }
+  return { core: (c.core || []).map(Number), avoid: (c.avoid || []).map(Number), good, bad };
+}
+async function champTipView(champId) {   // 화면용 {build, tip, core, avoid, items:[{id,name,icon}], augTips:[{id, tip, good}]}
+  const T = await tipsData(), c = T.champs[champId];
+  const augTips = Object.entries(T.augs || {}).filter(([, x]) => (x.good || []).includes(+champId) || (x.bad || []).includes(+champId)).map(([a, x]) => ({ id: +a, tip: x.tip, good: (x.good || []).includes(+champId) }));
+  if (!c && !augTips.length) return null;
+  const items = c && (c.items || []).length ? await destinyItems() : {};
+  return Object.assign({ augTips }, c ? { build: c.build, tip: c.tip, core: c.core || [], avoid: c.avoid || [], items: (c.items || []).map(id => Object.assign({ id, short: shortOf(items[id]) }, items[id] || { name: '#' + id, icon: '' })) } : {});
 }
 const isTrait = id => !!(_aug && _aug[id] && _aug[id].trait);   // 🎸 헤드라이너 특성(증강 아님)
 let _augPairs = {};   // 🧩 v0.1.140 챔피언 → {'a,b': {g, w}} = 이 챔피언으로 두 증강을 같이 고른 판(조합 자료 없는 챔피언용)
@@ -2801,11 +2825,11 @@ async function augGuideView() {
   if (!champSel || lobbyPhase !== 'ChampSelect') return { active: false };
   const [guide, champs, rec] = await Promise.all([getGuide(), getChamps(), augRecords().catch(() => ({}))]);
   const ids = [...new Set([champSel.mine, ...(champSel.bench || [])].filter(x => x > 0))];
-  const [ggs, dts] = await Promise.all([Promise.all(ids.map(id => ggChamp(id).catch(() => null))), Promise.all(ids.map(id => destinyTip(id).catch(() => null)))]);
+  const [ggs, dts, tps] = await Promise.all([Promise.all(ids.map(id => ggChamp(id).catch(() => null))), Promise.all(ids.map(id => destinyTip(id).catch(() => null))), Promise.all(ids.map(id => champTipView(id).catch(() => null)))]);
   const list = ids.map((id, i) => {
     const f = guideFor(id, guide[id], ggs[i]), guideC = f.guide, r = {};
     for (const a of [...(guideC.plans || []).flatMap(p => p.augs), ...((guideC.top && guideC.top.augs) || []).map(x => x.id), ...(guideC.avoid || [])]) { const x = rec[id + ':' + a]; if (x) r[a] = x; }
-    return { id, name: (champs[id] && champs[id].name) || '', mine: id === champSel.mine, guide: guideC, draft: f.draft, src: f.src, rec: r, destiny: dts[i] };
+    return { id, name: (champs[id] && champs[id].name) || '', mine: id === champSel.mine, guide: guideC, draft: f.draft, src: f.src, rec: r, destiny: dts[i], honey: tps[i] };
   });
   return { active: true, list };
 }

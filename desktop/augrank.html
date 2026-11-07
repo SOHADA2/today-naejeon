@@ -82,6 +82,9 @@
           : `함께 노릴 증강: ${(cm.all || cm.with.map(a => a.name)).map(esc).join(', ')}<br>${cm.src === 'arammayhem' ? 'arammayhem' : '증강 가이드'}${cm.date ? ' · ' + esc(cm.date.slice(0, 7)) : ''}`;
         let cb = `<span class="cb${cm ? '' : ' none'}"${tip(cbTip)}><span class="hd"><span>🔗 같이 가면 좋은</span></span>`
           + (cm ? `<span class="ics">${cm.with.slice(0, 2).map(a => pair(a, c)).join('')}</span>` : '<span class="ics none">조합 자료 없음</span>') + '</span>';
+        const Hn = c.honey;   // 🍯 v0.1.145 내 챔피언 가이드의 핵심 증강 = 조합 칸 대신 빌드 이름 + 템(운명의 무기 추천이 있으면 그게 먼저)
+        if (Hn && !c.destiny) cb = `<span class="cb"${tip(`<b>🍯 ${esc(Hn.build)}</b> · 핵심 증강 ${esc(Hn.core)}순위<br>${esc(Hn.tip || '')}${(Hn.items || []).length ? '<br>템: ' + Hn.items.map(i => esc(i.name)).join(' → ') : ''}`)}><span class="hd"><span>🍯 ${esc(Hn.build)}</span></span>`
+          + ((Hn.items || []).length ? `<span class="ics">${Hn.items.slice(0, 2).map(i => `<span class="pa"><span class="ic it"${i.icon ? ` style="background-image:url('${esc(i.icon)}')"` : ''}></span><span class="nm">${esc(i.short || i.name)}</span></span>`).join('')}</span>` : `<span class="ics none">핵심 증강 ${esc(Hn.core)}순위</span>`) + '</span>';
         const D = c.destiny;   // 🗡️ v0.1.141 운명의 무기 카드 = 조합 칸 대신 첫 템 추천(챔피언 유형별 · 유저 가이드 기준)
         if (D) cb = `<span class="cb"${tip(`<b>운명의 무기 첫 템</b> · ${esc(D.label)}<br>${esc(D.line)}${(D.items || []).length ? '<br>' + D.items.map(i => esc(i.name)).join(' · ') : ''}${D.src ? '<br>' + esc(D.src) : ''}<br>첫 전설 템에 붙어 처치 관여마다 커지고, 팔 수 없어요`)}><span class="hd"><span>🗡 첫 템 추천</span></span>`
           + ((D.items || []).length ? `<span class="ics">${D.items.slice(0, 2).map(i => `<span class="pa"><span class="ic it"${i.icon ? ` style="background-image:url('${esc(i.icon)}')"` : ''}></span><span class="nm">${esc(i.short || i.name)}</span></span>`).join('')}</span>` : `<span class="ics none">${esc(D.label)} · 원래 첫 템</span>`) + '</span>';
