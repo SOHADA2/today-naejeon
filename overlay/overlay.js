@@ -775,13 +775,14 @@ function renderLobby() {
     const no = String(i + 1).padStart(2, '0'), sn = side === 'teamA' ? 1 : side === 'teamB' ? 2 : 0;
     if (!m) return `<div class="seat empty${sn ? ' side' + sn : ''}"><span class="seat-no">${no}</span><span class="seat-av"></span><span class="seat-main"><b>${sn ? sn + '팀 빈 자리' : '빈 자리'}</b></span></div>`;
     const st = _standing(m.name), cap = capOf(m.name);
-    const tags = (m.me ? '<span class="seat-tag me">나</span>' : '') + (m.host ? '<span class="seat-tag host">방장</span>' : '') + (cap ? `<span class="seat-tag c${cap}" title="${cap}팀 팀장">팀장</span>` : '');
+    // v0.1.137(사장님: 아래 줄이 꽉 참) — 「나」= 금색 테두리로 충분 · 방장 = 이름 앞 왕관 · 디스코드 = 아래 줄 헤드셋 · 옛 버전 = 대기실 아래 안내 줄 → 아래 줄엔 팀장·앱 없음·오프라인·승패만
+    const tags = cap ? `<span class="seat-tag c${cap}" title="${cap}팀 팀장">팀장</span>` : '';
     const ctl = myIsHost ? ((draft ? `<button class="seat-btn cap${cap ? ' on' : ''}" data-cap="${esc(m.name)}" title="팀장 지정/해제">팀장</button>` : '')
       + (sn ? `<button class="seat-btn" data-side="${esc(m.name)}" data-t="${sn === 1 ? 'teamB' : 'teamA'}" title="${sn === 1 ? 2 : 1}팀으로 옮기기">⇄</button><button class="seat-btn" data-side="${esc(m.name)}" data-t="" title="팀에서 빼기(미정)">↩</button>` : '')
       + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="${m.guest ? '목록에서 빼기' : '관전으로 보내기'}">${m.guest ? '✕' : '↓'}</button>` : '')) : '';
     return `<div class="seat filled${m.me ? ' me' : ''}${cap ? ' cap' + cap : ''}${sn ? ' side' + sn : ''}">`
       + `<span class="seat-no">${no}</span>${avatar(m, 'seat-av')}`
-      + `<span class="seat-main"><b class="lb-nm" data-pk="${esc(m.key)}" title="프로필 보기">${esc(m.name)}</b><small>${tags}${m.dc ? `<span class="seat-dc" title="디스코드 연결됨 · 팀이 정해지면 음성 채널로 옮겨져요">${DC_ICO}</span>` : ''}${m.me && m.ver && verLt(m.ver, L.latest) ? `<span class="seat-old" title="지금 v${esc(m.ver)} · 최신 v${esc(L.latest)}">옛 버전</span>` : ''}${m.guest ? '<span>앱 없음</span>' : m.online ? '' : '<span>오프라인</span>'}${st ? `<span><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : ''}</small></span>`
+      + `<span class="seat-main"><span class="seat-nmrow">${m.host ? '<i class="seat-crown" title="방장">👑</i>' : ''}<b class="lb-nm" data-pk="${esc(m.key)}" title="${m.me ? '나 · ' : ''}프로필 보기">${esc(m.name)}</b></span><small>${tags}${m.dc ? `<span class="seat-dc" title="디스코드 연결됨 · 팀이 정해지면 음성 채널로 옮겨져요">${DC_ICO}</span>` : ''}${m.guest ? '<span>앱 없음</span>' : m.online ? '' : '<span>오프라인</span>'}${st ? `<span><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : ''}</small></span>`
       + (ctl ? `<span class="seat-ctl">${ctl}</span>` : '') + '</div>';
   };
   el('lb-seats').innerHTML = manual ? Array.from({ length: 5 }, (_, i) => seat(sA[i], i, 'teamA') + seat(sB[i], i, 'teamB')).join('')   // 🧩 직접: 왼쪽 열 1팀 · 오른쪽 열 2팀
