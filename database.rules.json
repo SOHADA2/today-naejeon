@@ -251,6 +251,24 @@
       "config": {
         ".write": false
       },
+      "discord": {
+        "$puuid": {
+          ".write": "auth != null && $puuid.length <= 80",
+          ".validate": "newData.hasChildren(['id', 'at'])",
+          "id": {
+            ".validate": "newData.isString() && newData.val().matches(/^[0-9]{15,21}$/)"
+          },
+          "name": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "at": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
       "ratings": {
         "$puuid": {
           ".write": "auth != null && $puuid.length <= 80",

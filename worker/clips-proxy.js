@@ -5,6 +5,7 @@
 // 못 하는 것 = 지우기·덮어쓰기·다른 파일 읽기(지우기는 매일 정리 cron만 · 3일 지난 clips- 릴리스)
 // 경로: POST /upload?day=&name= (video/webm|mp4 · 45MB 이하) → {id} · GET /clip/{id} → 302 · POST /shot?name= (jpg·json 8MB 이하) → {id}
 //       POST /upload-token?day= → {token, upload, exp}(2026-11-05 · 앱이 GitHub에 직접 올림 · 아래 appToken)
+//       POST /discord/move {moves:[{id, to:'t1'|'t2'|'lobby', back?}]} → {moved:[…]}(2026-11-07 · 디스코드 음성 채널 이동 · 아래 discordMove · 봇 토큰 = 비밀값 DISCORD_BOT_TOKEN)
 // x-tn-app 머리말은 지나가는 요청 거르기용일 뿐(앱 코드에 공개) — 보안 장치 아님
 // 🔐 2026-11-02(앱 v0.1.99~): Authorization: Bearer <Firebase 익명 로그인 표식> 확인(구글 공개키로 서명·프로젝트·만료) — 표식이 있는데 가짜면 401
 //   표식 없는 요청 = 옛 앱(전환 중) → vars REQUIRE_AUTH="1"이면 거절(친구들 업데이트 뒤 · DB 2단계 규칙과 같이)
@@ -107,6 +108,14 @@ async function route(req, env) {
     const rel = await release(env, 'aug-shots', '증강 화면(Shift+F8)'); if (!rel) return json({ err: 'release' }, 502);
     return upload(env, rel, name, type, buf);
   }
+  if (req.method === 'POST' && u.pathname === '/discord/move') {   // 🎧 v0.1.130 음성 채널 1팀/2팀 나누기·모으기(로그인 표식 필수 · 아래 discordMove)
+    if (!uid) return json({ err: 'login required' }, 401);
+    if (!env.DISCORD_BOT_TOKEN) return json({ err: 'no bot' }, 501);
+    const b = await req.json().catch(() => null), ID = /^\d{15,21}$/;
+    const moves = Array.isArray(b && b.moves) ? b.moves.filter(x => x && ID.test(x.id) && ['t1', 't2', 'lobby'].includes(x.to) && (!x.back || ID.test(x.back))).slice(0, 12) : [];
+    if (!moves.length) return json({ err: 'bad request' }, 400);
+    return json(await discordMove(env, moves));
+  }
   const m = /^\/clip\/(\d{1,12})$/.exec(u.pathname);
   if (req.method === 'GET' && m) {
     const info = await gh(env, 'GET', `/releases/assets/${m[1]}`); if (!info.ok) return json({ err: 'not found' }, 404);
@@ -117,6 +126,69 @@ async function route(req, env) {
     return Response.redirect(loc, 302);   // 서명된 임시 주소(몇 분짜리) — 토큰 없이 받음
   }
   return json({ err: 'not found' }, 404);
+}
+
+// 🎧 2026-11-07(앱 v0.1.130~): 디스코드 봇으로 음성 채널 이동 — 봇 토큰 = 비밀값 DISCORD_BOT_TOKEN(저장소·앱에 없음) · 봇은 「멤버 이동」 권한으로 서버에 초대
+//   채널은 이름으로 찾음(설정 없음): 「1팀」「2팀」(team 1·팀1도) · 모을 곳 = 앱이 넘긴 원래 채널(back) → 없으면 이름에 「대기·로비·lobby」 · 같은 카테고리 먼저
+//   이미 음성 채널에 들어와 있는 사람만 옮김(디스코드 규칙) · 모으기는 지금 1팀/2팀 채널에 있는 사람만(다른 데로 간 사람은 안 끌어옴)
+//   앱은 각자 디스코드 앱에서 받은 자기 디스코드 번호를 today/discord/{puuid}에 적고, 방장 앱이 팀이 짜지면 이 경로를 부름
+const DAPI = 'https://discord.com/api/v10';
+const T1 = /(^|[^0-9])1\s*팀|팀\s*1(?![0-9])|team\s*1(?![0-9])/i, T2 = /(^|[^0-9])2\s*팀|팀\s*2(?![0-9])|team\s*2(?![0-9])/i, LOBBY = /대기|로비|lobby/i;
+const isTeam = c => T1.test(c.name) || T2.test(c.name);
+function dc(env, method, p, body) {
+  return fetch(`${env.DISCORD_API || DAPI}${p}`, { method, body: body ? JSON.stringify(body) : undefined,
+    headers: { Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`, 'Content-Type': 'application/json', 'User-Agent': 'DiscordBot (https://sohada2.github.io/today-naejeon/, 1)' } });
+}
+let _dg = null;
+async function dcGuilds(env) {   // 봇이 들어가 있는 서버마다 음성 채널(1분 보관)
+  if (_dg && Date.now() - _dg.at < 60e3) return _dg.list;
+  const r = await dc(env, 'GET', '/users/@me/guilds'); if (!r.ok) return [];
+  const list = await Promise.all((await r.json()).slice(0, 10).map(async g => {
+    const c = await dc(env, 'GET', `/guilds/${g.id}/channels`);
+    const chans = c.ok ? (await c.json()).filter(x => x.type === 2).map(x => ({ id: x.id, name: x.name || '', parent: x.parent_id || null, pos: x.position || 0 })).sort((a, b) => a.pos - b.pos) : [];
+    return { id: g.id, chans };
+  }));
+  _dg = { at: Date.now(), list }; return list;
+}
+async function dcPatch(env, gid, uid, cid) {   // 429면 디스코드가 말한 만큼 한 번 기다렸다 다시
+  for (let i = 0; i < 2; i++) {
+    const r = await dc(env, 'PATCH', `/guilds/${gid}/members/${uid}`, { channel_id: cid });
+    if (r.status !== 429) return r;
+    const j = await r.json().catch(() => ({})); await new Promise(res => setTimeout(res, Math.min(3000, ((j.retry_after || 1) * 1000) | 0)));
+  }
+  return { ok: false, status: 429 };
+}
+async function discordMove(env, moves) {
+  const G = await dcGuilds(env);
+  if (!G.length) return { err: 'no guild', moved: [] };
+  const plan = await Promise.all(moves.map(async m => {   // 지금 어느 서버·채널에 있는지(서버마다 물어봄)
+    for (const g of G) {
+      const r = await dc(env, 'GET', `/guilds/${g.id}/voice-states/${m.id}`);
+      if (!r.ok) continue;
+      const vs = await r.json().catch(() => null); if (!vs || !vs.channel_id) continue;
+      const cur = g.chans.find(c => c.id === vs.channel_id) || { id: vs.channel_id, name: '', parent: null };
+      const near = re => g.chans.find(c => c.parent === cur.parent && re.test(c.name)) || g.chans.find(c => re.test(c.name));
+      let to = null;
+      if (m.to === 'lobby') {
+        if (!isTeam(cur)) return { id: m.id, ok: false, why: 'not in team channel' };
+        to = (m.back && g.chans.find(c => c.id === m.back && !isTeam(c))) || g.chans.find(c => c.parent === cur.parent && LOBBY.test(c.name) && !isTeam(c)) || g.chans.find(c => LOBBY.test(c.name) && !isTeam(c));
+        if (!to) return { id: m.id, ok: false, why: 'no lobby channel' };
+      } else {
+        to = near(m.to === 't1' ? T1 : T2);
+        if (!to) return { id: m.id, ok: false, why: 'no team channel' };
+      }
+      return { id: m.id, g: g.id, from: cur.id, to: to.id, name: to.name };
+    }
+    return { id: m.id, ok: false, why: 'not in voice' };
+  }));
+  const out = [];
+  for (const p of plan) {   // 옮기기는 하나씩(디스코드 속도 제한)
+    if (!p.g) { out.push(p); continue; }
+    if (p.from === p.to) { out.push({ id: p.id, ok: true, same: true, from: p.from, to: p.to }); continue; }
+    const r = await dcPatch(env, p.g, p.id, p.to);
+    out.push(r.ok ? { id: p.id, ok: true, from: p.from, to: p.to, name: p.name } : { id: p.id, ok: false, why: `move ${r.status}` });
+  }
+  return { moved: out };
 }
 
 async function cleanup(env) {   // 매일: 3일 지난 clips- 릴리스와 태그 지움(앱 KEEP_DAYS와 같음)
@@ -130,4 +202,4 @@ async function cleanup(env) {   // 매일: 3일 지난 clips- 릴리스와 태�
   }
   return gone;
 }
-export { cleanup, route };
+export { cleanup, route, discordMove };

@@ -6,7 +6,7 @@
   const api = window.api; if (!api || !api.getSettings) return;
   const $ = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstChild; };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  let S = { autoSeat: true, ingame: false, augRank: false, sfxOn: true, sfxVol: 1, dock: true, sidePanel: true, closeAsk: true, hotkey: 'Shift+F7' }, U = { state: 'idle' }, hideStrip = false;
+  let S = { discordRpc: true, discordMove: true, discord: null, autoSeat: true, ingame: false, augRank: false, sfxOn: true, sfxVol: 1, dock: true, sidePanel: true, closeAsk: true, hotkey: 'Shift+F7' }, U = { state: 'idle' }, hideStrip = false;
   const applyVol = () => { window.__tnVol = S.sfxOn ? S.sfxVol : 0; };
   applyVol();
   const header = document.querySelector('#bar, #sbar'), minBtn = document.querySelector('#ov-min, #s-min');
@@ -52,6 +52,10 @@
         <div class="tn-row tn-vol${S.sfxOn ? '' : ' off'}"><span class="tn-row-tx"><b>크기</b></span><input type="range" min="0" max="100" step="5" value="${Math.round(S.sfxVol * 100)}" class="tn-range" ${S.sfxOn ? '' : 'disabled'}><span class="tn-vol-n num">${Math.round(S.sfxVol * 100)}</span></div>
         <div class="tn-sec">대기방</div>
         ${tog('autoSeat', '팀 자리로 자동 이동 <span class=\"tn-tip\" data-tip=\"팀이 정해지면 롤 사용자 설정 게임 방에서 내 자리를 1팀·2팀·관전석으로 옮겨요(롤의 「팀 참가」 버튼과 같은 동작 · 내 자리만). 한 번 옮긴 뒤 직접 바꾸면 그대로 둬요\">ⓘ</span>', '롤 대기방에서 1팀·2팀으로')}
+        <div class="tn-sec">디스코드</div>
+        <div class="tn-row tn-dc"><span class="tn-row-tx"><b>${S.discord && S.discord.on ? `연결됨 · ${esc(S.discord.name || '디스코드')}` : S.discord && S.discord.app ? '디스코드 앱이 꺼져 있어요' : '준비 중'}</b><small>${S.discord && S.discord.on ? '이 PC의 디스코드 앱과 연결' : S.discord && S.discord.app ? 'PC 디스코드 앱을 켜면 저절로 연결돼요' : '디스코드 연동 준비 중이에요'}</small></span><i class="tn-dc-dot${S.discord && S.discord.on ? ' on' : ''}"></i></div>
+        ${tog('discordRpc', '디스코드에 내 상태 보이기 <span class=\"tn-tip\" data-tip=\"디스코드 프로필에 「투데이 내전 · 대기실 · 방 이름 · 6명 모임」처럼 지금 하고 있는 걸 보여 줘요(디스코드 설정 「활동 상태」가 켜져 있어야 보여요)\">ⓘ</span>', '대기실·드래프트·내전 중')}
+        ${tog('discordMove', '음성 채널 자동 나누기 <span class=\"tn-tip\" data-tip=\"내가 방장일 때 팀이 정해지면 디스코드 음성 채널 「1팀」「2팀」으로 옮기고, 게임이 끝나면 원래 채널로 모아요. 서버에 투데이 내전 봇과 「1팀」「2팀」 음성 채널이 있어야 하고, 음성 채널에 들어와 있고 디스코드 앱을 켠 사람만 옮겨요\">ⓘ</span>', '방장일 때 · 1팀/2팀 채널로')}
         <div class="tn-sec">게임 중</div>
         ${tog('ingame', '게임 중 정보 창 <span class=\"tn-tip\" data-tip=\"켜면 챔피언 선택 때 롤 화면 모드를 「테두리 없는 창」으로 바꾸고 게임이 끝나면 원래대로 돌려요(전체 화면이면 어떤 창도 게임 위에 못 떠요). 다음 판부터 적용 · 게임 중 Shift+F7로 숨기기\">ⓘ</span>', '양 팀 아이템 골드·킬 · 테두리 없는 창으로')}
         ${tog('augRank', '증강 순위 <span class=\"tn-tip\" data-tip=\"증강 3개가 뜨면 게임 화면에서 이름을 읽어(Windows 글자 읽기) 내 챔피언 기준 1·2·3위를 카드 위에 띄워요. 리롤하면 바로 다시 매겨요. 화면을 보기만 하고 게임 파일은 안 건드리지만, 라이엇 정책상 위험할 수 있어요. 게임 중 Shift+F8 = 그 화면을 개발용으로 보내기\">ⓘ</span>', '뜬 증강에 1·2·3위 · 베타')}

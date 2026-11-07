@@ -133,6 +133,10 @@ body { -webkit-font-smoothing:antialiased; font-feature-settings:'tnum' 0; lette
 .tn-range { flex:1; min-width:60px; accent-color:var(--gold); }
 .tn-vol .tn-row-tx { flex:none; }
 .tn-vol-n { flex:none; width:26px; text-align:right; font-size:13px; color:var(--ink-soft); }
+/* 🎧 디스코드 연결 상태(v0.1.130) — 점: 연결됨 = 청록 · 아니면 흐린 테두리 */
+.tn-dc { cursor:default; }
+.tn-dc-dot { flex:none; width:8px; height:8px; border-radius:50%; border:1px solid var(--dim); }
+.tn-dc-dot.on { border-color:var(--teal, #3fd1c4); background:var(--teal, #3fd1c4); }
 .tn-key { flex:none; padding:3px 8px; font-size:12px; color:var(--gold-hi); border:1px solid var(--gold-line); }
 .tn-quit { width:100%; margin-top:18px; padding:10px; font-size:12px; font-weight:700; color:var(--ink-soft); background:transparent; border:1px solid var(--line-2); cursor:pointer; clip-path:var(--cut-sm); }
 .tn-quit:hover { color:#e38c8c; border-color:rgba(227,140,140,0.5); }

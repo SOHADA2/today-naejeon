@@ -1,4 +1,5 @@
 # 투데이 내전 영상 중계 — 배포: cd worker && npx wrangler deploy · 토큰: npx wrangler secret put GH_TOKEN
+# 🎧 2026-11-07 디스코드 봇 토큰 = 비밀값 DISCORD_BOT_TOKEN(npx wrangler secret put DISCORD_BOT_TOKEN · 저장소에 절대 안 둠)
 name = "today-naejeon-clips"
 main = "clips-proxy.js"
 compatibility_date = "2024-09-23"

@@ -352,6 +352,11 @@ module.exports = function makePotg(d) {
   }
   const PX_HEAD = { 'x-tn-app': 'today-naejeon' };
   const pxHead = async () => { const t = d.getToken ? await d.getToken().catch(() => null) : null; return Object.assign({}, PX_HEAD, t && t !== 'noauth' ? { authorization: `Bearer ${t}` } : {}); };   // 🔐 v0.1.99: 로그인 표식(중계가 Firebase 표식 확인)
+  async function pxJson(route, body, timeout) {   // 🎧 v0.1.130 중계에 JSON 부탁(디스코드 음성 이동 등) → {status, j}
+    const base = await proxy(); if (!base) return { status: 0, j: null };
+    const r = await fetch(`${base}${route}`, { method: 'POST', body: JSON.stringify(body), headers: Object.assign({ 'Content-Type': 'application/json' }, await pxHead()), signal: AbortSignal.timeout(timeout || 20000) });
+    return { status: r.status, j: await r.json().catch(() => null) };
+  }
   async function pxUpload(route, name, buf, type, timeout) {   // → 파일 id 또는 null
     const base = await proxy(); if (!base) { log('영상 중계 주소 없음(today/config/clipProxy)'); return null; }
     const r = await fetch(`${base}${route}${route.includes('?') ? '&' : '?'}name=${encodeURIComponent(name)}`, { method: 'POST', body: buf, headers: Object.assign({ 'Content-Type': type }, await pxHead()), signal: AbortSignal.timeout(timeout) });
@@ -486,5 +491,5 @@ module.exports = function makePotg(d) {
     return cdPath(s.splashPath || s.uncenteredSplashPath);
   }
 
-  return { splashFor, startCollect, stopCollect, pickPotg, pickHero, heroStats, readRaws, uploadClip, uploadShot, getClip, prepUpload, cleanup, extOf, _pick: pickPotg };
+  return { splashFor, startCollect, stopCollect, pickPotg, pickHero, heroStats, readRaws, uploadClip, uploadShot, getClip, prepUpload, cleanup, extOf, pxJson, _pick: pickPotg };
 };

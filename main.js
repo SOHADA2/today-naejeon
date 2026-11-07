@@ -1759,6 +1759,7 @@ async function pollSession() {
   }
   autoSeat();   // 🪑 팀이 정해진 순간·재시도(자리 감지는 바뀔 때만 와서 여기서도)
   if (config.isHost) runHost();
+  dcVoiceTick().catch(() => {});   // 🎧 방장 = 음성 채널 나누기·모으기
 }
 
 // ── 🎬 팟지 창 — 롤 클라 가운데(클라 없으면 화면 가운데) · 영상 재생이라 투명 창 아님 ─────────
@@ -3090,8 +3091,98 @@ ipcMain.on('quit-confirm', (_e, yes, noAsk) => {
 ipcMain.on('update-now', () => { app._quitting = true; try { autoUpdater.quitAndInstall(); } catch (_) { app.quit(); } });
 ipcMain.handle('update-info', () => updView());
 ipcMain.on('update-check', () => checkUpdate());
+// ── 🎧 디스코드(v0.1.130) — ① 디스코드 프로필에 지금 상태 ② 팀이 짜지면 음성 채널 1팀/2팀으로 자동 나누기(방장 앱 → 중계 봇) ─────────
+//  디스코드 앱 번호(공개값) = today/config/discordApp(관리자만 씀 · 앱 업데이트 없이 바꿈) · 개발 = env TN_DISCORD_APP
+//  내 디스코드 번호 = 각자 디스코드 앱이 알려 줌 → today/discord/{puuid} {id, name, at}(하루 한 번 다시 적음) — 방장 앱이 이걸로 누가 누군지 앎
+//  음성 이동: 팀 확정(session teams · 결성 시각마다 한 번) → 1팀/2팀 채널 · 게임 끝(vote·result)·팀 취소(lobby) → 원래 있던 채널(없으면 이름에 「대기·로비」)
+//    봇이 없거나(501) 디스코드 번호를 모르는 사람(앱 없는 손님·디스코드 꺼 둔 사람)·음성 채널에 없는 사람은 그냥 건너뜀
+const makeDiscord = require('./discord');
+const DC_HOME = 'https://sohada2.github.io/today-naejeon/', DC_LOGO = `${DC_HOME}img/icon.png`;
+let discord = null, _dcAppAt = 0, _dcLinked = null, _dcSince = { k: null, at: 0 }, _dcSplit = null, _dcBacked = null, _dcBack = {}, _dcBusy = false, _dcNoBot = false;
+async function dcAppId() {
+  if (!discord) return;
+  if (!app.isPackaged && process.env.TN_DISCORD_APP) return discord.setApp(process.env.TN_DISCORD_APP);
+  if (Date.now() - _dcAppAt < 600000) return; _dcAppAt = Date.now();
+  const v = await getJson(`${FIREBASE_DB}/${T}/config/discordApp.json`).catch(() => undefined);
+  if (v === null) discord.setApp(null); else if (typeof v === 'string' || typeof v === 'number') discord.setApp(String(v));
+}
+function dcLink() {
+  const u = discord && discord.user;
+  if (!u || !account) return;
+  const k = `${account.puuid}:${u.id}:${u.name}:${dayKey(Date.now())}`;
+  if (k === _dcLinked) return; _dcLinked = k;
+  fbSet(`${T}/discord/${account.puuid}`, { id: u.id, name: u.name || null, at: Date.now() }).then(w => { if (!w || !w.ok) _dcLinked = null; }).catch(() => { _dcLinked = null; });
+}
+const dcClip = (s, n) => { s = String(s || '').trim(); return s.length >= 2 ? s.slice(0, n || 128) : null; };
+function dcPresence() {   // 3초마다 · 같은 내용은 discord.js가 안 보냄
+  if (!discord) return;
+  dcAppId().catch(() => {}); dcLink();
+  if (config.discordRpc === false || !discord.ready) return discord.setActivity(null);
+  const s = sessionData, me = config.myName, rn = room ? (room.priv ? '비공개 방' : room.name) : null;
+  const tl = t => t === 'teamA' ? '1팀' : t === 'teamB' ? '2팀' : null;
+  const my = tl(teamOf(s, me)), A = ((s && s.teamA) || []).length, B = ((s && s.teamB) || []).length;
+  const n = Object.values(presenceRaw || {}).filter(p => p && Date.now() - (p.at || 0) < 60000).length;
+  let d, st = null, party = null;
+  if (_recLocal) { d = '팟지 만드는 중'; st = rn; }
+  else if (inGame) {
+    const p = myRaw(), champ = p && p.championName ? String(p.championName) : null;
+    if (room && s && s.phase === 'teams' && my) { d = `내전 중 · ${rn}`; st = `${my} · ${A}:${B}${champ ? ` · ${champ}` : ''}`; }
+    else if (room && lobbyRaw && lobbyRaw.mode === 'normal') { d = `같이 일반 판 · ${rn}`; st = champ; }
+    else { d = '롤 게임 중'; st = champ; }
+  }
+  else if (!room) d = account ? '방 고르는 중' : '롤 켜기 기다리는 중';
+  else if (!s || !s.phase || s.phase === 'lobby') { d = `대기실 · ${rn}`; if (n) { st = `${n}명 모임`; party = { id: `tn-${room.id}`, size: [n, Math.max(10, n)] }; } }
+  else if (s.phase === 'draft') { d = `드래프트 · ${rn}`; st = '팀장들이 픽하는 중'; }
+  else if (s.phase === 'teams') { d = `팀 확정 · ${rn}`; st = `${my || '관전'} · ${A}:${B}`; }
+  else if (s.phase === 'vote') { d = `투표 중 · ${rn}`; st = 'MVP·매너왕 고르는 중'; }
+  else if (s.phase === 'result') { d = `결과 · ${rn}`; st = s.game && tl(s.game.winner) ? `${tl(s.game.winner)} 승리` : null; }
+  else d = `대기실 · ${rn}`;
+  if (_dcSince.k !== d) _dcSince = { k: d, at: Date.now() };   // 상태가 바뀔 때마다 경과 시간 처음부터
+  const act = { details: dcClip(d), timestamps: { start: _dcSince.at }, assets: { large_image: DC_LOGO, large_text: '투데이 내전' }, buttons: [{ label: '투데이 내전 받기', url: DC_HOME }], instance: false };
+  if (dcClip(st)) act.state = dcClip(st);
+  if (party) act.party = party;
+  discord.setActivity(act);
+}
+async function dcIds(s) {   // 팀 이름 → 디스코드 번호(session.ids 이름 → puuid · today/discord/{puuid})
+  const map = await getJson(`${FIREBASE_DB}/${T}/discord.json`).catch(() => null) || {};
+  const ids = s.ids || {}, out = {};
+  for (const n of [...(s.teamA || []), ...(s.teamB || [])]) { const pu = ids[fbKeyOf(n)], v = pu && map[pu]; if (v && v.id) out[normName(n)] = String(v.id); }
+  return out;
+}
+async function dcMove(moves, label) {
+  if (!potg || !moves.length) return null;
+  const { status, j } = await potg.pxJson('/discord/move', { moves }).catch(e => ({ status: 0, j: { err: String(e && e.message || e) } }));
+  if (status === 501) { if (!_dcNoBot) console.log('🎧 음성 채널 이동: 중계에 디스코드 봇이 아직 없음'); _dcNoBot = true; return null; }
+  _dcNoBot = false;
+  const M = (j && j.moved) || [], why = {};
+  for (const m of M) if (!m.ok) why[m.why] = (why[m.why] || 0) + 1;
+  console.log(`🎧 음성 채널 ${label}: ${status} · 옮김 ${M.filter(m => m.ok && !m.same).length} · 그대로 ${M.filter(m => m.same).length}${Object.keys(why).length ? ` · 건너뜀 ${JSON.stringify(why)}` : ''}${j && j.err ? ` · ${j.err}` : ''}`);
+  return j;
+}
+async function dcVoiceTick() {   // 방장 앱만 · pollSession마다
+  if (_dcBusy || !config.isHost || config.discordMove === false || !room || !potg) return;
+  const s = sessionData; if (!s) return;
+  const formed = s.teamsFormedAt || 0;
+  _dcBusy = true;
+  try {
+    if (s.phase === 'teams' && formed && _dcSplit !== formed && Date.now() - formed < 30 * 60000) {   // 팀 확정 → 나누기
+      _dcSplit = formed; _dcBacked = null;
+      const ids = await dcIds(s);
+      const moves = [...(s.teamA || []).map(n => [n, 't1']), ...(s.teamB || []).map(n => [n, 't2'])].map(([n, to]) => ids[normName(n)] ? { id: ids[normName(n)], to } : null).filter(Boolean);
+      const j = await dcMove(moves, '나누기');
+      for (const m of (j && j.moved) || []) if (m.ok && !m.same && m.from) _dcBack[m.id] = m.from;
+    } else if (['vote', 'result', 'lobby'].includes(s.phase) && _dcSplit && _dcBacked !== _dcSplit) {   // 게임 끝·팀 취소 → 원래 채널로 모으기
+      _dcBacked = _dcSplit;
+      const ids = await dcIds(s);
+      const moves = Object.values(ids).map(id => ({ id, to: 'lobby', back: _dcBack[id] || undefined }));
+      await dcMove(moves, '모으기');
+    }
+  } catch (e) { console.log('🎧 음성 채널 이동 오류', e && e.message); }
+  finally { _dcBusy = false; }
+}
+const dcView = () => ({ app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null });
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
-const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, autoSeat: config.autoSeat !== false, ingame: !!config.ingame, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY });
+const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, autoSeat: config.autoSeat !== false, ingame: !!config.ingame, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
 ipcMain.handle('settings-get', () => settingsView());
 ipcMain.on('tutorial-open', () => {   // 📘 ⚙ 설정 「사용법 다시 보기」 → 왼쪽 창에 튜토리얼
@@ -3105,6 +3196,8 @@ ipcMain.handle('settings-set', (_e, { key, value }) => {
   else if (key === 'dock') { if ((config.dock !== false) !== !!value) toggleDock(); }
   else if (key === 'sidePanel') { if ((config.sidePanel !== false) !== !!value) toggleSidePanel(); }
   else if (key === 'closeAsk') { config.closeAsk = !!value; refreshTrayMenu(); }
+  else if (key === 'discordRpc') { config.discordRpc = !!value; dcPresence(); }   // 🎧 디스코드 프로필 상태
+  else if (key === 'discordMove') config.discordMove = !!value;   // 🎧 음성 채널 자동 나누기(방장일 때)
   else if (key === 'autoSeat') { config.autoSeat = !!value; if (value) { _seatDone = null; _seatKey = null; autoSeat(); } }   // 🪑
   else if (key === 'augRank') {   // 🎯 증강 순위(베타) — 게임 위에 떠야 해서 테두리 없는 창도 같이
     config.augRank = !!value;
@@ -3247,6 +3340,8 @@ else {
     if (config.augRank) regAugShot();
     runSession = coalesce(pollSession);
     setInterval(runSession, 3000);                       // 화면·방장 일 3초마다(📡 v0.1.63: 데이터는 스트림 사본 — 끊긴 노드만 서버에서 읽음)
+    discord = makeDiscord({ pipe: !app.isPackaged && process.env.TN_DISCORD_PIPE ? (i => `\\\\?\\pipe\\${process.env.TN_DISCORD_PIPE}-${i}`) : undefined, log: m => { try { console.log(m); } catch (_) {} }, onUser: () => { _dcLinked = null; dcLink(); broadcastSettings(); dcPresence(); } });   // 🎧 v0.1.130
+    setInterval(dcPresence, 3000); setTimeout(dcPresence, 4000);
     seatGate();                                          // 🚦 자리 있으면 실시간 연결(접속 표시·방 목록·방) · 꽉 찼으면 안내하고 30초마다 다시
     setupAutoUpdate();
     replayRec = makeReplayRec(Object.assign(makeReplayRec.defaults(), {   // 🎬 방장 PC가 팟지 장면을 리플레이로 녹화
@@ -3312,6 +3407,7 @@ app.on('before-quit', (e) => {
   app._quitting = true;
   if (!inGame) borderlessOff();   // 🖥️ 바꿔 둔 화면 모드 원래대로(게임 중이면 다음 실행 때)
   try { bridge.stop(); } catch (_) {}
+  try { if (discord) discord.stop(); } catch (_) {}   // 🎧 디스코드 상태 지움
   try { stopDockStream(); } catch (_) {}
   if (_cleanedUp) return;
   // 접속 표시·방장 자리를 지우고 끝냄(안 지우면 다른 사람이 1분 기다려야 방장을 이어받음) — 최대 3초
