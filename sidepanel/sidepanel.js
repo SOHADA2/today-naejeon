@@ -31,8 +31,7 @@ function showWaiting() {
 }
 function showLogged() {
   $('s-login').style.display = 'none'; $('s-app').style.display = 'flex';
-  const me = $('s-me'); me.style.display = '';
-  me.innerHTML = escH(_account.gameName) + (_account.tagLine ? `<small>#${escH(_account.tagLine)}</small>` : '');
+  $('s-me').style.display = 'none';   // v0.1.132: 머리 이름 뺌(사장님 · 프로필·대기실에 이미 있음)
   renderHostBtn();
   $('s-rail-team').style.display = _isHost ? '' : 'none';
   if (!_isHost && _curCat === 'team') switchCat('today');
