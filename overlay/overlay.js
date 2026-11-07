@@ -27,6 +27,9 @@ function applySession({ session, myName: mn, isHost }) {
 window.api.onSession(applySession);
 window.api.onMyName(name => { myName = name || ''; render(); });
 window.api.onLobby(d => { lobbyData = d || null; if (d) myIsHost = !!d.isHost; render(); });
+let _set = null;   // ⚙ 설정(디스코드 안내용)
+window.api.getSettings && window.api.getSettings().then(v => { _set = v; render(); }).catch(() => {});
+window.api.onSettings && window.api.onSettings(v => { _set = v; render(); });
 window.api.onDocked(v => { document.body.classList.toggle('docked', !!v); });
 if (window.api.onMerged) window.api.onMerged(v => { document.body.classList.toggle('merged', !!v); });
 // 🚪 문 연출(v0.1.127 · 사장님: 창이 진짜 문처럼 · 튕기는 느낌) — 창 자체는 못 기울여서 안쪽 화면(#panel)을 경첩(바깥쪽 모서리) 기준으로 살짝 돌림 · 한 번만(무한 애니메이션 아님)
@@ -727,6 +730,21 @@ function renderLobby() {
     }
     const hm = el('lb-hostme'); if (hm) hm.onclick = e => { e.stopPropagation(); toggleHostMenu(L); };
     if (!myIsHost) el('lb-hostmenu').style.display = 'none';
+  }
+  document.querySelectorAll('.lb-kind').forEach(b => {   // v0.1.134 이번 판 = 내전 / 일반
+    const on = (b.dataset.kind === 'normal') === normal; b.classList.toggle('on', on);
+    b.disabled = !myIsHost;
+    b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyMode(b.dataset.kind)); };   // 내전 = main이 마지막에 고른 방식으로
+  });
+  el('lb-sub').style.display = normal ? 'none' : '';
+  { // 🎧 v0.1.134 방장에게 한 번: 이 방에서 쓸 디스코드 서버가 없으면 「서버 연결」 한 줄(닫으면 다시 안 뜸)
+    const dn = el('lb-dcn'), S = _set || {}, show = myIsHost && L.room && S.discord && S.discord.app && !L.dcGuild && !S.dcNudgeOff;
+    dn.style.display = show ? '' : 'none';
+    if (show) {
+      dn.innerHTML = `<span class="lb-dcn-ic">${DC_ICO}</span><span class="lb-dcn-t"><b>디스코드 음성 채널 자동 나누기</b><small>팀이 정해지면 1팀·2팀 채널로</small></span><button class="lb-mini" id="lb-dcn-go">서버 연결</button><button class="lb-dcn-x" id="lb-dcn-x" title="닫기(⚙ 설정 → 디스코드에서 언제든)">✕</button>`;
+      el('lb-dcn-go').onclick = () => window.api.discordConnect && window.api.discordConnect().then(r => { if (r && !r.ok && r.err) alert('디스코드 서버 연결 · ' + r.err); }).catch(() => {});
+      el('lb-dcn-x').onclick = () => { window.api.setSetting('dcNudgeOff', true); _set = Object.assign({}, _set, { dcNudgeOff: true }); dn.style.display = 'none'; };
+    }
   }
   document.querySelectorAll('.lb-seg').forEach(b => {
     b.classList.toggle('on', b.dataset.mode === L.mode);

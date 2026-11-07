@@ -15,10 +15,10 @@
       '방장은 한 명 — <b>팀짜기·경기 기록·투표 마감</b>을 맡아요',
       '「방장 ▾」에서 넘겨주거나 그만할 수 있어요',
       '방장이 방을 나가거나 응답이 없으면 방에 남은 사람이 <b>자동으로 이어받아요</b>'] },
-    { ic: '🎲', en: 'MODE', t: '이번 판 방식', l: [
-      '<b>랜덤</b> 바로 무작위로 팀 · <b>드래프트</b> 팀장 둘이 번갈아 뽑기(30초 지나면 무작위)',
-      '<b>직접</b> 방장이 1팀·2팀에 한 명씩 · <b>일반판</b> 내전 대신 같은 팀으로 일반 게임',
-      '롤 대기방이 <b>일반 큐면 일반판</b>, <b>사용자 설정 방이면 내전 방식</b>으로 저절로 바뀌어요',
+    { ic: '🎲', en: 'MODE', t: '이번 판 · 내전 / 일반', l: [
+      '<b>내전</b> 우리끼리 1팀 vs 2팀 · <b>일반</b> 같은 팀으로 일반 게임(칼바람 등)',
+      '내전이면 팀 짜기: <b>랜덤</b> 바로 무작위 · <b>드래프트</b> 팀장 둘이 번갈아(30초 지나면 무작위) · <b>직접</b> 방장이 1팀·2팀에',
+      '롤 대기방이 <b>일반 큐면 일반</b>, <b>사용자 설정 방이면 내전</b>(마지막에 고른 팀 짜기)으로 저절로 바뀌어요',
       '홀수거나 11명 이상이면 남는 사람은 관전이에요'] },
     { ic: '🏆', en: 'AFTER THE GAME', t: '게임이 끝나면', l: [
       '결과가 <b>자동으로 기록</b>되고 MVP·매너왕 투표가 열려요',
@@ -29,6 +29,11 @@
       '방장도 그 판에 <b>직접 참가</b>해야 찍혀요(관전한 판은 리플레이가 없어요)',
       '찍는 1분쯤 리플레이가 돌아요(소리는 꺼요) — 그동안은 큐를 잡지 마세요',
       '일반판은 앱 켠 사람 <b>2명+</b>이 같은 팀이면 기록·하이라이트'] },
+    { ic: '🎧', en: 'DISCORD', t: '디스코드 연동', dc: true, act: '⚙ 디스코드 설정 열기', l: [
+      'PC <b>디스코드 앱</b>을 켜 두면 프로필에 「투데이 내전 · 대기실 · 6명」처럼 <b>지금 상태</b>가 떠요',
+      '방장이 ⚙ 설정 → 디스코드 → <b>「서버 연결」</b>로 봇을 우리 서버에 넣으면',
+      '팀이 정해질 때 음성 채널 <b>「1팀」「2팀」으로 자동 이동</b> · 게임이 끝나면 원래 채널로',
+      '대기실 자리 🎧 = 디스코드 켠 사람 · 웹 브라우저 디스코드는 안 돼요'] },
     { ic: '⚙️', en: 'SETTINGS', t: '단축키·설정', l: [
       '<b>Shift+F7</b> 왼쪽 창 보이기/숨기기(게임 중엔 정보 창)',
       '⚙ 설정 — 게임 중 정보 창 · 증강 순위(베타) · 소리',
@@ -41,11 +46,13 @@
       <div class="tut-hd"><span class="tut-ic">${s.ic}</span><span class="tut-en lb-sec-en">${s.en}</span><span class="tut-no num">${i + 1}/${STEPS.length}</span></div>
       <b class="tut-t">${s.t}</b>
       <ul class="tut-l">${s.l.map(x => `<li>${x}</li>`).join('')}</ul>
+      ${s.act ? `<button class="tut-act">${s.act}</button>` : ''}
       <div class="tut-dots">${STEPS.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div>
       <div class="tut-btns">${last ? '' : '<button class="tut-skip">건너뛰기</button>'}${i ? '<button class="tut-prev">이전</button>' : ''}<button class="tut-next ui-btn-gold">${last ? '시작하기' : '다음'}</button></div>
     </div>`;
     const q = c => box.querySelector(c);
     if (q('.tut-skip')) q('.tut-skip').onclick = done;
+    if (q('.tut-act')) q('.tut-act').onclick = () => { done(); setTimeout(() => { const g = document.querySelector('.tn-gear'); if (g) g.click(); setTimeout(() => { const b = document.querySelector('.tn-set-body'), t = b && [...b.querySelectorAll('.tn-sec')].find(x => x.textContent === '디스코드'); if (t) b.scrollTop = t.offsetTop - 50; }, 80); }, 50); };   // 🎧 설정의 디스코드 칸으로
     if (q('.tut-prev')) q('.tut-prev').onclick = () => { i--; render(); };
     q('.tut-next').onclick = () => { if (last) done(); else { i++; render(); } };
   }
@@ -53,8 +60,8 @@
     if (!box) { box = document.createElement('div'); box.className = 'tut'; document.body.appendChild(box); }
     i = Math.max(0, Math.min(STEPS.length - 1, step || 0)); box.style.display = ''; render();
   }
-  function done() { if (box) box.style.display = 'none'; try { window.api.setSetting('tutorialSeen', true); } catch (_) {} }
+  function done() { if (box) box.style.display = 'none'; try { window.api.setSetting('tutorialSeen', true); window.api.setSetting('tutorialDc', true); } catch (_) {} }
   window.tnTutorial = open;
   if (window.api && window.api.onTutorial) window.api.onTutorial(d => open(d && d.step));
-  if (window.api && window.api.getSettings) window.api.getSettings().then(s => { if (s && !s.tutorialSeen) setTimeout(() => open(0), 600); }).catch(() => {});
+  if (window.api && window.api.getSettings) window.api.getSettings().then(s => { if (s && !s.tutorialSeen) setTimeout(() => open(0), 600); else if (s && !s.tutorialDc) setTimeout(() => open(STEPS.findIndex(x => x.dc)), 600); }).catch(() => {});   // 🎧 v0.1.134: 이미 본 사람에겐 디스코드 단계만(다음 = 설정 단계 → 끝)
 })();

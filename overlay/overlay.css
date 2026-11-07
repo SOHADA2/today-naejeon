@@ -55,11 +55,24 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .lb-hm-item:hover { background:rgba(255,255,255,0.05); }
 .lb-hm-item.stop { color:var(--dim); font-weight:600; }
 .lb-hm-empty { padding:8px 12px; font-size:12px; color:var(--dim); border-top:1px solid var(--line); }
-.lb-mode { display:flex; align-items:center; gap:6px; margin-bottom:10px; }
+.lb-mode { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
 .lb-mode-l { font-size:11.5px; font-weight:700; color:var(--dim); margin-right:4px; white-space:nowrap; }
 .lb-seg { -webkit-app-region:no-drag; flex:1; padding:8px 4px; font-size:13px; font-weight:700; cursor:pointer; color:var(--dim); background:var(--bg-1); border:1px solid var(--hair); clip-path:var(--cut-sm); }
 .lb-seg.on { color:#1a1206; background:linear-gradient(180deg, var(--gold-hi), var(--gold)); border-color:var(--gold); }
 .lb-seg:disabled { cursor:default; }
+/* v0.1.134 이번 판 = 내전 / 일반(큰 두 칸) · 내전이면 아래 줄 「팀 짜기」 랜덤·드래프트·직접(작은 칸 · 고른 것 = 금색 테두리) */
+.lb-kind { -webkit-app-region:no-drag; flex:1; padding:9px 4px; font-size:13.5px; font-weight:800; cursor:pointer; color:var(--dim); background:var(--bg-1); border:1px solid var(--hair); clip-path:var(--cut-sm); }
+.lb-kind.on { color:#1a1206; background:linear-gradient(180deg, var(--gold-hi), var(--gold)); border-color:var(--gold); }
+.lb-kind:disabled { cursor:default; } .lb-kind:disabled:not(.on) { opacity:0.5; }
+.lb-sub { display:flex; align-items:center; gap:5px; margin-bottom:10px; }
+.lb-sub .lb-seg { padding:6px 4px; font-size:12px; }
+.lb-sub .lb-seg.on { color:var(--gold-hi); background:var(--gold-soft); border-color:var(--gold); }
+/* 🎧 방장에게 한 번 「디스코드 서버 연결」 */
+.lb-dcn { display:flex; align-items:center; gap:8px; margin:-2px 0 10px; padding:7px 8px 7px 10px; background:rgba(88,101,242,0.08); border:1px solid rgba(143,152,242,0.35); }
+.lb-dcn-ic { flex:none; color:#a9b0f5; display:inline-flex; } .lb-dcn-ic .dc-ico { width:14px; height:14px; }
+.lb-dcn-t { flex:1; min-width:0; display:flex; flex-direction:column; } .lb-dcn-t b { font-size:12px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .lb-dcn-t small { font-size:10.5px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lb-dcn .lb-mini { flex:none; }
+.lb-dcn-x { -webkit-app-region:no-drag; flex:none; width:20px; height:20px; padding:0; font-size:11px; color:var(--dim); background:none; border:none; cursor:pointer; } .lb-dcn-x:hover { color:var(--ink); }
 .lb-start.normal:disabled { opacity:1; color:#06101a; background:linear-gradient(180deg, #8FD3FF, var(--t1)); cursor:default; }   /* 🎮 일반판 진행 중 = 눌리는 버튼 아님(상태 표시) */
 .lb-normal { display:block; font-size:11.5px; line-height:1.55; color:var(--ink-soft); } .lb-normal b { color:var(--gold-hi); } .lb-normal .warn { color:#FFB4A8; }
 .lb-seg:disabled:not(.on) { opacity:0.5; }
@@ -388,7 +401,7 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .brand-tx { min-width:0; }
 .brand-en, header .ttl { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 header .phase, header .win-btn { flex-shrink:0; }
-@media (max-width: 340px) { .brand-en { display:none; } header { gap:8px; padding:0 10px; } .lb-mode-l { display:none; } .lb-seg { padding:8px 2px; font-size:12.5px; } }   /* 방식 버튼 4개(v0.1.60) — 좁은 폭에선 「이번 판 방식」 숨김 */
+@media (max-width: 340px) { .brand-en { display:none; } header { gap:8px; padding:0 10px; } .lb-mode-l { display:none; } .lb-seg { padding:8px 2px; font-size:12.5px; } .lb-sub .lb-seg { padding:6px 2px; font-size:12px; } }   /* 방식 버튼 4개(v0.1.60) — 좁은 폭에선 「이번 판 방식」 숨김 */
 .lb-hn { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }   /* flex 칸 안에선 …이 안 붙어서 안쪽 칸에 */
 @media (max-width: 340px) {   /* 좁은 폭: 이름 자리 확보 — 자리 번호 숨김·아이콘 축소 */
   .seat { gap:6px; padding:0 6px; }
@@ -451,6 +464,7 @@ header .phase, header .win-btn { flex-shrink:0; }
 .tut-dots { display:flex; gap:5px; justify-content:center; margin-top:2px; }
 .tut-dots i { width:6px; height:6px; background:var(--hair); } .tut-dots i.on { background:var(--gold-hi); }
 .tut-btns { display:flex; gap:6px; align-items:center; }
+.tut-act { -webkit-app-region:no-drag; display:block; width:100%; margin:2px 0 10px; padding:8px 10px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--gold-hi); background:var(--gold-soft); border:1px solid var(--gold-line); clip-path:var(--cut-sm); }   /* 🎧 튜토리얼 단계 안 버튼(설정 열기) */
 .tut-btns button { padding:8px 12px; font-size:12.5px; font-weight:700; cursor:pointer; }
 .tut-skip { margin-right:auto; color:var(--dim); background:transparent; border:none; }
 .tut-prev { color:var(--ink-soft); background:var(--bg-3); border:1px solid var(--hair); clip-path:var(--cut-sm); }

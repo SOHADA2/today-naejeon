@@ -1567,7 +1567,7 @@ function lobbyView() {
   const sd = L.sides || {}, sides = {};
   for (const n of inNames) { const t = sd[fbKeyOf(n)]; if (t === 'teamA' || t === 'teamB') sides[n] = t; }
   return { members, sides, mode: ['draft', 'manual', 'normal'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
-    hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members), room: room ? { id: room.id, name: room.name, priv: room.priv } : null };
+    dcGuild: dcRoomGuild(members), hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members), room: room ? { id: room.id, name: room.name, priv: room.priv } : null };
 }
 // 🔄 버전 비교(v0.1.56) — 대기실 내 자리 「업데이트 필요」·내 안내 줄
 const verCmp = (a, b) => { const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return 0; };
@@ -1620,6 +1620,7 @@ async function lobbyRemoveGuest(key) {
 }
 async function lobbySetMode(mode, auto) {
   if (!config.isHost) return { ok: false, err: '방장만 방식을 정할 수 있어요' };
+  if (mode === 'inhouse') mode = config.lastTeamMode || 'random';   // v0.1.134: 「내전」 = 마지막에 고른 팀 짜기 방식
   const m = ['draft', 'manual', 'normal'].includes(mode) ? mode : 'random';   // normal = 🎮 일반판 진행(v0.1.60 · 팀짜기 없음)
   if (!auto && m !== 'normal' && config.lastTeamMode !== m) { config.lastTeamMode = m; saveConfig(); }   // 일반판에서 내전으로 돌아올 때 쓸 방식
   lobbyLocal(L => { L.mode = m; });
@@ -3131,6 +3132,12 @@ async function dcMapGet(fresh) {   // today/discord 전체(작음 · 1분 보관
   if (m !== undefined) { const ch = JSON.stringify(m) !== JSON.stringify(_dcMap); _dcMap = m || {}; _dcMapAt = Date.now(); if (ch) broadcast('lobby', lobbyView()); }
   return _dcMap || {};
 }
+function dcRoomGuild(members) {   // 🎧 v0.1.134 이 방에서 쓸 디스코드 서버 이름(내가 연결 → 방 사람 중 가장 많이 연결) · 대기실 「서버 연결」 안내를 숨길지
+  const G = dcGuildOf(); if (G) return G.name || '서버';
+  const cnt = {};
+  for (const m of members || []) { const v = _dcMap && _dcMap[m.key]; if (v && v.g) { const k = v.gn || v.g; cnt[k] = (cnt[k] || 0) + 1; } }
+  return Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0] || null;
+}
 const dcOn = puuid => { const v = _dcMap && _dcMap[puuid]; return !!(v && v.id && v.on !== false); };   // 대기실 🎧
 const dcClip = (s, n) => { s = String(s || '').trim(); return s.length >= 2 ? s.slice(0, n || 128) : null; };
 function dcPresence() {   // 3초마다 · 같은 내용은 discord.js가 안 보냄
@@ -3249,7 +3256,7 @@ ipcMain.handle('discord-connect', () => dcConnect());
 ipcMain.handle('discord-unlink', () => { config.discordGuild = null; saveConfig(); _dcLinked = null; dcLink(); broadcastSettings(); return true; });
 const dcView = () => ({ app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null, guild: dcGuildOf() ? dcGuildOf().name || '서버' : null, connecting: !!_dcConn });
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
-const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, autoSeat: config.autoSeat !== false, ingame: !!config.ingame, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
+const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, ingame: !!config.ingame, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
 ipcMain.handle('settings-get', () => settingsView());
 ipcMain.on('tutorial-open', () => {   // 📘 ⚙ 설정 「사용법 다시 보기」 → 왼쪽 창에 튜토리얼
@@ -3257,7 +3264,9 @@ ipcMain.on('tutorial-open', () => {   // 📘 ⚙ 설정 「사용법 다시 보
   userHid = false; showOverlay(); try { overlayWin.webContents.send('tutorial', { step: 0 }); } catch (_) {}
 });
 ipcMain.handle('settings-set', (_e, { key, value }) => {
-  if (key === 'tutorialSeen') config.tutorialSeen = !!value;   // 📘 사용법 튜토리얼 다 봄(v0.1.83)
+  if (key === 'tutorialDc') config.tutorialDc = !!value;   // 🎧 v0.1.134 튜토리얼 디스코드 단계 봄(업데이트한 사람에게 그 단계만 한 번)
+  else if (key === 'dcNudgeOff') config.dcNudgeOff = !!value;   // 🎧 대기실 「서버 연결」 안내 닫음
+  else if (key === 'tutorialSeen') config.tutorialSeen = !!value;   // 📘 사용법 튜토리얼 다 봄(v0.1.83)
   else if (key === 'sfxOn') config.sfxOn = !!value;
   else if (key === 'sfxVol') config.sfxVol = Math.max(0, Math.min(1, +value || 0));
   else if (key === 'dock') { if ((config.dock !== false) !== !!value) toggleDock(); }
