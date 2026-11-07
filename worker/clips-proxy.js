@@ -120,7 +120,7 @@ async function route(req, env) {
     if (!env.SETUP_KEY || String(env.SETUP_KEY).length < 20 || req.headers.get('x-setup-key') !== env.SETUP_KEY) return json({ err: 'not found' }, 404);
     if (!env.DISCORD_BOT_TOKEN) return json({ err: 'no bot' }, 501);
     const b = await req.json().catch(() => ({}));
-    return json(await discordSetup(env, String(b.guild || ''), !!b.dry, /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(b.icon || '') && b.icon.length < 1.4e6 ? b.icon : null));
+    return json(await discordSetup(env, String(b.guild || ''), b.dry === 'drop' ? 'drop' : !!b.dry, /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(b.icon || '') && b.icon.length < 1.4e6 ? b.icon : null));
   }
   const m = /^\/clip\/(\d{1,12})$/.exec(u.pathname);
   if (req.method === 'GET' && m) {
@@ -249,6 +249,13 @@ async function discordSetup(env, gid, dry, icon) {   // icon = 서버 아이콘 
   const g = await dcj(env, 'GET', `/guilds/${gid}`); if (!g.ok) return { err: `guild ${g.status}` };
   const ch = await dcj(env, 'GET', `/guilds/${gid}/channels`); if (!ch.ok) return { err: `channels ${ch.status}` };
   let chans = ch.j;
+  if (dry === 'drop') {   // 꾸미기 끝 → 봇 역할을 음성 이동에 필요한 권한만(채널 보기·연결·멤버 이동)으로
+    const me = await dcj(env, 'GET', '/users/@me'), roles = await dcj(env, 'GET', `/guilds/${gid}/roles`);
+    const mine = (roles.j || []).find(r => r.tags && r.tags.bot_id === (me.j && me.j.id));
+    if (!mine) return { err: 'bot role not found' };
+    const r = await dcj(env, 'PATCH', `/guilds/${gid}/roles/${mine.id}`, { permissions: '17826816' });
+    return { role: mine.name, before: mine.permissions, ok: r.ok, status: r.status, after: r.j && r.j.permissions, msg: r.ok ? null : r.j };
+  }
   if (dry) return { guild: g.j.name, chans: chans.map(c => ({ id: c.id, type: c.type, name: c.name, parent: c.parent_id, pos: c.position })) };
   const RO = [{ id: gid, type: 0, allow: '0', deny: '2048' }];   // @everyone 메시지 보내기 막음(읽기 전용)
   const used = new Set(), ids = {}, order = [];
