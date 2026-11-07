@@ -264,6 +264,15 @@
           "at": {
             ".validate": "newData.isNumber()"
           },
+          "on": {
+            ".validate": "newData.isBoolean()"
+          },
+          "g": {
+            ".validate": "newData.isString() && newData.val().matches(/^[0-9]{15,21}$/)"
+          },
+          "gn": {
+            ".validate": "newData.isString() && newData.val().length <= 60"
+          },
           "$other": {
             ".validate": false
           }

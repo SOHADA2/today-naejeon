@@ -139,6 +139,7 @@ function playerRow(name, i) {
   const rec = st ? `<span class="lp"><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : '';
   return `<li${me}><span class="no num">${i + 1}</span><span class="nm">${esc(name)}</span>${rec}</li>`;
 }
+const DC_ICO = '<svg class="dc-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 9V8a5 5 0 0 1 10 0v1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="9" width="3" height="5" rx="0.6" fill="currentColor"/><rect x="11" y="9" width="3" height="5" rx="0.6" fill="currentColor"/></svg>';   // 🎧 v0.1.131 디스코드(헤드셋)
 function renderTeam() {
   const s = sessionData, A = s.teamA || [], B = s.teamB || [], mt = myTeam();
   const band = el('tv-band');
@@ -152,6 +153,12 @@ function renderTeam() {
   el('t2-count').textContent = B.length + '명';
   el('t1-players').innerHTML = A.map(playerRow).join('');
   el('t2-players').innerHTML = B.map(playerRow).join('');
+  { // 🎧 v0.1.131 디스코드 음성 채널 나누기 결과(방장 앱이 session.dcMove에 남김) — 못 옮긴 사람과 이유
+    const D = s.dcMove, b = el('tv-dc'), on = D && D.at >= (s.teamsFormedAt || 0);
+    b.style.display = on ? '' : 'none';
+    if (on) b.innerHTML = `<span class="tv-dc-h">${DC_ICO}<em>디스코드</em></span><span class="tv-dc-t">${D.err && !D.n ? (/403|404/.test(D.err) ? '봇이 연결된 서버에 없어요' : '음성 채널을 못 찾았어요') : D.n ? `<b class="num">${D.n}</b>명 1팀·2팀 음성 채널로 옮겼어요` : '아무도 못 옮겼어요'}</span>`
+      + ((D.miss || []).length ? `<small class="tv-dc-miss">${D.miss.map(x => `<span><b>${esc(x.n || '')}</b> ${esc(x.w || '')}</span>`).join('')}</small>` : '');
+  }
   const pend = el('tv-pending');
   if (s.pendingEog) { pend.style.display = ''; pend.textContent = '경기가 끝났어요 · 방장이 승리팀을 확인하는 중'; }
   else if (_gamePlayed) { pend.style.display = ''; pend.textContent = '경기 결과 기록 대기 중…'; }
@@ -756,7 +763,7 @@ function renderLobby() {
       + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="${m.guest ? '목록에서 빼기' : '관전으로 보내기'}">${m.guest ? '✕' : '↓'}</button>` : '')) : '';
     return `<div class="seat filled${m.me ? ' me' : ''}${cap ? ' cap' + cap : ''}${sn ? ' side' + sn : ''}">`
       + `<span class="seat-no">${no}</span>${avatar(m, 'seat-av')}`
-      + `<span class="seat-main"><b class="lb-nm" data-pk="${esc(m.key)}" title="프로필 보기">${esc(m.name)}</b><small>${tags}${m.me && m.ver && verLt(m.ver, L.latest) ? `<span class="seat-old" title="지금 v${esc(m.ver)} · 최신 v${esc(L.latest)}">옛 버전</span>` : ''}${m.guest ? '<span>앱 없음</span>' : m.online ? '' : '<span>오프라인</span>'}${st ? `<span><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : ''}</small></span>`
+      + `<span class="seat-main"><b class="lb-nm" data-pk="${esc(m.key)}" title="프로필 보기">${esc(m.name)}</b><small>${tags}${m.dc ? `<span class="seat-dc" title="디스코드 연결됨 · 팀이 정해지면 음성 채널로 옮겨져요">${DC_ICO}</span>` : ''}${m.me && m.ver && verLt(m.ver, L.latest) ? `<span class="seat-old" title="지금 v${esc(m.ver)} · 최신 v${esc(L.latest)}">옛 버전</span>` : ''}${m.guest ? '<span>앱 없음</span>' : m.online ? '' : '<span>오프라인</span>'}${st ? `<span><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : ''}</small></span>`
       + (ctl ? `<span class="seat-ctl">${ctl}</span>` : '') + '</div>';
   };
   el('lb-seats').innerHTML = manual ? Array.from({ length: 5 }, (_, i) => seat(sA[i], i, 'teamA') + seat(sB[i], i, 'teamB')).join('')   // 🧩 직접: 왼쪽 열 1팀 · 오른쪽 열 2팀

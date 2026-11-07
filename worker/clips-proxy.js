@@ -114,7 +114,16 @@ async function route(req, env) {
     const b = await req.json().catch(() => null), ID = /^\d{15,21}$/;
     const moves = Array.isArray(b && b.moves) ? b.moves.filter(x => x && ID.test(x.id) && ['t1', 't2', 'lobby'].includes(x.to) && (!x.back || ID.test(x.back))).slice(0, 12) : [];
     if (!moves.length) return json({ err: 'bad request' }, 400);
-    return json(await discordMove(env, moves));
+    const gid = ID.test(String((b && b.guild) || '')) ? String(b.guild) : null;   // v0.1.131: 방장이 「서버 연결」한 서버만 봄(없으면 봇이 들어간 서버를 뒤짐)
+    return json(await discordMove(env, moves, gid));
+  }
+  if (req.method === 'POST' && u.pathname === '/discord/guild') {   // 🎧 v0.1.131 「서버 연결」 확인 — 봇이 그 서버에 있는지 · 이름 · 1팀/2팀/대기 채널 있는지
+    if (!uid) return json({ err: 'login required' }, 401);
+    if (!env.DISCORD_BOT_TOKEN) return json({ err: 'no bot' }, 501);
+    const b = await req.json().catch(() => null), gid = String((b && b.guild) || '');
+    if (!/^\d{15,21}$/.test(gid)) return json({ err: 'bad request' }, 400);
+    const g = await dcGuild(env, gid, true); if (!g) return json({ err: 'bot not in guild' }, 404);
+    return json({ id: g.id, name: g.name, t1: g.chans.some(c => T1.test(c.name)), t2: g.chans.some(c => T2.test(c.name)), lobby: g.chans.some(c => LOBBY.test(c.name) && !isTeam(c)) });
   }
   if (req.method === 'POST' && u.pathname === '/discord/setup') {   // 🎨 서버 꾸미기(한 번씩 · 배포할 때 --var SETUP_KEY:무작위 를 준 동안만 열림 · 보통 배포엔 없음)
     if (!env.SETUP_KEY || String(env.SETUP_KEY).length < 20 || req.headers.get('x-setup-key') !== env.SETUP_KEY) return json({ err: 'not found' }, 404);
@@ -146,13 +155,22 @@ function dc(env, method, p, body) {
     headers: { Authorization: `Bot ${String(env.DISCORD_BOT_TOKEN).trim().replace(/^Bot\s+/i, '')}`, 'Content-Type': 'application/json', 'User-Agent': 'DiscordBot (https://sohada2.github.io/today-naejeon/, 1)' } });
 }
 let _dg = null, _dgErr = null;
+const _gc = {};   // 서버 번호 → {at, g}(1분)
+const voiceChans = list => list.filter(x => x.type === 2).map(x => ({ id: x.id, name: x.name || '', parent: x.parent_id || null, pos: x.position || 0 })).sort((a, b) => a.pos - b.pos);
+async function dcGuild(env, gid, fresh) {   // 그 서버 하나(봇이 없으면 null)
+  const c = _gc[gid]; if (!fresh && c && Date.now() - c.at < 60e3) return c.g;
+  const [gr, cr] = await Promise.all([dc(env, 'GET', `/guilds/${gid}`), dc(env, 'GET', `/guilds/${gid}/channels`)]);
+  if (!gr.ok || !cr.ok) { delete _gc[gid]; _dgErr = `guild ${gr.status}`; return null; }
+  const g = { id: gid, name: String((await gr.json()).name || '').slice(0, 60), chans: voiceChans(await cr.json()) };
+  _gc[gid] = { at: Date.now(), g }; return g;
+}
 async function dcGuilds(env) {   // 봇이 들어가 있는 서버마다 음성 채널(1분 보관)
   if (_dg && Date.now() - _dg.at < 60e3) return _dg.list;
   const r = await dc(env, 'GET', '/users/@me/guilds'); if (!r.ok) { _dgErr = `guilds ${r.status}`; return []; }
   _dgErr = null;
   const list = await Promise.all((await r.json()).slice(0, 10).map(async g => {
     const c = await dc(env, 'GET', `/guilds/${g.id}/channels`);
-    const chans = c.ok ? (await c.json()).filter(x => x.type === 2).map(x => ({ id: x.id, name: x.name || '', parent: x.parent_id || null, pos: x.position || 0 })).sort((a, b) => a.pos - b.pos) : [];
+    const chans = c.ok ? voiceChans(await c.json()) : [];
     return { id: g.id, chans };
   }));
   _dg = { at: Date.now(), list }; return list;
@@ -165,8 +183,8 @@ async function dcPatch(env, gid, uid, cid) {   // 429면 디스코드가 말한 
   }
   return { ok: false, status: 429 };
 }
-async function discordMove(env, moves) {
-  const G = await dcGuilds(env);
+async function discordMove(env, moves, gid) {
+  const G = gid ? [await dcGuild(env, gid)].filter(Boolean) : await dcGuilds(env);
   if (!G.length) return { err: _dgErr || 'no guild', moved: [] };
   const plan = await Promise.all(moves.map(async m => {   // 지금 어느 서버·채널에 있는지(서버마다 물어봄)
     for (const g of G) {
@@ -183,6 +201,8 @@ async function discordMove(env, moves) {
       } else {
         to = near(m.to === 't1' ? T1 : T2);
         if (!to) return { id: m.id, ok: false, why: 'no team channel' };
+        // 🛡️ v0.1.131(봇 공개): 내전 자리에 있는 사람만 — 대기 채널·팀 채널 · 또는 팀 채널과 같은 카테고리(다른 방에서 노는 사람은 안 끌어옴)
+        if (!LOBBY.test(cur.name) && !isTeam(cur) && !(cur.parent && cur.parent === to.parent)) return { id: m.id, ok: false, why: 'not near' };
       }
       return { id: m.id, g: g.id, from: cur.id, to: to.id, name: to.name };
     }

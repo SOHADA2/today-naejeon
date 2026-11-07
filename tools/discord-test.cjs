@@ -92,9 +92,11 @@ async function partB() {
       let m;
       if (req.url === '/users/@me/guilds') return send(200, [{ id: '700000000000000001', name: '우리 서버' }]);
       if (req.url === '/guilds/700000000000000001/channels') return send(200, CH);
+      if (req.url === '/guilds/700000000000000001') return send(200, { id: '700000000000000001', name: '우리 서버' });
+      if (req.url.startsWith('/guilds/7999')) return send(403, { message: 'Missing Access', code: 50001 });
       if ((m = /^\/guilds\/700000000000000001\/voice-states\/(\d+)$/.exec(req.url))) return voice[m[1]] ? send(200, { channel_id: voice[m[1]], user_id: m[1] }) : send(404, { message: 'Unknown Voice State', code: 10065 });
       if (req.method === 'PATCH' && (m = /^\/guilds\/700000000000000001\/members\/(\d+)$/.exec(req.url))) {
-        if (m[1] === U.b && tooMany-- > 0) return send(429, { retry_after: 0.3, global: false });
+        if (m[1] === U.a && tooMany-- > 0) return send(429, { retry_after: 0.3, global: false });
         const cid = JSON.parse(body).channel_id; patches.push([m[1], cid]); voice[m[1]] = cid; return send(204);
       }
       send(404, { message: 'nope' });
@@ -114,12 +116,13 @@ async function partB() {
   let r = await call({ moves: [{ id: U.a, to: 't1' }, { id: U.b, to: 't2' }, { id: U.c, to: 't1' }, { id: U.d, to: 't1' }, { id: U.e, to: 't1' }] });
   const by = id => (r.j.moved || []).find(x => x.id === id) || {};
   ok(r.st === 200, `나누기 응답 ${r.st}`);
-  ok(by(U.a).ok && by(U.a).to === '910000000000000002' && by(U.a).from === '910000000000000001', 'A 대기실 → 같은 카테고리 「1팀」');
-  ok(by(U.b).ok && by(U.b).to === '910000000000000003', 'B 잡담(수다 카테고리 · 2팀 없음) → 「2팀」(다른 카테고리) · 429 한 번 뒤 성공');
+  ok(by(U.a).ok && by(U.a).to === '910000000000000002' && by(U.a).from === '910000000000000001', 'A 대기실 → 같은 카테고리 「1팀」 · 429 한 번 뒤 성공');
+  ok(!by(U.b).ok && by(U.b).why === 'not near', 'B 잡담(다른 카테고리 · 2팀은 내전 카테고리) → 안 끌어옴(내전 자리 아님)');
   ok(!by(U.c).ok && by(U.c).why === 'not in voice', 'C 음성 채널 없음 → 건너뜀');
   ok(by(U.d).ok && by(U.d).same, 'D 이미 1팀 → 그대로');
   ok(by(U.e).ok && by(U.e).to === '910000000000000005', 'E 잡담 → 같은 카테고리 「팀 1」');
   ok(!patches.some(p => p[1] === '910000000000000006'), '글 채널(1팀-채팅)로는 안 옮김');
+  voice[U.b] = '910000000000000003';   // B가 스스로 2팀에 들어감
   r = await call({ moves: [{ id: U.a, to: 'lobby', back: '910000000000000001' }, { id: U.b, to: 'lobby', back: '910000000000000004' }, { id: U.d, to: 'lobby' }, { id: U.c, to: 'lobby' }] });
   ok(by(U.a).ok && by(U.a).to === '910000000000000001', '모으기 A → 원래 채널(대기실)');
   ok(by(U.b).ok && by(U.b).to === '910000000000000004', '모으기 B → 원래 채널(잡담)');
@@ -131,6 +134,11 @@ async function partB() {
   r = await call({ moves: [{ id: U.a, to: 't1' }] }, env, false); ok(r.st === 401, `표식 없음 → ${r.st}`);
   r = await call({ moves: [{ id: U.a, to: 't1' }] }, { DISCORD_API: api, REQUIRE_AUTH: '1' }); ok(r.st === 501 && r.j.err === 'no bot', `봇 없음 → ${r.st}`);
   r = await call({ moves: [{ id: 'x', to: 't1' }, { id: U.a, to: 'roof' }] }); ok(r.st === 400, `잘못된 요청 → ${r.st}`);
+  r = await call({ guild: '700000000000000001', moves: [{ id: U.a, to: 't1' }] }); ok(by(U.a).ok && by(U.a).to === '910000000000000002', '서버 지정 → 그 서버에서 옮김');
+  r = await call({ guild: '799900000000000001', moves: [{ id: U.a, to: 't1' }] }); ok(r.j.err && !(r.j.moved || []).length, `봇 없는 서버 지정 → ${r.j.err}`);
+  const gq = async g => { const x = await W.route(new Request('https://x/discord/guild', { method: 'POST', body: JSON.stringify({ guild: g }), headers: { 'x-tn-app': 'today-naejeon', 'content-type': 'application/json', authorization: `Bearer ${tok}` } }), env); return { st: x.status, j: await x.json() }; };
+  r = await gq('700000000000000001'); ok(r.st === 200 && r.j.name === '우리 서버' && r.j.t1 && r.j.t2 && r.j.lobby, `서버 확인 = ${JSON.stringify(r.j)}`);
+  r = await gq('799900000000000001'); ok(r.st === 404, `봇 없는 서버 확인 → ${r.st}`);
   srv.close(); fs.rmSync(tmp, { recursive: true, force: true });
 }
 
