@@ -1,7 +1,6 @@
 // 📅 날짜별 경기 기록 점검(읽기만) — today/days 에 어떤 날짜에 몇 판이 저장됐는지 + 판마다 요약
 // 사용: node tools/days-report.cjs
-const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app/today';
-const get = async p => { const [a, q] = p.split('?'); const r = await fetch(`${DB}/${a}.json${q ? '?' + q : ''}`); return r.ok ? r.json() : null; };
+const { get } = require('./fb-lib.cjs');   // 🔐 2026-11-09: 익명 로그인 표식 붙임(서버 2단계 규칙)
 const when = t => t ? new Date(t).toLocaleString('ko-KR') : '-';
 (async () => {
   const days = await get('days?shallow=true');   // 날짜 목록만

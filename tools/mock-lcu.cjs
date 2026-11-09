@@ -3,12 +3,12 @@
 //   replay = fastexit + 리플레이(v0.1.29 리플레이 확인): 정보 없음(404) → 만들기 요청 → checking → download → (방장 앱이 받기) → downloading → watch + 가짜 .rofl
 //   ⚠️ replay는 앱을 방장으로 만들어야 받기까지 감(아니면 download에서 끝) · 결과 = today/bridge/replayProbe/{gameId}
 //   potg = fastexit + 가짜 라이브 클라이언트(2999, 게임 중만): 830초부터 테스터A가 4·7·10초에 3킬+에이스, 체력 100→8% (v0.1.30 팟지)
-//     → 앱이 방장이고 today/session 이 teams(1팀 A·B / 2팀 C·D·E)여야 기록·팟지까지 감 · 결과 = today/session/potg
+//     → 앱이 방장이고 rooms/{방}/session 이 teams(1팀 A·B / 2팀 C·D·E)여야 기록·팟지까지 감 · 결과 = rooms/{방}/session/potg
 // 앱: TN_HIDDEN=1 TN_FAKE_LCU=27999:testpw 로 실행(개발 실행만). 인증서 = MOCK_LCU_CERT 폴더의 key.pem/cert.pem
 //   만들기: openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 2 -subj /CN=127.0.0.1  (Git Bash는 MSYS_NO_PATHCONV=1)
-// ⚠️ 실제 Firebase today/bridge/eogStats에 씀 → 끝나면 today/ 테스트 데이터 삭제
+// ⚠️ 앱이 실제 Firebase rooms/{방}/bridge/eogStats에 씀 → 끝나면 today/ 테스트 데이터 삭제
 const https = require('https'), fs = require('fs'), path = require('path');
-const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app';
+const fb = require('./fb-lib.cjs');   // 🔐 2026-11-09: 익명 로그인 표식 · 방 경로(rooms/{방}) — 방 = env TN_ROOM 또는 가장 최근 방
 const scen = process.argv[2] || 'fastexit';
 const GID = 900000 + Math.floor(Math.random() * 99999);
 let phase = 'Lobby', eogOn = false, histOn = false, up = true;
@@ -94,21 +94,24 @@ srv.listen(27999, '127.0.0.1', async () => {
     await sleep(20000);
     up = true; phase = 'Lobby'; histOn = true; log('롤 다시 켬 — 전적에 이 판 있음');
   }
+  const ROOM = await fb.room().catch(() => null);
+  if (!ROOM) { log('❌ 방이 없음 — 앱에서 방을 만들거나 TN_ROOM=방번호'); process.exit(1); }
+  log(`결과 기다리는 방 = ${ROOM}`);
   for (let i = 0; i < 40; i++) {
     await sleep(1000);
-    const e = await (await fetch(`${DB}/today/bridge/eogStats.json`)).json();
+    const e = await fb.get(`rooms/${ROOM}/bridge/eogStats`);
     if (e && e.gameId === GID) {
       log(`✅ 저장됨 · 출처=${e.source || '정산 화면'} · 승리=${e.winSide} · ${e.players.map(p => `${p.summonerName}(${p.championName} ${p.kills}/${p.deaths}/${p.assists}${p.isWin ? ' 승' : ''})`).join(', ')}`);
       log(`LCU 호출 수: 정산 ${hits['/lol-end-of-game/v1/eog-stats-block'] || 0} · 전적 ${hits['/lol-match-history/v1/games/' + GID] || 0}`);
       if (scen === 'potg') {   // 🎬 팟지 기다림
-        for (let j = 0; j < 40; j++) { await sleep(2000); const p = await (await fetch(`${DB}/today/session/potg.json`)).json();
+        for (let j = 0; j < 40; j++) { await sleep(2000); const p = await fb.get(`rooms/${ROOM}/session/potg`);
           if (p && p.gameId === String(GID)) { log('🎬 팟지: ' + JSON.stringify(p).slice(0, 600)); await sleep(+(process.env.MOCK_HOLD || 0)); process.exit(p.none ? 1 : 0); } }
         log('❌ 팟지 없음'); process.exit(1);
       }
       if (scen !== 'replay') process.exit(0);
       for (let j = 0; j < 30; j++) {   // 🎬 리플레이 확인 기록 기다림
         await sleep(3000);
-        const pr = await (await fetch(`${DB}/today/bridge/replayProbe/${GID}.json`)).json();
+        const pr = await fb.get(`bridge/replayProbe/${GID}`);
         const r = pr && Object.values(pr)[0];
         if (r && r.done != null) { log('🎬 리플레이 확인 기록: ' + JSON.stringify(r)); process.exit(r.result.startsWith('ok') ? 0 : 1); }
       }

@@ -3,7 +3,7 @@
 // 사용: node tools/web-fetch.cjs [N=30] [out]   · 읽기만(Firebase·사이트) · 사이트 부담 없게 페이지 사이 1.5초 쉼
 // v0.1.75~: 콤보(증강 구성·등급·링크)·이번 패치 등급은 출처 표시와 함께 앱에 넣음(tools/combo-*.py) · 설명 글은 옮기지 않고 원문 링크로
 const fs = require('fs'), path = require('path');
-const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app/today';
+const fb = require('./fb-lib.cjs');   // 🔐 2026-11-09: 우리 기록은 익명 로그인 표식 붙여 읽음
 const CD = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1';
 const N = Number(process.argv[2]) || 30, OUT = process.argv[3] || 'out';
 const UA = 'Mozilla/5.0 (today-naejeon augment guide research; github.com/SOHADA2/today-naejeon)';
@@ -15,7 +15,7 @@ async function get(url, json) {
 const text = html => html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, '\n').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
 (async () => {
   fs.mkdirSync(path.join(OUT, 'pages'), { recursive: true });
-  const days = (await get(`${DB}/days.json`, true)).body || {};
+  const days = (await fb.get('days')) || {};
   const cnt = {};
   for (const d of Object.values(days)) for (const kind of ['matches', 'normals']) for (const m of Object.values((d && d[kind]) || {})) for (const st of (m && m.stats) || []) if (st && st.championId) cnt[st.championId] = (cnt[st.championId] || 0) + 1;
   const seenAug = {}; for (const d of Object.values(days)) for (const kind of ['matches', 'normals']) for (const m of Object.values((d && d[kind]) || {})) for (const st of (m && m.stats) || []) for (const a of (st && st.augments) || []) seenAug[a] = (seenAug[a] || 0) + 1;
