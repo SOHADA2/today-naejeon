@@ -3099,8 +3099,11 @@ function refreshTrayMenu(updateReady) {
   tray.setContextMenu(Menu.buildFromTemplate(items));
 }
 function makeTray() {
-  let icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png'));
-  if (!icon.isEmpty()) icon = icon.resize({ width: 18, height: 18 });
+  // 트레이 = 크기마다 따로 그린 그림(16 · 화면 배율 1.5배 24 · 2배 32) → 큰 그림을 줄일 때보다 선명 · 없으면 예전처럼 icon.png 줄여서
+  const src = n => path.join(__dirname, 'assets', 'icon-src', n + '.png');
+  let icon = nativeImage.createFromPath(src(16));
+  if (!icon.isEmpty()) { for (const [n, f] of [[24, 1.5], [32, 2]]) try { icon.addRepresentation({ scaleFactor: f, buffer: require('fs').readFileSync(src(n)) }); } catch (_) {} }
+  else { icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png')); if (!icon.isEmpty()) icon = icon.resize({ width: 18, height: 18 }); }
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
   tray.setToolTip('투데이 내전 · 실행 중 — 클릭: 패널 열기 · 우클릭: 종료');
   refreshTrayMenu();
