@@ -1904,6 +1904,13 @@ async function hostPotg(s) {
       return publish();
     }
     if (!replayRec || process.platform !== 'win32') return publish();
+    // 👀 v0.1.150 방장이 이번 판 관전 = 롤 관전은 리플레이가 안 남음(LCU metadata 404) → 녹화 시도 안 하고 바로 카드(킬 타임라인) · 대기실·팀 화면에서 미리 안내함
+    if (!teamOf(s, config.myName)) {
+      card.noRec = 'host-spec';
+      console.log('[potg] 방장이 관전한 판 — 리플레이가 없어 영상 없이 카드로');
+      fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potgRec: { ok: false, why: '방장 관전 · 리플레이 없음', at: Date.now() } }).catch(() => {});
+      return publish();
+    }
     // 🎬 리플레이 녹화(방장 PC) — 그동안은 「준비 중」(showAt 없음 → 아무 창도 안 뜸) · 3분 넘거나 실패하면 카드로
     await fbUpdate(`${RP()}/session`, { potg: Object.assign({}, card, { pending: true, pendingAt: Date.now() }) });
     recordPotgClip(card, { id: s.game.id, path: `${T}/days/${s.game.day}/matches/${s.game.id}` }).then(([clip, hclip]) => { if (clip) card.clip = clip; if (hclip && card.hero) card.hero.clip = hclip; }).catch(() => {}).finally(() => publish().catch(() => {}));

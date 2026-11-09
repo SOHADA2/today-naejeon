@@ -171,6 +171,7 @@ function renderTeam() {
     if (on) b.innerHTML = `<span class="tv-dc-h">${DC_ICO}<em>디스코드</em></span><span class="tv-dc-t">${D.err && !D.n ? (/403|404/.test(D.err) ? '봇이 연결된 서버에 없어요' : '음성 채널을 못 찾았어요') : D.n ? `<b class="num">${D.n}</b>명 1팀·2팀 음성 채널로 옮겼어요` : '아무도 못 옮겼어요'}</span>`
       + ((D.miss || []).length ? `<small class="tv-dc-miss">${D.miss.map(x => `<span><b>${esc(x.n || '')}</b> ${esc(x.w || '')}</span>`).join('')}</small>` : '');
   }
+  hostSpecNote(el('tv-hspec'), myIsHost && !mt, [...A, ...B], false);
   const pend = el('tv-pending');
   if (s.pendingEog) { pend.style.display = ''; pend.textContent = '경기가 끝났어요 · 방장이 승리팀을 확인하는 중'; }
   else if (_gamePlayed) { pend.style.display = ''; pend.textContent = '경기 결과 기록 대기 중…'; }
@@ -824,7 +825,11 @@ function renderLobby() {
     const b = el('lb-mebtn'), spec = !!(me && me.st === 'spec');
     b.className = 'lb-mebtn ' + (spec ? 'rejoin' : 'leave');
     b.textContent = spec ? '다시 참가하기' : '이번 판은 관전할게요';
-    b.onclick = () => lbAct(() => window.api.lobbyMe(spec ? 'in' : 'spec'));
+    b.onclick = () => {
+      if (!spec && myIsHost && !normal && !confirm(HSPEC_ASK)) return;   // 👀 v0.1.150 방장이 관전으로 빠지기 전에 한 번 더
+      lbAct(() => window.api.lobbyMe(spec ? 'in' : 'spec'));
+    };
+    hostSpecNote(el('lb-hspec'), myIsHost && spec && !normal, ins.map(m => m.name), true);
   }
   // 자리에 없는 사람 = 관전
   const chip = m => `<span class="lb-chip ${m.st || 'none'}${m.me ? ' me' : ''}">${avatar(m, 'chip-av')}<b class="lb-nm" data-pk="${esc(m.key)}">${esc(m.name)}</b>`
@@ -864,6 +869,25 @@ function renderLobby() {
     `<div class="wi-rk-row${nn(p.name) === nn(myName) ? ' me' : ''}"><span class="wi-rk-r num">${p.rank}</span><span class="wi-rk-nm">${esc(p.name)}</span><span class="wi-rk-lp"><span class="num">${p.wins}</span>승 <span class="num">${p.losses}</span>패</span></div>`).join('') + '</div>';
 }
 el('lb-start').onclick = () => lbAct(() => window.api.lobbyStart());
+// 👀 v0.1.150 방장이 관전 = 롤은 관전한 판의 리플레이를 안 남겨 방장 PC가 팟지 영상을 못 찍음 → 방장에게만 미리 안내 + 경기에 나가는 사람에게 넘기기
+const HSPEC_ASK = '방장이 관전하면 이번 판 팟지 영상을 찍을 수 없습니다.\n롤은 관전한 판의 리플레이를 남기지 않습니다.\n\n경기에 나가는 사람에게 방장을 넘기면 그 사람 PC가 찍습니다.\n그래도 관전으로 바꿀까요?';
+function hostSpecNote(box, on, names, inLobby) {
+  box.style.display = on ? '' : 'none';
+  if (!on) { box.innerHTML = ''; delete box.dataset.sig; return; }
+  const M = (lobbyData && lobbyData.members) || [], want = new Set(names.map(nn));
+  const cand = M.filter(m => m.online && !m.guest && !m.me && want.has(nn(m.name)));
+  const sig = (inLobby ? 'L' : 'T') + cand.map(m => m.key).join(',');
+  if (box.dataset.sig === sig) return;   // 같은 내용이면 다시 안 그림
+  box.dataset.sig = sig;
+  box.innerHTML = `<span><b>방장이 관전하면 이번 판 팟지 영상을 찍을 수 없습니다</b></span>
+    <small>롤은 관전한 판의 리플레이를 남기지 않습니다. 경기에 나가는 사람에게 방장을 넘기면 그 사람 PC가 찍습니다.</small>
+    <div class="hs-row">${cand.length ? '<span class="hs-lb">방장 넘기기</span>' + cand.map(m => `<button class="hs-pick" data-hs="${esc(m.key)}" title="${esc(m.name)}님에게 방장 넘기기">${avatar(m, 'chip-av')}<span>${esc(m.name)}</span></button>`).join('') : '<span class="hs-none">방장을 넘길 사람(앱 켠 참가자)이 없습니다</span>'}</div>`;
+  box.querySelectorAll('[data-hs]').forEach(b => b.onclick = () => {
+    const m = cand.find(x => x.key === b.dataset.hs); if (!m) return;
+    if (!confirm(`${m.name}님에게 방장을 넘길까요?\n이번 판 팟지는 ${m.name}님 PC가 찍습니다.`)) return;
+    lbAct(() => window.api.handHost(m.key));
+  });
+}
 function toggleHostMenu(L) {   // 👑 내가 방장 ▾ = 접속 중인 사람에게 넘겨주기 · 그만하기 (오른쪽 창 메뉴와 같은 기능)
   const m = el('lb-hostmenu');
   if (m.style.display !== 'none') { m.style.display = 'none'; return; }
