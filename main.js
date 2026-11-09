@@ -240,6 +240,19 @@ function hideLeftPanel() { if (leftWin && !leftWin.isDestroyed() && leftWin.isVi
 //   _door: null | 'closed'(문 닫고 숨김 · 게임 중) · _bootWait = 켠 직후 첫 도킹 줄 기다림(클라가 이미 켜져 있으면 처음부터 붙은 채로 · 없으면 합친 창)
 const GAME_PH = new Set(['ChampSelect', 'GameStart', 'InProgress', 'Reconnect']);
 let _door = null, _bootWait = true;
+// 🖥️ v0.1.154 윈도우 시작 때 자동 실행(사장님) — `--autostart`로 켜지면 _quiet = 창 안 띄우고 트레이에만 · 롤 클라가 뜨면 그때 붙어서 나타남 · 트레이 클릭·바로가기 다시 실행 = 바로 보임
+//   업데이트로 다시 켜질 때도 조용히 켜진 상태였으면 그대로(config.quietNext)
+let _quiet = false;
+function quietOff() {   // 조용한 시작 끝 → 롤 클라 없으면 홈(합친 창)으로
+  if (!_quiet) return false;
+  _quiet = false;
+  if (!_clientPresent && !inGame) { _floating = false; floatPanels(); }
+  return true;
+}
+function applyAutoLaunch() {   // 설정값을 윈도우 시작 프로그램에 반영(설치본만 · 켤 때마다 = 경로가 바뀌어도 맞춤)
+  if (!app.isPackaged || process.platform !== 'win32') return;
+  try { app.setLoginItemSettings({ openAtLogin: config.autoLaunch !== false, path: process.execPath, args: ['--autostart'], name: 'TodayNaejeon' }); } catch (e) { console.log('[autostart]', e && e.message); }
+}
 const rectPb = p => ({ x: p[0], y: p[1], w: p[2] - p[0], h: p[3] - p[1] });
 function closeDoors() {
   _door = 'closed'; _floating = true; _lastRaise = null; dockedBounds = null; leftDockedBounds = null; setMerged(false);
@@ -364,7 +377,7 @@ function updateSlotMarker(p) {   // p=[L,T,R,B] 원시 px(클라 감지됨)
 let clientFg = false, panelFg = false, _lastRaise = null, _dropTimer = null;
 let _ovFocus = false, _lfFocus = false;
 function applyRaise() {
-  if (inGame || _door === 'closed' || _bootWait || _homeOn) return;   // 게임 중엔 pollGame이 오버레이 관리 · 🚪 문 닫힌 동안·켠 직후 첫 도킹 전·🏠 홈이 떠 있는 동안엔 안 띄움
+  if (inGame || _door === 'closed' || _bootWait || _homeOn || _quiet) return;   // 게임 중엔 pollGame이 오버레이 관리 · 🚪 문 닫힌 동안·켠 직후 첫 도킹 전·🏠 홈이 떠 있는 동안엔 안 띄움
   // 🪟 도킹/플로팅 모두: 패널은 항상 보임(숨기지 않음)·일반 z-order로.
   //   → 다른 앱을 클릭하면 그 창 뒤로 자연스럽게 가고(사라지지 않음), 클라를 다시 눌러도 억지로 튀어나오지(pop) 않음.
   //   (사장님 요청: "그냥 그 창 뒤로만 가면 되니까 안 사라져도 됨")
@@ -432,6 +445,7 @@ function handleDockLine(line) {
   if (_goneTimer) { clearTimeout(_goneTimer); _goneTimer = null; }   // 클라 다시 나타남 → 종료 확인 취소
   if (quitConfirmWin) closeQuitConfirm();   // 종료 확인창 떠 있으면 닫음(클라 복귀)
   _clientPresent = true;
+  if (_quiet) _quiet = false;   // 🖥️ 조용히 켜져 있다 롤 클라가 뜸 → 이제부터 평소처럼 붙어서 나타남
   const boot = _bootWait; _bootWait = false;
   // 플로팅 → 도킹 전환: 가운데로 옮겨진 창을 '같은 클라 위치'라도 반드시 다시 붙임
   //   (마지막 좌표 기억 때문에 왼쪽 창만 클라를 움직여야 붙던 문제 — 오른쪽은 게임 중 숨기며 기억이 지워져 괜찮았음)
@@ -758,7 +772,12 @@ function guestBeat() {
   else if (_guestOn) { _guestOn = false; if (process.env.TN_DOCK_SIM) console.log('[guest] 지움', !!account, !!_away, _live); fbSet(key, null).catch(() => {}); }
 }
 function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표시(첫 전환 때만 위치 세팅)
-  if (inGame) { hideLeftPanel(); return; }   // 게임 중엔 내 정보 패널 숨김(오버레이는 pollGame이 관리)
+  if (inGame) { hideLeftPanel(); return; }
+  if (_quiet) {   // 🖥️ 자동 실행으로 조용히 켜짐 → 아무 창도 안 띄움(트레이만) · 좌우 창은 합친 자리에 숨겨 둠
+    _bootWait = false; _floating = true; dockedBounds = null; leftDockedBounds = null;
+    for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) if (win && !win.isDestroyed()) { win.setBounds(standaloneBounds(side)); if (win.isVisible()) win.hide(); }
+    return;
+  }   // 게임 중엔 내 정보 패널 숨김(오버레이는 pollGame이 관리)
   if (_door === 'closed') { if (GAME_PH.has(lobbyPhase)) return; _door = null; }   // 🚪 문 닫힌 채 게임 진행 중 → 그대로 숨김 · 게임이 아니게 됐으면(닷지·클라 종료) 합친 창으로
   const wasDocked = !_floating && !!dockedBounds;
   _bootWait = false;
@@ -799,6 +818,7 @@ function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표�
   setMerged(hasRight && !userHid && !sampleActive);
 }
 function showMainPanel() {   // 트레이/재실행 → 내 정보 패널(메인)을 앞으로
+  if (quietOff() && _homeOn) return;   // 🖥️ 조용히 켜져 있던 것 → 홈이 나타남
   if (_homeOn && homeWin && !homeWin.isDestroyed()) { try { homeWin.setSkipTaskbar(true); } catch (_) {} homeWin.show(); homeWin.moveTop(); homeWin.focus(); return; }
   if (!leftWin || leftWin.isDestroyed()) createLeftPanel();
   if (config.sidePanel === false) { config.sidePanel = true; saveConfig(); refreshTrayMenu(); }
@@ -3135,6 +3155,7 @@ function refreshTrayMenu(updateReady) {
     { type: 'separator' },
     { label: '내전 홈페이지 (기본 브라우저)', click: () => shell.openExternal(WEB_URL) },
     { type: 'separator' },
+    { label: '윈도우 시작할 때 자동 실행', type: 'checkbox', checked: config.autoLaunch !== false, click: () => { config.autoLaunch = (config.autoLaunch === false); saveConfig(); applyAutoLaunch(); refreshTrayMenu(); broadcastSettings(); } },
     { label: '✕ 닫을 때 「숨기기/종료」 묻기', type: 'checkbox', checked: config.closeAsk !== false, click: () => { config.closeAsk = (config.closeAsk === false); saveConfig(); refreshTrayMenu(); try { broadcastSettings(); } catch (_) {} } },
     { type: 'separator' },
     { label: '투데이 내전 종료', click: () => { app._quitting = true; app.quit(); } },
@@ -3399,7 +3420,7 @@ ipcMain.handle('discord-connect', () => dcConnect());
 ipcMain.handle('discord-unlink', () => { config.discordGuild = null; saveConfig(); _dcLinked = null; dcLink(); broadcastSettings(); return true; });
 const dcView = () => ({ invite: dcInvOf(), app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null, guild: dcGuildOf() ? dcGuildOf().name || '서버' : null, connecting: !!_dcConn });
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
-const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
+const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
 ipcMain.handle('settings-get', () => settingsView());
 ipcMain.on('tutorial-open', () => {   // 📘 ⚙ 설정 「사용법 다시 보기」 → 왼쪽 창에 튜토리얼
@@ -3415,6 +3436,7 @@ ipcMain.handle('settings-set', (_e, { key, value }) => {
   else if (key === 'dock') { if ((config.dock !== false) !== !!value) toggleDock(); }
   else if (key === 'sidePanel') { if ((config.sidePanel !== false) !== !!value) toggleSidePanel(); }
   else if (key === 'closeAsk') { config.closeAsk = !!value; refreshTrayMenu(); }
+  else if (key === 'autoLaunch') { config.autoLaunch = !!value; applyAutoLaunch(); refreshTrayMenu(); }   // 🖥️ 윈도우 시작 때 자동 실행
   else if (key === 'discordRpc') { config.discordRpc = !!value; dcPresence(); }   // 🎧 디스코드 프로필 상태
   else if (key === 'discordMove') config.discordMove = !!value;   // 🎧 음성 채널 자동 나누기(방장일 때)
   else if (key === 'autoSeat') { config.autoSeat = !!value; if (value) { _seatDone = null; _seatKey = null; autoSeat(); } }   // 🪑
@@ -3535,6 +3557,9 @@ else {
       try { w.webContents.setBackgroundThrottling(false); } catch (_) {}
     });
     config.isHost = false;   // 🔒 방장은 실행마다 초기화
+    _quiet = process.argv.includes('--autostart') || !!config.quietNext;   // 🖥️ 윈도우 시작 때 자동 실행 = 트레이에만
+    if (config.quietNext) { config.quietNext = false; saveConfig(); }
+    applyAutoLaunch();
     config.myName = '';      // 👤 이름은 롤 로그인 계정에서만(옛 버전 저장값 무시)
     if (!config.deviceId) { config.deviceId = 'td_' + Math.random().toString(36).slice(2, 11) + Date.now().toString(36); saveConfig(); }
     createOverlay();
@@ -3548,7 +3573,7 @@ else {
     // 🧪 개발용 TN_DOCK_SIM=1: 롤 없이 창 연출 시험 — 진짜 도킹 감시 대신 global.__dockSim으로 클라 위치·롤 단계·게임 중을 흉내(배포본에선 무시)
     const dockSim = !app.isPackaged && process.env.TN_DOCK_SIM;
     if (dockSim) global.__dockSim = { line: queueDockLine, phase: (ph) => onLobbySeat({ phase: ph, seat: null, custom: null }), game: (v) => { global.__simGame = !!v; pollGame(); },
-      bounds: () => [overlayWin, leftWin, homeWin].map(w => w && !w.isDestroyed() ? w.getBounds() : null), state: () => ({ _floating, _door, _bootWait, inGame, home: _homeOn ? _homeMode : null, live: _live, guest: _guestOn, acct: !!account }) };
+      bounds: () => [overlayWin, leftWin, homeWin].map(w => w && !w.isDestroyed() ? w.getBounds() : null), state: () => ({ _floating, _door, _bootWait, quiet: _quiet, inGame, home: _homeOn ? _homeMode : null, live: _live, guest: _guestOn, acct: !!account }) };
     pollGame(); pollSession(); if (!dockSim) startDockStream();
     setInterval(pollGame, 2500);
     setInterval(autoLobbyMode, 3000);   // 🔀 v0.1.82: 대기방을 먼저 감지하고 방장이 나중에 된 경우(앱 재시작·방장 이어받기)도 판단 — 대기방 종류가 바뀐 때만 실제로 바꿈
@@ -3610,7 +3635,8 @@ let _installing = false, _updRestart = false;
 function installUpdateNow() {
   if (_installing) return; _installing = true;
   setUpd({ state: 'installing' });
-  _updRestart = true;   // 👑 v0.1.151 업데이트로 다시 켜짐 → 방장 자리를 비우지 않고 잠깐 맡아 둠(before-quit)
+  _updRestart = true;
+  if (_quiet) { config.quietNext = true; saveConfig(); }   // 🖥️ 조용히 켜진 채 업데이트 → 다시 켜져도 조용히   // 👑 v0.1.151 업데이트로 다시 켜짐 → 방장 자리를 비우지 않고 잠깐 맡아 둠(before-quit)
   setTimeout(() => { app._quitting = true; try { autoUpdater.quitAndInstall(true, true); } catch (_) { app.quit(); } }, 1200);
 }
 function setupAutoUpdate() {

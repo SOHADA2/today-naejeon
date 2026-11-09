@@ -7,7 +7,7 @@
   const $ = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstChild; };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   let invEdit = false;   // 🎧 v0.1.138 초대 링크 입력 중
-  let S = { discordRpc: true, discordMove: true, discord: null, autoSeat: true, augRank: false, sfxOn: true, sfxVol: 1, dock: true, sidePanel: true, closeAsk: true, hotkey: 'Shift+F7' }, U = { state: 'idle' }, hideStrip = false;
+  let S = { discordRpc: true, discordMove: true, discord: null, autoSeat: true, augRank: false, sfxOn: true, sfxVol: 1, dock: true, sidePanel: true, closeAsk: true, autoLaunch: true, hotkey: 'Shift+F7' }, U = { state: 'idle' }, hideStrip = false;
   const applyVol = () => { window.__tnVol = S.sfxOn ? S.sfxVol : 0; };
   applyVol();
   const header = document.querySelector('#bar, #sbar'), minBtn = document.querySelector('#ov-min, #s-min');
@@ -74,6 +74,7 @@
         ${tog('dock', '롤 클라이언트 옆에 붙이기', '끄면 두 창이 따로 떠 있어요')}
         ${tog('sidePanel', '오른쪽 창 보이기', '진행·오늘·프로필')}
         ${tog('closeAsk', '✕ 누르면 「숨기기/종료」 묻기', '끄면 묻지 않고 숨기기만')}
+        ${tog('autoLaunch', '윈도우 시작할 때 자동 실행', '트레이에만 켜 두고 롤을 켜면 나타나요')}
         <div class="tn-sec">단축키</div>
         <div class="tn-row"><span class="tn-row-tx"><b>왼쪽 창 켜기/끄기</b></span><span class="tn-key num">${esc(S.hotkey)}</span></div>
         <div class="tn-sec">도움말</div>
