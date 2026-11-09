@@ -139,7 +139,7 @@ async function route(req, env) {
     if (!env.SETUP_KEY || String(env.SETUP_KEY).length < 20 || req.headers.get('x-setup-key') !== env.SETUP_KEY) return json({ err: 'not found' }, 404);
     if (!env.DISCORD_BOT_TOKEN) return json({ err: 'no bot' }, 501);
     const b = await req.json().catch(() => ({}));
-    return json(await discordSetup(env, String(b.guild || ''), b.dry === 'drop' ? 'drop' : !!b.dry, /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(b.icon || '') && b.icon.length < 1.4e6 ? b.icon : null));
+    return json(await discordSetup(env, String(b.guild || ''), b.dry === 'drop' || b.dry === 'icon' ? b.dry : !!b.dry, /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(b.icon || '') && b.icon.length < 1.4e6 ? b.icon : null));
   }
   const m = /^\/clip\/(\d{1,12})$/.exec(u.pathname);
   if (req.method === 'GET' && m) {
@@ -277,6 +277,12 @@ async function discordSetup(env, gid, dry, icon) {   // icon = 서버 아이콘 
   if (!/^\d{15,21}$/.test(gid)) { const r = await dcj(env, 'GET', '/users/@me/guilds'); return { guilds: (r.j || []).map(x => ({ id: x.id, name: x.name, perm: x.permissions })) }; }   // 서버 번호 없으면 봇이 들어간 서버 목록
   const log = [], step = (what, r) => { log.push(`${r.ok ? '✅' : '❌'} ${what}${r.ok ? '' : ` ${r.status} ${JSON.stringify(r.j || {}).slice(0, 120)}`}`); return r; };
   const g = await dcj(env, 'GET', `/guilds/${gid}`); if (!g.ok) return { err: `guild ${g.status}` };
+  if (dry === 'icon') {   // 🎨 2026-11-09 아이콘만 바꿈(서버 아이콘 + 봇 사진) — 채널·안내 글은 안 건드림 · 기본 = 홈페이지 discord-icon.png(512)
+    const ic = icon || await iconUri(`${SITE}img/discord-icon.png`);
+    step('서버 아이콘', await dcj(env, 'PATCH', `/guilds/${gid}`, { icon: ic }));
+    step('봇 프로필 사진', await dcj(env, 'PATCH', '/users/@me', { avatar: ic }));
+    return { guild: g.j.name, log };
+  }
   const ch = await dcj(env, 'GET', `/guilds/${gid}/channels`); if (!ch.ok) return { err: `channels ${ch.status}` };
   let chans = ch.j;
   if (dry === 'drop') {   // 꾸미기 끝 → 봇 역할을 음성 이동에 필요한 권한만(채널 보기·연결·멤버 이동)으로

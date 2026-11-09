@@ -258,6 +258,7 @@ kbd, code { font-family:var(--mono); font-size:0.88em; color:var(--ink); backgro
 .faq details { border-bottom:1px solid var(--rule); }
 .faq summary { list-style:none; cursor:pointer; display:flex; justify-content:space-between; gap:20px; padding:20px 0; font-weight:700; font-size:16px; }
 .faq summary::-webkit-details-marker { display:none; }
+.faq p a { color:var(--gold); text-decoration:underline; text-underline-offset:3px; }
 .faq summary::after { content:'+'; font-family:var(--mono); color:var(--ink-3); font-weight:500; }
 .faq details[open] summary::after { content:'−'; }
 .faq details p { padding:0 0 22px; color:var(--ink-2); font-size:15px; max-width:44em; }
@@ -460,6 +461,10 @@ footer p + p { margin-top:6px; }
         <details><summary>「지금은 자리가 꽉 찼어요」가 떠요.</summary><p>무료 서버라 동시 접속 인원에 한도가 있습니다. 켜 둔 채 기다리시면 자리가 나는 대로 자동으로 들어갑니다.</p></details>
         <details><summary>디스코드 음성 채널도 팀별로 나눠 주나요?</summary><p>네. 방장이 앱의 ⚙ 설정 → 디스코드 → 「서버 연결」에서 서버를 고르면 투데이 내전 봇이 들어갑니다. 그 서버에 음성 채널 「1팀」「2팀」과 이름에 「대기」가 들어간 채널을 만들어 두세요. 같은 설정에 서버 초대 링크를 넣어 두면, 그 서버에 아직 없는 방 사람의 대기실에 「들어가기」 버튼이 뜹니다. 팀이 정해지면 대기 채널에 있던 사람이 1팀·2팀 채널로 옮겨지고, 게임이 끝나면 원래 채널로 돌아옵니다. 누가 누군지 알려면 각자 PC 디스코드 앱을 켜 두어야 합니다(웹 디스코드는 안 됩니다).</p></details>
         <details><summary>디스코드 봇은 어떤 권한을 갖나요?</summary><p>채널 보기, 음성 채널 연결, 멤버 이동 세 가지뿐입니다. 채팅을 읽거나 쓰지 않고, 팀이 정해질 때와 게임이 끝났을 때만 사람을 옮깁니다. 서버에 넣으려면 그 서버의 관리 권한이 필요합니다.</p></details>
+        <details><summary>어떤 정보가 저장되나요?</summary><p>롤 게임 이름과 태그, 라이엇 계정 고유 번호, 투데이 내전으로 한 경기의 결과(팀, 챔피언, 킬·데스·어시스트, 피해량, 증강 등)와 투표 결과가 저장됩니다. 디스코드를 연결한 사람은 디스코드 사용자 번호와 이름도 저장됩니다. 서버는 Google Firebase(싱가포르)이고, 저장된 기록은 투데이 내전 앱의 순위와 프로필 화면에 나옵니다. 경기 기록은 순위와 프로필에 쓰기 위해 계속 남기고, 팟지 영상과 하이라이트 재료는 3일 뒤 지워집니다. 접속 중 표시는 앱을 끄면 지워집니다.</p></details>
+        <details><summary>내 기록을 지우고 싶어요.</summary><p><a href="https://github.com/SOHADA2/today-naejeon/issues" target="_blank" rel="noopener">GitHub 문의 게시판</a>에 롤 게임 이름과 태그를 남겨 주세요. 확인한 뒤 그 계정의 기록과 디스코드 연결 정보를 지웁니다.</p></details>
+        <details><summary>롤 화면 모드가 창 모드로 바뀌어 있어요.</summary><p>팟지를 찍는 동안(방장 PC)과 증강 순위를 켠 경우 앱이 롤 화면 모드를 잠깐 바꿉니다. 끝나면 원래대로 돌려놓고, 그사이 앱이 꺼졌다면 다음에 앱을 켤 때 돌려놓습니다. 바로 고치려면 롤 설정에서 화면 모드를 다시 고르면 됩니다.</p></details>
+        <details><summary>증강 순위는 라이엇이 허락한 기능인가요?</summary><p>라이엇이 따로 승인한 기능은 아닙니다. 게임 화면에 보이는 증강 이름을 읽어 공개된 통계 순위를 보여 주며, 게임 파일이나 메모리는 건드리지 않습니다. 기본은 꺼져 있고 설정에서 직접 켠 사람만 씁니다.</p></details>
         <details><summary>Mac에서도 되나요?</summary><p>지금은 Windows만 지원합니다.</p></details>
       </div>
     </div>
