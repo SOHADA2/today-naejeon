@@ -7,6 +7,7 @@ function render(d) {
   if (!d) return;
   const sig = JSON.stringify(d); if (sig === _last) return; _last = sig;   // 같은 내용이면 다시 안 그림
   document.body.classList.toggle('logo', d.mode === 'logo');
+  if (d.mode !== 'logo') stopLogoVideo();
   $('h-ver').textContent = d.ver ? 'v' + d.ver : '';
   // 나
   const me = $('me');
@@ -37,8 +38,32 @@ function render(d) {
   const fp = $('f-panels'); if (fp) fp.onclick = () => window.api.homePanels();
 }
 
-// 처음 나타날 때·게임 시작 로고 = 한 번만 움직임(무한 애니메이션 없음)
+// 🎬 v0.1.155 게임 시작 로고 영상 — 문이 맞닿은 이음선에서 시작(드리미나) · 소리 = ⚙ 효과음 켜기·크기 · 글자는 테가 완성되는 3.1초에
+let _vol = 1;
+function setVol(s) { if (s) _vol = s.sfxOn === false ? 0 : (typeof s.sfxVol === 'number' ? s.sfxVol : 1); }
+if (window.api.getSettings) window.api.getSettings().then(setVol).catch(() => {});
+if (window.api.onSettings) window.api.onSettings(setVol);
+function stopLogoVideo() { const v = $('lv-v'); if (v) try { v.pause(); } catch (_) {} document.body.classList.remove('vid'); }
+function playLogoVideo() {
+  const v = $('lv-v'); if (!v) return false;
+  document.body.classList.add('vid');
+  const E = 'cubic-bezier(.2,.8,.2,1)', tt = document.querySelector('.lv-tt'), en = document.querySelector('.lv-en'), ko = document.querySelector('.lv-ko');
+  for (const el of [tt, en, ko]) el.getAnimations().forEach(a => a.cancel());
+  tt.animate([{ opacity: 0, transform: 'translateX(-50px)' }, { opacity: 1, transform: 'none' }], { duration: 400, delay: 3100, easing: E, fill: 'both' });
+  en.animate([{ backgroundPosition: '100% 0' }, { backgroundPosition: '0% 0' }], { duration: 700, delay: 3300, easing: 'ease-out', fill: 'both' });   // 금빛이 왼쪽→오른쪽으로 스침
+  ko.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 400, delay: 3500, easing: E, fill: 'both' });
+  try { v.currentTime = 0; } catch (_) {}
+  v.volume = Math.max(0, Math.min(1, 0.8 * _vol)); v.muted = _vol <= 0;
+  const p = v.play();
+  if (p && p.catch) p.catch(() => { stopLogoVideo(); introLegacy('logo'); });   // 재생 못 하면 예전 로고
+  return true;
+}
 function intro(mode) {
+  if (mode === 'logo') { if (playLogoVideo()) return; } else stopLogoVideo();
+  introLegacy(mode);
+}
+// 처음 나타날 때·게임 시작 로고(예전 · 영상이 안 될 때) = 한 번만 움직임(무한 애니메이션 없음)
+function introLegacy(mode) {
   const E = 'cubic-bezier(.2,.8,.2,1)';
   const pop = (el, d, dy) => el && el.animate([{ opacity: 0, transform: `translateY(${dy}px)` }, { opacity: 1, transform: 'none' }], { duration: 420, delay: d, easing: E, fill: 'both' });
   if (mode === 'logo') {   // 문이 맞닿은 가운데 이음선이 위아래로 그어짐 → 선이 옅어지며 그 자리에서 로고가 피어남
