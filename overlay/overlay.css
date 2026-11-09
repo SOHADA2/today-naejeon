@@ -74,6 +74,7 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .lb-dcn { margin-left:auto; min-width:0; display:inline-flex; align-items:center; height:22px; background:rgba(88,101,242,0.12); border:1px solid rgba(143,152,242,0.4); clip-path:var(--cut-sm); }
 .lb-dcn-go { -webkit-app-region:no-drag; min-width:0; display:inline-flex; align-items:center; gap:5px; height:100%; padding:0 2px 0 8px; font:700 11px var(--f-body); color:#c9cdfb; background:none; border:none; cursor:pointer; }
 .lb-dcn-go:hover { color:#fff; }
+.lb-dcn.hint { border-color:var(--gold-line); background:var(--gold-soft); } .lb-dcn.hint .lb-dcn-go { color:var(--gold-hi); }   /* v0.1.158 누른 뒤 「디스코드에서 참가하기」 안내 */
 .lb-dcn-go .dc-ico { flex:none; width:13px; height:13px; }
 .lb-dcn-go span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .lb-dcn-x { -webkit-app-region:no-drag; flex:none; width:18px; height:100%; padding:0; font-size:9px; color:var(--dim); background:none; border:none; cursor:pointer; } .lb-dcn-x:hover { color:var(--ink); }
