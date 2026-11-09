@@ -123,7 +123,34 @@ public class Win{
 }
 '@
 [Win]::Run()`;
-const _dockB64 = (withClient) => Buffer.from(_dockScript.replace('__OUR_PID__', String(process.pid)).replace('__WITH_CLIENT__', withClient ? 'true' : 'false'), 'utf16le').toString('base64');
+const _dockText = (withClient) => _dockScript.replace('__OUR_PID__', String(process.pid)).replace('__WITH_CLIENT__', withClient ? 'true' : 'false');
+// 🛡️ v0.1.152 PowerShell = 스크립트 파일로 실행(-File) — 예전 -EncodedCommand(인코딩 명령)는 악성코드가 자주 쓰는 모양이라 백신 오탐 위험(배포 위험 점검 #8)
+//   스크립트 내용은 그대로 · userData/ps/{이름}.ps1에 UTF-8(BOM · 한글 안 깨지게)로 씀(내용이 같으면 다시 안 씀) · 켜는 속도 같음
+//   ⚠️ 회사 PC처럼 그룹 정책으로 실행 정책을 잠가 두면 -File이 거절됨(-ExecutionPolicy Bypass로도 못 넘음) → 그 PC만 예전 인코딩 방식(_psEnc · 레지스트리로 켤 때 한 번 확인)
+let _psEnc = false;
+const _psWritten = new Map();
+function psFile(name, text) {
+  try {
+    const dir = path.join(app.getPath('userData'), 'ps'), f = path.join(dir, name + '.ps1');
+    if (_psWritten.get(f) !== text) {
+      fs.mkdirSync(dir, { recursive: true });
+      const cur = fs.existsSync(f) ? fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, '') : null;
+      if (cur !== text) fs.writeFileSync(f, '\uFEFF' + text, 'utf8');
+      _psWritten.set(f, text);
+    }
+    return f;
+  } catch (_) { return null; }   // 못 쓰면 예전 방식
+}
+function psArgs(name, text, args = []) {
+  const base = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass'], f = !_psEnc && psFile(name, text);
+  if (f) return base.concat(['-File', f], args.map(String));
+  return base.concat(['-EncodedCommand', Buffer.from(args.length ? `& {${text}} ${args.join(' ')}` : text, 'utf16le').toString('base64')]);
+}
+if (process.platform === 'win32') for (const k of ['HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell', 'HKCU\\SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell'])
+  try { require('child_process').execFile('reg', ['query', k, '/v', 'ExecutionPolicy'], { windowsHide: true, timeout: 5000 }, (e, out) => {
+    const m = /ExecutionPolicy\s+REG_SZ\s+(\S+)/i.exec(String(out || ''));
+    if (m && !/^(Bypass|Unrestricted)$/i.test(m[1])) { _psEnc = true; console.log('[ps] 그룹 정책 실행 정책 ' + m[1] + ' → 예전 인코딩 방식'); }
+  }); } catch (_) {}
 
 let _merged = false;   // 🚪 클라 없음 = 두 창이 맞붙은 한 창(머리줄 하나 — 왼쪽 제목·오른쪽 ⚙–✕)
 function setMerged(v) {
@@ -445,7 +472,7 @@ function queueDockLine(line) {
 function startDockStream() {
   if (dockProc) return;
   try {
-    const proc = dockProc = spawn('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', _dockB64(config.dock !== false)], { windowsHide: true });
+    const proc = dockProc = spawn('powershell', psArgs('dock-' + (config.dock !== false ? 1 : 0), _dockText(config.dock !== false)), { windowsHide: true });
     proc.stdout.on('data', chunk => {
       if (dockProc !== proc) return;
       _dockBuf += chunk.toString(); let i, latest = null;
@@ -872,7 +899,7 @@ while ($true) {
 let _ocr = null;   // {proc, ready, max, queue:[resolve], buf, err}
 function ocrStart() {
   if (_ocr || process.platform !== 'win32') return _ocr;
-  const proc = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(OCR_PS, 'utf16le').toString('base64')], { windowsHide: true });
+  const proc = spawn('powershell.exe', psArgs('ocr', OCR_PS), { windowsHide: true });
   const o = _ocr = { proc, ready: null, max: 2600, q: [], buf: '' };
   proc.stdout.setEncoding('utf8');
   proc.stdout.on('data', (c) => {
@@ -1058,7 +1085,7 @@ while ((Get-Date) -lt $end) {
 let _augClick = null;
 function augClickWatch() {
   if (_augClick || process.platform !== 'win32') return;
-  const p = _augClick = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(CLICK_PS, 'utf16le').toString('base64')], { windowsHide: true });
+  const p = _augClick = spawn('powershell.exe', psArgs('click', CLICK_PS), { windowsHide: true });
   let buf = '';
   p.stdout.setEncoding('utf8');
   p.stdout.on('data', c => {
@@ -2266,7 +2293,7 @@ while ((Get-Date) -lt $end) {
 }`;
 function hideReplayWindow() {
   const { spawn } = require('child_process');
-  const run = (mode, sec) => spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(`& {${HIDE_PS}} ${mode} ${sec}`, 'utf16le').toString('base64')], { windowsHide: true });   // 여러 줄 스크립트는 인코딩해서 넘김
+  const run = (mode, sec) => spawn('powershell.exe', psArgs('hide', HIDE_PS, [mode, sec]), { windowsHide: true });   // 여러 줄 스크립트는 인코딩해서 넘김
   let moved = 0, ps = run('hide', 300);
   ps.stdout.on('data', b => { const m = String(b).match(/moved (\d+)/g); if (m) moved = +m[m.length - 1].split(' ')[1]; });
   ps.on('error', () => {});
@@ -2306,7 +2333,7 @@ function gameAudioMute(pids, on) {   // → {sessions, muted} · 실패면 null
   return new Promise(r => {
     const ids = [].concat(pids || []).filter(Boolean).join(','); if (!ids || process.platform !== 'win32') return r(null);
     if (on) try { fs.writeFileSync(MUTE_FLAG(), JSON.stringify({ at: Date.now(), pids: ids })); } catch (_) {}
-    require('child_process').execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(`& {${MUTE_PS}} ${ids} ${on ? 1 : 0}`, 'utf16le').toString('base64')], { windowsHide: true, timeout: 15000 }, (e, out) => {
+    require('child_process').execFile('powershell.exe', psArgs('mute', MUTE_PS, [ids, on ? 1 : 0]), { windowsHide: true, timeout: 15000 }, (e, out) => {
       const m = /sessions=(\d+) muted=(\d+)/.exec(String(out || '')); if (!m) return r(null);
       const res = { sessions: +m[1], muted: +m[2] };
       if (!on && res.muted === 0) try { fs.unlinkSync(MUTE_FLAG()); } catch (_) {}   // 다 풀림(세션이 없으면 애초에 안 걸린 것)
@@ -2350,7 +2377,7 @@ function restoreClientOnce() {   // 녹화 중에만 · 녹화 한 번에 최대
   if (!replayBusy || _restoreBusy) return;
   if (_restoreRec !== _recLog) { _restoreRec = _recLog; _restoreN = 0; }
   if (_restoreN >= 8) return; _restoreBusy = true;
-  require('child_process').execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(`& {${RESTORE_PS}}`, 'utf16le').toString('base64')], { windowsHide: true, timeout: 15000 }, (e, out) => {
+  require('child_process').execFile('powershell.exe', psArgs('restore', RESTORE_PS), { windowsHide: true, timeout: 15000 }, (e, out) => {
     _restoreBusy = false;
     const n = +((/(\d+)\s*$/.exec(String(out || '')) || [])[1] || 0);   // ⚠️ 출력 앞에 PowerShell 진행 표시(#< CLIXML …)가 붙을 수 있음 → 끝 숫자만
     if (n > 0) { _restoreN++; _recLog.push(`${new Date().toTimeString().slice(0, 8)} [replay] 최소화된 롤 클라 되살림(${_restoreN})`); }
