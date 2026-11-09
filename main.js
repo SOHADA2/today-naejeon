@@ -3269,21 +3269,29 @@ function dcRoomInfo(members) {
   return { id: gid, name: any[gid].gn || '서버', inv: withInv ? withInv.inv : null };
 }
 const dcRoomGuild = members => { const i = dcRoomInfo(members); return i ? i.name : null; };
-function dcJoinView(members) {   // 🎧 v0.1.138 나에게 「디스코드 서버 들어가기」(그 서버에 아직 없을 때만 · 봇이 확인 · 확인 못 하면(디스코드 꺼짐) 보여 줌 · ✕ = 그 서버엔 다시 안 띄움)
-  const i = dcRoomInfo(members); if (!i || !i.inv || !room) return null;
-  if (config.dcJoinOff && config.dcJoinOff[i.id]) return null;
-  if (_dcMember && _dcMember.g === i.id && _dcMember.in) return null;
-  if (discord && discord.user && !(_dcMember && _dcMember.g === i.id)) { dcMemberCheck(i.id).catch(() => {}); return null; }   // 아직 확인 전 = 잠깐 숨김
-  return { gid: i.id, name: i.name, code: i.inv };
+// 🎧 대기실 디스코드 칩(v0.1.138 들어가기 · v0.1.157 음성 채널 — 사장님: 접속 방법이 아무 데도 안 뜸 = 서버에 이미 있는 사람은 아무것도 안 보였음)
+//   ① 그 서버에 없음(또는 디스코드가 꺼져 확인 못 함) → 「디스코드 들어가기」(초대 · ✕ = 그 서버엔 다시 안 띄움)
+//   ② 서버엔 있는데 음성 채널에 없음 → 「음성 채널 들어가기」(🏠 대기 채널을 디스코드 앱으로 · ✕ = 앱을 끌 때까지 안 띄움) ③ 음성 채널에 있음 → 없음
+let _dcVoiceOff = {};
+function dcJoinView(members) {
+  const i = dcRoomInfo(members); if (!i || !room) return null;
+  const M = _dcMember && _dcMember.g === i.id ? _dcMember : null;
+  if (discord && discord.user && !M) { dcMemberCheck(i.id).catch(() => {}); return null; }   // 아직 확인 전 = 잠깐 숨김
+  if (M && M.in) return !M.vc && M.lobby && !_dcVoiceOff[i.id] ? { kind: 'voice', gid: i.id, name: i.name, ch: M.lobby } : null;
+  if (!i.inv || (config.dcJoinOff && config.dcJoinOff[i.id])) return null;
+  return { kind: 'join', gid: i.id, name: i.name, code: i.inv };
 }
-let _dcMember = null, _dcMemBusy = false;   // {g, id, in, at}
-async function dcMemberCheck(gid) {   // 내가 그 서버에 있는지(중계 → 봇 · 1분 보관)
+let _dcMember = null, _dcMemBusy = false;   // {g, id, in, vc, lobby, at}
+async function dcMemberCheck(gid, force) {   // 내가 그 서버에 있는지·음성 채널에 있는지(중계 → 봇) · 서버에 없음/음성 채널에 있음 = 1분 · 음성 채널 밖 = 20초 보관(들어가면 칩이 금방 사라지게)
   const u = discord && discord.user; if (!u || !gid || _dcMemBusy || !potg) return;
-  if (_dcMember && _dcMember.g === gid && _dcMember.id === u.id && Date.now() - _dcMember.at < 60000) return;
+  const M = _dcMember; if (!force && M && M.g === gid && M.id === u.id && Date.now() - M.at < (M.in && !M.vc ? 20000 : 60000)) return;
   _dcMemBusy = true;
   try {
     const { status, j } = await potg.pxJson('/discord/member', { guild: gid, id: u.id }).catch(() => ({ status: 0 }));
-    if (status === 200 && j && typeof j.in === 'boolean') { const ch = !_dcMember || _dcMember.in !== j.in || _dcMember.g !== gid; _dcMember = { g: gid, id: u.id, in: j.in, at: Date.now() }; if (ch) broadcast('lobby', lobbyView()); }
+    if (status === 200 && j && typeof j.in === 'boolean') {
+      const n = { g: gid, id: u.id, in: j.in, vc: j.vc || null, lobby: j.lobby || null, at: Date.now() };
+      const ch = !M || M.in !== n.in || M.g !== gid || !!M.vc !== !!n.vc || M.lobby !== n.lobby; _dcMember = n; if (ch) broadcast('lobby', lobbyView());
+    }
   } finally { _dcMemBusy = false; }
 }
 const DC_INV = /^(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/([A-Za-z0-9-]{2,32})\/?$/;
@@ -3295,11 +3303,25 @@ ipcMain.handle('discord-invite', (_e, link) => {   // ⚙ 「초대 링크」 �
   saveConfig(); _dcLinked = null; dcLink(); broadcastSettings(); broadcast('lobby', lobbyView());
   return { ok: true, code: dcInvOf() };
 });
-ipcMain.handle('discord-join', (_e, { code, gid, off }) => {   // 대기실 「들어가기」 · ✕
+// v0.1.157(사장님: 들어가기가 디스코드 앱이 아니라 인터넷 창으로 열림) — 디스코드 앱이 깔려 있으면(discord:// 등록) 앱으로 바로 · 없으면 예전처럼 브라우저
+function dcOpen(appUrl, webUrl) {
+  let hasApp = false; try { hasApp = !!app.getApplicationNameForProtocol('discord://'); } catch (_) {}
+  if (hasApp) shell.openExternal(appUrl).catch(() => shell.openExternal(webUrl).catch(() => {}));
+  else shell.openExternal(webUrl).catch(() => {});
+}
+ipcMain.handle('discord-join', (_e, { code, gid, off, ch }) => {   // 대기실 「들어가기」/「음성 채널 들어가기」 · ✕
+  const ID = /^\d{15,21}$/;
+  if (ch) {   // 🔊 음성 채널(서버엔 이미 있음)
+    if (!ID.test(gid || '') || !ID.test(ch)) return false;
+    if (off) { _dcVoiceOff[gid] = true; broadcast('lobby', lobbyView()); return true; }
+    dcOpen(`discord://-/channels/${gid}/${ch}`, `https://discord.com/channels/${gid}/${ch}`);
+    for (const ms of [8000, 25000]) setTimeout(() => dcMemberCheck(gid, true).catch(() => {}), ms);   // 들어갔으면 칩이 사라짐
+    return true;
+  }
   if (off && gid) { config.dcJoinOff = Object.assign({}, config.dcJoinOff, { [gid]: true }); saveConfig(); broadcast('lobby', lobbyView()); return true; }
   if (!/^[A-Za-z0-9-]{2,32}$/.test(code || '')) return false;
-  shell.openExternal('https://discord.gg/' + code);
-  if (gid) setTimeout(() => { _dcMember = null; dcMemberCheck(gid).catch(() => {}); }, 30000);   // 들어왔으면 30초 뒤 버튼이 사라짐
+  dcOpen('discord://-/invite/' + code, 'https://discord.gg/' + code);
+  if (gid) setTimeout(() => { _dcMember = null; dcMemberCheck(gid).catch(() => {}); }, 30000);   // 들어왔으면 30초 뒤 「음성 채널 들어가기」로 바뀜
   return true;
 });
 const dcOn = puuid => { const v = _dcMap && _dcMap[puuid]; return !!(v && v.id && v.on !== false); };   // 대기실 🎧
@@ -3307,7 +3329,7 @@ const dcClip = (s, n) => { s = String(s || '').trim(); return s.length >= 2 ? s.
 function dcPresence() {   // 3초마다 · 같은 내용은 discord.js가 안 보냄
   if (!discord) return;
   dcAppId().catch(() => {}); dcLink();
-  if (room && discord.appId) { dcMapGet().catch(() => {}); const i = dcRoomInfo(lobbyView().members); if (i && i.inv) dcMemberCheck(i.id).catch(() => {}); }
+  if (room && discord.appId) { dcMapGet().catch(() => {}); const i = dcRoomInfo(lobbyView().members); if (i) dcMemberCheck(i.id).catch(() => {}); }   // v0.1.157: 초대 링크가 없어도(음성 채널 칩)
   if (config.discordRpc === false || !discord.ready) return discord.setActivity(null);
   const s = sessionData, me = config.myName, rn = room ? (room.priv ? '비공개 방' : room.name) : null;
   const tl = t => t === 'teamA' ? '1팀' : t === 'teamB' ? '2팀' : null;
@@ -3418,7 +3440,8 @@ function dcConnect() {
 }
 ipcMain.handle('discord-connect', () => dcConnect());
 ipcMain.handle('discord-unlink', () => { config.discordGuild = null; saveConfig(); _dcLinked = null; dcLink(); broadcastSettings(); return true; });
-const dcView = () => ({ invite: dcInvOf(), app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null, guild: dcGuildOf() ? dcGuildOf().name || '서버' : null, connecting: !!_dcConn });
+const dcRoomView = () => { if (!room) return null; try { const i = dcRoomInfo(lobbyView().members); return i ? { gid: i.id, name: i.name, code: i.inv || null, ch: (_dcMember && _dcMember.g === i.id && _dcMember.lobby) || null } : null; } catch (_) { return null; } };   // ⚙ 「이 방 디스코드」(v0.1.157 · 칩을 ✕로 닫아도 여기서)
+const dcView = () => ({ room: dcRoomView(), invite: dcInvOf(), app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null, guild: dcGuildOf() ? dcGuildOf().name || '서버' : null, connecting: !!_dcConn });
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
 const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }

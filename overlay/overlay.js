@@ -750,9 +750,12 @@ function renderLobby() {
   { // 🎧 디스코드 한 줄 — ① 나 = 방 서버에 아직 없음 → 「들어가기」(v0.1.138 · 방장이 넣은 초대 링크) ② 방장 = 서버 연결 안 됨 → 「서버 연결」(v0.1.134) · 초대 링크 없음 → 「링크 넣기」
     const dn = el('lb-dcn'), S = _set || {}, J = L.dcJoin;
     let h = '', go = null, x = null;
-    if (L.room && J) {
+    if (L.room && J && J.kind === 'voice') {   // v0.1.157 서버엔 있는데 음성 채널 밖 → 대기 채널을 디스코드 앱으로
+      h = `<button class="lb-dcn-go" id="lb-dcn-go" title="디스코드 「${esc(J.name)}」 내전 대기실 음성 채널을 열어요 · 음성 채널에 있어야 팀이 정해질 때 1팀·2팀으로 옮겨져요">${DC_ICO}<span>음성 채널 들어가기</span></button><button class="lb-dcn-x" id="lb-dcn-x" title="닫기(앱을 다시 켜면 다시 보여요 · ⚙ 설정 → 디스코드에서 언제든)">✕</button>`;
+      go = () => window.api.discordJoin({ gid: J.gid, ch: J.ch }); x = () => window.api.discordJoin({ gid: J.gid, ch: J.ch, off: true });
+    } else if (L.room && J) {
       // v0.1.148: 따로 상자(두 줄) → ROOM 줄 오른쪽 작은 칩(사장님: 위쪽이 번잡) · 설명은 마우스 올림
-      h = `<button class="lb-dcn-go" id="lb-dcn-go" title="디스코드 「${esc(J.name)}」 서버에 들어와 주세요 · 팀이 정해지면 1팀·2팀 음성 채널로 옮겨져요">${DC_ICO}<span>디스코드 들어가기</span></button><button class="lb-dcn-x" id="lb-dcn-x" title="닫기(이 서버는 다시 안 띄움)">✕</button>`;
+      h = `<button class="lb-dcn-go" id="lb-dcn-go" title="디스코드 「${esc(J.name)}」 서버에 들어와 주세요 · 디스코드 앱으로 열려요 · 팀이 정해지면 1팀·2팀 음성 채널로 옮겨져요">${DC_ICO}<span>디스코드 들어가기</span></button><button class="lb-dcn-x" id="lb-dcn-x" title="닫기(이 서버는 다시 안 띄움 · ⚙ 설정 → 디스코드에서 언제든)">✕</button>`;
       go = () => window.api.discordJoin({ code: J.code, gid: J.gid }); x = () => window.api.discordJoin({ gid: J.gid, off: true });
     } else if (myIsHost && L.room && S.discord && S.discord.app && !S.dcNudgeOff && (!L.dcGuild || !L.dcInv)) {
       const inv = !!L.dcGuild;   // 서버는 있는데 초대 링크가 없음

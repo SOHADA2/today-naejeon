@@ -131,7 +131,12 @@ async function route(req, env) {
     const b = await req.json().catch(() => null), gid = String((b && b.guild) || ''), id = String((b && b.id) || '');
     if (!/^\d{15,21}$/.test(gid) || !/^\d{15,21}$/.test(id)) return json({ err: 'bad request' }, 400);
     const r = await dc(env, 'GET', `/guilds/${gid}/members/${id}`);
-    if (r.ok) return json({ in: true });
+    if (r.ok) {   // v0.1.157: 들어와 있으면 지금 음성 채널(vc · 없으면 null)과 대기 채널(lobby)도 → 앱이 「음성 채널 들어가기」를 띄울지
+      const [vr, g] = await Promise.all([dc(env, 'GET', `/guilds/${gid}/voice-states/${id}`), dcGuild(env, gid)]);
+      const vc = vr.ok ? ((await vr.json()).channel_id || null) : null;
+      const lb = g && g.chans.find(c => LOBBY.test(c.name) && !isTeam(c));
+      return json({ in: true, vc, lobby: lb ? lb.id : null });
+    }
     if (r.status === 404) { const j = await r.json().catch(() => ({})); if (j.code !== 10004) return json({ in: false }); }   // 10007 서버에 없음 · 10013 그런 계정 없음 → 없음(10004 = 봇이 그 서버에 없음 → 오류)
     return json({ err: `member ${r.status}` }, 502);
   }

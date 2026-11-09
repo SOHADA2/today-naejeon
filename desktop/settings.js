@@ -62,6 +62,7 @@
         <div class="tn-sec">대기방</div>
         ${tog('autoSeat', '팀 자리로 자동 이동 <span class=\"tn-tip\" data-tip=\"팀이 정해지면 롤 사용자 설정 게임 방에서 내 자리를 1팀·2팀·관전석으로 옮겨요(롤의 「팀 참가」 버튼과 같은 동작 · 내 자리만). 한 번 옮긴 뒤 직접 바꾸면 그대로 둬요\">ⓘ</span>', '롤 대기방에서 1팀·2팀으로')}
         <div class="tn-sec">디스코드</div>
+        ${S.discord && S.discord.room ? `<div class="tn-row tn-dc"><span class="tn-row-tx"><b>이 방 디스코드 · ${esc(S.discord.room.name)}</b><small>${S.discord.room.ch ? '내전 대기실 음성 채널을 디스코드 앱으로' : '서버 초대 링크를 디스코드 앱으로'}</small></span><button class="tn-btn" data-act="dcroom" ${S.discord.room.ch || S.discord.room.code ? '' : 'disabled'}>${S.discord.room.ch ? '음성 채널 열기' : '들어가기'}</button></div>` : ''}
         <div class="tn-row tn-dc"><span class="tn-row-tx"><b>${S.discord && S.discord.on ? `연결됨 · ${esc(S.discord.name || '디스코드')}` : S.discord && S.discord.app ? '디스코드 앱이 꺼져 있어요' : '준비 중'}</b><small>${S.discord && S.discord.on ? '이 PC의 디스코드 앱과 연결' : S.discord && S.discord.app ? 'PC 디스코드 앱을 켜면 저절로 연결돼요' : '디스코드 연동 준비 중이에요'}</small></span><i class="tn-dc-dot${S.discord && S.discord.on ? ' on' : ''}"></i></div>
         ${S.discord && S.discord.app ? `<div class="tn-row tn-dc"><span class="tn-row-tx"><b>${S.discord.guild ? `서버 · ${esc(S.discord.guild)}` : '디스코드 서버'}</b><small>${S.discord.guild ? '팀이 정해지면 이 서버의 1팀·2팀 채널로' : '봇을 우리 서버에 넣고 연결(방장)'}</small></span><button class="tn-btn" data-act="dcgo" ${S.discord.connecting ? 'disabled' : ''}>${S.discord.connecting ? '브라우저에서 고르는 중' : S.discord.guild ? '바꾸기' : '서버 연결'}</button></div>` : ''}
         ${S.discord && S.discord.app ? (invEdit ? `<div class="tn-row tn-dc"><input class="tn-inv-in" placeholder="https://discord.gg/…  (비우면 지움)" value="${S.discord.invite ? 'https://discord.gg/' + esc(S.discord.invite) : ''}" maxlength="80"><button class="tn-btn" data-act="dcinvsave">저장</button></div>`
@@ -92,11 +93,12 @@
       else if (b.dataset.act === 'check') api.checkUpdate();
       else if (b.dataset.act === 'dcinv') { invEdit = true; renderPanel(); const i = panel.querySelector('.tn-inv-in'); if (i) { i.focus(); i.select(); } }
       else if (b.dataset.act === 'dcinvsave' && api.discordInvite) { const i = panel.querySelector('.tn-inv-in'); api.discordInvite(i ? i.value : '').then(r => { if (r && !r.ok) alert('초대 링크 · ' + r.err); else { invEdit = false; renderPanel(); } }).catch(() => {}); }
+      else if (b.dataset.act === 'dcroom' && api.discordJoin && S.discord && S.discord.room) { const R = S.discord.room; api.discordJoin(R.ch ? { gid: R.gid, ch: R.ch } : { gid: R.gid, code: R.code }); }   // v0.1.157 「이 방 디스코드」
       else if (b.dataset.act === 'dcgo' && api.discordConnect) api.discordConnect().then(r => { if (r && !r.ok && r.err) alert('디스코드 서버 연결 · ' + r.err); else if (r && r.ok && r.lack && r.lack.length) alert(`연결됐어요 · 서버에 음성 채널 ${r.lack.join('·')}을 만들어 주세요`); }).catch(() => {});
       else if (b.dataset.act === 'quit' && confirm('투데이 내전을 완전히 종료할까요?')) api.quitApp();
     });
   }
-  function openPanel() { const r = (strip.style.display === 'none' ? header : strip).getBoundingClientRect(); panel.style.top = Math.round(r.bottom) + 'px'; panel.style.display = ''; gear.classList.add('on'); renderPanel(); if (U.state === 'idle' || U.state === 'error') api.checkUpdate(); }
+  function openPanel() { const r = (strip.style.display === 'none' ? header : strip).getBoundingClientRect(); panel.style.top = Math.round(r.bottom) + 'px'; panel.style.display = ''; gear.classList.add('on'); renderPanel(); api.getSettings().then(v => { if (v) { S = v; renderPanel(); } }).catch(() => {}); if (U.state === 'idle' || U.state === 'error') api.checkUpdate(); }
   function closePanel() { if (!ui) return; panel.style.display = 'none'; gear.classList.remove('on'); }
   api.getSettings().then(v => { if (v) { S = v; applyVol(); renderPanel(); } }).catch(() => {});
   api.onSettings(v => { S = v; applyVol(); renderPanel(); });
