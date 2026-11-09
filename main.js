@@ -263,9 +263,9 @@ function closeDoors() {
     // 🏠 v0.1.127: 맞닿는 순간 하나로 합쳐지며 우리 로고(사장님) — 닫힌 두 문 자리 그대로
     //   v0.1.127 다듬기(사장님: 합쳐진 뒤 로고가 어색) — 맞닿는 순간 화면이 어두워지고, 튕김까지 끝나 문이 멈춘 뒤에 로고를 천천히 겹침
     setTimeout(() => { if (_door === 'closed') doorFx('dim'); }, Math.round(DOOR_MS * 0.72));
-    setTimeout(() => { if (_door !== 'closed') return; const a = doorBounds(pb, 'left'), b = doorBounds(pb, 'right'); showHome({ x: a.x, y: a.y, width: b.x + b.width - a.x, height: a.height }, 'logo', 350); setTimeout(() => { if (_door === 'closed') hidePanelsQuiet(); }, 380); }, DOOR_MS + 60);
+    setTimeout(() => { if (_door !== 'closed') return; const a = doorBounds(pb, 'left'), b = doorBounds(pb, 'right'); showHome({ x: a.x, y: a.y, width: b.x + b.width - a.x, height: a.height }, 'logo', 220); setTimeout(() => { if (_door === 'closed') hidePanelsQuiet(); }, 250); }, DOOR_MS + 60);   // v0.1.156 로고 겹침 350 → 220ms(사장님: 조금 느림)
   }
-  setTimeout(() => { if (_door === 'closed') { hideOverlay(); if (leftWin && !leftWin.isDestroyed() && leftWin.isVisible()) leftWin.hide(); hideHome(320); } }, DOOR_MS + 5300);   // 🎬 v0.1.155 로고 영상(5.1초) 끝까지   // 로고를 1초쯤 보여 주고 숨김(로딩 화면이 덮음)
+  setTimeout(() => { if (_door === 'closed') { hideOverlay(); if (leftWin && !leftWin.isDestroyed() && leftWin.isVisible()) leftWin.hide(); hideHome(320); } }, DOOR_MS + 4300);   // 🎬 v0.1.155 로고 영상(5.1초) 끝까지 → v0.1.156 1.3배속(3.9초) + 글자 잠깐   // 로고를 1초쯤 보여 주고 숨김(로딩 화면이 덮음)
 }
 // 🪟 Win11 창 모서리 둥글림 강제 해제 (roundedCorners:false가 안 먹는 환경 대비 · DWMWA_WINDOW_CORNER_PREFERENCE=33·DONOTROUND=1)
 function forceSquareCorners(win) {
