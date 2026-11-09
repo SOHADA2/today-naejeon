@@ -52,6 +52,9 @@ contextBridge.exposeInMainWorld('api', {
   getRoster: () => ipcRenderer.invoke('roster-data'),                // 👥 지금 접속 중 + 오늘 뛴 사람
   setHost: (v) => ipcRenderer.invoke('set-host', v),                   // 👑 방장 하기/그만하기 → {ok, err}
   handHost: (puuid) => ipcRenderer.invoke('hand-host', { puuid }),       // 👑 방장 넘겨주기
+  getHostNotice: () => ipcRenderer.invoke('host-notice-get'),            // 👑 v0.1.151 방장이 나에게 넘어옴 안내
+  hostNoticeOk: () => ipcRenderer.invoke('host-notice-ok'),
+  onHostNotice: (cb) => ipcRenderer.on('host-notice', (_e, d) => cb(d)),
   getHost: () => ipcRenderer.invoke('host-info'),
   onHost: (cb) => ipcRenderer.on('host', (_e, d) => cb(d)),             // 👑 지금 방장 {host:{name,alive,mine}, isHost, note}
   // ⚔️ 팀 짜기(방장)

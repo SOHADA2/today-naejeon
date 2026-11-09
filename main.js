@@ -1264,7 +1264,11 @@ async function roomLeave(quiet) {
 function roomAutoHost() {   // 👑 방장이 없거나 1분 넘게 응답 없으면 → 방에 남은 사람 중 첫째(계정 번호순)가 자동으로 이어받음(사장님: 방장이 나가면 남은 사람에게)
   if (!room || !account || config.isHost || (hostRec && hostAlive(hostRec)) || Date.now() - _autoHostAt < 10000) return;
   const first = roomMembers(room.id).sort((a, b) => a.key.localeCompare(b.key))[0];
-  if (first && first.key === account.puuid) { _autoHostAt = Date.now(); claimHost().catch(() => {}); }
+  if (first && first.key === account.puuid) {
+    _autoHostAt = Date.now();
+    const prev = _lastHost && _lastHost.puuid !== account.puuid ? _lastHost : null;
+    claimHost().then(r => { if (r && r.ok) hostNotice({ why: 'auto', from: prev ? prev.name : null, fromKey: prev ? prev.puuid : null }); }).catch(() => {});
+  }
 }
 async function roomGc() {   // 🧹 아무도 없는 방 지우기(아무 앱이나 · 30초마다)
   if (Date.now() - _gcAt < 30000 || !(MIR.roomList && MIR.roomList.ready)) return;   // 📦 v0.1.110: 방 목록을 보는 앱(방 밖)만
@@ -1451,6 +1455,7 @@ function setHostLocal(v, note) {
   v = !!v;
   if (!!config.isHost !== v) {
     config.isHost = v;
+    if (!v && _hostNote) hostNotice(null);   // 👑 방장이 아니게 됨(돌려줌 등) → 안내 줄 지움
     beatPresence();
     broadcast('account', { account, isHost: v });
     broadcast('session', { session: sessionData, myName: config.myName || '' });
@@ -1459,12 +1464,20 @@ function setHostLocal(v, note) {
   broadcast('host', hostView(note));
   broadcast('lobby', lobbyView());   // 🚪 대기실 방장 표시·조작 버튼
 }
+// 👑 v0.1.151 방장이 나에게 넘어옴 안내(사장님: 방장이 업데이트 등으로 나가 자동으로 넘어오면 받은 사람이 알아야 돌려줄 수 있음)
+//   why = 'auto'(방장이 나가서 자동으로) | 'hand'(넘겨줌) · from/fromKey = 이전 방장 → 왼쪽 창 맨 위 금색 줄 + 「돌려주기」 · 확인 누르거나 방장이 아니게 되면 사라짐
+let _hostNote = null, _lastHost = null;
+function hostNotice(n) { _hostNote = n ? Object.assign({ at: Date.now() }, n) : null; broadcast('host-notice', _hostNote); }
 function onHostRec(h) {
   const prev = hostRec;
   hostRec = h && h.puuid ? h : null;
   const me = account || _away;   // 클라 잠깐 꺼져도 나
   const mine = !!(me && hostRec && hostRec.puuid === me.puuid);
-  if (mine && !config.isHost && hostAlive(hostRec)) return setHostLocal(true, hostRec.from ? `${hostRec.from}님이 방장을 넘겨줬어요` : null);
+  if (hostRec && !mine) _lastHost = { puuid: hostRec.puuid, name: hostRec.name || '' };
+  if (mine && !config.isHost && hostAlive(hostRec)) {
+    if (hostRec.from) hostNotice({ why: 'hand', from: hostRec.from, fromKey: hostRec.fromKey || null });
+    return setHostLocal(true, hostRec.from ? `${hostRec.from}님이 방장을 넘겨줬어요` : null);
+  }
   if (!mine && config.isHost) return setHostLocal(false, hostRec ? `${hostRec.name}님이 방장이 됐어요` : null);
   if (JSON.stringify(prev) !== JSON.stringify(hostRec) || !hostAlive(hostRec)) broadcast('host', hostView());
 }
@@ -1491,7 +1504,7 @@ async function handHost(puuid) {
   if (!p || !p.name || Date.now() - (p.at || 0) >= ONLINE_MS || !room || p.room !== room.id) return { ok: false, err: '지금 이 방에 있는 사람에게만 넘길 수 있어요' };
   const me = account;
   const r = await fbCas(`${RP()}/host`, cur => cur && cur.puuid === me.puuid
-    ? { value: { puuid, name: normName(p.name), at: Date.now(), from: me.gameName } } : { err: '방장이 아니에요' });
+    ? { value: { puuid, name: normName(p.name), at: Date.now(), from: me.gameName, fromKey: me.puuid } } : { err: '방장이 아니에요' });
   if (!r.ok) return r;
   hostRec = r.value; setHostLocal(false, `${normName(p.name)}님에게 방장을 넘겼어요`);
   fbUpdate(`${T}/roomList/${room.id}`, { host: normName(p.name) }).catch(() => {});   // 🚪 방 목록 방장 이름 바로
@@ -3391,6 +3404,8 @@ ipcMain.on('app-quit', () => { app._quitting = true; app.quit(); });
 ipcMain.on('open-web', () => shell.openExternal(WEB_URL));
 ipcMain.handle('set-host', (_e, v) => v ? claimHost() : releaseHost());   // 👑 방장 하기/그만하기(한 명만)
 ipcMain.handle('hand-host', (_e, { puuid }) => handHost(puuid));            // 👑 방장 넘겨주기
+ipcMain.handle('host-notice-get', () => (config.isHost ? _hostNote : null));
+ipcMain.handle('host-notice-ok', () => { hostNotice(null); return true; });
 ipcMain.handle('host-info', () => hostView());
 // 🚪 대기실
 ipcMain.handle('lobby-data', () => lobbyView());
@@ -3564,10 +3579,11 @@ function tryInstallUpdate() {
 }
 // 🔄 v0.1.143 설치 = 언제나 조용히(사장님: 설치할 때 톤앤매너 안 맞는 창 — 「지금 업데이트」는 설치 프로그램 기본 창이 떴음) + 다시 켜기
 //   창이 없는 몇 초 동안 모르고 다시 켜지 않게 우리 창 머리 아래 금색 줄 「설치 중」을 1.2초 보여 주고 끔 · 다시 켜지면 「v… 로 업데이트됐어요」(config.lastVer)
-let _installing = false;
+let _installing = false, _updRestart = false;
 function installUpdateNow() {
   if (_installing) return; _installing = true;
   setUpd({ state: 'installing' });
+  _updRestart = true;   // 👑 v0.1.151 업데이트로 다시 켜짐 → 방장 자리를 비우지 않고 잠깐 맡아 둠(before-quit)
   setTimeout(() => { app._quitting = true; try { autoUpdater.quitAndInstall(true, true); } catch (_) { app.quit(); } }, 1200);
 }
 function setupAutoUpdate() {
@@ -3605,7 +3621,10 @@ app.on('before-quit', (e) => {
   if (_guestOn) jobs.push(fbSet(`${T}/presence/g_${config.deviceId}`, null));   // 👤 게스트 표시
   if (account && room) jobs.push(fbSet(`${RP()}/members/${account.puuid}`, null));   // 📦 방 사람 칸
   if (account) jobs.push(fbSet(`${RP()}/lobby/join/${account.puuid}`, null));
-  if (config.isHost) jobs.push(fbCas(`${RP()}/host`, cur => cur && account && cur.puuid === account.puuid ? { value: null } : { err: 'not mine' }));
+  // 👑 v0.1.151 업데이트 재시작이면 방장 자리를 비우지 않고 2분 맡아 둠(at = 지금 + 1분 → 살아있음 판정 2분) — 다시 켜지면 onHostRec가 그대로 방장으로 되돌림(받는 사람 없음)
+  //   2분 안에 못 돌아오면 그때 남은 사람이 자동으로 이어받고 안내 줄을 봄 · 그냥 끌 때는 예전처럼 비워서 바로 이어받게
+  if (config.isHost) jobs.push(fbCas(`${RP()}/host`, cur => cur && account && cur.puuid === account.puuid
+    ? { value: _updRestart ? { puuid: cur.puuid, name: cur.name, at: Date.now() + 60000, upd: true } : null } : { err: 'not mine' }));
   if (!jobs.length) return;
   e.preventDefault();
   Promise.race([Promise.allSettled(jobs), new Promise(r => setTimeout(r, 3000))]).then(() => app.quit());

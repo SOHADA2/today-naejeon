@@ -888,6 +888,27 @@ function hostSpecNote(box, on, names, inLobby) {
     lbAct(() => window.api.handHost(m.key));
   });
 }
+// 👑 v0.1.151 방장이 나에게 넘어옴(자동으로 이어받음 · 넘겨받음) → 창 맨 위 금색 줄 · 이전 방장이 방에 돌아와 있으면 「돌려주기」
+let _hostNote = null;
+window.api.onHostNotice(d => { _hostNote = d || null; renderHostNote(); });
+window.api.getHostNotice().then(d => { _hostNote = d || null; renderHostNote(); }).catch(() => {});
+function renderHostNote() {
+  const box = el('hn'), n = myIsHost ? _hostNote : null;
+  box.style.display = n ? '' : 'none';
+  if (!n) { box.innerHTML = ''; delete box.dataset.sig; return; }
+  const M = (lobbyData && lobbyData.members) || [];
+  const back = n.fromKey ? M.find(m => m.key === n.fromKey && m.online && !m.me) : null;
+  const sig = JSON.stringify([n.at, !!back]);
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  const who = n.from ? `<b>${esc(n.from)}</b>님` : '방장';
+  box.innerHTML = `<span class="hn-crown" aria-hidden="true">👑</span><div class="hn-tx"><b class="hn-h">이제 내가 방장입니다</b>`
+    + `<small>${n.why === 'hand' ? `${who}이 방장을 넘겨줬습니다` : `${who}이 방을 나가서 자동으로 넘어왔습니다`}${n.from && n.why !== 'hand' && !back ? ' · 다시 들어오면 돌려줄 수 있습니다' : ''}</small></div>`
+    + '<span class="hn-btns">' + (back ? `<button class="lb-mini hn-back" id="hn-back" title="${esc(back.name)}님에게 방장 넘기기">돌려주기</button>` : '')
+    + '<button class="lb-mini hn-ok" id="hn-ok">확인</button></span>';
+  el('hn-ok').onclick = () => { _hostNote = null; renderHostNote(); window.api.hostNoticeOk(); };
+  const b = el('hn-back'); if (b) b.onclick = () => lbAct(() => window.api.handHost(back.key));
+}
 function toggleHostMenu(L) {   // 👑 내가 방장 ▾ = 접속 중인 사람에게 넘겨주기 · 그만하기 (오른쪽 창 메뉴와 같은 기능)
   const m = el('lb-hostmenu');
   if (m.style.display !== 'none') { m.style.display = 'none'; return; }
@@ -934,6 +955,7 @@ function renderRoster() {
 }
 
 function render() {
+  try { renderHostNote(); } catch (_) {}   // 👑 방장 넘어옴 줄(이전 방장 돌아오면 「돌려주기」)
   if (roomData && roomData.full) { renderFull(); showView('rooms'); el('phase').textContent = '자리 없음'; return; }   // 🚦 서버 자리 꽉 참
   const s = sessionData, ph = s && s.phase;
   if (ph === 'draft' && !inGame) { maybePick(s); loadToday(); renderDraft(); updateDraftTimer(); showView('draft'); el('phase').textContent = '드래프트'; maybeCoin(s); return; }   // 픽 먼저(뽑힌 칸을 연출 끝까지 비워둠)

@@ -522,3 +522,16 @@ header .phase, header .win-btn { flex-shrink:0; }
 .lb-leave { flex:none; margin-left:0; color:var(--dim); background:transparent; border-color:var(--hair); }
 .lb-head .lb-title { min-width:0; }
 .lb-rname { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* 👑 v0.1.151 방장이 나에게 넘어옴 — 창 머리 바로 아래 금색 줄(확인·돌려주기) */
+.hn { flex:none; display:flex; align-items:center; gap:9px; margin:8px 12px 0; padding:9px 10px 9px 12px; background:linear-gradient(90deg, rgba(200,170,110,0.2), rgba(200,170,110,0.07)); border:1px solid var(--gold-line); border-left:3px solid var(--gold); }
+.hn-crown { flex:none; font-size:17px; line-height:1; }
+.hn-tx { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.hn-h { font-size:13px; font-weight:800; color:var(--gold-hi); }
+.hn-tx small { font-size:11px; color:var(--ink-soft); line-height:1.4; }
+.hn-tx small b { color:var(--ink); font-weight:700; }
+.hn .lb-mini { flex:none; }
+.hn-back { color:var(--gold-hi); border-color:var(--gold-line); }
+.hn { flex-wrap:wrap; }
+.hn-h { white-space:nowrap; }
+.hn-btns { flex:none; display:flex; gap:5px; margin-left:auto; }
+@media (max-width:340px) { .hn-tx { flex-basis:calc(100% - 44px); } }
