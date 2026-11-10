@@ -173,10 +173,18 @@ const CURVE = {
 //   ⚡ v0.1.128 부드럽게(사장님: 최대한 부드럽게) — 실측: 창마다 setInterval(16)이 윈도우 타이머(15.6ms 단위) 때문에 실제론 ~31ms(초당 33번)마다,
 //   두 창이 최대 15ms 어긋나게 움직였음 → 모든 창을 한 타이머로 같은 순간에(짧게 다시 확인 = 윈도우가 허락하는 가장 빠른 ~15.6ms · 초당 ~64번)
 //   + 움직이는 동안은 위치만(크기를 매번 바꾸면 화면을 다시 그려 무거움) — 크기는 열릴 땐 시작에, 닫힐 땐 끝에 한 번(그때는 홈·로고가 덮거나 막 나타나는 순간)
-let _animTimer = null;
+//   ⚡ v0.1.162(사장님: 합쳐질 때 살짝 버벅임) — 실측(164Hz 모니터 · 화면 164장/초 녹화): 앱 타이머는 15ms로 고름(렉 아님) · 그런데 모니터가 1초에 164번 그리는데 창은 64번만 움직여
+//   화면 58~66%가 멈춘 장 + 2장·3장씩 들쭉날쭉 = 버벅여 보임 → 움직이는 동안(0.5초)만 setImmediate로 촘촘히 깨어나 **모니터 한 장마다**(주사율 = 그 화면 displayFrequency) 위치를 바꿈
+//   (윈도우 기본 타이머는 15.6ms보다 빨리 못 깨어남 · 움직임이 끝나면 바로 멈춤 → 평소 CPU 그대로)
+let _animTimer = null, _animStep = 16, _animLast = 0;
+function animStepFor(b) { let hz = 60; try { hz = screen.getDisplayMatching(b).displayFrequency || 60; } catch (_) {} return Math.max(2.5, 1000 / Math.min(Math.max(hz, 30), 360) * (+process.env.TN_ANIM_DIV || 0.5)); }
+function animWait() {   // 다음 위치 바꿀 때까지 촘촘히(setImmediate) — 움직이는 창이 없으면 그만
+  if (!_winAnim.size) { _animTimer = null; return; }
+  _animTimer = setImmediate(() => { if (performance.now() - _animLast >= _animStep) animTick(); else animWait(); });
+}
 function animTick() {
   _animTimer = null;
-  const now = performance.now();
+  const now = performance.now(); _animLast = now;
   for (const [win, st] of _winAnim) {
     if (win.isDestroyed()) { _winAnim.delete(win); continue; }
     if (global.__animLog) global.__animLog.push([win.id, now]);   // 🧪 TN_DOCK_SIM 부드러움 측정용(배포본엔 없음)
@@ -186,7 +194,7 @@ function animTick() {
     else if (x !== st.lx || y !== st.ly) { win.setPosition(x, y); st.lx = x; st.ly = y; }
     if (st.fade) try { win.setOpacity(Math.min(1, k * 2.5)); } catch (_) {}   // 처음 나타날 때 = 다가오며 서서히
   }
-  if (_winAnim.size) _animTimer = setTimeout(animTick, 4);
+  if (_winAnim.size) animWait();
 }
 function moveWin(win, to, ms, opt) {
   if (!win || win.isDestroyed() || !to) return;
@@ -199,7 +207,8 @@ function moveWin(win, to, ms, opt) {
     if (curveName !== 'close') { win.setBounds({ x: from.x, y: from.y, width: to.width, height: to.height }); from.width = to.width; from.height = to.height; }
   }
   _winAnim.set(win, { from, to, t0: performance.now(), ms, curve: CURVE[curveName], fade: opt && opt.fade, lx: from.x, ly: from.y });
-  if (!_animTimer) _animTimer = setTimeout(animTick, 0);
+  _animStep = animStepFor(to);
+  if (!_animTimer) { _animLast = 0; animWait(); }
 }
 const DOOR_MS = 520;   // 문 닫힘·열림·합쳐짐·갈라짐 한 번 길이(v0.1.127: 튕김까지 보이게 420 → 520)
 // 🚪 창 안 화면을 문짝처럼(경첩 = 바깥쪽 모서리) 살짝 돌리는 연출 — 창 자체는 못 기울여서 안쪽 #panel만(렌더러 door-fx)
