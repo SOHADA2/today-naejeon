@@ -37,3 +37,18 @@ window.tnSeamFx = (panel, side) => {
   g.animate([{ opacity: 0, transform: 'scaleY(.15)' }, { opacity: 1, transform: 'scaleY(1)', offset: 0.35 }, { opacity: 0, transform: 'scaleY(1)' }], { duration: 550, easing: 'cubic-bezier(.2,.8,.2,1)' }).onfinish = () => g.remove();
   if (panel) panel.animate([{ filter: 'brightness(1)' }, { filter: 'brightness(1.16)', offset: 0.3 }, { filter: 'brightness(1)' }], { duration: 420 });
 };
+// 🤐 v0.1.167 지퍼(사장님: 금빛 이음매만 반짝 = 두 상자가 붙은 느낌 → 하나의 상자로) — 좌우 창이 반쪽씩 같은 박자로 그림:
+//   가운데 이음매 빛(곧 사라짐) → 위·아래 테두리를 따라 바깥 모서리로 달림(0~0.26초) → 바깥 세로변을 위·아래에서 가운데로(0.2~0.4초) = 둘이 합쳐 상자 하나를 감싸는 금빛 테두리 · 숨길 때까지 켜 둠(홈 창이 같은 테두리로 이어받음)
+window.tnZipFx = (panel, side) => {
+  if (panel) { panel.getAnimations().forEach(a => { if (a.id === 'door') a.cancel(); }); panel.style.transform = ''; }
+  document.querySelectorAll('.tn-zip').forEach(e => e.remove());
+  const L = side === 'left', inner = L ? 'right' : 'left', outer = L ? 'left' : 'right', E = 'cubic-bezier(.45,0,.25,1)';
+  const mk = (css) => { const e = document.createElement('i'); e.className = 'tn-zip'; e.style.cssText = css; document.body.appendChild(e); return e; };
+  const seam = mk(`top:0;bottom:0;${inner}:0;width:3px`);
+  const top = mk(`top:0;left:0;right:0;height:2px;transform-origin:${inner} 50%`), bot = mk(`bottom:0;left:0;right:0;height:2px;transform-origin:${inner} 50%`);
+  const ot = mk(`top:0;height:50%;${outer}:0;width:2px;transform-origin:50% 0%`), ob = mk(`bottom:0;height:50%;${outer}:0;width:2px;transform-origin:50% 100%`);
+  seam.animate([{ opacity: 1 }, { opacity: 1, offset: 0.25 }, { opacity: 0 }], { duration: 320, fill: 'forwards' });
+  for (const e of [top, bot]) e.animate([{ transform: 'scaleX(0)', opacity: 1 }, { transform: 'scaleX(1)', opacity: 1 }], { duration: 260, easing: E, fill: 'forwards' });
+  for (const e of [ot, ob]) e.animate([{ transform: 'scaleY(0)', opacity: 1 }, { transform: 'scaleY(1)', opacity: 1 }], { duration: 200, delay: 200, easing: E, fill: 'both' });
+  setTimeout(() => { for (const e of [seam, top, bot, ot, ob]) if (e.isConnected) e.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 600, easing: 'ease-out', fill: 'forwards' }).onfinish = () => e.remove(); }, 750);   // 홈으로 안 넘어가는 합침(도킹 끔 등)은 테두리가 남지 않게
+};

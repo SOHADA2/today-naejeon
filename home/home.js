@@ -40,6 +40,12 @@ function render(d) {
 // 처음 나타날 때·게임 시작 로고 = 한 번만 움직임(무한 애니메이션 없음)
 function intro(mode) {
   if (mode === 'plain') return;   // v0.1.165 합쳐진 창에서 이어질 때 = 차례로 나타나는 연출 없이 한 번에(왼쪽 먼저·오른쪽 나중에 보이던 것)
+  if (mode === 'zip') {   // 🤐 v0.1.167 좌우 창이 그린 지퍼 테두리를 그대로 이어받아(상자 하나) 천천히 평소 테두리로 가라앉음 · 내용은 한 번에
+    document.querySelectorAll('.h-zip').forEach(e => e.remove());
+    const z = document.createElement('i'); z.className = 'h-zip'; document.body.appendChild(z);
+    z.animate([{ opacity: 1 }, { opacity: 1, offset: 0.3 }, { opacity: 0 }], { duration: 900, easing: 'ease-out', fill: 'forwards' }).onfinish = () => z.remove();
+    return;
+  }
   const E = 'cubic-bezier(.2,.8,.2,1)';
   const pop = (el, d, dy) => el && el.animate([{ opacity: 0, transform: `translateY(${dy}px)` }, { opacity: 1, transform: 'none' }], { duration: 420, delay: d, easing: E, fill: 'both' });
   if (mode === 'logo') {   // 문이 맞닿은 가운데 이음선이 위아래로 그어짐 → 선이 옅어지며 그 자리에서 로고가 피어남

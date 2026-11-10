@@ -767,7 +767,7 @@ function showHome(rect, mode, fadeMs, intro) {   // intro = 'plain'(v0.1.165 합
   _homeMode = mode; _homeOn = true;
   homeWin.setBounds(rect);
   sendHome();
-  if (modeChanged && _homeLoaded) try { homeWin.webContents.send('home-intro', intro === 'plain' ? 'plain' : mode); } catch (_) {}
+  if (modeChanged && _homeLoaded) try { homeWin.webContents.send('home-intro', intro || mode); } catch (_) {}
   if (!homeWin.isVisible()) { try { homeWin.setOpacity(fadeMs ? 0 : 1); } catch (_) {} homeWin.showInactive(); if (fadeMs) fadeWin(homeWin, 0, 1, fadeMs); }
   try { homeWin.moveTop(); } catch (_) {}   // v0.1.165(사장님: 합쳐질 때 왼쪽이 먼저·오른쪽이 나중에 사라짐) — 활성 창(대개 오른쪽 창) 아래에 깔리지 않게 맨 위로
   clearInterval(_homeTimer); _homeTimer = null;
@@ -814,8 +814,9 @@ function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표�
       for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) moveWin(win, standaloneBounds(side), DOOR_MS, { curve: 'merge' });
       doorFx('shut');   // 🚪 v0.1.166 문짝이 돌며 닫힘(사장님: 문 닫히던 효과가 사라짐) — 맞닿는 순간 딱 0°(튕김 없음 = 틈 없음)
       const ok = () => _floating && useHome() && _door !== 'closed';
-      setTimeout(() => { if (ok()) doorFx('seam'); }, DOOR_MS);
-      setTimeout(() => { if (ok()) { showHome(homeRect(), 'home', 200, 'plain'); setTimeout(() => { if (_homeOn) hidePanelsQuiet(); }, 240); } }, DOOR_MS + 140);
+      // 🤐 v0.1.167(사장님: 이음매만 반짝 = 하나의 상자 느낌이 안 남 → 지퍼 선택) — 맞닿으면 이음매 빛이 위·아래·바깥 테두리로 달려 상자 하나를 감쌈(0.4초) → 같은 자리에 홈이 그 테두리를 이어받아 나타남
+      setTimeout(() => { if (ok()) doorFx('zip'); }, DOOR_MS);
+      setTimeout(() => { if (ok()) { showHome(homeRect(), 'home', 160, 'zip'); setTimeout(() => { if (_homeOn) hidePanelsQuiet(); }, 200); } }, DOOR_MS + 430);
     } else {   // 처음(롤 없이 켬) = 홈이 서서히 나타남 · 좌우 창은 합친 자리에 숨겨 둠
       for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) if (win && !win.isDestroyed()) { win.setBounds(standaloneBounds(side)); if (win.isVisible()) win.hide(); }
       showHome(homeRect(), 'home', 320);
@@ -835,7 +836,7 @@ function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표�
     try { if (win.isAlwaysOnTop()) win.setAlwaysOnTop(false, 'normal'); } catch (_) {}   // 바뀔 때만(매 이벤트 재설정=z-order 깜빡임·v0.1.55)
     if (!win.isVisible()) win.showInactive();
   }
-  if (fx) { doorFx('shut'); setTimeout(() => { if (_floating) doorFx('seam'); }, DOOR_MS); }   // v0.1.166 문짝 + 이음매 금빛
+  if (fx) { doorFx('shut'); setTimeout(() => { if (_floating) doorFx('zip'); }, DOOR_MS); }   // v0.1.166 문짝 + v0.1.167 지퍼 테두리(홈 없이 합쳐진 창은 테두리가 남음 → reset 때 지움)
   setDockedFlag(hasRight);   // 합친 창 = 두 창이 맞닿는 쪽 테두리 없이(붙었을 때와 같은 모양)
   setMerged(hasRight && !userHid && !sampleActive);
 }

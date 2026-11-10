@@ -49,12 +49,14 @@ if (window.api.onMerged) window.api.onMerged(v => { document.body.classList.togg
 // 🚪 문 연출(v0.1.127 · 사장님: 창이 진짜 문처럼 · 튕기는 느낌) — 창 자체는 못 기울여서 안쪽 화면(#panel)을 경첩(바깥쪽 모서리) 기준으로 살짝 돌림 · 한 번만(무한 애니메이션 아님)
 if (window.api.onDoorFx) window.api.onDoorFx(d => {
   const p = document.getElementById('panel'); if (!p || !d) return;
+  if (d.act === 'reset') document.querySelectorAll('.tn-zip').forEach(e => e.remove());
   if (d.act === 'dim' || d.act === 'reset') {   // 🚪 맞닿은 뒤 서서히 어두워짐(로고·홈으로 넘어가기 전) · reset = 되돌림
     p.getAnimations().forEach(a => { if (a.id === 'dim') a.cancel(); });
     if (d.act === 'dim') { const an = p.animate([{ filter: 'brightness(1)' }, { filter: 'brightness(.25)' }], { duration: 300, easing: 'ease-in', fill: 'forwards' }); an.id = 'dim'; }
     return;
   }
-  if (d.act === 'seam') { window.tnSeamFx && window.tnSeamFx(p, d.side); return; }   // 🧲 v0.1.163 합쳐진 이음매 금빛(shared.css · tip.js)
+  if (d.act === 'seam') { window.tnSeamFx && window.tnSeamFx(p, d.side); return; }
+  if (d.act === 'zip') { window.tnZipFx && window.tnZipFx(p, d.side); return; }   // 🤐 v0.1.167 지퍼 테두리   // 🧲 v0.1.163 합쳐진 이음매 금빛(shared.css · tip.js)
   const s = d.side === 'left' ? 1 : -1, r = a => `perspective(1100px) rotateY(${(s * a).toFixed(2)}deg)`;
   p.style.transformOrigin = d.side === 'left' ? '0% 50%' : '100% 50%';
   // 🚪 v0.1.166 shut = 클라 내려서 합쳐질 때 문짝(사장님: 문 닫히던 효과가 사라짐) — 맞닿는 순간 딱 0°(바깥으로 튕김 없음 = 틈 없음) · 창 움직임(merge 감속)과 같은 박자
