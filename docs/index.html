@@ -117,6 +117,7 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 .dl-box .btn-dl { padding:16px 22px; font-size:17px; }
 .dl-meta { font-size:13px; color:var(--ink-3); }
 .dl-meta .mono { color:var(--ink-2); }
+.dl-help { font-size:13px; color:var(--gold); text-decoration:underline; text-underline-offset:3px; }   /* 2026-11-11 설치가 막힐 때 안내로 */
 .hero-tag { position:absolute; top:18px; right:var(--pad); display:flex; gap:14px; align-items:center; font-size:12.5px; color:rgba(236,230,218,.75); }
 
 /* 스크롤하면 살짝 떠오름(한 번) */
@@ -248,6 +249,13 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 .win .row span { font-size:13px; padding:6px 18px; border:1px solid rgba(255,255,255,0.7); }
 .win .row .run { outline:2px solid var(--gold); outline-offset:3px; }
 .win-cap { margin-top:10px; font-size:13px; color:var(--ink-3); }
+/* 2026-11-11 스마트 앱 컨트롤(Windows 11) — 「실행」 버튼 없이 막는 경우 · 설정 화면을 바로 여는 버튼(windowsdefender://smartapp) */
+.sac { margin-top:26px; max-width:520px; border:1px solid var(--line, rgba(255,255,255,.12)); border-left:3px solid var(--gold); padding:16px 18px; background:rgba(255,255,255,.03); }
+.sac h3 { font-size:15px; font-weight:700; line-height:1.45; }
+.sac p { font-size:13px; color:var(--ink-3); margin-top:6px; line-height:1.6; }
+.sac ol { margin:10px 0 0 18px; font-size:13px; line-height:1.75; }
+.sac .btn-dl { margin-top:12px; }
+.sac .warn { margin-top:10px; font-size:12px; color:var(--ink-3); }
 .req { margin-top:28px; display:grid; grid-template-columns:auto 1fr; gap:6px 20px; font-size:14px; }
 .req dt { color:var(--ink-3); }
 .req dd { color:var(--ink-2); }
@@ -337,6 +345,7 @@ footer p + p { margin-top:6px; }
           <div class="dl-box">
             <a class="btn btn-dl js-dl" href="https://github.com/SOHADA2/today-naejeon/releases/latest">Windows용 무료 다운로드 <span class="arrow">↓</span></a>
             <span class="dl-meta">Windows 10·11 · 자동 업데이트 · <span class="mono js-ver">최신 버전</span></span>
+            <a class="dl-help" href="#install">설치가 막히나요? 「추가 정보 → 실행」·스마트 앱 컨트롤 안내 →</a>
           </div>
         </div>
       </div>
@@ -445,6 +454,17 @@ footer p + p { margin-top:6px; }
           <div class="row"><span class="run">실행</span><span>실행 안 함</span></div>
         </div>
         <p class="win-cap">노란 테두리 순서대로 누르시면 됩니다. 「실행」 버튼은 「추가 정보」를 눌러야 나타납니다.</p>
+        <div class="sac" id="smartapp">
+          <h3>「스마트 앱 컨트롤이 안전하지 않을 수 있는 앱을 차단했습니다」가 뜨고 「실행」 버튼이 없나요?</h3>
+          <p>Windows 11의 스마트 앱 컨트롤이 켜진 PC입니다. 이 기능은 서명이 없는 앱을 설치·실행·업데이트 모두 막아서, 끄지 않으면 투데이 내전을 쓸 수 없습니다.</p>
+          <a class="btn btn-dl" href="windowsdefender://smartapp">스마트 앱 컨트롤 설정 열기 <span class="arrow">→</span></a>
+          <ol>
+            <li>위 버튼을 누르고, 「Windows 보안을 여시겠습니까?」가 뜨면 「열기」</li>
+            <li>열린 화면에서 <b>「끄기」</b>를 고름</li>
+            <li>받아 둔 설치 파일을 다시 실행 → 파란 경고창은 위처럼 「추가 정보」 → 「실행」</li>
+          </ol>
+          <p class="warn">버튼이 안 열리면: 설정 → 개인 정보 및 보안 → Windows 보안 → 앱 및 브라우저 컨트롤 → 스마트 앱 컨트롤 설정. 한 번 끄면 Windows를 다시 설치해야 켤 수 있습니다(Windows 화면에도 그렇게 나옵니다). 바이러스 검사(실시간 보호)는 그대로 켜져 있습니다.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -466,6 +486,7 @@ footer p + p { margin-top:6px; }
         <details><summary>롤 화면 모드가 창 모드로 바뀌어 있어요.</summary><p>팟지를 찍는 동안(방장 PC)과 증강 순위를 켠 경우 앱이 롤 화면 모드를 잠깐 바꿉니다. 끝나면 원래대로 돌려놓고, 그사이 앱이 꺼졌다면 다음에 앱을 켤 때 돌려놓습니다. 바로 고치려면 롤 설정에서 화면 모드를 다시 고르면 됩니다.</p></details>
         <details><summary>증강 순위는 라이엇이 허락한 기능인가요?</summary><p>라이엇이 따로 승인한 기능은 아닙니다. 게임 화면에 보이는 증강 이름을 읽어 공개된 통계 순위를 보여 주며, 게임 파일이나 메모리는 건드리지 않습니다. 기본은 꺼져 있고 설정에서 직접 켠 사람만 씁니다.</p></details>
         <details><summary>컴퓨터를 켜면 자동으로 켜지나요?</summary><p>네. 윈도우가 시작될 때 창 없이 작업 표시줄 아이콘으로만 켜지고, 롤 클라이언트를 켜면 그 옆에 나타납니다. 끄려면 앱의 ⚙ 설정이나 작업 표시줄 아이콘 메뉴에서 「윈도우 시작할 때 자동 실행」을 끄면 됩니다.</p></details>
+        <details><summary>「스마트 앱 컨트롤이 … 차단했습니다」가 떠서 설치가 안 돼요.</summary><p>Windows 11의 스마트 앱 컨트롤이 켜져 있으면 서명이 없는 앱은 「실행」 버튼 없이 막힙니다. 개인이 만든 무료 앱이라 서명이 없습니다. <a href="#smartapp">설치 안내의 「스마트 앱 컨트롤 설정 열기」</a>로 이 기능을 끈 뒤 설치 파일을 다시 실행하세요. 한 번 끄면 Windows를 다시 설치해야 켤 수 있고, 바이러스 검사는 그대로 켜져 있습니다.</p></details>
         <details><summary>Mac에서도 되나요?</summary><p>지금은 Windows만 지원합니다.</p></details>
       </div>
     </div>
@@ -477,6 +498,7 @@ footer p + p { margin-top:6px; }
       <div class="dl-box">
         <a class="btn btn-dl js-dl" href="https://github.com/SOHADA2/today-naejeon/releases/latest">Windows용 무료 다운로드 <span class="arrow">↓</span></a>
         <span class="dl-meta">Windows 10·11 · <span class="mono js-ver">최신 버전</span></span>
+        <a class="dl-help" href="#install">설치가 막히나요? 「추가 정보 → 실행」·스마트 앱 컨트롤 안내 →</a>
       </div>
     </div>
   </section>
