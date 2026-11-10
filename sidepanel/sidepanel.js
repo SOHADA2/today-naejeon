@@ -57,11 +57,13 @@ if (window.api.onDoorFx) window.api.onDoorFx(d => {
   if (d.act === 'seam') { window.tnSeamFx && window.tnSeamFx(p, d.side); return; }   // 🧲 v0.1.163 합쳐진 이음매 금빛(shared.css · tip.js)
   const s = d.side === 'left' ? 1 : -1, r = a => `perspective(1100px) rotateY(${(s * a).toFixed(2)}deg)`;
   p.style.transformOrigin = d.side === 'left' ? '0% 50%' : '100% 50%';
-  const kf = d.act === 'close'
+  // 🚪 v0.1.166 shut = 클라 내려서 합쳐질 때 문짝(사장님: 문 닫히던 효과가 사라짐) — 맞닿는 순간 딱 0°(바깥으로 튕김 없음 = 틈 없음) · 창 움직임(merge 감속)과 같은 박자
+  const kf = d.act === 'shut' ? [{ transform: r(18) }, { transform: r(11), offset: 0.35 }, { transform: r(4), offset: 0.7 }, { transform: r(0) }]
+    : d.act === 'close'
     ? [{ transform: r(16) }, { transform: r(9), offset: 0.5 }, { transform: r(0), offset: 0.72 }, { transform: r(-4), offset: 0.84 }, { transform: r(0) }]
     : [{ transform: r(0) }, { transform: r(14), offset: 0.35 }, { transform: r(6), offset: 0.72 }, { transform: r(-3), offset: 0.88 }, { transform: r(0) }];
   p.getAnimations().forEach(a => { if (a.id === 'door' || a.id === 'dim') a.cancel(); });
-  const an = p.animate(kf, { duration: d.ms || 520, easing: 'linear' }); an.id = 'door';
+  const an = p.animate(kf, { duration: d.ms || 520, easing: d.act === 'shut' ? 'cubic-bezier(.3,.55,.35,1)' : 'linear' }); an.id = 'door';
 });
 // ── 👑 방장 = 한 명 · 넘겨주기 · 응답 없으면 이어받기 ────────────────────────
 let _hostInfo = { host: null, isHost: false };

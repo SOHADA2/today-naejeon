@@ -812,8 +812,9 @@ function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표�
       //   → 움직이기 시작할 때 크기를 홈과 같은 합친 크기로(merge = 크기는 시작에 · 클라가 막 사라지는 순간이라 다시 그리기 깜빡임이 묻힘) → 맞닿은 모양 = 홈 창 그대로
       //   → 이음매 금빛 → 어두워지지 않고 같은 자리에 홈이 0.2초 만에 겹쳐 나타남 → 좌우 창 숨김
       for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) moveWin(win, standaloneBounds(side), DOOR_MS, { curve: 'merge' });
+      doorFx('shut');   // 🚪 v0.1.166 문짝이 돌며 닫힘(사장님: 문 닫히던 효과가 사라짐) — 맞닿는 순간 딱 0°(튕김 없음 = 틈 없음)
       const ok = () => _floating && useHome() && _door !== 'closed';
-      setTimeout(() => { if (ok()) doorFx('seam'); }, DOOR_MS - 40);
+      setTimeout(() => { if (ok()) doorFx('seam'); }, DOOR_MS);
       setTimeout(() => { if (ok()) { showHome(homeRect(), 'home', 200, 'plain'); setTimeout(() => { if (_homeOn) hidePanelsQuiet(); }, 240); } }, DOOR_MS + 140);
     } else {   // 처음(롤 없이 켬) = 홈이 서서히 나타남 · 좌우 창은 합친 자리에 숨겨 둠
       for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) if (win && !win.isDestroyed()) { win.setBounds(standaloneBounds(side)); if (win.isVisible()) win.hide(); }
@@ -834,7 +835,7 @@ function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표�
     try { if (win.isAlwaysOnTop()) win.setAlwaysOnTop(false, 'normal'); } catch (_) {}   // 바뀔 때만(매 이벤트 재설정=z-order 깜빡임·v0.1.55)
     if (!win.isVisible()) win.showInactive();
   }
-  if (fx) setTimeout(() => { if (_floating) doorFx('seam'); }, DOOR_MS - 40);
+  if (fx) { doorFx('shut'); setTimeout(() => { if (_floating) doorFx('seam'); }, DOOR_MS); }   // v0.1.166 문짝 + 이음매 금빛
   setDockedFlag(hasRight);   // 합친 창 = 두 창이 맞닿는 쪽 테두리 없이(붙었을 때와 같은 모양)
   setMerged(hasRight && !userHid && !sampleActive);
 }
