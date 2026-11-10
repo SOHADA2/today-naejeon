@@ -807,16 +807,13 @@ function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표�
     setMerged(false); setDockedFlag(true);
     if (wasDocked) {   // 붙어 있다 클라를 끔 → 좌우 창이 가운데로 모여 맞닿는 순간 홈으로 바뀜
       // 🧲 v0.1.163(사장님: 전에 없던 틈 · 합쳐질 때 살짝 효과 OK) — 튕김·문짝 돌리기 없이 감속하며 딱 맞닿음 → 맞닿는 순간 이음매 금빛(seam) → 어두워지며 홈
-      //   크기는 안 바꿈(바꾸면 창 안 화면이 새 크기로 다시 그려지기 전 0.04초쯤 빈 곳 = 29px 틈이 깜빡임 · 실측) — 지금 크기 그대로 가운데 이음선에서 맞닿고, 홈이 덮어 숨긴 뒤에 합친 자리·크기로
-      const sR = standaloneBounds('right'), sL = standaloneBounds('left'), seamX = sR.x, cy = sL.y + sL.height / 2;
-      for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) {
-        if (!win || win.isDestroyed()) continue; const b = win.getBounds();
-        moveWin(win, { x: side === 'left' ? seamX - b.width : seamX, y: Math.round(cy - b.height / 2), width: b.width, height: b.height }, DOOR_MS, { curve: 'merge' });
-      }
+      //   v0.1.164(사장님: 아직 틈 · 좌우 창이 사라지는 게 느껴짐 = 합친 창으로 안 이어짐) — 맞닿은 모양이 홈 창과 어긋나 있었음(크기 그대로 = 28px·높이 40px 차이 → 홈이 뜰 때 머리줄이 겹쳐 보임 + 어두워졌다 뜸)
+      //   → 움직이기 시작할 때 크기를 홈과 같은 합친 크기로(merge = 크기는 시작에 · 클라가 막 사라지는 순간이라 다시 그리기 깜빡임이 묻힘) → 맞닿은 모양 = 홈 창 그대로
+      //   → 이음매 금빛 → 어두워지지 않고 같은 자리에 홈이 0.2초 만에 겹쳐 나타남 → 좌우 창 숨김
+      for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) moveWin(win, standaloneBounds(side), DOOR_MS, { curve: 'merge' });
       const ok = () => _floating && useHome() && _door !== 'closed';
       setTimeout(() => { if (ok()) doorFx('seam'); }, DOOR_MS - 40);
-      setTimeout(() => { if (ok()) doorFx('dim'); }, DOOR_MS + 200);
-      setTimeout(() => { if (ok()) { showHome(homeRect(), 'home', 320); setTimeout(() => { if (_homeOn) { hidePanelsQuiet(); for (const [w, s] of [[overlayWin, 'left'], [leftWin, 'right']]) if (w && !w.isDestroyed() && !w.isVisible() && !_winAnim.has(w)) w.setBounds(standaloneBounds(s)); } }, 350); } }, DOOR_MS + 330);
+      setTimeout(() => { if (ok()) { showHome(homeRect(), 'home', 200); setTimeout(() => { if (_homeOn) hidePanelsQuiet(); }, 240); } }, DOOR_MS + 140);
     } else {   // 처음(롤 없이 켬) = 홈이 서서히 나타남 · 좌우 창은 합친 자리에 숨겨 둠
       for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) if (win && !win.isDestroyed()) { win.setBounds(standaloneBounds(side)); if (win.isVisible()) win.hide(); }
       showHome(homeRect(), 'home', 320);
