@@ -56,7 +56,6 @@ if (window.api.onDoorFx) window.api.onDoorFx(d => {
     return;
   }
   if (d.act === 'seam') { window.tnSeamFx && window.tnSeamFx(p, d.side); return; }
-  if (d.act === 'unseam') { window.tnUnseamFx && window.tnUnseamFx(d.side); return; }   // 🤐 v0.1.168 갈라지는 이음매 빛
   if (d.act === 'zip') { window.tnZipFx && window.tnZipFx(p, d.side); return; }   // 🤐 v0.1.167 지퍼 테두리   // 🧲 v0.1.163 합쳐진 이음매 금빛(shared.css · tip.js)
   const s = d.side === 'left' ? 1 : -1, r = a => `perspective(1100px) rotateY(${(s * a).toFixed(2)}deg)`;
   p.style.transformOrigin = d.side === 'left' ? '0% 50%' : '100% 50%';

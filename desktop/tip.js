@@ -52,8 +52,3 @@ window.tnZipFx = (panel, side) => {
   for (const e of [ot, ob]) e.animate([{ transform: 'scaleY(0)', opacity: 1 }, { transform: 'scaleY(1)', opacity: 1 }], { duration: 200, delay: 200, easing: E, fill: 'both' });
   setTimeout(() => { for (const e of [seam, top, bot, ot, ob]) if (e.isConnected) e.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 600, easing: 'ease-out', fill: 'forwards' }).onfinish = () => e.remove(); }, 750);   // 홈으로 안 넘어가는 합침(도킹 끔 등)은 테두리가 남지 않게
 };
-// 🤐 v0.1.168 갈라질 때 이음매 빛(거꾸로 지퍼 끝) — 안쪽 가장자리에 켜진 채 시작해 벌어지며 옅어짐(문짝 열림 연출은 그대로)
-window.tnUnseamFx = (side) => {
-  const g = document.createElement('i'); g.className = 'tn-seam-fx ' + (side === 'left' ? 'r' : 'l'); document.body.appendChild(g);
-  g.animate([{ opacity: 1 }, { opacity: 0.9, offset: 0.2 }, { opacity: 0 }], { duration: 480, easing: 'ease-out' }).onfinish = () => g.remove();
-};

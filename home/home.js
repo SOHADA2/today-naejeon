@@ -40,18 +40,6 @@ function render(d) {
 // 처음 나타날 때·게임 시작 로고 = 한 번만 움직임(무한 애니메이션 없음)
 function intro(mode) {
   if (mode === 'plain') return;   // v0.1.165 합쳐진 창에서 이어질 때 = 차례로 나타나는 연출 없이 한 번에(왼쪽 먼저·오른쪽 나중에 보이던 것)
-  if (mode === 'unzip') {   // 🤐 v0.1.168 거꾸로 지퍼(클라가 돌아와 좌우로 갈라지기 직전 · 0.38초) — 테두리 전체 금빛 → 바깥 세로변이 모서리로 · 위·아래가 가운데로 모임 → 가운데 이음매 한 줄
-    document.querySelectorAll('.h-zip, .h-uz').forEach(e => e.remove());
-    const E = 'cubic-bezier(.45,0,.25,1)', mk = css => { const e = document.createElement('i'); e.className = 'h-uz'; e.style.cssText = css; document.body.appendChild(e); return e; };
-    const top = mk('top:0;left:0;right:0;height:2px;transform-origin:50% 50%'), bot = mk('bottom:0;left:0;right:0;height:2px;transform-origin:50% 50%');
-    const vs = ['left', 'right'].flatMap(s => [mk(`top:0;height:50%;${s}:0;width:2px;transform-origin:50% 0%`), mk(`bottom:0;height:50%;${s}:0;width:2px;transform-origin:50% 100%`)]);
-    const seam = mk('top:0;bottom:0;left:50%;width:3px;margin-left:-1.5px');
-    for (const e of vs) e.animate([{ transform: 'scaleY(1)', opacity: 1 }, { transform: 'scaleY(0)', opacity: 1 }], { duration: 150, easing: E, fill: 'forwards' });
-    for (const e of [top, bot]) e.animate([{ transform: 'scaleX(1)', opacity: 1 }, { transform: 'scaleX(1)', opacity: 1, offset: 0.25 }, { transform: 'scaleX(0)', opacity: 1 }], { duration: 340, easing: E, fill: 'forwards' });
-    seam.animate([{ opacity: 0, transform: 'scaleY(.3)' }, { opacity: 0, transform: 'scaleY(.3)', offset: 0.5 }, { opacity: 1, transform: 'scaleY(1)' }], { duration: 380, easing: E, fill: 'forwards' });
-    setTimeout(() => document.querySelectorAll('.h-uz').forEach(e => e.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards' }).onfinish = () => e.remove()), 900);   // 도중에 그만둬도 남지 않게
-    return;
-  }
   if (mode === 'zip') {   // 🤐 v0.1.167 좌우 창이 그린 지퍼 테두리를 그대로 이어받아(상자 하나) 천천히 평소 테두리로 가라앉음 · 내용은 한 번에
     document.querySelectorAll('.h-zip').forEach(e => e.remove());
     const z = document.createElement('i'); z.className = 'h-zip'; document.body.appendChild(z);

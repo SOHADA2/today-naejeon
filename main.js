@@ -437,11 +437,8 @@ function openQuitConfirm(mode) {
   quitConfirmWin.once('ready-to-show', () => { if (quitConfirmWin && !quitConfirmWin.isDestroyed()) quitConfirmWin.show(); });
   quitConfirmWin.on('closed', () => { quitConfirmWin = null; _quitPromptOpen = false; });
 }
-let _unzipT = null, _unzipLine = null, _unzipGo = false;
-const UNZIP_MS = 380;
 function handleDockLine(line) {
   const raw = String(line).trim();
-  if (_unzipT && raw === 'gone' || _unzipT && !raw) { clearTimeout(_unzipT); _unzipT = null; _unzipLine = null; }   // 거꾸로 지퍼 도중 클라가 다시 사라짐 = 그만(홈 그대로)
   if (raw === 'gone') {   // 🚪 클라 창 자체가 사라짐(종료) — 최소화(빈 줄)와 구분
     hideSlotMarker(); floatPanels();
     if (clientFg) { clientFg = false; evalRaise(); }
@@ -470,18 +467,9 @@ function handleDockLine(line) {
   //   (마지막 좌표 기억 때문에 왼쪽 창만 클라를 움직여야 붙던 문제 — 오른쪽은 게임 중 숨기며 기억이 지워져 괜찮았음)
   //   🚪 v0.1.126: 켠 직후 첫 줄 = 바로 붙임 · 합친 창이었으면 좌우로 갈라지며 붙음 · 게임 끝(문 닫힘)이면 클라 가운데에서 문 열리듯
   let ms = 0;
-  // 🤐 v0.1.168 거꾸로 지퍼(사장님: 떨어질 때도 비슷하게) — 홈(합친 창)에서 클라가 돌아오면: 홈 테두리 전체 금빛 → 빛이 바깥·위아래에서 가운데 이음매로 모임(UNZIP_MS)
-  //   → 그다음 홈이 사라지며 좌우 창이 빛나는 이음매에서 갈라져 열림(이음매 빛은 벌어지며 옅어짐) · 그동안 온 도킹 줄은 마지막 것만 기억했다 처리
-  if (!_unzipGo && _floating && !boot && !inGame && !_door && _homeOn && _homeMode === 'home' && homeWin && !homeWin.isDestroyed() && homeWin.isVisible()) {
-    _unzipLine = line;
-    if (_unzipT) return;
-    try { homeWin.webContents.send('home-intro', 'unzip'); } catch (_) {}
-    _unzipT = setTimeout(() => { _unzipT = null; const ln = _unzipLine; _unzipLine = null; _unzipGo = true; handleDockLine(ln); _unzipGo = false; }, UNZIP_MS);
-    return;
-  }
   if (_floating) {
     _floating = false; _lastRaise = null; dockedBounds = null; leftDockedBounds = null; _homePanels = false;
-    hideHome(boot ? 0 : _unzipGo ? 110 : 160);
+    hideHome(boot ? 0 : 160);
     if (!boot && !inGame) ms = DOOR_MS;
     if (_door) { _door = null; const pb0 = rectPb(p); moveWin(overlayWin, doorBounds(pb0, 'left')); moveWin(leftWin, doorBounds(pb0, 'right')); }
   }
@@ -491,7 +479,6 @@ function handleDockLine(line) {
   const w = p[2] - p[0], h = p[3] - p[1], sig = `${p[0]},${p[1]},${w},${h}`;
   // ◀ 팀·명단 오버레이 = 클라 왼쪽 (숨김 상태여도 위치는 갱신)
   if (ms) doorFx('open');
-  if (ms && _unzipGo) doorFx('unseam');   // 🤐 v0.1.168 갈라지는 이음매 빛(안쪽 가장자리 · 벌어지며 옅어짐)
   if (sig !== dockedBounds) { dockedBounds = sig; applyDock({ x: p[0], y: p[1], w, h }, ms); }
   setDockedFlag(true); setMerged(false);
   // ▶ 내 정보 = 클라 오른쪽
