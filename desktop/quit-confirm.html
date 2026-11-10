@@ -2,49 +2,49 @@
 <html>
 <head>
 <meta charset="utf-8">
+<link rel="stylesheet" href="../shared.css">
 <style>
+  /* v0.1.170(사장님: 톤앤매너 안 맞음 — 둥근 모서리·갈색 바탕·그라데이션 버튼) → 앱 디자인 규칙: 짙은 남색 · 가는 금색 선 · 비스듬히 자른 모서리 · 영문 라벨 · 공용 버튼(ui-btn-gold·ghost) */
   * { box-sizing:border-box; margin:0; padding:0; }
-  html, body { height:100%; background:transparent; overflow:hidden; -webkit-user-select:none; user-select:none;
-    font-family:var(--f-body); }
-  .dlg { height:100%; display:flex; flex-direction:column; gap:11px; padding:15px 17px 16px; border-radius:15px; position:relative; overflow:hidden;
-    background:linear-gradient(160deg, rgba(32,26,15,0.985), rgba(11,9,6,0.99));
-    border:1px solid rgba(240,200,90,0.42); box-shadow:0 18px 52px rgba(0,0,0,0.7); }
-  .dlg::before { content:''; position:absolute; top:0; left:20px; right:20px; height:1px;
-    background:linear-gradient(90deg, transparent, rgba(240,200,90,0.65), transparent); }
-  .top { display:flex; align-items:center; gap:9px; }
-  .ic { width:26px; height:26px; border-radius:7px; flex-shrink:0; }
-  .ttl { flex:1; font-size:13.5px; font-weight:800; color:#ffe39a; letter-spacing:0.3px; }
-  .body { font-size:12px; color:#cfd4e6; line-height:1.6; }
-  .body b { color:#ffe39a; }
-  .body small { display:block; font-size:10px; color:#8c86a0; margin-top:3px; }
-  .noask { display:none; align-items:center; gap:6px; font-size:10.5px; color:#8c86a0; cursor:pointer; }
-  .noask input { accent-color:#e0a82e; margin:0; }
+  html, body { height:100%; background:transparent; overflow:hidden; -webkit-user-select:none; user-select:none; font-family:var(--f-body); color:var(--ink); }
+  .dlg { height:100%; display:flex; flex-direction:column; gap:10px; padding:14px 16px 15px; position:relative; clip-path:var(--cut);
+    background:linear-gradient(180deg, #0e1a24 0%, var(--bg-1) 55%, var(--bg-0) 100%); border:1px solid var(--line-2); }
+  .dlg::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg, transparent, var(--gold) 30%, var(--gold-hi) 50%, var(--gold) 70%, transparent); }
+  .top { display:flex; align-items:center; gap:10px; }
+  .ic { width:24px; height:24px; flex-shrink:0; }
+  .hd { display:flex; flex-direction:column; gap:1px; min-width:0; }
+  .en { font-family:var(--f-num); font-weight:700; font-size:10.5px; letter-spacing:0.18em; color:var(--gold); }
+  .ttl { font-size:14.5px; font-weight:800; color:var(--ink); }
+  .body { font-size:12.5px; color:var(--ink-soft); line-height:1.6; }
+  .body b { color:var(--gold-hi); font-weight:800; }
+  .body small { display:block; font-size:10.5px; color:var(--dim); margin-top:3px; }
+  .noask { display:none; align-items:center; gap:6px; font-size:10.5px; color:var(--dim); cursor:pointer; }
+  .noask input { appearance:none; -webkit-appearance:none; width:13px; height:13px; margin:0; flex:none; border:1px solid var(--gold-line); background:rgba(200,170,110,0.06); display:grid; place-items:center; cursor:pointer; }
+  .noask input:checked { background:var(--gold); border-color:var(--gold); }
+  .noask input:checked::after { content:''; width:6px; height:3px; border-left:2px solid #1a1206; border-bottom:2px solid #1a1206; transform:translateY(-1px) rotate(-45deg); }
   .actions { display:flex; gap:8px; margin-top:auto; }
-  .btn { padding:10px 10px; border-radius:9px; font-size:12.5px; font-weight:800; cursor:pointer; font-family:inherit; }
-  .btn.gold { flex:1.5; border:none; color:#1a1206; background:linear-gradient(135deg,#e0a82e,#e8c84a); box-shadow:0 4px 14px rgba(230,180,70,0.3); }
-  .btn.gold:active { transform:translateY(1px); }
-  .btn.ghost { flex:1; border:1px solid rgba(240,200,90,0.35); background:rgba(240,200,90,0.06); color:#ffe39a; }
-  .btn.ghost:active { transform:translateY(1px); }
+  .actions button { font-family:inherit; }
+  #keep { flex:1; padding:10px; font-size:12.5px; }
+  #quit { flex:1.5; padding:10px; font-size:13px; }
 </style>
-  <link rel="stylesheet" href="../shared.css">
 </head>
 <body>
   <div class="dlg">
     <div class="top">
       <img class="ic" src="../assets/icon.png" alt="">
-      <span class="ttl">롤 클라이언트 종료됨</span>
+      <span class="hd"><span class="en" id="en">LOL CLIENT CLOSED</span><span class="ttl">롤 클라이언트 종료됨</span></span>
     </div>
     <div class="body">롤 클라이언트가 종료됐어요.<br>투데이 내전도 <b>같이 종료</b>할까요?<small>계속 켜두면 다음 게임에도 그대로 이어져요</small></div>
     <label class="noask" id="noask-row"><input type="checkbox" id="noask">다음부터 묻지 않고 숨기기</label>
     <div class="actions">
-      <button class="btn ghost" id="keep">계속 켜두기</button>
-      <button class="btn gold" id="quit">종료</button>
+      <button class="ui-btn-ghost" id="keep">계속 켜두기</button>
+      <button class="ui-btn-gold" id="quit">종료</button>
     </div>
   </div>
   <script>
     const $ = (id) => document.getElementById(id);
     if (new URLSearchParams(location.search).get('mode') === 'close') {   // 오른쪽 창 ✕
-      document.querySelector('.ttl').textContent = '창을 닫을까요?';
+      document.querySelector('.ttl').textContent = '창을 닫을까요?'; $('en').textContent = 'CLOSE WINDOW';
       document.querySelector('.body').innerHTML = '숨기기만 하면 투데이 내전은 <b>계속 켜져 있어요</b>.<small>나중에 끄려면 작업 표시줄 오른쪽 아래 숨은 아이콘(^) → 우클릭 → 「투데이 내전 종료」</small>';
       $('keep').textContent = '숨기기'; $('quit').textContent = '완전히 종료';
       $('noask-row').style.display = 'flex';
