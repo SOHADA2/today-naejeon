@@ -49,6 +49,7 @@ if (window.api.onDoorFx) window.api.onDoorFx(d => {
     if (d.act === 'dim') { const an = p.animate([{ filter: 'brightness(1)' }, { filter: 'brightness(.25)' }], { duration: 300, easing: 'ease-in', fill: 'forwards' }); an.id = 'dim'; }
     return;
   }
+  if (d.act === 'seam') { window.tnSeamFx && window.tnSeamFx(p, d.side); return; }   // 🧲 v0.1.163 합쳐진 이음매 금빛(shared.css · tip.js)
   const s = d.side === 'left' ? 1 : -1, r = a => `perspective(1100px) rotateY(${(s * a).toFixed(2)}deg)`;
   p.style.transformOrigin = d.side === 'left' ? '0% 50%' : '100% 50%';
   const kf = d.act === 'close'

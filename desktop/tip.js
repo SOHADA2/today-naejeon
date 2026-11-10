@@ -30,3 +30,10 @@
   for (const ev of ['mousedown', 'wheel', 'keydown']) document.addEventListener(ev, hide, true);
   window.addEventListener('blur', hide);
 })();
+// 🧲 v0.1.163 두 창이 맞닿을 때 이음매 금빛(사장님: 합쳐질 때 살짝 효과) — 왼쪽 창은 오른쪽 끝 · 오른쪽 창은 왼쪽 끝에 반쪽씩 → 합쳐 보면 한 줄 · 한 번만(0.55초)
+window.tnSeamFx = (panel, side) => {
+  if (panel) { panel.getAnimations().forEach(a => { if (a.id === 'door') a.cancel(); }); panel.style.transform = ''; }
+  const g = document.createElement('i'); g.className = 'tn-seam-fx ' + (side === 'left' ? 'r' : 'l'); document.body.appendChild(g);
+  g.animate([{ opacity: 0, transform: 'scaleY(.15)' }, { opacity: 1, transform: 'scaleY(1)', offset: 0.35 }, { opacity: 0, transform: 'scaleY(1)' }], { duration: 550, easing: 'cubic-bezier(.2,.8,.2,1)' }).onfinish = () => g.remove();
+  if (panel) panel.animate([{ filter: 'brightness(1)' }, { filter: 'brightness(1.16)', offset: 0.3 }, { filter: 'brightness(1)' }], { duration: 420 });
+};

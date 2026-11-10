@@ -169,7 +169,14 @@ const CURVE = {
   smooth: k => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2,
   close: k => k < 0.72 ? Math.pow(k / 0.72, 2.2) : 1 - 0.05 * Math.sin(Math.PI * (k - 0.72) / 0.28),
   open: k => { const x = k - 1; return 1 + 2 * x * x * x + x * x; },
+  // 🧲 v0.1.163 합쳐짐(사장님: 전에 없던 틈) — close의 튕김(맞닿은 뒤 각자 바깥으로 5% 물러남)이 v0.1.162로 부드러워지며 틈으로 또렷이 보임 → 튕김 없이 감속하며 딱 맞닿음
+  merge: k => 1 - Math.pow(1 - k, 3) * (1 - 0.35 * k),
 };
+// 크기를 끝에 바꾸는 움직임(close·merge)은 움직이는 동안 **안쪽 가장자리**(가는 쪽)를 목표에 맞춰 옮김 — 붙었을 때 폭(402)과 합친 폭(430)이 달라 이음매에 28px 틈이 나던 것 · 세로는 가운데 맞춤
+function moveTarget(from, to, sizeAtEnd) {
+  if (!sizeAtEnd || (from.width === to.width && from.height === to.height)) return to;
+  return { x: to.x > from.x ? to.x + to.width - from.width : to.x, y: Math.round(to.y + (to.height - from.height) / 2) };
+}
 //   ⚡ v0.1.128 부드럽게(사장님: 최대한 부드럽게) — 실측: 창마다 setInterval(16)이 윈도우 타이머(15.6ms 단위) 때문에 실제론 ~31ms(초당 33번)마다,
 //   두 창이 최대 15ms 어긋나게 움직였음 → 모든 창을 한 타이머로 같은 순간에(짧게 다시 확인 = 윈도우가 허락하는 가장 빠른 ~15.6ms · 초당 ~64번)
 //   + 움직이는 동안은 위치만(크기를 매번 바꾸면 화면을 다시 그려 무거움) — 크기는 열릴 땐 시작에, 닫힐 땐 끝에 한 번(그때는 홈·로고가 덮거나 막 나타나는 순간)
@@ -188,8 +195,8 @@ function animTick() {
   for (const [win, st] of _winAnim) {
     if (win.isDestroyed()) { _winAnim.delete(win); continue; }
     if (global.__animLog) global.__animLog.push([win.id, now]);   // 🧪 TN_DOCK_SIM 부드러움 측정용(배포본엔 없음)
-    const k = Math.min(1, (now - st.t0) / st.ms), e = st.curve(k), b = st.to;
-    const x = Math.round(st.from.x + (b.x - st.from.x) * e) | 0, y = Math.round(st.from.y + (b.y - st.from.y) * e) | 0;   // | 0 = -0 → 0(Electron은 -0을 정수로 못 받아 오류 창이 뜸)
+    const k = Math.min(1, (now - st.t0) / st.ms), e = st.curve(k), b = st.to, m = st.mv || b;
+    const x = Math.round(st.from.x + (m.x - st.from.x) * e) | 0, y = Math.round(st.from.y + (m.y - st.from.y) * e) | 0;   // | 0 = -0 → 0(Electron은 -0을 정수로 못 받아 오류 창이 뜸)
     if (k >= 1) { win.setBounds(b); _winAnim.delete(win); }
     else if (x !== st.lx || y !== st.ly) { win.setPosition(x, y); st.lx = x; st.ly = y; }
     if (st.fade) try { win.setOpacity(Math.min(1, k * 2.5)); } catch (_) {}   // 처음 나타날 때 = 다가오며 서서히
@@ -200,13 +207,13 @@ function moveWin(win, to, ms, opt) {
   if (!win || win.isDestroyed() || !to) return;
   to = { x: Math.round(to.x) | 0, y: Math.round(to.y) | 0, width: Math.round(to.width) | 0, height: Math.round(to.height) | 0 };
   const cur = _winAnim.get(win);
-  if (cur) { cur.to = to; return; }
+  if (cur) { cur.to = to; cur.mv = moveTarget(cur.from, to, cur.atEnd); return; }
   if (!ms) { win.setBounds(to); return; }
-  const curveName = (opt && opt.curve) || 'smooth', from = win.getBounds();
+  const curveName = (opt && opt.curve) || 'smooth', from = win.getBounds(), atEnd = curveName === 'close';   // merge(v0.1.163) = 크기를 시작에(끝에 바꾸면 다시 그리기 전 틈이 깜빡임)
   if (from.width !== to.width || from.height !== to.height) {   // 크기는 한 번만: 열림·갈라짐 = 시작에(움직이며 나타남) · 닫힘·합쳐짐 = 끝에(그때는 덮임)
-    if (curveName !== 'close') { win.setBounds({ x: from.x, y: from.y, width: to.width, height: to.height }); from.width = to.width; from.height = to.height; }
+    if (!atEnd) { win.setBounds({ x: from.x, y: from.y, width: to.width, height: to.height }); from.width = to.width; from.height = to.height; }
   }
-  _winAnim.set(win, { from, to, t0: performance.now(), ms, curve: CURVE[curveName], fade: opt && opt.fade, lx: from.x, ly: from.y });
+  _winAnim.set(win, { from, to, mv: moveTarget(from, to, atEnd), atEnd, t0: performance.now(), ms, curve: CURVE[curveName], fade: opt && opt.fade, lx: from.x, ly: from.y });
   _animStep = animStepFor(to);
   if (!_animTimer) { _animLast = 0; animWait(); }
 }
@@ -799,10 +806,17 @@ function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표�
     if (!reposition) { if (!_homeOn) showHome(homeRect(), 'home'); return; }
     setMerged(false); setDockedFlag(true);
     if (wasDocked) {   // 붙어 있다 클라를 끔 → 좌우 창이 가운데로 모여 맞닿는 순간 홈으로 바뀜
-      for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) moveWin(win, standaloneBounds(side), DOOR_MS, { curve: 'close' });
-      doorFx('close');
-      setTimeout(() => { if (_floating && useHome() && _door !== 'closed') doorFx('dim'); }, Math.round(DOOR_MS * 0.72));
-      setTimeout(() => { if (_floating && useHome() && _door !== 'closed') { showHome(homeRect(), 'home', 320); setTimeout(() => { if (_homeOn) hidePanelsQuiet(); }, 350); } }, DOOR_MS + 60);
+      // 🧲 v0.1.163(사장님: 전에 없던 틈 · 합쳐질 때 살짝 효과 OK) — 튕김·문짝 돌리기 없이 감속하며 딱 맞닿음 → 맞닿는 순간 이음매 금빛(seam) → 어두워지며 홈
+      //   크기는 안 바꿈(바꾸면 창 안 화면이 새 크기로 다시 그려지기 전 0.04초쯤 빈 곳 = 29px 틈이 깜빡임 · 실측) — 지금 크기 그대로 가운데 이음선에서 맞닿고, 홈이 덮어 숨긴 뒤에 합친 자리·크기로
+      const sR = standaloneBounds('right'), sL = standaloneBounds('left'), seamX = sR.x, cy = sL.y + sL.height / 2;
+      for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) {
+        if (!win || win.isDestroyed()) continue; const b = win.getBounds();
+        moveWin(win, { x: side === 'left' ? seamX - b.width : seamX, y: Math.round(cy - b.height / 2), width: b.width, height: b.height }, DOOR_MS, { curve: 'merge' });
+      }
+      const ok = () => _floating && useHome() && _door !== 'closed';
+      setTimeout(() => { if (ok()) doorFx('seam'); }, DOOR_MS - 40);
+      setTimeout(() => { if (ok()) doorFx('dim'); }, DOOR_MS + 200);
+      setTimeout(() => { if (ok()) { showHome(homeRect(), 'home', 320); setTimeout(() => { if (_homeOn) { hidePanelsQuiet(); for (const [w, s] of [[overlayWin, 'left'], [leftWin, 'right']]) if (w && !w.isDestroyed() && !w.isVisible() && !_winAnim.has(w)) w.setBounds(standaloneBounds(s)); } }, 350); } }, DOOR_MS + 330);
     } else {   // 처음(롤 없이 켬) = 홈이 서서히 나타남 · 좌우 창은 합친 자리에 숨겨 둠
       for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) if (win && !win.isDestroyed()) { win.setBounds(standaloneBounds(side)); if (win.isVisible()) win.hide(); }
       showHome(homeRect(), 'home', 320);
@@ -817,12 +831,12 @@ function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표�
     const to = standaloneBounds(side), appear = reposition && !wasDocked && !win.isVisible();
     if (appear) {   // 처음 나타남 = 양옆 바깥에서 다가와 가운데에서 맞붙음
       win.setBounds({ ...to, x: to.x + (side === 'left' ? -70 : 70) }); try { win.setOpacity(0); } catch (_) {}
-      moveWin(win, to, DOOR_MS, { curve: 'close', fade: true }); fx = true;
-    } else if (reposition) { moveWin(win, to, wasDocked ? DOOR_MS : 0, { curve: 'close' }); fx = fx || wasDocked; }   // 붙어 있다 클라를 끄면 좌우에서 가운데로 모여 한 창이 됨
+      moveWin(win, to, DOOR_MS, { curve: 'merge', fade: true }); fx = true;
+    } else if (reposition) { moveWin(win, to, wasDocked ? DOOR_MS : 0, { curve: 'merge' }); fx = fx || wasDocked; }   // 붙어 있다 클라를 끄면 좌우에서 가운데로 모여 한 창이 됨(v0.1.163 튕김 없이 · 맞닿으면 이음매 금빛)
     try { if (win.isAlwaysOnTop()) win.setAlwaysOnTop(false, 'normal'); } catch (_) {}   // 바뀔 때만(매 이벤트 재설정=z-order 깜빡임·v0.1.55)
     if (!win.isVisible()) win.showInactive();
   }
-  if (fx) doorFx('close');
+  if (fx) setTimeout(() => { if (_floating) doorFx('seam'); }, DOOR_MS - 40);
   setDockedFlag(hasRight);   // 합친 창 = 두 창이 맞닿는 쪽 테두리 없이(붙었을 때와 같은 모양)
   setMerged(hasRight && !userHid && !sampleActive);
 }
