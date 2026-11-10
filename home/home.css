@@ -65,3 +65,24 @@ body.logo .tt h1 { font-size:46px; }
 .seam { display:none; }
 body.logo .seam { display:block; position:fixed; left:50%; top:0; bottom:0; width:2px; margin-left:-1px; background:var(--gold); opacity:0; transform:scaleY(0); }   /* 🚪 문이 맞닿은 이음선 */
 body.logo .go { display:block; font-family:var(--f-num); font-size:15px; font-weight:700; letter-spacing:.5em; color:var(--gold); margin-right:-.5em; }
+
+/* ✨ v0.1.160 게임 시작 로고 다듬기(사장님) — 영문 = TODAY IN-HOUSE(기울인 금빛) · 한글 작게 · 효과는 전부 한 번만(무한 애니메이션 없음) */
+.lg-en, #lfx { display:none; }
+body.logo #lfx { display:block; position:fixed; inset:0; pointer-events:none; overflow:hidden; }
+body.logo #hero { position:relative; z-index:1; gap:14px; }
+body.logo .tt-en { display:none; }
+body.logo .lg-en { display:inline-block; font-family:var(--f-num); font-weight:700; font-size:64px; line-height:1; letter-spacing:.1em; transform:skewX(-9deg); white-space:nowrap;
+  background:linear-gradient(100deg,#8f6726 0%,#c8aa6e 30%,#fff6d8 45%,#f0d79a 55%,#c8aa6e 70%,#8f6726 100%); background-size:300% 100%; background-position:100% 0;
+  -webkit-background-clip:text; background-clip:text; color:transparent; filter:drop-shadow(0 2px 0 #2a1c07) drop-shadow(0 0 12px rgba(240,215,154,.35)); }
+body.logo .tt h1 { font-size:22px; font-weight:800; letter-spacing:.32em; margin-right:-.32em; color:var(--ink-soft); }
+body.logo .go { font-size:12px; color:var(--dim); }
+.lg-glow { position:absolute; top:0; bottom:0; width:70%; opacity:0; }
+.lg-glow.l { left:-20%; background:radial-gradient(ellipse 60% 55% at 30% 50%, rgba(74,168,255,.32), transparent 70%); }
+.lg-glow.r { right:-20%; background:radial-gradient(ellipse 60% 55% at 70% 50%, rgba(255,90,110,.30), transparent 70%); }
+.lg-gold { position:absolute; inset:0; opacity:0; background:radial-gradient(circle at 50% 42%, rgba(240,215,154,.30), rgba(200,170,110,.08) 35%, transparent 62%); }
+.lg-run { position:absolute; left:50%; top:42%; width:6px; height:34%; margin-left:-3px; opacity:0; border-radius:3px;
+  background:linear-gradient(180deg, transparent, #fff6d8 40%, #fff 50%, #fff6d8 60%, transparent); filter:blur(1px); box-shadow:0 0 18px 6px rgba(240,215,154,.55); }
+.lg-ring { position:absolute; left:50%; top:42%; width:180px; height:180px; margin:-90px 0 0 -90px; border-radius:50%; border:3px solid #f0d79a; opacity:0;
+  box-shadow:0 0 24px rgba(240,215,154,.6), inset 0 0 18px rgba(240,215,154,.4); }
+.lg-flash { position:absolute; inset:0; opacity:0; background:radial-gradient(circle at 50% 42%, #fff8e6, rgba(240,215,154,.55) 28%, transparent 65%); }
+#lg-sp { position:absolute; inset:0; width:100%; height:100%; }
