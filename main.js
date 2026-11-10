@@ -265,7 +265,7 @@ function closeDoors() {
     setTimeout(() => { if (_door === 'closed') doorFx('dim'); }, Math.round(DOOR_MS * 0.72));
     setTimeout(() => { if (_door !== 'closed') return; const a = doorBounds(pb, 'left'), b = doorBounds(pb, 'right'); showHome({ x: a.x, y: a.y, width: b.x + b.width - a.x, height: a.height }, 'logo', 350); setTimeout(() => { if (_door === 'closed') hidePanelsQuiet(); }, 380); }, DOOR_MS + 60);
   }
-  setTimeout(() => { if (_door === 'closed') { hideOverlay(); if (leftWin && !leftWin.isDestroyed() && leftWin.isVisible()) leftWin.hide(); hideHome(320); } }, DOOR_MS + 2300);   // 로고를 2초쯤 보여 주고 숨김(로딩 화면이 덮음) · v0.1.159 로고 영상 되돌림 · v0.1.160 효과 다듬어 2.2초
+  setTimeout(() => { if (_door === 'closed') { hideOverlay(); if (leftWin && !leftWin.isDestroyed() && leftWin.isVisible()) leftWin.hide(); hideHome(320); } }, DOOR_MS + 1700);   // 로고를 1초쯤 보여 주고 숨김(로딩 화면이 덮음) · v0.1.159 로고 영상 되돌림 · v0.1.161 v0.1.160 효과도 되돌림(사장님: 과함)
 }
 // 🪟 Win11 창 모서리 둥글림 강제 해제 (roundedCorners:false가 안 먹는 환경 대비 · DWMWA_WINDOW_CORNER_PREFERENCE=33·DONOTROUND=1)
 function forceSquareCorners(win) {
