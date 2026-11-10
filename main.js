@@ -761,14 +761,15 @@ function fadeWin(win, from, to, ms, done) {
     if (k >= 1) { clearInterval(iv); if (done) done(); }
   }, 16);
 }
-function showHome(rect, mode, fadeMs) {
+function showHome(rect, mode, fadeMs, intro) {   // intro = 'plain'(v0.1.165 합쳐진 창에서 이어질 때 = 내용을 차례로 말고 한 번에)
   if (!homeWin || homeWin.isDestroyed()) createHomeWin();
   const modeChanged = _homeMode !== mode || !_homeOn;
   _homeMode = mode; _homeOn = true;
   homeWin.setBounds(rect);
   sendHome();
-  if (modeChanged && _homeLoaded) try { homeWin.webContents.send('home-intro', mode); } catch (_) {}
+  if (modeChanged && _homeLoaded) try { homeWin.webContents.send('home-intro', intro === 'plain' ? 'plain' : mode); } catch (_) {}
   if (!homeWin.isVisible()) { try { homeWin.setOpacity(fadeMs ? 0 : 1); } catch (_) {} homeWin.showInactive(); if (fadeMs) fadeWin(homeWin, 0, 1, fadeMs); }
+  try { homeWin.moveTop(); } catch (_) {}   // v0.1.165(사장님: 합쳐질 때 왼쪽이 먼저·오른쪽이 나중에 사라짐) — 활성 창(대개 오른쪽 창) 아래에 깔리지 않게 맨 위로
   clearInterval(_homeTimer); _homeTimer = null;
   if (mode === 'home') { homeRefresh(); _homeTimer = setInterval(homeRefresh, 10000); }
 }
@@ -813,7 +814,7 @@ function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표�
       for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) moveWin(win, standaloneBounds(side), DOOR_MS, { curve: 'merge' });
       const ok = () => _floating && useHome() && _door !== 'closed';
       setTimeout(() => { if (ok()) doorFx('seam'); }, DOOR_MS - 40);
-      setTimeout(() => { if (ok()) { showHome(homeRect(), 'home', 200); setTimeout(() => { if (_homeOn) hidePanelsQuiet(); }, 240); } }, DOOR_MS + 140);
+      setTimeout(() => { if (ok()) { showHome(homeRect(), 'home', 200, 'plain'); setTimeout(() => { if (_homeOn) hidePanelsQuiet(); }, 240); } }, DOOR_MS + 140);
     } else {   // 처음(롤 없이 켬) = 홈이 서서히 나타남 · 좌우 창은 합친 자리에 숨겨 둠
       for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) if (win && !win.isDestroyed()) { win.setBounds(standaloneBounds(side)); if (win.isVisible()) win.hide(); }
       showHome(homeRect(), 'home', 320);
