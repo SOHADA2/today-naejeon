@@ -400,7 +400,7 @@ body.merged #sbar .s-brand { display:none; }   /* 🚪 합친 창 = 제목은 �
 @media (max-width: 340px) { .pf-emb.rk { zoom:0.82; } }
 
 /* 🧪 증강 연구(2026-11-11 · auglab.js) — 롤 아수라장 증강 고르기처럼 3장 · 등급 색 = 실버 #B9C3CC · 골드 #E8C46A · 프리즘 #C58BFF(다른 탭 .aug와 같음) · 효과는 한 번만 */
-#al-body { --al-s:#B9C3CC; --al-g:#E8C46A; --al-p:#C58BFF; padding:10px 10px 14px; }
+#al-body { --al-s:#B9C3CC; --al-g:#E8C46A; --al-p:#C58BFF; padding:10px 10px 14px; overflow-x:hidden; }   /* 뒤집힘(rotateY)·떠오름이 옆으로 삐져나와 가로 스크롤 막대가 생기던 것 */
 #al-body .num { font-family:var(--f-num); }
 #al-body .al-top { display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
 #al-body .al-slots { display:flex; gap:5px; }
