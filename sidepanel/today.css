@@ -398,3 +398,65 @@ body.merged #sbar .s-brand { display:none; }   /* 🚪 합친 창 = 제목은 �
 .pf-emb.rk img { position:absolute; filter:drop-shadow(0 0 6px color-mix(in srgb, var(--tc) 45%, transparent)); }   /* 크기·자리 = tnEmblem(티어마다 실측) */
 .pf-emb.rk b { position:absolute; right:-4px; bottom:-3px; min-width:17px; height:17px; padding:0 3px; display:grid; place-items:center; font:800 12px var(--f-num); color:#0b1018; background:var(--tc); }
 @media (max-width: 340px) { .pf-emb.rk { zoom:0.82; } }
+
+/* 🧪 증강 연구(2026-11-11 · auglab.js) — 롤 아수라장 증강 고르기처럼 3장 · 등급 색 = 실버 #B9C3CC · 골드 #E8C46A · 프리즘 #C58BFF(다른 탭 .aug와 같음) · 효과는 한 번만 */
+#al-body { --al-s:#B9C3CC; --al-g:#E8C46A; --al-p:#C58BFF; padding:10px 10px 14px; }
+#al-body .num { font-family:var(--f-num); }
+#al-body .al-top { display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+#al-body .al-slots { display:flex; gap:5px; }
+#al-body .al-slot { position:relative; width:28px; height:28px; display:flex; align-items:center; justify-content:center; background:var(--bg-1); border:1.5px dashed var(--line-2); overflow:hidden; }
+#al-body .al-slot .num { font-size:13px; color:var(--dim); }
+#al-body .al-slot.cur { border-style:solid; border-color:var(--gold); }
+#al-body .al-slot.silver { border:1.5px solid var(--al-s); } #al-body .al-slot.gold { border:1.5px solid var(--al-g); } #al-body .al-slot.prismatic { border:1.5px solid var(--al-p); }
+#al-body .al-slot img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+#al-body .al-meta { margin-left:auto; display:flex; gap:10px; font-size:11px; color:var(--dim); white-space:nowrap; }
+#al-body .al-meta b { color:var(--gold-hi); font-size:14px; }
+#al-body .al-idle, #al-body .al-done { display:flex; flex-direction:column; gap:8px; padding:16px 12px; background:var(--bg-1); border:1px solid var(--hair); border-top:2px solid var(--gold-line); }
+#al-body .al-en { font-family:var(--f-num); font-weight:700; font-size:11px; letter-spacing:0.18em; color:var(--gold); }
+#al-body .al-idle > b, #al-body .al-done > b { font-size:15px; color:var(--ink); line-height:1.4; word-break:keep-all; }
+#al-body .al-done > b .num { font-size:22px; color:var(--gold-hi); }
+#al-body .al-idle p, #al-body .al-done p { font-size:12px; line-height:1.55; color:var(--ink-soft); word-break:keep-all; }
+#al-body .al-go { width:100%; margin-top:4px; }
+#al-body .al-src { font-size:10.5px; color:var(--dim); word-break:keep-all; }
+#al-body .al-cards { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; perspective:600px; }
+#al-body .al-cw { display:flex; flex-direction:column; gap:5px; min-width:0; transition:opacity .25s; }
+#al-body .al-cw.off { opacity:0.55; }
+#al-body .al-card { --rc:var(--al-s); position:relative; display:flex; flex-direction:column; align-items:center; gap:7px; min-width:0; padding:8px 5px 10px; min-height:150px; cursor:pointer;
+  color:var(--ink); background:linear-gradient(180deg, color-mix(in srgb, var(--rc) 18%, var(--bg-1)) 0%, var(--bg-1) 55%); border:1.5px solid var(--rc); clip-path:var(--cut-sm); transition:transform .12s, filter .12s; }
+#al-body .al-card.gold { --rc:var(--al-g); }
+#al-body .al-card.prismatic { --rc:var(--al-p); background:linear-gradient(180deg, rgba(197,139,255,.26) 0%, rgba(120,200,255,.12) 30%, var(--bg-1) 62%); border-color:var(--al-p); }
+#al-body .al-card:not(:disabled):hover { transform:translateY(-2px); filter:brightness(1.12); }
+#al-body .al-card:disabled { cursor:default; }
+#al-body .al-cw.picked .al-card { outline:2px solid var(--gold-hi); outline-offset:-4px; }
+#al-body .al-card.empty { cursor:default; border-style:dashed; border-color:var(--line-2); background:var(--bg-1); }
+#al-body .al-rar { align-self:stretch; text-align:center; font-size:10px; font-weight:800; letter-spacing:0.08em; padding:1px 0; color:#10131a; background:var(--rc); }
+#al-body .al-card.prismatic .al-rar { background:linear-gradient(90deg, #C58BFF, #7FD0FF, #F5A3E0); }
+#al-body .al-ic { position:relative; width:48px; height:48px; margin-top:4px; overflow:hidden; border:1.5px solid var(--rc); background:var(--bg-3); flex:none; }
+#al-body .al-ic img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+#al-body .al-nm { font-size:12px; font-weight:700; line-height:1.35; text-align:center; word-break:keep-all; overflow-wrap:anywhere; }
+#al-body .al-rr { font-size:11px; font-weight:700; padding:4px 0; color:var(--gold-hi); background:var(--bg-1); border:1px solid var(--gold-line); cursor:pointer; white-space:nowrap; }
+#al-body .al-rr:hover:not(:disabled) { background:rgba(200,170,110,0.12); }
+#al-body .al-rr:disabled { opacity:0.4; cursor:default; }
+#al-body .al-res { display:flex; flex-direction:column; align-items:center; gap:2px; padding:4px 2px; background:var(--bg-1); border:1px solid var(--hair); animation:alIn .3s ease both; }
+#al-body .al-res .num { font-size:14px; color:var(--ink); }
+#al-body .al-res small { font-size:10px; color:#8fd3c7; white-space:nowrap; }
+#al-body .al-res em { font-style:normal; font-size:10px; font-weight:800; color:#10131a; background:var(--gold-hi); padding:0 5px; white-space:nowrap; }
+#al-body .al-nod { font-size:10px; color:var(--dim); text-align:center; }
+#al-body .al-t { font-family:var(--f-num); font-style:normal; font-size:13px; font-weight:700; padding:0 5px; color:#10131a; background:var(--dim); }
+#al-body .al-t.t1 { background:#ff8a4c; } #al-body .al-t.t2 { background:#c58bff; } #al-body .al-t.t3 { background:#6fb6ff; } #al-body .al-t.t4 { background:#9aa4ad; } #al-body .al-t.t5 { background:#6c7177; }
+#al-body .al-q { margin:10px 0 8px; font-size:12.5px; font-weight:700; color:var(--ink-soft); text-align:center; word-break:keep-all; }
+#al-body .al-q.ok { color:var(--gold-hi); }
+#al-body .al-list { display:flex; flex-direction:column; gap:4px; }
+#al-body .al-li { display:flex; align-items:center; gap:7px; padding:5px 6px; background:var(--bg-2); border:1px solid var(--hair); min-width:0; }
+#al-body .al-li > .num { color:var(--dim); font-size:13px; width:10px; }
+#al-body .al-li b { flex:1; min-width:0; font-size:12px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#al-body .aug { position:relative; display:inline-block; flex:none; width:24px; height:24px; overflow:hidden; background:var(--bg-3); border:1.5px solid var(--al-s); }
+#al-body .aug.gold { border-color:var(--al-g); } #al-body .aug.prismatic { border-color:var(--al-p); }
+#al-body .aug img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+/* 뒤집혀 나타남(한 번) · 프리즘은 빛이 한 번 훑음 */
+#al-body .al-card.flip { animation:alFlip .5s cubic-bezier(.2,.8,.3,1) both; }
+#al-body .al-card.prismatic.flip::after { content:""; position:absolute; inset:0; background:linear-gradient(105deg, transparent 35%, rgba(255,255,255,.45) 50%, transparent 65%); transform:translateX(-120%); animation:alShine .8s .45s ease-out both; pointer-events:none; }
+@keyframes alFlip { 0% { transform:rotateY(90deg) scale(.92); opacity:0; } 60% { opacity:1; } 100% { transform:none; opacity:1; } }
+@keyframes alShine { to { transform:translateX(120%); } }
+@keyframes alIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+@media (max-width:340px) { #al-body .al-card { min-height:136px; } #al-body .al-ic { width:40px; height:40px; } #al-body .al-nm { font-size:11px; } #al-body .al-meta { gap:7px; } }

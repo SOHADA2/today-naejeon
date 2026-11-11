@@ -133,6 +133,7 @@ function switchCat(cat) {
   else if (cat === 'profile') renderProfile();
   else if (cat === 'aug') renderAugEdit();
   else if (cat === 'patch') renderPatch();   // 📰 v0.1.144 (patchnotes.js)
+  else if (cat === 'lab') renderAugLab();   // 🧪 증강 연구 (auglab.js)
   else renderToday();
 }
 document.querySelectorAll('.rail-btn').forEach(b => b.addEventListener('click', () => switchCat(b.dataset.cat)));

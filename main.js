@@ -2935,6 +2935,21 @@ ipcMain.handle('aug-patches', async () => {
   for (const k of Object.keys(rec)) { const a = k.split(':')[1]; if (isTrait(a)) continue; const o = ours[a] = ours[a] || { g: 0, w: 0 }; o.g += rec[k].g; o.w += rec[k].w; }
   return Object.assign({}, _ggPatch, { ours });
 });
+// 🧪 증강 연구(2026-11-11 · 사장님: 오른쪽 창에서 롤처럼 증강 3장 뽑아 보기) — 뽑을 증강 = 지금 시즌 아수라장 증강(aramgg 전체 등급에 있는 것 · 못 받으면 1000번대 전부) · 특성(헤드라이너) 뺌
+//   돌려주는 것 = [{id, name, icon, rarity, t(aramgg T1~T5), wr(승률), g·w(우리 기록)}] · 확률·뽑기는 화면(sidepanel/auglab.js)이 함
+ipcMain.handle('auglab-pool', async () => {
+  const [augs, idx, rec] = await Promise.all([getAugments().catch(() => ({})), ggIndex().catch(() => null), augRecords().catch(() => ({}))]);
+  const g = (idx && idx.g) || null, ours = {};
+  for (const k of Object.keys(rec)) { const x = k.split(':')[1]; const o = ours[x] = ours[x] || { g: 0, w: 0 }; o.g += rec[k].g; o.w += rec[k].w; }
+  const list = [];
+  for (const [id, a] of Object.entries(augs)) {
+    if (!(+id >= 1000) || a.trait || !/^(silver|gold|prismatic)$/.test(a.rarity)) continue;
+    if (g && !g[id]) continue;
+    const s = g && g[id], o = ours[id];
+    list.push({ id: +id, name: a.name, icon: a.icon, rarity: a.rarity, t: s ? s[0] : 0, wr: s ? s[1] : 0, g: o ? o.g : 0, w: o ? o.w : 0 });
+  }
+  return { patch: idx ? idx.p : '', list };
+});
 ipcMain.on('augguide-link', (_e, url) => { if (guideLinkOk(url)) shell.openExternal(url); });   // 플랜 원문 보기(기본 브라우저)
 // 편집(오른쪽 창 「증강」 탭) — 누구나 채울 수 있음 · 저장 = 그 챔피언 칸 통째로 교체(마지막 저장이 이김)
 ipcMain.handle('augguide-all', async () => {
