@@ -12,7 +12,7 @@ const AL_ODDS = [   // [실버, 골드, 프리즘] — 1~4번째 고르기
 const AL_RAR = ['silver', 'gold', 'prismatic'];
 const AL_RNAME = { silver: '실버', gold: '골드', prismatic: '프리즘' };
 const AL_REROLLS = 2, AL_ROUNDS = 4;
-const AL = { pool: null, patch: '', round: 0, picks: [], best: 0, rerolls: AL_REROLLS, offer: null, picked: -1 };
+const AL = { pool: null, patch: '', rar: null, round: 0, picks: [], best: 0, rerolls: AL_REROLLS, offer: null, picked: -1 };
 
 function alRarity(round) {
   const o = AL_ODDS[Math.min(round, AL_ODDS.length - 1)];
@@ -56,8 +56,9 @@ async function renderAugLab() {
 }
 
 function alNewOffer() {
-  AL.offer = [null, null, null]; AL.picked = -1;
-  for (let i = 0; i < 3; i++) AL.offer[i] = alDraw(alRarity(AL.round), alTaken(i));
+  // v0.1.173(사장님: 세 장 등급이 섞임 — 실제 아수라장은 한 번에 뜨는 3장이 모두 같은 등급) → 등급은 고르기마다 한 번만 정하고 세 장 모두 그 등급에서
+  AL.offer = [null, null, null]; AL.picked = -1; AL.rar = alRarity(AL.round);
+  for (let i = 0; i < 3; i++) AL.offer[i] = alDraw(AL.rar, alTaken(i));
   alDraw0(true);
 }
 
@@ -88,7 +89,7 @@ function alDraw0(anim, onlyIdx) {
       + `<span class="al-rar">${AL_RNAME[a.rarity]}</span><span class="al-ic"><img src="${a.icon}" alt="" onerror="this.remove()"></span><span class="al-nm">${escH(a.name)}</span></button>`
       + (AL.picked < 0 ? `<button class="al-rr" data-al="reroll" data-i="${i}"${AL.rerolls > 0 ? '' : ' disabled'} title="이 카드만 다시 뽑기">↻ 다시 뽑기</button>` : res) + '</div>';
   }).join('');
-  let foot = `<div class="al-q">${AL.round + 1}번째 증강 · 하나를 고르세요</div>`;
+  let foot = `<div class="al-q">${AL.round + 1}번째 증강 · <span class="al-qr ${AL.rar || ''}">${AL_RNAME[AL.rar] || ''}</span> · 하나를 고르세요</div>`;
   if (AL.picked >= 0) {
     const ok = AL.picked === best;
     foot = `<div class="al-q ${ok ? 'ok' : ''}">${best < 0 ? '세 장 모두 등급 자료가 없습니다' : ok ? '셋 중 가장 좋은 카드를 골랐습니다' : `가장 좋은 카드는 「${escH(AL.offer[best].name)}」였습니다`}</div>`
@@ -114,7 +115,7 @@ function alBind() {
     if (k === 'start') { AL.round = 0; AL.picks = []; AL.best = 0; AL.rerolls = AL_REROLLS; alNewOffer(); }
     else if (k === 'reroll') {
       if (AL.rerolls <= 0 || AL.picked >= 0) return;
-      AL.rerolls--; AL.offer[i] = alDraw(alRarity(AL.round), alTaken(i)); alDraw0(true, i);
+      AL.rerolls--; AL.offer[i] = alDraw(AL.rar, alTaken(i)); alDraw0(true, i);   // 다시 뽑아도 이번 등급 그대로(v0.1.173)
     } else if (k === 'pick') {
       if (AL.picked >= 0 || !AL.offer[i]) return;
       AL.picked = i; AL.picks.push(AL.offer[i]);

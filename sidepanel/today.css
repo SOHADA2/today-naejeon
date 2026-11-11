@@ -446,6 +446,7 @@ body.merged #sbar .s-brand { display:none; }   /* 🚪 합친 창 = 제목은 �
 #al-body .al-t.t1 { background:#ff8a4c; } #al-body .al-t.t2 { background:#c58bff; } #al-body .al-t.t3 { background:#6fb6ff; } #al-body .al-t.t4 { background:#9aa4ad; } #al-body .al-t.t5 { background:#6c7177; }
 #al-body .al-q { margin:10px 0 8px; font-size:12.5px; font-weight:700; color:var(--ink-soft); text-align:center; word-break:keep-all; }
 #al-body .al-q.ok { color:var(--gold-hi); }
+#al-body .al-qr { font-weight:800; color:var(--al-s); } #al-body .al-qr.gold { color:var(--al-g); } #al-body .al-qr.prismatic { background:linear-gradient(90deg, #C58BFF, #7FD0FF, #F5A3E0); -webkit-background-clip:text; background-clip:text; color:transparent; }   /* v0.1.173 이번 등급 */
 #al-body .al-list { display:flex; flex-direction:column; gap:4px; }
 #al-body .al-li { display:flex; align-items:center; gap:7px; padding:5px 6px; background:var(--bg-2); border:1px solid var(--hair); min-width:0; }
 #al-body .al-li > .num { color:var(--dim); font-size:13px; width:10px; }
