@@ -258,6 +258,40 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 .sac ol { margin:10px 0 0 18px; font-size:13px; line-height:1.75; }
 .sac .btn-dl { margin-top:12px; }
 .sac .warn { margin-top:10px; font-size:12px; color:var(--ink-3); }
+/* 2026-11-11 다운로드 누르면 설치 길잡이(한 화면에 한 단계 · 떠 있는 창 고르기 → 그 창 맞춤 안내) */
+.ig { width:min(560px, calc(100vw - 32px)); max-height:calc(100dvh - 32px); margin:auto; padding:0; border:1px solid var(--rule-2); border-top:2px solid var(--gold); background:var(--bg-2); color:var(--ink); overflow:auto; }
+.ig::backdrop { background:rgba(4,6,9,.78); }
+.ig-in { padding:22px 24px 20px; outline:none; }
+.ig-top { display:flex; align-items:center; gap:12px; }
+.ig-dots { display:flex; gap:6px; }
+.ig-dots i { width:22px; height:3px; background:var(--rule-2); }
+.ig-dots i.on { background:var(--gold); }
+.ig-k { font:700 12px var(--mono); letter-spacing:.12em; color:var(--gold); }
+.ig-x { margin-left:auto; width:32px; height:32px; font-size:20px; line-height:1; color:var(--ink-3); }
+.ig-x:hover { color:var(--ink); }
+.ig h3 { margin-top:14px; font-size:21px; line-height:1.4; font-weight:700; }
+.ig p { margin-top:8px; font-size:14px; color:var(--ink-2); }
+.ig p b { color:var(--ink); }
+.ig ol { margin:12px 0 0 20px; font-size:14px; line-height:1.8; }
+.ig ol b { color:var(--gold); }
+.ig .note { margin-top:12px; font-size:12.5px; color:var(--ink-3); }
+.ig .note a, .ig p a { color:var(--gold); text-decoration:underline; text-underline-offset:3px; }
+.ig .win { margin-top:14px; max-width:none; }
+.ig .win p { color:#fff; font-size:13px; }
+.ig-pick { display:grid; gap:10px; margin-top:16px; }
+.ig-pick button { display:grid; grid-template-columns:120px minmax(0, 1fr); gap:14px; align-items:center; text-align:left; padding:10px; border:1px solid var(--rule-2); background:var(--bg); }
+.ig-pick button:hover { border-color:var(--gold); }
+.ig-pick .mini { height:58px; padding:8px; font:600 10px/1.3 'Segoe UI','Malgun Gothic',sans-serif; color:#fff; overflow:hidden; }
+.ig-pick .mini.blue { background:#0d5ead; }
+.ig-pick .mini.dark { background:#2b2b2b; border-top:3px solid #c42b1c; }
+.ig-pick .mini.inst { background:#f3f3f3; color:#222; }
+.ig-pick b { display:block; font-size:15px; }
+.ig-pick span.d { display:block; margin-top:2px; font-size:13px; color:var(--ink-3); }
+.ig-nav { display:flex; align-items:center; gap:12px; margin-top:20px; }
+.ig-nav .back { font-size:13px; color:var(--ink-3); padding:8px 0; }
+.ig-nav .back:hover { color:var(--ink); }
+.ig-nav .btn-dl { margin-left:auto; }
+@media (max-width:520px) { .ig-in { padding:18px 16px 16px; } .ig h3 { font-size:18px; } .ig-pick button { grid-template-columns:84px minmax(0, 1fr); } .ig-pick .mini { height:52px; font-size:8.5px; padding:6px; } .ig-pick .mini span { display:none; } }
 .req { margin-top:28px; display:grid; grid-template-columns:auto 1fr; gap:6px 20px; font-size:14px; }
 .req dt { color:var(--ink-3); }
 .req dd { color:var(--ink-2); }
@@ -512,6 +546,66 @@ footer p + p { margin-top:6px; }
   </section>
 </main>
 
+<!-- 2026-11-11 설치 길잡이: 다운로드를 누르면(받기는 그대로 시작) 한 단계씩 · 「설치가 막히나요?」는 2단계부터 -->
+<dialog class="ig" id="ig" aria-labelledby="ig-h">
+  <div class="ig-in" tabindex="-1" autofocus>
+    <div class="ig-top"><div class="ig-dots" aria-hidden="true"><i></i><i></i><i></i></div><span class="ig-k" id="ig-k">STEP 1 / 3</span><button class="ig-x" type="button" data-ig-close aria-label="닫기">×</button></div>
+
+    <section data-p="open">
+      <h3 id="ig-h">다운로드를 시작했습니다.<br>받은 파일을 여세요.</h3>
+      <p>브라우저 오른쪽 위 다운로드 목록에서 <b>today-naejeon-setup.exe</b>를 누릅니다.</p>
+      <p class="note">Edge에서 「일반적으로 다운로드되지 않습니다」가 뜨면 파일 옆 「…」 → 「유지」를 누릅니다. 받기가 시작되지 않았다면 <a class="js-dl" href="https://github.com/SOHADA2/today-naejeon/releases/latest">여기</a>를 누르세요.</p>
+      <div class="ig-nav"><button class="btn btn-dl" type="button" data-go="pick">파일을 열었습니다 <span class="arrow">→</span></button></div>
+    </section>
+
+    <section data-p="pick" hidden>
+      <h3>어떤 창이 떴나요?</h3>
+      <div class="ig-pick">
+        <button type="button" data-go="blue"><div class="mini blue">Windows의 PC 보호<br><span style="opacity:.8">Microsoft Defender SmartScreen…</span></div><div><b>파란 창 「Windows의 PC 보호」</b><span class="d">대부분 이 창입니다.</span></div></button>
+        <button type="button" data-go="sac"><div class="mini dark">스마트 앱 컨트롤이<span> 안전하지 않을 수 있는 앱을</span> 차단했습니다</div><div><b>어두운 창 「스마트 앱 컨트롤」</b><span class="d">「확인」 버튼만 있고 실행할 방법이 없는 창</span></div></button>
+        <button type="button" data-go="done"><div class="mini inst">투데이 내전 설치<br><span style="opacity:.7">설치하는 중…</span></div><div><b>바로 설치가 시작됐습니다</b><span class="d">경고창 없이 설치 화면이 뜬 경우</span></div></button>
+      </div>
+      <div class="ig-nav"><button class="back" type="button" data-go="open">← 이전</button></div>
+    </section>
+
+    <section data-p="blue" hidden>
+      <h3>「추가 정보」 → 「실행」을 누릅니다.</h3>
+      <p>개인이 만든 무료 앱이라 서명이 없어서 뜨는 창입니다. 「실행」 버튼은 「추가 정보」를 눌러야 나타납니다.</p>
+      <div class="win" role="img" aria-label="Windows PC 보호 경고창 예시">
+        <div class="t">Windows의 PC 보호</div>
+        <p>Microsoft Defender SmartScreen에서 인식할 수 없는 앱의 시작을 차단했습니다.</p>
+        <span class="mo">추가 정보</span>
+        <div class="row"><span class="run">실행</span><span>실행 안 함</span></div>
+      </div>
+      <div class="ig-nav"><button class="back" type="button" data-go="pick">← 다른 창이 떴어요</button><button class="btn btn-dl" type="button" data-go="done">설치가 시작됐습니다 <span class="arrow">→</span></button></div>
+    </section>
+
+    <section data-p="sac" hidden>
+      <h3>스마트 앱 컨트롤을 끄고 다시 실행합니다.</h3>
+      <p>이 기능이 켜져 있으면 서명이 없는 앱은 설치도, 실행도, 업데이트도 막힙니다. 「확인」으로 창을 닫은 뒤 아래 순서대로 합니다.</p>
+      <ol>
+        <li>아래 <b>설정 열기</b>를 누르고, 「Windows 보안을 여시겠습니까?」가 뜨면 「열기」</li>
+        <li>열린 화면에서 <b>「끄기」</b> → 「이 앱이 디바이스를 변경하도록 허용하시겠어요?」에서 「예」</li>
+        <li>받아 둔 설치 파일을 <b>다시 실행</b></li>
+      </ol>
+      <div class="ig-nav" style="margin-top:14px"><a class="btn btn-dl" href="windowsdefender://smartapp/">스마트 앱 컨트롤 설정 열기 <span class="arrow">→</span></a></div>
+      <p class="note">버튼이 안 열리면: 설정 → 개인 정보 및 보안 → Windows 보안 → 앱 및 브라우저 컨트롤 → 스마트 앱 컨트롤 설정. 최신 Windows 11(24H2·25H2, 2026년 4월 업데이트 이후)은 나중에 같은 화면에서 다시 켤 수 있습니다. 바이러스 검사는 그대로 켜져 있습니다.</p>
+      <div class="ig-nav"><button class="back" type="button" data-go="pick">← 이전</button><button class="btn btn-dl" type="button" data-go="blue">끄고 다시 실행했습니다 <span class="arrow">→</span></button></div>
+    </section>
+
+    <section data-p="done" hidden>
+      <h3>설치가 끝나면 롤에 로그인하세요.</h3>
+      <p>투데이 내전이 켜진 상태로 롤 클라이언트에 로그인하면 그 계정으로 바로 들어가고, 클라이언트 옆에 창이 붙습니다.</p>
+      <ol>
+        <li>방 목록에서 <b>방 만들기</b> 또는 친구 방에 <b>들어가기</b></li>
+        <li>방장이 방식을 고르고 <b>시작</b>을 누르면 팀이 정해집니다</li>
+      </ol>
+      <p class="note">업데이트는 앱을 켤 때 알아서 받습니다. 처음 켜면 사용법 안내가 한 번 나옵니다.</p>
+      <div class="ig-nav"><button class="back" type="button" data-go="pick">← 이전</button><button class="btn btn-dl" type="button" data-ig-close>닫기</button></div>
+    </section>
+  </div>
+</dialog>
+
 <footer>
   <div class="wrap">
     <div class="links"><a href="https://github.com/SOHADA2/today-naejeon/releases">모든 버전</a><a href="https://sohada2.github.io/aram/">내전 사이트(시즌)</a><button type="button" id="replay">오프닝 다시 보기</button></div>
@@ -530,6 +624,34 @@ fetch('https://api.github.com/repos/SOHADA2/today-naejeon/releases/latest')
     if (d.tag_name) document.querySelectorAll('.js-ver').forEach(el => el.textContent = d.tag_name);
   })
   .catch(() => {});
+
+// 설치 길잡이 — 다운로드 버튼(받기는 그대로) = 1단계부터 · 「설치가 막히나요?」 = 2단계(어떤 창이 떴나요)부터
+(() => {
+  const ig = document.getElementById('ig');
+  if (!ig || typeof ig.showModal !== 'function') return;   // 옛 브라우저 = 예전처럼 설치 안내로 이동
+  const STEP = { open: 1, pick: 2, blue: 2, sac: 2, done: 3 };
+  const show = p => {
+    ig.querySelectorAll('[data-p]').forEach(s => s.hidden = s.dataset.p !== p);
+    ig.querySelectorAll('.ig-dots i').forEach((d, i) => d.classList.toggle('on', i < STEP[p]));
+    document.getElementById('ig-k').textContent = 'STEP ' + STEP[p] + ' / 3';
+    ig.scrollTop = 0;
+  };
+  const open = p => { show(p); if (!ig.open) ig.showModal(); };
+  document.querySelectorAll('.js-dl').forEach(a => {
+    if (ig.contains(a)) return;
+    a.addEventListener('click', () => {
+      if (!/\.exe$/i.test(a.href)) return;   // 최신 설치 파일 주소를 못 받았으면(릴리스 페이지로 이동) 안 띄움
+      setTimeout(() => open('open'), 0);     // 링크 기본 동작(받기)을 막지 않음
+    });
+  });
+  document.querySelectorAll('.dl-help').forEach(a => a.addEventListener('click', e => { e.preventDefault(); open('pick'); }));
+  ig.addEventListener('click', e => {
+    if (e.target === ig) return ig.close();   // 바깥(어두운 곳) 누르면 닫힘
+    const go = e.target.closest('[data-go]'); if (go) return show(go.dataset.go);
+    if (e.target.closest('[data-ig-close]')) ig.close();
+  });
+  if (location.hash === '#guide') open('pick');
+})();
 
 const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const reel = document.getElementById('reel');
