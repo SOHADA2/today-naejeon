@@ -1,5 +1,5 @@
 // assets/icon-src/{16..256}.png(크기마다 따로 그린 것) → assets/icon.ico (exe/설치본 아이콘)
-// 원본 = assets/icon-src/icon.svg(헥스텍 문장 · 2026-11-09) · 크기별 PNG가 없으면 assets/icon.png 하나로
+// 원본 = tools/icon-img.cjs(리틱체 「투데이 / 내전」 + TODAY IN-HOUSE 무늬 · 2026-11-12 · 글꼴 파일은 리포에 없음 → 설치된 리틱체로 그 PC에서 다시 만듦) · 크기별 PNG가 없으면 assets/icon.png 하나로
 import fs from 'node:fs';
 import pngToIcoMod from 'png-to-ico';
 const pngToIco = pngToIcoMod.default || pngToIcoMod;
