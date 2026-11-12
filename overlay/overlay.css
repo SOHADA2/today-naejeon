@@ -545,3 +545,13 @@ header .phase, header .win-btn { flex-shrink:0; }
 .lb-lol { display:flex; align-items:center; gap:8px; margin:-2px 0 10px; padding:6px 6px 6px 10px; font-size:12px; color:var(--ink-soft); background:var(--gold-soft); border:1px solid var(--gold-line); clip-path:var(--cut-sm); }
 .lb-lol-t { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .lb-lol-t b { color:var(--gold-hi); }
 .lb-lol-ic { margin-right:5px; } .lb-lol .lb-mini { flex:none; margin-left:0; }
+/* 🎮 v0.1.188 드래프트 다리 고르기 · 팀 화면 이번 판 다리 */
+.dr-map { margin:8px 0 2px; padding:7px 8px 8px; background:var(--gold-soft); border:1px solid var(--gold-line); clip-path:var(--cut-sm); }
+.dr-map-h { display:flex; align-items:baseline; gap:8px; font-size:11.5px; color:var(--ink-soft); min-width:0; }
+.dr-map-t { flex:none; font-weight:800; color:var(--gold-hi); } .dr-map-h em { font-style:normal; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .dr-map-h b { color:var(--ink); }
+.dr-map-b { display:grid; grid-template-columns:repeat(3, 1fr); gap:5px; margin-top:6px; }
+.dr-mp { -webkit-app-region:no-drag; padding:6px 2px; font:700 11.5px var(--f-body); color:var(--ink-soft); background:rgba(0,0,0,.25); border:1px solid var(--line-2); cursor:pointer; white-space:nowrap; clip-path:var(--cut-sm); }
+.dr-mp:hover:not(:disabled) { color:var(--ink); border-color:var(--gold-line); } .dr-mp:disabled { cursor:default; opacity:.7; }
+.dr-mp.on { color:#1a1206; background:linear-gradient(180deg, var(--gold-hi), var(--gold)); border-color:var(--gold); opacity:1; }
+.tv-map { margin-top:10px; padding:7px 12px; display:flex; align-items:baseline; gap:8px; font-size:12.5px; color:var(--ink-soft); background:var(--gold-soft); border:1px solid var(--gold-line); }
+.tv-map-h { font-size:11px; font-weight:800; color:var(--gold); } .tv-map b { color:var(--gold-hi); font-size:13.5px; } .tv-map small { margin-left:auto; font-size:11px; color:var(--dim); white-space:nowrap; }

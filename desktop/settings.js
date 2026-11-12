@@ -61,6 +61,8 @@
         <div class="tn-row tn-vol${S.sfxOn ? '' : ' off'}"><span class="tn-row-tx"><b>크기</b></span><input type="range" min="0" max="100" step="5" value="${Math.round(S.sfxVol * 100)}" class="tn-range" ${S.sfxOn ? '' : 'disabled'}><span class="tn-vol-n num">${Math.round(S.sfxVol * 100)}</span></div>
         <div class="tn-sec">대기방</div>
         ${tog('autoSeat', '팀 자리로 자동 이동 <span class=\"tn-tip\" data-tip=\"팀이 정해지면 롤 사용자 설정 게임 방에서 내 자리를 1팀·2팀·관전석으로 옮겨요(롤의 「팀 참가」 버튼과 같은 동작 · 내 자리만). 한 번 옮긴 뒤 직접 바꾸면 그대로 둬요\">ⓘ</span>', '롤 대기방에서 1팀·2팀으로')}
+        ${tog('lolRemake', '팀 정할 때 롤 방 다시 만들기 <span class=\"tn-tip\" data-tip=\"방장일 때 · 롤 사용자 설정 방에 있으면, 팀이 정해질 때 그 판 다리(드래프트 = 선픽이 아닌 팀장이 고름 · 나머지 = 무작위)로 방을 다시 만들고 그 판 사람 전원을 초대해요. 같은 방으로 계속하면 다리가 안 바뀌어서요\">ⓘ</span>', '방장 · 판마다 다리 바뀜')}
+        ${tog('lolAutoAccept', '방장 롤 초대 자동 수락', '방장이 롤 방을 다시 만들면 바로 들어가요')}
         <div class="tn-sec">디스코드</div>
         ${S.discord && S.discord.room ? `<div class="tn-row tn-dc"><span class="tn-row-tx"><b>이 방 디스코드 · ${esc(S.discord.room.name)}</b><small>${S.discord.room.ch ? '내전 대기실 음성 채널을 디스코드 앱으로' : '서버 초대 링크를 디스코드 앱으로'}</small></span><button class="tn-btn" data-act="dcroom" ${S.discord.room.ch || S.discord.room.code ? '' : 'disabled'}>${S.discord.room.ch ? '음성 채널 열기' : '들어가기'}</button></div>` : ''}
         <div class="tn-row tn-dc"><span class="tn-row-tx"><b>${S.discord && S.discord.on ? `연결됨 · ${esc(S.discord.name || '디스코드')}` : S.discord && S.discord.app ? '디스코드 앱이 꺼져 있어요' : '준비 중'}</b><small>${S.discord && S.discord.on ? '이 PC의 디스코드 앱과 연결' : S.discord && S.discord.app ? 'PC 디스코드 앱을 켜면 저절로 연결돼요' : '디스코드 연동 준비 중이에요'}</small></span><i class="tn-dc-dot${S.discord && S.discord.on ? ' on' : ''}"></i></div>

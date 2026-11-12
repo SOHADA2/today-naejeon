@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld('api', {
   tbStart: (names, mode) => ipcRenderer.invoke('tb-start', { names, mode }),
   tbAgain: () => ipcRenderer.invoke('tb-again'),
   draftStart: (names, captains) => ipcRenderer.invoke('draft-start', { names, captains }),   // 🎯 드래프트(방장)
+  draftMap: (map) => ipcRenderer.invoke('draft-map', { map }),   // 🎮 v0.1.188 선픽 아닌 팀장이 다리 고르기
   draftPick: (name) => ipcRenderer.invoke('draft-pick', { name }),                                // 🎯 팀장 픽
   // 🚪 대기실(모두 같이 보는 화면) — onLobby로 {members, mode, captains, hostName, isHost}
   getLobby: () => ipcRenderer.invoke('lobby-data'),

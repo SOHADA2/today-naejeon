@@ -172,6 +172,11 @@ function renderTeam() {
   el('t2-count').textContent = B.length + '명';
   el('t1-players').innerHTML = A.map(playerRow).join('');
   el('t2-players').innerHTML = B.map(playerRow).join('');
+  { // 🎮 v0.1.188 이번 판 다리(팀 정할 때 정함 · 드래프트 = 후픽 팀장이 고름) — 방장이 롤 사용자 설정 방에 있으면 이 다리로 방을 다시 만들어 초대
+    const m = s.lolMap && LOL_MAP_KO[s.lolMap], b = el('tv-map');
+    b.style.display = m && s.mode !== 'normal' ? '' : 'none';
+    if (m) b.innerHTML = `<span class="tv-map-h">🗺 이번 판 다리</span><b>${m}</b><small>${s.lolMapBy ? esc(s.lolMapBy) + ' 팀장이 고름' : '무작위'}</small>`;
+  }
   { // 🎧 v0.1.131 디스코드 음성 채널 나누기 결과(방장 앱이 session.dcMove에 남김) — 못 옮긴 사람과 이유
     const D = s.dcMove, b = el('tv-dc'), on = D && D.at >= (s.teamsFormedAt || 0);
     b.style.display = on ? '' : 'none';
@@ -203,6 +208,7 @@ function showCancel(id, ask) {
   };
 }
 
+const LOL_MAP_KO = { NONE: '칼바람 나락', MapSkin_Map12_Bloom: '코신 다리', MapSkin_HA_Bilgewater: '도살자의 다리' };   // 🎮 v0.1.188 롤 아수라장 사용자 설정 방 다리(main LOL_MAP_KO와 같게)
 // ── 🎯 드래프트 픽 ─────────────────────────────────────────────────────────
 // 팀장이 번갈아 팀원을 고름(스네이크). 내 차례 팀장 = 남은 사람 칩을 눌러 뽑기 · 방장 = 대신 뽑기 가능 · 30초 지나면 무작위
 let _drBusy = false;
@@ -225,6 +231,18 @@ function renderDraft() {
     return `<div class="dr-th${team === tm ? ' on' : ''}">${label}<span>${arr.length}/${size}</span></div><ul>${rows}${empty}</ul>`;
   };
   el('dr-order').innerHTML = orderBar(s.order || [], s.pickIdx || 0);
+  { // 🎮 v0.1.188 다리 = 선픽이 아닌 팀장이 고름(사장님) · 방장도 대신 · 다 뽑을 때까지 안 고르면 무작위 · 팀이 정해지면 방장 앱이 이 다리로 롤 방을 다시 만듦
+    const box = el('dr-map'), by = s.mapBy ? caps[s.mapBy] : null;
+    if (!by) box.style.display = 'none';
+    else {
+      const can = nn(by) === nn(myName) || myIsHost, cur = s.lolMap;
+      const h = `<div class="dr-map-h"><span class="dr-map-t">🗺 다리</span><em>${s.mapBy === 'teamA' ? '1팀' : '2팀'} 팀장 <b>${esc(by)}</b>(후픽)이 골라요${cur ? '' : ' · 안 고르면 무작위'}</em></div>`
+        + `<div class="dr-map-b">${Object.keys(LOL_MAP_KO).map(k => `<button class="dr-mp${cur === k ? ' on' : ''}" data-map="${k}" ${can ? '' : 'disabled'}>${LOL_MAP_KO[k]}</button>`).join('')}</div>`;
+      box.style.display = '';
+      if (box.dataset.h !== h) { box.innerHTML = h; box.dataset.h = h; }
+      box.querySelectorAll('.dr-mp').forEach(b => b.onclick = async () => { if (b.disabled || !can) return; const r = await window.api.draftMap(b.dataset.map); if (!r || !r.ok) alert((r && r.err) || '다리를 못 골랐어요'); });
+    }
+  }
   el('dr-a').innerHTML = col('teamA', '1팀');
   el('dr-b').innerHTML = col('teamB', '2팀');
   el('dr-a').classList.toggle('turn', team === 'teamA');

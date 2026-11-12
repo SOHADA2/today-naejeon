@@ -337,7 +337,9 @@ const LOL_Q = 3270;
 //   → 앱도 똑같이 셋 중 하나를 뽑아 보냄(v0.1.186의 RANDOM_MAP_SELECTION 그대로 보내기는 롤 화면이 쓰지 않는 값이라 처리 보장 없음 · 롤은 없는 값도 200으로 받음)
 //   ⚠️ 롤 대기방엔 맵이 안 보임 — 「게임 만들기」 설정 창의 맵 칸은 마지막으로 직접 고른 값을 기억해 보여 줄 뿐(앱이 만든 방과 무관 · 2026-11-12 사장님과 확인) · 맵은 게임을 시작해야 보임
 const LOL_MAPS = ['NONE', 'MapSkin_Map12_Bloom', 'MapSkin_HA_Bilgewater'];   // 칼바람 나락 · 코신 다리 · 도살자의 다리
-const lolLobbyBody = name => ({ customGameLobby: { configuration: { gameMode: 'KIWI', gameMutator: '', gameServerRegion: '', mapId: 12, mutators: { id: LOL_Q }, spectatorPolicy: 'AllAllowed', spectatorDelayEnabled: false, teamSize: 5, hidePublicly: true, aramMapMutator: LOL_MAPS[Math.floor(Math.random() * LOL_MAPS.length)] }, lobbyName: name, hidePublicly: true, lobbyPassword: null }, queueId: LOL_Q });
+const lolRandMap = () => LOL_MAPS[Math.floor(Math.random() * LOL_MAPS.length)];
+//   v0.1.188 map = 판 상태 lolMap(팀 정할 때 정한 다리 · 드래프트 = 선픽 아닌 팀장이 고름) · 없으면 무작위
+const lolLobbyBody = (name, map) => ({ customGameLobby: { configuration: { gameMode: 'KIWI', gameMutator: '', gameServerRegion: '', mapId: 12, mutators: { id: LOL_Q }, spectatorPolicy: 'AllAllowed', spectatorDelayEnabled: false, teamSize: 5, hidePublicly: true, aramMapMutator: LOL_MAPS.includes(map) ? map : lolRandMap() }, lobbyName: name, hidePublicly: true, lobbyPassword: null }, queueId: LOL_Q });
 const lolOk = r => r && r.status >= 200 && r.status < 300;
 ipcMain.handle('lol-lobby', async (_e, o) => {
   if (!bridge || !bridge.lcuRaw) return { ok: false, err: '롤 클라이언트가 켜져 있어야 해요' };
@@ -371,10 +373,53 @@ async function lolInvTick() {
     if (!_hostSid || _hostSid.puuid !== hostRec.puuid) { const s = await bridge.lcuRaw('GET', `/lol-summoner/v2/summoners/puuid/${hostRec.puuid}`).catch(() => null); _hostSid = lolOk(s) && s.data && s.data.summonerId ? { puuid: hostRec.puuid, sid: String(s.data.summonerId) } : null; }
     const r = await bridge.lcuRaw('GET', '/lol-lobby/v2/received-invitations').catch(() => null);
     const inv = lolOk(r) && Array.isArray(r.data) ? r.data.find(x => x && x.state === 'Pending' && _hostSid && String(x.fromSummonerId) === _hostSid.sid) : null;
-    const nv = inv ? { id: inv.invitationId || inv.id, from: hostRec.name || inv.fromSummonerName || '방장' } : null;
+    let nv = inv ? { id: inv.invitationId || inv.id, from: hostRec.name || inv.fromSummonerName || '방장' } : null;
+    if (nv && config.lolAutoAccept !== false) {   // 🎮 v0.1.188 방장 초대 자동 수락(팀 정할 때 방장 앱이 롤 방을 새 다리로 다시 만들고 초대함 · ⚙ 설정에서 끔)
+      const a = await bridge.lcuRaw('POST', `/lol-lobby/v2/received-invitations/${encodeURIComponent(nv.id)}/accept`).catch(() => null);
+      if (lolOk(a)) { console.log('[lol] 방장 롤 초대 자동 수락'); _seatDone = null; _seatTries = 0; _seatKey = null; nv = null; }   // 새 방이라 자리 이동을 다시
+    }
     if (JSON.stringify(nv) !== JSON.stringify(_lolInv)) { _lolInv = nv; broadcast('lobby', lobbyView()); }
   } catch (_) {}
 }
+// 🎮 v0.1.188 팀이 정해지면 롤 방을 그 판 다리로 다시 만들고 그 판 사람 전원 초대(사장님: 팀 정할 때 맵도 · 방 하나로 계속하면 다리가 안 바뀜)
+//   방장 앱만 · 방장이 롤 사용자 설정 방에 있을 때만(직접 만든 방이어도 · 일반 큐 대기방·롤 방 없음 = 안 함) · 일반판 방식 X · 팀 결성 90초 안 · 결성마다 한 번 · ⚙ 설정 「팀 정할 때 롤 방 다시 만들기」(기본 켬)
+//   초대 대상 = 판 상태 ids(팀 결성 때 이름 → puuid)에 있는 1팀·2팀·관전 · 친구 앱은 방장 초대 자동 수락(lolInvTick) → 자리 자동 이동(autoSeat)을 새 방에서 다시
+let _lolMadeFor = null;
+async function lolRemakeTick() {
+  const s = sessionData;
+  if (!config.isHost || !room || inGame || config.lolRemake === false || !bridge || !bridge.lcuRaw) return;
+  if (!s || s.phase !== 'teams' || !s.teamsFormedAt || s.mode === 'normal') return;
+  const key = String(s.teamsFormedAt); if (_lolMadeFor === key) return;
+  if (Date.now() - s.teamsFormedAt > 90000) { _lolMadeFor = key; return; }
+  if (!(lobbyPhase === 'Lobby' && lobbyCustom === true)) return;
+  _lolMadeFor = key;
+  await bridge.lcuRaw('DELETE', '/lol-lobby/v2/lobby').catch(() => null);
+  const map = LOL_MAPS.includes(s.lolMap) ? s.lolMap : lolRandMap(), name = String(room.name || '투데이 내전').slice(0, 24);
+  let r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody(name, map)).catch(() => null);
+  if (!lolOk(r)) r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody('TODAY IN-HOUSE', map)).catch(() => null);
+  if (!lolOk(r)) { console.log('[lol] 팀 확정 뒤 롤 방 다시 만들기 실패', r && r.status); return; }
+  lobbyPhase = 'Lobby'; lobbyCustom = true; _seatDone = null; _seatTries = 0; _seatKey = null;
+  const ids = s.ids || {}, me = account && account.puuid;
+  const want = new Set([...(s.teamA || []), ...(s.teamB || []), ...(s.spectators || [])].map(n => fbKeyOf(n)));
+  const puuids = [...new Set(Object.entries(ids).filter(([k, p]) => want.has(k) && p && p !== me && /^[0-9a-f-]{30,}$/i.test(p)).map(([, p]) => p))];
+  let n = 0;
+  if (puuids.length) { const iv = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby/invitations', puuids.map(p => ({ toPuuid: p }))).catch(() => null); if (lolOk(iv)) n = puuids.length; }
+  console.log('[lol] 팀 확정 → 롤 방 다시 만듦 ·', LOL_MAP_KO[map], '· 초대', n, '/', puuids.length);
+}
+const LOL_MAP_KO = { NONE: '칼바람 나락', MapSkin_Map12_Bloom: '코신 다리', MapSkin_HA_Bilgewater: '도살자의 다리' };
+// 드래프트 = 선픽이 아닌 팀장(session.mapBy)이 다리를 고름(사장님) · 방장도 대신 고를 수 있음 · 다 뽑을 때까지 안 고르면 무작위(draftPick)
+async function draftMap(map) {
+  if (!LOL_MAPS.includes(map)) return { ok: false, err: '없는 맵이에요' };
+  const me = normName(config.myName || '');
+  const r = await fbCas(`${RP()}/session`, s => {
+    if (!s || s.phase !== 'draft') return { err: '드래프트 중이 아니에요' };
+    const by = (s.captains || {})[s.mapBy];
+    if (!config.isHost && normName(by || '') !== me) return { err: '맵은 선픽이 아닌 팀장이 골라요' };
+    return { value: Object.assign({}, s, { lolMap: map, lolMapBy: normName(by || '') !== me ? config.myName || null : by }) };
+  });
+  return r.ok ? { ok: true } : r;
+}
+ipcMain.handle('draft-map', (_e, { map }) => draftMap(map));
 ipcMain.handle('lol-accept', async () => {
   if (!_lolInv || !bridge || !bridge.lcuRaw) return { ok: false };
   const r = await bridge.lcuRaw('POST', `/lol-lobby/v2/received-invitations/${encodeURIComponent(_lolInv.id)}/accept`).catch(() => null);
@@ -2655,6 +2700,7 @@ async function startDraft(names, captains) {
     players: names, captains: { teamA: caps[0], teamB: caps[1] }, teamA: [caps[0]], teamB: [caps[1]],
     pool: names.filter(n => !caps.includes(n)), order: draftOrder(first, (teamSize - 1) * 2), pickIdx: 0,
     teamSize, firstPick: first, draftStartedAt: now, turnEndsAt: now + COIN_MS + DRAFT_TURN_MS,   // 첫 차례 = 동전 연출이 끝난 뒤부터 30초
+    mapBy: first === 'teamA' ? 'teamB' : 'teamA', lolMap: null,   // 🎮 v0.1.188 다리 = 선픽이 아닌 팀장이 고름(사장님) · 안 고르면 무작위
   });
   if (w.ok) fbSet(`${RP()}/lobby/captains`, null).catch(() => {});
   return w;
@@ -2676,7 +2722,7 @@ async function draftPick(name, auto) {
     const next = Object.assign({}, s, { pool: pool.filter((_, i) => i !== idx), [team]: [...(s[team] || []), picked], pickIdx: (s.pickIdx || 0) + 1,
       lastPick: { name: picked, team, at: now, auto: !!auto, byHost: !auto && config.isHost && normName((s.captains || {})[team] || '') !== me } });
     if (next.pickIdx >= next.order.length || !next.pool.length) {   // 🏁 다 뽑음 → 팀 확정(남은 사람=관전)
-      Object.assign(next, { phase: 'teams', teamsFormedAt: now, spectators: next.pool.length ? next.pool : null, teamSize: Math.max(next.teamA.length, next.teamB.length),
+      Object.assign(next, { phase: 'teams', teamsFormedAt: now, spectators: next.pool.length ? next.pool : null, teamSize: Math.max(next.teamA.length, next.teamB.length), lolMap: next.lolMap || lolRandMap(),
         pool: null, order: null, pickIdx: null, turnEndsAt: null });
     } else next.turnEndsAt = now + DRAFT_TURN_MS;
     return { value: next };
@@ -2708,6 +2754,7 @@ async function writeTeams(teamA, teamB, spectators, mode, bal) {
     spectators: (spectators && spectators.length) ? spectators : null,
     teamSize: Math.max(teamA.length, teamB.length), mode: mode || 'balance',
     teamsFormedAt: now, day: dayKey(now), by: config.myName || null, bal: bal || null,
+    lolMap: lolRandMap(),   // 🎮 v0.1.188 이번 판 롤 다리(랜덤·밸런스·직접 = 무작위)
   });
   if (w.ok) fbSet(`${RP()}/lobby/captains`, null).catch(() => {});
   return w;
@@ -3607,7 +3654,7 @@ ipcMain.handle('discord-unlink', () => { config.discordGuild = null; saveConfig(
 const dcRoomView = () => { if (!room) return null; try { const i = dcRoomInfo(lobbyView().members); return i ? { gid: i.id, name: i.name, code: i.inv || null, ch: (_dcMember && _dcMember.g === i.id && _dcMember.lobby) || null } : null; } catch (_) { return null; } };   // ⚙ 「이 방 디스코드」(v0.1.157 · 칩을 ✕로 닫아도 여기서)
 const dcView = () => ({ room: dcRoomView(), invite: dcInvOf(), app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null, guild: dcGuildOf() ? dcGuildOf().name || '서버' : null, connecting: !!_dcConn });
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
-const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
+const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, lolRemake: config.lolRemake !== false, lolAutoAccept: config.lolAutoAccept !== false, hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
 ipcMain.handle('settings-get', () => settingsView());
 ipcMain.on('tutorial-open', () => {   // 📘 ⚙ 설정 「사용법 다시 보기」 → 왼쪽 창에 튜토리얼
@@ -3626,6 +3673,8 @@ ipcMain.handle('settings-set', (_e, { key, value }) => {
   else if (key === 'autoLaunch') { config.autoLaunch = !!value; applyAutoLaunch(); refreshTrayMenu(); }   // 🖥️ 윈도우 시작 때 자동 실행
   else if (key === 'discordRpc') { config.discordRpc = !!value; dcPresence(); }   // 🎧 디스코드 프로필 상태
   else if (key === 'discordMove') config.discordMove = !!value;   // 🎧 음성 채널 자동 나누기(방장일 때)
+  else if (key === 'lolRemake') config.lolRemake = !!value;   // 🎮 v0.1.188 팀 정할 때 롤 방 다시 만들기(방장)
+  else if (key === 'lolAutoAccept') config.lolAutoAccept = !!value;   // 🎮 방장 롤 초대 자동 수락
   else if (key === 'autoSeat') { config.autoSeat = !!value; if (value) { _seatDone = null; _seatKey = null; autoSeat(); } }   // 🪑
   else if (key === 'augRank') {   // 🎯 증강 순위(베타) — 게임 위에 떠야 해서 테두리 없는 창도 같이
     config.augRank = !!value;
@@ -3764,7 +3813,7 @@ else {
     pollGame(); pollSession(); if (!dockSim) startDockStream();
     setInterval(pollGame, 2500);
     setInterval(autoLobbyMode, 3000);
-    setInterval(() => { lolInvTick().catch(() => {}); }, 3000);   // 🎮 v0.1.185 방장 롤 초대 받기   // 🔀 v0.1.82: 대기방을 먼저 감지하고 방장이 나중에 된 경우(앱 재시작·방장 이어받기)도 판단 — 대기방 종류가 바뀐 때만 실제로 바꿈
+    setInterval(() => { lolInvTick().catch(() => {}); lolRemakeTick().catch(() => {}); }, 3000);   // 🎮 v0.1.185 방장 롤 초대 받기 · v0.1.188 팀 정해지면 롤 방 새 다리로   // 🔀 v0.1.82: 대기방을 먼저 감지하고 방장이 나중에 된 경우(앱 재시작·방장 이어받기)도 판단 — 대기방 종류가 바뀐 때만 실제로 바꿈
     setInterval(() => { augTick().catch(() => {}); }, 400);   // 🎯 증강 순위(켠 사람만 · 게임 중에만 실제로 읽음)
     if (config.augRank) regAugShot();
     runSession = coalesce(pollSession);
