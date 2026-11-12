@@ -735,7 +735,11 @@ async function loadToday() {
 }
 // ── 🚪 대기실 ─────────────────────────────────────────────────────────────
 // 접속한 사람 전원이 같은 목록을 봄 · 각자 참가/관전 · 방장이 방식(랜덤/드래프트)·팀장 정하고 시작
-let _lbBusy = false;
+let _lbBusy = false, _mpop = false;   // _mpop = ⚔ v0.1.193 방식 고르는 창 열림(대기실이 다시 그려져도 유지)
+document.addEventListener('click', e => {   // 고르는 창 밖을 누르면 닫음
+  if (!_mpop || (e.target.closest && e.target.closest('#lb-mpop, #lb-mchip'))) return;
+  _mpop = false; const p = document.getElementById('lb-mpop'), c = document.getElementById('lb-mchip'); if (p) p.style.display = 'none'; if (c) c.classList.remove('open');
+});
 function lbErr(msg) { const e = el('lb-err'); e.textContent = '⚠️ ' + msg; e.style.display = ''; clearTimeout(lbErr._t); lbErr._t = setTimeout(() => { e.style.display = 'none'; }, 2600); }
 async function lbAct(fn) {
   if (_lbBusy) return;
@@ -783,37 +787,42 @@ function renderLobby() {
     const hm = el('lb-hostme'); if (hm) hm.onclick = e => { e.stopPropagation(); toggleHostMenu(L); };
     if (!myIsHost) el('lb-hostmenu').style.display = 'none';
   }
-  document.querySelectorAll('.lb-kind').forEach(b => {   // v0.1.134 이번 판 = 내전 / 일반
-    const on = (b.dataset.kind === 'normal') === normal; b.classList.toggle('on', on);
-    b.disabled = !myIsHost;
-    b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyMode(b.dataset.kind)); };   // 내전 = main이 마지막에 고른 방식으로
-  });
-  el('lb-sub').style.display = normal ? 'none' : '';
-  { // 🎮 v0.1.185 롤 사용자 설정 방 — 방장 = 「만들고 초대」(이미 사용자 설정 방이면 「방 사람 초대」) · 방장 아님 = 방장 초대가 왔을 때만 「수락」
+  { // ⚔ v0.1.193 방식 칩 하나(사장님: 대기실이 너무 복잡 — 이번 판·팀 짜기·롤 방 줄이 쌓여 있었음) → 방장이 누르면 고르는 창(이번 판 · 팀 짜기 / 일반이면 큐 · 다시 초대)
+    const G = L.lol || {}, nq = G.nq || 2400, P = G.party, MODE_KO = { random: '랜덤', balance: '밸런스', draft: '드래프트', manual: '직접' };
+    const chip = el('lb-mchip'), pop = el('lb-mpop');
+    if (!myIsHost) _mpop = false;
+    chip.innerHTML = (normal ? `<i>🎮</i><span>일반 · ${nq === 450 ? '칼바람 나락' : '아수라장'}</span>` : `<i>⚔</i><span>내전 · ${MODE_KO[L.mode] || '랜덤'}</span>`) + (myIsHost ? '<em>▾</em>' : '');
+    chip.className = 'lb-mchip' + (myIsHost ? ' host' : '') + (normal ? ' normal' : '') + (_mpop ? ' open' : '');
+    chip.title = myIsHost ? '이번 판 방식 바꾸기' : '방장이 고른 이번 판 방식';
+    chip.onclick = e => { e.stopPropagation(); if (!myIsHost) return; _mpop = !_mpop; pop.style.display = _mpop ? '' : 'none'; chip.classList.toggle('open', _mpop); };
+    pop.style.display = _mpop ? '' : 'none';
+    pop.querySelectorAll('.lb-kind').forEach(b => {
+      const on = (b.dataset.kind === 'normal') === normal; b.classList.toggle('on', on);
+      b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyMode(b.dataset.kind)); };   // 내전 = main이 마지막에 고른 방식으로 · 창은 열어 둠(이어서 팀 짜기·큐 고르게)
+    });
+    el('lb-sub').style.display = normal ? 'none' : '';
+    el('lb-nq').style.display = normal ? '' : 'none';
+    pop.querySelectorAll('.lb-seg').forEach(b => {
+      b.classList.toggle('on', b.dataset.mode === L.mode);
+      b.onclick = () => { if (!myIsHost) return; _mpop = false; pop.style.display = 'none'; chip.classList.remove('open'); if (b.dataset.mode !== L.mode) lbAct(() => window.api.lobbyMode(b.dataset.mode)); };
+    });
+    pop.querySelectorAll('.lb-qb').forEach(b => { const q = Number(b.dataset.q); b.classList.toggle('on', q === nq); b.onclick = () => { if (q !== nq) window.api.lolNormalQ(q); }; });
+    const party = normal && P && P.leader && P.q === nq && G.phase === 'Lobby';
+    el('lb-nqinv').style.display = party ? '' : 'none';
+    if (party) {
+      el('lb-nqn').textContent = `롤 파티 ${P.n}/${P.max || 5}명`;
+      const rb = el('lb-reinv');
+      rb.onclick = async () => { if (rb.disabled) return; rb.disabled = true; rb.textContent = '초대 중…'; try { const r = await lolPartyGo(); rb.textContent = r && r.ok ? (r.total ? `${r.invited}명 초대함` : '초대할 사람 없음') : '다시 초대'; setTimeout(() => { rb.textContent = '다시 초대'; }, 2500); } finally { rb.disabled = false; } };
+    }
+  }
+  { // 🎮 롤 초대 수락 줄 = 방장 아님 · 방장 초대가 왔는데 자동 수락이 꺼져 있을 때만(v0.1.193: 방장의 「롤 방 만들고 초대」 줄은 뺌 — 내전 = 팀 정해지면 자동 · 일반 = 아래 큰 버튼)
     const box = el('lb-lol'), G = L.lol || null;
-    let h = '';
-    const P = G && G.party, nq = (G && G.nq) || 2400;
-    if (G && G.invite && !myIsHost) h = `<span class="lb-lol-t"><b>👑 ${esc(G.invite.from)}</b>님이 롤 ${normal ? '파티' : '방'}에 초대했어요</span><button class="lb-mini" data-lol="accept">수락</button>`;
-    else if (normal && G && myIsHost && L.room && (!G.phase || ['None', 'Lobby', 'Matchmaking'].includes(G.phase)))   // 🎮 v0.1.191 일반판 = 큐 고르기 + 「다시 초대」(파티 있을 때) · 큰 버튼은 아래 lb-start
-      h = `<span class="lb-lol-t tn-tip" data-tip="아래 버튼으로 롤 일반 큐 파티를 만들고 대기실에 참가한 사람을 초대해요(방장 포함 5명까지 · 앉은 순서) · 친구 앱이 자동으로 수락해요"><span class="lb-lol-ic">🎮</span>일반 큐</span>`
-        + `<span class="lb-qs">${[[2400, '아수라장'], [450, '칼바람']].map(([q, t]) => `<button class="lb-qb${q === nq ? ' on' : ''}" data-q="${q}">${t}</button>`).join('')}</span>`
-        + (P && P.leader && P.q === nq && G.phase === 'Lobby' ? `<button class="lb-mini" data-lol="party">다시 초대</button>` : '');
-    else if (!normal && G && myIsHost && L.room && (!G.phase || G.phase === 'None' || G.phase === 'Lobby'))
-      h = `<span class="lb-lol-t tn-tip" data-tip="롤에 아수라장 사용자 설정 방을 이 방 이름으로 만들고(공개 목록엔 안 뜸), 앱을 켠 방 사람들에게 롤 초대를 보내요. 친구 앱 대기실에 「수락」이 떠요"><span class="lb-lol-ic">🎮</span>${G.inCustom ? '롤 방에 있어요' : '롤 사용자 설정 방'}</span><button class="lb-mini" data-lol="make">${G.inCustom ? '방 사람 초대' : '만들고 초대'}</button>`;
+    const h = G && G.invite && !myIsHost ? `<span class="lb-lol-t"><b>👑 ${esc(G.invite.from)}</b>님이 롤 ${normal ? '파티' : '방'}에 초대했어요</span><button class="lb-mini" data-lol="accept">수락</button>` : '';
     box.style.display = h ? '' : 'none';
     if (h && box.dataset.h !== h) { box.innerHTML = h; box.dataset.h = h; }
-    box.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { if (!b.classList.contains('on')) window.api.lolNormalQ(Number(b.dataset.q)); });
     box.querySelectorAll('[data-lol]').forEach(b => b.onclick = async () => {
-      if (b.disabled) return; b.disabled = true; const t0 = b.textContent;
-      try {
-        if (b.dataset.lol === 'accept') { const r = await window.api.lolAccept(); if (!r || !r.ok) tnAlert((r && r.err) || '수락하지 못했어요'); return; }
-        if (b.dataset.lol === 'party') { b.textContent = '초대 중…'; const r = await lolPartyGo(); if (r && r.ok) { b.textContent = r.total ? `${r.invited}명 초대함` : '초대할 사람 없음'; setTimeout(() => { b.textContent = t0; }, 2500); } return; }
-        b.textContent = '만드는 중…';
-        let r = await window.api.lolLobby({});
-        if (r && r.need === 'leave') { if (!(await tnConfirm('지금 롤 대기방(일반 큐)에 있어요.\n나가고 사용자 설정 방을 만들까요?', { ok: '나가고 만들기' }))) return; r = await window.api.lolLobby({ force: true }); }
-        if (!r || !r.ok) { tnAlert((r && r.err) || '롤 방을 만들지 못했어요'); return; }
-        b.textContent = r.total ? `${r.invited}명 초대함` : '초대할 사람 없음'; setTimeout(() => { b.textContent = t0; }, 2500);
-      } finally { b.disabled = false; }
+      if (b.disabled) return; b.disabled = true;
+      try { const r = await window.api.lolAccept(); if (!r || !r.ok) tnAlert((r && r.err) || '수락하지 못했어요'); } finally { b.disabled = false; }
     });
   }
   { // 🎧 디스코드 한 줄 — ① 나 = 방 서버에 아직 없음 → 「들어가기」(v0.1.138 · 방장이 넣은 초대 링크) ② 방장 = 서버 연결 안 됨 → 「서버 연결」(v0.1.134) · 초대 링크 없음 → 「링크 넣기」
@@ -845,11 +854,6 @@ function renderLobby() {
     if (h && dn.dataset.h !== h) { dn.innerHTML = h; dn.dataset.h = h; }
     if (h) { el('lb-dcn-go').onclick = go; el('lb-dcn-x').onclick = x; }
   }
-  document.querySelectorAll('.lb-seg').forEach(b => {
-    b.classList.toggle('on', b.dataset.mode === L.mode);
-    b.disabled = !myIsHost;
-    b.onclick = () => { if (myIsHost && b.dataset.mode !== L.mode) lbAct(() => window.api.lobbyMode(b.dataset.mode)); };
-  });
   const cb = el('lb-caps');
   cb.style.display = draft || manual ? '' : 'none';   // v0.1.83: 일반판 설명 글은 튜토리얼로(화면엔 방식 버튼만)
   if (draft) cb.innerHTML = `<span class="lb-cap t1"><em>1팀 팀장</em><b>${caps.teamA ? esc(caps.teamA) : '미정'}</b></span><span class="lb-cap t2"><em>2팀 팀장</em><b>${caps.teamB ? esc(caps.teamB) : '미정'}</b></span>`

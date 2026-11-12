@@ -107,9 +107,14 @@
       <!-- 👑 방장이 없으면 대기실 맨 위에 「내가 방장 할게요」(v0.1.38 · 전엔 오른쪽 창 위에만 있어서 못 찾음) -->
       <div id="lb-hostcta" class="lb-hostcta tn-tip" style="display:none;"></div>
       <div id="lb-lol" class="lb-lol" style="display:none;"></div>   <!-- 🎮 v0.1.185 롤 사용자 설정 방 만들기·초대 / 방장 초대 수락 -->
-      <!-- v0.1.134(사장님): 이번 판 = 내전 / 일반 · 내전이면 아래 줄에서 팀 짜기 방식(롤 대기방 따라 자동 전환은 그대로) -->
-      <div class="lb-mode"><span class="lb-mode-l">이번 판</span><button class="lb-kind" data-kind="inhouse" title="우리끼리 1팀 vs 2팀(롤 사용자 설정 게임)">내전</button><button class="lb-kind" data-kind="normal" title="내전 말고 같은 팀으로 일반 게임(칼바람 등)을 할 때 · 판 기록·하이라이트 자동">일반</button></div>
-      <div class="lb-sub" id="lb-sub"><span class="lb-mode-l">팀 짜기</span><button class="lb-seg" data-mode="random">랜덤</button><button class="lb-seg" data-mode="balance">밸런스</button><button class="lb-seg" data-mode="draft">드래프트</button><button class="lb-seg" data-mode="manual">직접</button></div>
+      <!-- v0.1.193(사장님: 대기실이 너무 복잡) — 이번 판(내전/일반)·팀 짜기·일반 큐 = 칩 하나 「⚔ 내전 · 드래프트 ▾」 → 방장이 누르면 고르는 창 -->
+      <div class="lb-mrow"><button id="lb-mchip" class="lb-mchip"></button></div>
+      <div id="lb-mpop" class="lb-mpop" style="display:none;">
+        <div class="lb-mp-row"><span class="lb-mode-l">이번 판</span><button class="lb-kind" data-kind="inhouse" title="우리끼리 1팀 vs 2팀(롤 사용자 설정 게임)">내전</button><button class="lb-kind" data-kind="normal" title="내전 말고 같은 팀으로 일반 게임(아수라장 등)을 할 때 · 판 기록·하이라이트 자동">일반</button></div>
+        <div class="lb-mp-row" id="lb-sub"><span class="lb-mode-l">팀 짜기</span><span class="lb-mp-grid"><button class="lb-seg" data-mode="random">랜덤</button><button class="lb-seg" data-mode="balance">밸런스</button><button class="lb-seg" data-mode="draft">드래프트</button><button class="lb-seg" data-mode="manual">직접</button></span></div>
+        <div class="lb-mp-row" id="lb-nq"><span class="lb-mode-l">큐</span><span class="lb-mp-grid"><button class="lb-qb" data-q="2400">아수라장</button><button class="lb-qb" data-q="450">칼바람 나락</button></span></div>
+        <div class="lb-mp-row" id="lb-nqinv" style="display:none;"><span class="lb-mode-l">파티</span><span id="lb-nqn" class="lb-mp-tx"></span><button class="lb-mini" id="lb-reinv">다시 초대</button></div>
+      </div>
       <div id="lb-caps" class="lb-caps" style="display:none;"></div>
       <div id="lb-order" class="dr-order lb-order" style="display:none;"></div>
       <div id="lb-hspec" class="lb-hspec" style="display:none;"></div>

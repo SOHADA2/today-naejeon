@@ -408,9 +408,10 @@ async function lolRemakeTick() {
   if (!s || s.phase !== 'teams' || !s.teamsFormedAt || s.mode === 'normal') return;
   const key = String(s.teamsFormedAt); if (_lolMadeFor === key) return;
   if (Date.now() - s.teamsFormedAt > 90000) { _lolMadeFor = key; return; }
-  if (!(lobbyPhase === 'Lobby' && lobbyCustom === true)) return;
+  // v0.1.193(사장님: 대기실 「롤 방 만들고 초대」 줄을 빼고 자동으로) — 롤 방이 없거나(None) 일반 큐 대기방이어도 만듦 · 큐 잡는 중·챔피언 선택·게임 중엔 안 건드림
+  if (!(lobbyPhase === 'None' || lobbyPhase === 'Lobby')) return;
   _lolMadeFor = key;
-  await bridge.lcuRaw('DELETE', '/lol-lobby/v2/lobby').catch(() => null);
+  if (lobbyPhase === 'Lobby') await bridge.lcuRaw('DELETE', '/lol-lobby/v2/lobby').catch(() => null);
   const map = LOL_MAPS.includes(s.lolMap) ? s.lolMap : lolRandMap(), name = String(room.name || '투데이 내전').slice(0, 24);
   let r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody(name, map)).catch(() => null);
   if (!lolOk(r)) r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody('TODAY IN-HOUSE', map)).catch(() => null);
