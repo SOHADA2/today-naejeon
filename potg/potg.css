@@ -179,6 +179,14 @@ html, body { height:100%; background:var(--bg-0); color:var(--ink); overflow:hid
 .wr-skip:disabled { opacity:0.6; cursor:default; }
 .pg-room.skipped .wr-prog, .pg-room.skipped .wr-pc { opacity:0.35; }
 .pg-room.skipped .wr-ttl small { color:var(--ink); }
+/* 🚫 v0.1.190 건너뜀 큰 안내 — 본문 위를 덮음(한 번만 나타남 · 무한 애니메이션 없음) */
+.wr-skipped { position:absolute; inset:0; z-index:3; display:flex; align-items:center; justify-content:center; padding:16px; background:rgba(6,11,16,0.82); animation:wrIn .28s ease-out both; }
+.wr-skipped[hidden] { display:none; }
+.wr-sk-card { display:flex; flex-direction:column; align-items:center; gap:6px; max-width:100%; padding:22px 34px; text-align:center; background:linear-gradient(180deg, rgba(232,64,87,0.14), rgba(14,26,36,0.96)); border:1px solid rgba(232,64,87,0.55); border-top:2px solid rgba(232,64,87,0.9); clip-path:var(--cut); }
+.wr-sk-en { font:700 12px 'Barlow Condensed', var(--f-body); letter-spacing:0.22em; color:#ff9c90; }
+.wr-sk-card b { font:800 30px var(--f-body); color:var(--ink); line-height:1.15; }
+.wr-sk-card p { margin:0; font:600 15px var(--f-body); color:var(--ink); word-break:keep-all; overflow-wrap:anywhere; }
+.wr-sk-card small { font:500 12px var(--f-body); color:var(--ink-soft); }
 .wr-prog { flex:none; height:6px; background:rgba(200,170,110,0.14); border:1px solid rgba(200,170,110,0.2); overflow:hidden; }
 .wr-prog i { display:block; height:100%; width:2%; background:linear-gradient(90deg, var(--gold-btn2), var(--gold-hi)); box-shadow:0 0 10px rgba(240,215,154,0.5); transition:width .5s linear; }
 .wr-steps { flex:none; display:flex; gap:6px; }

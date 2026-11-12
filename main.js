@@ -1907,14 +1907,22 @@ async function pollSession() {
   if (NP && NP.showAt && NP.normal && !inGame && _potgSeen !== NP.gameId && Date.now() - NP.showAt < 20000 && (NP.normal.us || []).some(n => norm(n) === norm(config.myName))) { _potgSeen = NP.gameId; openPotg(NP, false); }
   { // 🔴 팀원: 다른 PC가 내가 있던 판의 팟지를 녹화 중이면 같은 안내(2분 반 넘게 소식 없으면 끝난 걸로)
     const R = potgRecRaw, me = config.myName;
-    const on = !_recLocal && R && R.who && me && norm(R.who) !== norm(me) && Date.now() - (R.at || 0) < 150000 && !inGame
+    const skipT = Date.now() < _skipToastUntil;   // 🚫 v0.1.190 건너뜀 알림 보여 주는 중이면 녹화 안내로 덮지 않음
+    const on = !skipT && !_recLocal && R && R.who && me && norm(R.who) !== norm(me) && Date.now() - (R.at || 0) < 150000 && !inGame
       && (R.players || []).some(n => norm(n) === norm(me)) && !(potgWin && !potgWin.isDestroyed() && potgWin.isVisible());
     if (on) showRecToast(`${R.who}님 PC에서 리플레이로 찍는 중 · 곧 팟지가 떠요`, R.pct ? { pct: R.pct, left: R.left } : null);
-    else if (!_recLocal && recToastWin) hideRecToast();
+    else if (!skipT && !_recLocal && recToastWin) hideRecToast();
   }
   { // ⏳ 팟지 기다림 화면(2026-11-01) — 녹화하는 동안 그 판에 있던 사람(관전 포함)에게 가운데 창으로 예측 투표·이번 판 기록·킬 지도·증강·오늘 순위
     const W = potgWaitRaw, me = config.myName;
     const mine = W && W.gameId && me && Date.now() - (W.at || 0) < 300000 && !inGame && (W.players || []).some(n => norm(n) === norm(me));
+    // 🚫 v0.1.190 건너뜀 = 기다림 화면을 안 보고 있는 사람(✕로 닫음 등)에게도 위쪽 알림 6초(사장님: 팀원도 건너뛴 걸 알게) · 녹화한 본인은 안 띄움
+    if (mine && W.skipped && !_recLocal && _skipToastFor !== W.gameId && !(_potgMode === 'wait' && potgWin && !potgWin.isDestroyed() && potgWin.isVisible() && _waitClosed !== W.gameId)) {
+      _skipToastFor = W.gameId; _skipToastUntil = Date.now() + 6000;
+      _recToastMsg = { title: '🚫 팟지 건너뜀', sub: `${W.skipped}님이 이번 판 팟지를 건너뛰었어요`, pct: null };
+      showRecToast();
+      setTimeout(() => { if (!_recLocal && Date.now() >= _skipToastUntil) hideRecToast(); }, 6100);
+    }
     if (mine) { _waitSeen = Date.now(); if (_potgMode !== 'play' && _waitClosed !== W.gameId) openPotgWait(W).catch(() => {}); }
     else if (_potgMode === 'wait' && Date.now() - _waitSeen > 8000) closePotg();   // 팟지가 안 뜨고 끝났으면(카드 없음 등) 닫음 · 공개되면 openPotg가 이어받음
   }
@@ -1954,7 +1962,7 @@ function closePotg() { if (potgWin && !potgWin.isDestroyed()) { try { potgWin.de
 // ── ⏳ 팟지 기다림 화면(2026-11-01 사장님: 녹화하는 1~2분이 붕 뜸) ──────────────────────────────────────
 //   녹화하는 앱이 today/potgWait {gameId, path, kind, at, who, players, cands(후보 2~3 · 이름순이라 정답을 안 드러냄), hero, kills(롤 전적 타임라인 킬 위치·시각), guess/{키}:{i,name}} 를 쓰고
 //   공개할 때 맞힌 사람을 경기 기록 guess·카드 guess로 옮긴 뒤 지움 → 그 판 사람(관전 포함) 앱이 가운데 창에 기다림 화면 · ✕로 닫으면 그 판엔 다시 안 뜸(팟지는 그대로 뜸)
-let potgWaitRaw = null, _waitClosed = null, _waitSeen = 0, _waitCache = null;
+let potgWaitRaw = null, _waitClosed = null, _waitSeen = 0, _waitCache = null, _skipToastFor = null, _skipToastUntil = 0;
 async function killTimeline(gameId) {   // 롤 전적 타임라인(게임 끝나고 바로 받아짐 · 실측 4판 모두 첫 시도) → 챔피언 킬 위치·시각
   if (!bridge || !bridge.lcuRaw) return null;
   const [tl, g] = await Promise.all([bridge.lcuRaw('GET', `/lol-match-history/v1/game-timelines/${gameId}`), bridge.lcuRaw('GET', `/lol-match-history/v1/games/${gameId}`)]);

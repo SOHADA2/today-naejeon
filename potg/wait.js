@@ -160,6 +160,11 @@
     $('wr-who').textContent = v.skipped ? `${v.skipped === v.me ? '내가' : v.skipped + '님이'} 이번 판 팟지를 건너뛰었어요`   // 🚫 v0.1.118
       : v.who && v.me && v.who === v.me ? '내 PC에서 리플레이로 찍는 중' : v.who ? `${v.who}님 PC에서 리플레이로 찍는 중` : '리플레이로 찍는 중';   // v0.1.92: 방장 본인은 자기 PC가 찍는 걸 알게
     room.classList.toggle('skipped', !!v.skipped);
+    { // 🚫 v0.1.190 건너뛰면 모두에게 가운데 큰 안내(사장님: 팀원도 건너뛴 걸 알게 — 예전엔 위 작은 글 한 줄뿐)
+      const sk = $('wr-skipped');
+      if (sk) { const was = !sk.hidden; sk.hidden = !v.skipped; if (v.skipped && !was) { $('wr-sk-who').textContent = v.skipped === v.me ? '내가 이번 판 팟지를 건너뛰었어요' : `${v.skipped}님이 이번 판 팟지를 건너뛰었어요`; } }
+      const t = room.querySelector('.wr-ttl b'); if (t) t.textContent = v.skipped ? '팟지 건너뜀' : '팟지 준비 중';
+    }
     skipBtn(v);
     prog(); render();
     clearInterval(timer); timer = setInterval(() => render(), 1000);   // 자동 넘김 확인(그리는 건 바뀔 때만)
@@ -176,7 +181,7 @@
       try { window.api.potgCancel(); } catch (_) {}
     };
   }
-  function hide() { room.style.display = 'none'; V = null; sigs = {}; tab = null; clearInterval(timer); const b = $('wr-skip'); if (b) { b.hidden = true; b.disabled = false; b.classList.remove('arm'); b.textContent = '팟지 건너뛰기'; } }
+  function hide() { room.style.display = 'none'; V = null; { const sk = $('wr-skipped'); if (sk) sk.hidden = true; } sigs = {}; tab = null; clearInterval(timer); const b = $('wr-skip'); if (b) { b.hidden = true; b.disabled = false; b.classList.remove('arm'); b.textContent = '팟지 건너뛰기'; } }
   if (window.api && window.api.onPotgWait) {
     window.api.onPotgWait(show);
     window.api.onPotgWaitProg(p => { if (V) prog(p); });

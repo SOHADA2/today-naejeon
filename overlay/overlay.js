@@ -714,9 +714,12 @@ function renderResult() {
     `<li class="${nn(n) === nn(myName) ? 'me' : ''}">${champHtml(gameStat(n), 'st-ch')}<span class="st-nm">${esc(n)}${badge(n)}</span>${augsHtml(gameStat(n), 'st-augs')}${kda(n)}</li>`).join('')}</ul></div>`;
   el('st-teams').innerHTML = winA ? team(s.teamA, true) + team(s.teamB, false) : team(s.teamB, true) + team(s.teamA, false);
   const P = s.potg, pb = el('st-potg');   // 🎬 팟지 다시 보기(가운데 창)
-  pb.style.display = P && !P.none && !P.pending && P.gameId === String(g.id) ? '' : 'none';   // pending = 방장 PC가 리플레이 녹화 중
-  if (P && !P.none) pb.textContent = `팟지 다시 보기 · ${P.name} ${P.label}`;
-  pb.onclick = () => window.api.potgReplay();
+  const skipped = !!(P && P.none && P.skipped && P.gameId === String(g.id));   // 🚫 v0.1.190 건너뛴 판 = 결과 화면에 「팟지 건너뜀 · 누가」(누를 수 없음)
+  pb.style.display = (P && !P.none && !P.pending && P.gameId === String(g.id)) || skipped ? '' : 'none';   // pending = 방장 PC가 리플레이 녹화 중
+  pb.disabled = skipped; pb.classList.toggle('skipped', skipped);
+  if (skipped) pb.textContent = `🚫 팟지 건너뜀${P.by ? ` · ${P.by}님이 건너뛰었어요` : ''}`;
+  else if (P && !P.none) pb.textContent = `팟지 다시 보기 · ${P.name} ${P.label}`;
+  pb.onclick = () => { if (!skipped) window.api.potgReplay(); };
   el('st-close').onclick = () => { try { localStorage.setItem(seenKey(), '1'); } catch (_) {} render(); };
 }
 
