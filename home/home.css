@@ -10,6 +10,15 @@ body { display:flex; flex-direction:column; border:1px solid var(--line-2); }
 /* 머리 = 로고·타이틀 */
 #hero { flex:none; display:flex; align-items:center; gap:16px; padding:26px 28px 22px; border-bottom:1px solid var(--line); }
 #hero .mk { width:58px; height:58px; color:var(--gold); flex:none; }
+/* v0.1.184(사장님: 머리에 아이콘(「투데이 내전」 글자) + 제목 = 중복 → 아이콘 빼고 뒤에 영문을 멋있게) — 큰 기울어진 「TODAY IN-HOUSE」 윤곽 글자가 머리 밖으로 살짝 잘려 나감 · 제목 쪽은 옅게 사라짐 */
+#hero { position:relative; overflow:hidden; }
+#hero .mk { display:none; }   /* 홈 처음 나타날 때 연출(home.js)이 .mk를 써서 지우지 않고 숨김 */
+#hero .tt { position:relative; z-index:1; }
+.hero-bg { position:absolute; inset:0; pointer-events:none; overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg, transparent 0%, rgba(0,0,0,.35) 22%, #000 48%, #000 88%, transparent 100%); mask-image:linear-gradient(90deg, transparent 0%, rgba(0,0,0,.35) 22%, #000 48%, #000 88%, transparent 100%); }
+.hero-bg span { position:absolute; left:90px; top:50%; transform:translateY(-44%) skewX(-10deg); font-family:var(--f-num); font-weight:700; font-size:128px; letter-spacing:.03em; line-height:1; white-space:nowrap;
+  color:transparent; -webkit-text-stroke:1.3px rgba(200,170,110,.26); }
+body.logo .hero-bg { display:none; }
 .tt { display:flex; flex-direction:column; gap:2px; }
 .tt-en { font-family:var(--f-num); font-size:13px; font-weight:700; letter-spacing:.3em; color:var(--gold); }
 .tt h1 { font-size:34px; font-weight:900; letter-spacing:-0.04em; line-height:1.05; }
