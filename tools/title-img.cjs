@@ -10,8 +10,6 @@ const INK = '#F0E6D2', GOLD_HI = '#F0D79A', WEB_INK = '#ece6da', WEB_GOLD = '#d6
 const ITEMS = [   // [저장할 곳(리포 기준), 내용(HTML · <i> = 강조색), 글자색, 강조색, 글자 크기, 자간]
   ['assets/title/title-ink.png', '투데이 내전', INK, INK, 330, 0],                       // 게임 시작 포스터 · 홈 화면 머리
   ['assets/title/title-two.png', '투데이 <i>내전</i>', INK, GOLD_HI, 330, 0],             // 게임 시작 제목 카드
-  ['assets/title/potg-en.png', 'PLAY OF THE GAME', GOLD_HI, GOLD_HI, 160, 0.2],          // 팟지 소개 윗줄
-  ['assets/title/unsung-en.png', 'UNSUNG HERO', GOLD_HI, GOLD_HI, 160, 0.2],             // 숨은 영웅 소개 윗줄
   ['docs/img/title-1.png', '오늘 모인 사람끼리,', WEB_INK, WEB_GOLD, 330, 0],             // 홈페이지 큰 제목 첫 줄
   ['docs/img/title-2.png', '롤 <i>내전</i> 한 판.', WEB_INK, WEB_GOLD, 330, 0],           // 홈페이지 큰 제목 둘째 줄
 ];
