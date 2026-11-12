@@ -341,6 +341,24 @@ const lolRandMap = () => LOL_MAPS[Math.floor(Math.random() * LOL_MAPS.length)];
 //   v0.1.188 map = 판 상태 lolMap(팀 정할 때 정한 다리 · 드래프트 = 선픽 아닌 팀장이 고름) · 없으면 무작위
 const lolLobbyBody = (name, map) => ({ customGameLobby: { configuration: { gameMode: 'KIWI', gameMutator: '', gameServerRegion: '', mapId: 12, mutators: { id: LOL_Q }, spectatorPolicy: 'AllAllowed', spectatorDelayEnabled: false, teamSize: 5, hidePublicly: true, aramMapMutator: LOL_MAPS.includes(map) ? map : lolRandMap() }, lobbyName: name, hidePublicly: true, lobbyPassword: null }, queueId: LOL_Q });
 const lolOk = r => r && r.status >= 200 && r.status < 300;
+// 🎮 v0.1.189 초대 = 롤 화면 코드(rcp-fe-lol-parties invitePlayers)처럼 소환사 번호로 [{toSummonerId}] — v0.1.185~188은 [{toPuuid}]만 보내
+//   롤이 200을 돌려줘도 친구에게 초대가 안 갔음(2026-11-12 사장님 실기) · 번호 = /lol-summoner/v2/summoners/puuid/{puuid} · 못 찾으면 예전처럼 toPuuid만
+const _lolSid = new Map();
+async function lolInvite(puuids) {
+  const list = [];
+  for (const p of puuids) {
+    let sid = _lolSid.get(p);
+    if (!sid) { const s = await bridge.lcuRaw('GET', `/lol-summoner/v2/summoners/puuid/${p}`).catch(() => null); sid = lolOk(s) && s.data && Number(s.data.summonerId) || 0; if (sid) _lolSid.set(p, sid); }
+    list.push(sid ? { toSummonerId: sid, toPuuid: p } : { toPuuid: p });
+  }
+  if (!list.length) return 0;
+  const r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby/invitations', list).catch(() => null);
+  if (!lolOk(r)) { console.log('[lol] 초대 실패', r && r.status, r && JSON.stringify(r.data).slice(0, 200)); return 0; }
+  const g = await bridge.lcuRaw('GET', '/lol-lobby/v2/lobby/invitations').catch(() => null);   // 실제로 초대 목록에 올라갔는지
+  const sent = lolOk(g) && Array.isArray(g.data) ? g.data.filter(x => x && puuids.includes(x.toPuuid) || list.some(l => l.toSummonerId && l.toSummonerId === Number(x && x.toSummonerId))).length : list.length;
+  console.log('[lol] 초대', sent, '/', list.length, '(번호 찾음', list.filter(l => l.toSummonerId).length, ')');
+  return sent;
+}
 ipcMain.handle('lol-lobby', async (_e, o) => {
   if (!bridge || !bridge.lcuRaw) return { ok: false, err: '롤 클라이언트가 켜져 있어야 해요' };
   if (!config.isHost || !room) return { ok: false, err: '방장만 만들 수 있어요' };
@@ -359,8 +377,7 @@ ipcMain.handle('lol-lobby', async (_e, o) => {
     made = true; lobbyPhase = 'Lobby'; lobbyCustom = true;
   }
   const who = (lobbyView().members || []).filter(m => m.online && !m.me && !m.guest && /^[0-9a-f-]{30,}$/i.test(m.key));
-  let invited = 0;
-  if (who.length) { const r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby/invitations', who.map(m => ({ toPuuid: m.key }))).catch(() => null); if (lolOk(r)) invited = Array.isArray(r.data) ? r.data.length || who.length : who.length; else console.log('[lol] 초대 실패', r && r.status, r && JSON.stringify(r.data).slice(0, 200)); }
+  const invited = who.length ? await lolInvite(who.map(m => m.key)) : 0;
   console.log('[lol] 롤 방', made ? '만듦' : '이미 있음', '· 초대', invited, '/', who.length);
   broadcast('lobby', lobbyView());
   return { ok: true, made, invited, total: who.length };
@@ -402,8 +419,7 @@ async function lolRemakeTick() {
   const ids = s.ids || {}, me = account && account.puuid;
   const want = new Set([...(s.teamA || []), ...(s.teamB || []), ...(s.spectators || [])].map(n => fbKeyOf(n)));
   const puuids = [...new Set(Object.entries(ids).filter(([k, p]) => want.has(k) && p && p !== me && /^[0-9a-f-]{30,}$/i.test(p)).map(([, p]) => p))];
-  let n = 0;
-  if (puuids.length) { const iv = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby/invitations', puuids.map(p => ({ toPuuid: p }))).catch(() => null); if (lolOk(iv)) n = puuids.length; }
+  const n = puuids.length ? await lolInvite(puuids) : 0;
   console.log('[lol] 팀 확정 → 롤 방 다시 만듦 ·', LOL_MAP_KO[map], '· 초대', n, '/', puuids.length);
 }
 const LOL_MAP_KO = { NONE: '칼바람 나락', MapSkin_Map12_Bloom: '코신 다리', MapSkin_HA_Bilgewater: '도살자의 다리' };
