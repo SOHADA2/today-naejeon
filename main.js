@@ -220,7 +220,9 @@ function moveWin(win, to, ms, opt) {
 }
 const DOOR_MS = 520;   // 문 닫힘·열림·합쳐짐·갈라짐 한 번 길이(v0.1.127: 튕김까지 보이게 420 → 520)
 // 🚪 창 안 화면을 문짝처럼(경첩 = 바깥쪽 모서리) 살짝 돌리는 연출 — 창 자체는 못 기울여서 안쪽 #panel만(렌더러 door-fx)
-function doorFx(act) { for (const [w, side] of [[overlayWin, 'left'], [leftWin, 'right']]) if (w && !w.isDestroyed()) try { w.webContents.send('door-fx', { act, side, ms: DOOR_MS }); } catch (_) {} }
+//   v2(v0.1.176 · 사장님: 분리·합체 효과 검토 → 디벨롭): ① 왼쪽(투명 창)·오른쪽(불투명 창) 문짝 틈 바탕을 같게 ② 합체 단계를 겹침(창이 70% 모였을 때 테두리 · 문짝은 끝까지 = keep) ③ 분리 = 갈라지는 동안 안쪽 금빛 선이 옅어짐(unseam · 기다림 없음)
+const ZIP_AT = Math.round(DOOR_MS * 0.7), HOME_AT = DOOR_MS + 150;
+function doorFx(act, extra) { for (const [w, side] of [[overlayWin, 'left'], [leftWin, 'right']]) if (w && !w.isDestroyed()) try { w.webContents.send('door-fx', Object.assign({ act, side, ms: DOOR_MS, v2: true }, extra || {})); } catch (_) {} }
 function clientRect(pb) {   // 도킹 줄 원시 px → 화면 좌표(배율 반영) + 그 모니터 작업 영역
   const sf = (screen.getPrimaryDisplay().scaleFactor) || 1;
   const cx = pb.x / sf, cy = pb.y / sf, cw = pb.w / sf, ch = pb.h / sf;
@@ -479,7 +481,7 @@ function handleDockLine(line) {
   if (fg !== clientFg) { clientFg = fg; }
   const w = p[2] - p[0], h = p[3] - p[1], sig = `${p[0]},${p[1]},${w},${h}`;
   // ◀ 팀·명단 오버레이 = 클라 왼쪽 (숨김 상태여도 위치는 갱신)
-  if (ms) doorFx('open');
+  if (ms) { doorFx('open'); doorFx('unseam'); }   // v0.1.176 갈라지는 동안 안쪽 금빛 선이 옅어짐(합체 지퍼의 짝 · 기다림 없음)
   if (sig !== dockedBounds) { dockedBounds = sig; applyDock({ x: p[0], y: p[1], w, h }, ms); }
   setDockedFlag(true); setMerged(false);
   // ▶ 내 정보 = 클라 오른쪽
@@ -816,8 +818,8 @@ function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표�
       doorFx('shut');   // 🚪 v0.1.166 문짝이 돌며 닫힘(사장님: 문 닫히던 효과가 사라짐) — 맞닿는 순간 딱 0°(튕김 없음 = 틈 없음)
       const ok = () => _floating && useHome() && _door !== 'closed';
       // 🤐 v0.1.167(사장님: 이음매만 반짝 = 하나의 상자 느낌이 안 남 → 지퍼 선택) — 맞닿으면 이음매 빛이 위·아래·바깥 테두리로 달려 상자 하나를 감쌈(0.4초) → 같은 자리에 홈이 그 테두리를 이어받아 나타남
-      setTimeout(() => { if (ok()) doorFx('zip'); }, DOOR_MS);
-      setTimeout(() => { if (ok()) { showHome(homeRect(), 'home', 160, 'zip'); setTimeout(() => { if (_homeOn) hidePanelsQuiet(); }, 200); } }, DOOR_MS + 430);
+      setTimeout(() => { if (ok()) doorFx('zip', { keep: true }); }, ZIP_AT);   // v0.1.176: 다 모인 뒤가 아니라 70% 모였을 때부터(차례대로 1.15초 → 겹쳐서 0.87초)
+      setTimeout(() => { if (ok()) { showHome(homeRect(), 'home', 160, 'zip'); setTimeout(() => { if (_homeOn) hidePanelsQuiet(); }, 200); } }, HOME_AT);
     } else {   // 처음(롤 없이 켬) = 홈이 서서히 나타남 · 좌우 창은 합친 자리에 숨겨 둠
       for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) if (win && !win.isDestroyed()) { win.setBounds(standaloneBounds(side)); if (win.isVisible()) win.hide(); }
       showHome(homeRect(), 'home', 320);
@@ -837,7 +839,7 @@ function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표�
     try { if (win.isAlwaysOnTop()) win.setAlwaysOnTop(false, 'normal'); } catch (_) {}   // 바뀔 때만(매 이벤트 재설정=z-order 깜빡임·v0.1.55)
     if (!win.isVisible()) win.showInactive();
   }
-  if (fx) { doorFx('shut'); setTimeout(() => { if (_floating) doorFx('zip'); }, DOOR_MS); }   // v0.1.166 문짝 + v0.1.167 지퍼 테두리(홈 없이 합쳐진 창은 테두리가 남음 → reset 때 지움)
+  if (fx) { doorFx('shut'); setTimeout(() => { if (_floating) doorFx('zip', { keep: true }); }, ZIP_AT); }   // v0.1.166 문짝 + v0.1.167 지퍼 테두리(홈 없이 합쳐진 창은 테두리가 남음 → reset 때 지움)
   setDockedFlag(hasRight);   // 합친 창 = 두 창이 맞닿는 쪽 테두리 없이(붙었을 때와 같은 모양)
   setMerged(hasRight && !userHid && !sampleActive);
 }

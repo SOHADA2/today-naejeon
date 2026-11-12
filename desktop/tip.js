@@ -39,8 +39,25 @@ window.tnSeamFx = (panel, side) => {
 };
 // 🤐 v0.1.167 지퍼(사장님: 금빛 이음매만 반짝 = 두 상자가 붙은 느낌 → 하나의 상자로) — 좌우 창이 반쪽씩 같은 박자로 그림:
 //   가운데 이음매 빛(곧 사라짐) → 위·아래 테두리를 따라 바깥 모서리로 달림(0~0.26초) → 바깥 세로변을 위·아래에서 가운데로(0.2~0.4초) = 둘이 합쳐 상자 하나를 감싸는 금빛 테두리 · 숨길 때까지 켜 둠(홈 창이 같은 테두리로 이어받음)
-window.tnZipFx = (panel, side) => {
-  if (panel) { panel.getAnimations().forEach(a => { if (a.id === 'door') a.cancel(); }); panel.style.transform = ''; }
+// 🚪 v0.1.176 문짝 틈 바탕 — 왼쪽 창은 투명 창이라 문짝이 기울면 틈으로 뒤 화면이 비치고, 오른쪽 창은 불투명(#010A13)이라 어두운 바탕이 보였음 → 문짝이 도는 동안만 같은 어두운 바탕
+window.tnDoorBg = (an) => {
+  const b = document.body, was = b.style.background;
+  b.style.background = '#010A13';
+  const off = () => { b.style.background = was; };
+  an.onfinish = off; an.oncancel = off;
+};
+// 🔓 v0.1.176 분리 짝 효과(합체 지퍼의 반대 · v0.1.168처럼 갈라지기 전에 기다리지 않음) — 갈라지는 동안 안쪽 가장자리 금빛 선이 옅어지고, 위·아래 금빛 선이 바깥 모서리 쪽으로 걷힘
+window.tnUnseamFx = (side) => {
+  document.querySelectorAll('.tn-zip').forEach(e => e.remove());
+  const L = side === 'left', inner = L ? 'right' : 'left', outer = L ? 'left' : 'right';
+  const mk = (css) => { const e = document.createElement('i'); e.className = 'tn-zip'; e.style.cssText = css; document.body.appendChild(e); return e; };
+  const seam = mk(`top:0;bottom:0;${inner}:0;width:3px`);
+  const top = mk(`top:0;left:0;right:0;height:2px;transform-origin:${outer} 50%`), bot = mk(`bottom:0;left:0;right:0;height:2px;transform-origin:${outer} 50%`);
+  seam.animate([{ opacity: 1 }, { opacity: .9, offset: 0.3 }, { opacity: 0 }], { duration: 460, easing: 'ease-out', fill: 'forwards' }).onfinish = () => seam.remove();
+  for (const e of [top, bot]) e.animate([{ transform: 'scaleX(1)', opacity: .9 }, { transform: 'scaleX(0)', opacity: .5 }], { duration: 340, easing: 'cubic-bezier(.45,0,.25,1)', fill: 'forwards' }).onfinish = () => e.remove();
+};
+window.tnZipFx = (panel, side, keep) => {   // keep(v0.1.176) = 문짝이 아직 닫히는 중 → 그대로 두고 테두리만 겹쳐 그림
+  if (panel && !keep) { panel.getAnimations().forEach(a => { if (a.id === 'door') a.cancel(); }); panel.style.transform = ''; }
   document.querySelectorAll('.tn-zip').forEach(e => e.remove());
   const L = side === 'left', inner = L ? 'right' : 'left', outer = L ? 'left' : 'right', E = 'cubic-bezier(.45,0,.25,1)';
   const mk = (css) => { const e = document.createElement('i'); e.className = 'tn-zip'; e.style.cssText = css; document.body.appendChild(e); return e; };
