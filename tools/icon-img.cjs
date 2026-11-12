@@ -42,6 +42,7 @@ const FB = () => `<rect width="256" height="256" fill="url(#bg)"/>${PAT()}<rect 
   + `<g transform="translate(128 131) scale(0.78) translate(-128 -128)">${H()}</g>`;
 const OUT = [
   ...[16, 24, 32, 48, 64, 128, 256].map(s => ({ f: `assets/icon-src/${s}.png`, s, svg: SQ(s <= 32) })),
+  { f: 'assets/mark.png', s: 128, svg: SQ(true) },              // 앱 창 머리 로고(24~26px로 보임 → 「내전」만 단순한 판을 넉넉한 크기로)
   { f: 'docs/img/icon.png', s: 512, svg: SQ(false) },
   { f: 'docs/img/discord-icon.png', s: 512, svg: CI() },        // 봇 사진(늘 동그라미)
   { f: 'docs/img/discord-server.png', s: 512, svg: FB() },      // 서버 아이콘(동그라미·둥근 네모 둘 다)
