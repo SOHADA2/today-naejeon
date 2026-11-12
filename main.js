@@ -3518,7 +3518,7 @@ async function dcVoiceTick() {   // 방장 앱만 · pollSession마다
   finally { _dcBusy = false; }
 }
 // 🔗 디스코드 서버 연결(v0.1.131) — 봇 초대 화면을 브라우저로 열고, 디스코드가 돌려보내는 주소(이 PC 127.0.0.1:47823)에서 고른 서버 번호를 받음
-const dcPage = (title, sub, ok) => `<!doctype html><meta charset="utf-8"><title>투데이 내전</title><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#0b1018;color:#e8e2d0;font-family:'Malgun Gothic',sans-serif"><div style="text-align:center;padding:36px 44px;border:1px solid rgba(200,170,110,.45);background:#0f1822;box-shadow:inset 0 2px 0 #c8aa6e"><div style="font-size:12px;letter-spacing:.2em;color:#c8aa6e">TODAY NAEJEON</div><h1 style="margin:10px 0 8px;font-size:22px;color:${ok ? '#f0e6d2' : '#e38c8c'}">${title}</h1><p style="margin:0;color:#a09b8c;font-size:14px">${sub}</p></div></body>`;
+const dcPage = (title, sub, ok) => `<!doctype html><meta charset="utf-8"><title>투데이 내전</title><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#0b1018;color:#e8e2d0;font-family:'Malgun Gothic',sans-serif"><div style="text-align:center;padding:36px 44px;border:1px solid rgba(200,170,110,.45);background:#0f1822;box-shadow:inset 0 2px 0 #c8aa6e"><div style="font-size:12px;letter-spacing:.2em;color:#c8aa6e">TODAY IN-HOUSE</div><h1 style="margin:10px 0 8px;font-size:22px;color:${ok ? '#f0e6d2' : '#e38c8c'}">${title}</h1><p style="margin:0;color:#a09b8c;font-size:14px">${sub}</p></div></body>`;
 function dcConnect() {
   if (!discord || !discord.appId) return Promise.resolve({ ok: false, err: '디스코드 연동 준비 중이에요' });
   if (_dcConn) { shell.openExternal(_dcConn.url); return Promise.resolve({ ok: true, waiting: true }); }
