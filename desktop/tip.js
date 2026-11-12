@@ -94,3 +94,24 @@ window.tnZipFx = (panel, side, keep) => {   // keep(v0.1.176) = 문짝이 아직
   window.tnConfirm = (msg, o) => q(msg, o, true);
   window.tnAlert = (msg, o) => q(msg, o, false).then(() => undefined);
 })();
+// ✍️ v0.1.195 이름 넣는 창 — window.tnPrompt(글, {title, ok, placeholder, max}) → Promise<글|null> · Enter = 확인 · Esc·바깥 = 취소 (tnConfirm과 같은 모양)
+(() => {
+  if (window.tnPrompt) return;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  window.tnPrompt = (msg, o) => new Promise(done => {
+    o = o || {};
+    const wrap = document.createElement('div');
+    wrap.className = 'tn-mb';
+    wrap.innerHTML = `<div class="tn-mb-card" role="dialog" aria-modal="true"><span class="tn-mb-en">${esc(o.en || 'INPUT')}</span>` + (o.title ? `<b class="tn-mb-t">${esc(o.title)}</b>` : '')
+      + `<p class="tn-mb-m">${esc(msg)}</p><input class="tn-mb-in" maxlength="${Number(o.max) || 40}" placeholder="${esc(o.placeholder || '')}"><div class="tn-mb-btns"><button class="ui-btn-ghost tn-mb-no">${esc(o.cancel || '취소')}</button><button class="ui-btn-gold tn-mb-ok">${esc(o.ok || '확인')}</button></div></div>`;
+    const inp = wrap.querySelector('.tn-mb-in');
+    const end = v => { document.removeEventListener('keydown', key, true); wrap.remove(); done(v); };
+    const ok = () => { const v = inp.value.trim(); end(v || null); };
+    const key = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); end(null); } else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); ok(); } };
+    wrap.addEventListener('mousedown', e => { if (e.target === wrap) end(null); });
+    wrap.querySelector('.tn-mb-ok').onclick = ok; wrap.querySelector('.tn-mb-no').onclick = () => end(null);
+    document.addEventListener('keydown', key, true);
+    (document.body || document.documentElement).appendChild(wrap);
+    setTimeout(() => { try { inp.focus(); } catch (_) {} }, 30);
+  });
+})();

@@ -600,3 +600,37 @@ header .phase, header .win-btn { flex-shrink:0; }
 .lb-dci-dot { position:absolute; right:2px; top:2px; width:5px; height:5px; background:var(--gold-hi); border-radius:50%; box-shadow:0 0 0 1px var(--bg-2); }
 .lb-dci-hint { margin-left:auto; min-width:0; padding:4px 8px 5px; font-size:11.5px; font-weight:700; color:var(--gold-hi); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; background:rgba(88,101,242,0.14); border:1px solid rgba(143,152,242,0.45); clip-path:var(--cut-sm); animation:wrIn .2s ease-out both; }   /* 누른 뒤 9초 · 방식 칩 줄 오른쪽 */
 .lb-mrow .lb-mchip { flex:none; }   /* v0.1.194 안내가 옆에 떠도 칩은 안 줄어듦 */
+/* 🧱 v0.1.195 대기실 다시 짬(사장님: 스크롤 없이 다 보이게 · 방 카드 레이아웃) — 방 줄 하나 · 팀장+순서 한 줄 · 자리 촘촘하게 · 관전 = 내 자리 안 */
+.lb-head { gap:8px; padding:7px 8px 7px 10px; margin-bottom:8px; }
+.lb-rbtn { -webkit-app-region:no-drag; flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:1px; padding:2px 4px 2px 2px; text-align:left; color:var(--ink); background:none; border:none; cursor:pointer; }
+.lb-rbtn .lb-en { font-size:10px; }
+.lb-rrow { display:flex; align-items:center; gap:5px; max-width:100%; min-width:0; }
+.lb-rrow b { min-width:0; font-size:16px; font-weight:800; letter-spacing:-0.02em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lb-rrow i { flex:none; font-style:normal; font-size:10px; color:var(--gold); transition:transform .15s; }
+.lb-rbtn:hover .lb-rrow b { color:var(--gold-hi); }
+.lb-rbtn.open .lb-rrow i { transform:rotate(180deg); }
+.lb-head .lb-dci { flex:none; align-self:center; }
+.lb-head .lb-mchip { flex:none; margin-left:auto; padding:6px 10px 6px 9px; font-size:12.5px; }
+.lb-hostmenu { margin:-4px 0 8px; }
+.lb-hm-hd b { color:var(--gold-hi); }
+.lb-hm-item.leave { color:#ff9c90; font-weight:700; }
+.lb-caps { gap:8px; margin:0 2px 8px; flex-wrap:nowrap; min-height:26px; }
+.lb-cap.ok b { color:var(--teal); }
+.lb-ordmini { min-width:0; display:flex; overflow:hidden; }
+.lb-ordmini .ogs { display:flex; gap:5px; flex-wrap:nowrap; }
+.lb-ordmini .og { display:flex; gap:2px; }
+.lb-ordmini .op { width:17px; height:17px; font-size:10px; }
+.lb-caps .lb-mini { flex:none; }
+.lb-sec { margin:2px 2px 6px; }
+.lb-sec .lb-dci-hint { margin-left:auto; padding:2px 7px 3px; font-size:11px; }
+.lb-sec .lb-dci-hint:not([style*="none"]) + #lb-seat-cnt { margin-left:6px; }
+.lb-seats { gap:5px; margin-bottom:10px; }
+.seat { height:46px; gap:7px; }
+.seat-av { width:30px; height:30px; }
+.seat-spec { -webkit-app-region:no-drag; flex:none; margin-left:auto; height:16px; padding:0 6px; font:700 10px var(--f-body); line-height:14px; cursor:pointer; color:var(--ink-soft); background:var(--bg-3); border:1px solid var(--hair); }
+.seat-spec:hover { color:var(--gold-hi); border-color:var(--gold-line); }
+.seat-main small > .seat-spec { flex-shrink:0; }
+.lb-me { margin-bottom:10px; }
+@media (max-width: 340px) { .lb-head .lb-mchip { padding:6px 8px; font-size:12px; } .lb-rrow b { font-size:15px; } .seat-no { display:none; } }
+.lb-caps .lb-cap { flex:none; white-space:nowrap; }
+@media (max-width: 340px) { .lb-ordmini .ogs { gap:3px; } .lb-ordmini .og { gap:1px; } .lb-ordmini .op { width:14px; height:15px; font-size:9px; } .lb-caps { gap:6px; } .lb-caps .lb-mini { padding:4px 7px; } }

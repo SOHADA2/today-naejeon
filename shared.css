@@ -223,3 +223,5 @@ body { -webkit-font-smoothing:antialiased; font-feature-settings:'tnum' 0; lette
 .tn-mb-btns button { flex:1; min-width:0; padding:9px 10px; font-size:13px; clip-path:var(--cut-sm); }
 @keyframes tnMbIn { from { opacity:0; } to { opacity:1; } }
 @keyframes tnMbCard { from { opacity:0; transform:translateY(6px) scale(0.98); } to { opacity:1; transform:none; } }
+.tn-mb-in { -webkit-app-region:no-drag; display:block; width:100%; box-sizing:border-box; margin:-4px 0 14px; padding:8px 10px; font:500 13px var(--f-body, sans-serif); color:var(--ink); background:var(--bg-1, #0a1520); border:1px solid var(--line, rgba(200,170,110,0.25)); outline:none; -webkit-user-select:text; user-select:text; }
+.tn-mb-in:focus { border-color:var(--gold-line, rgba(200,170,110,0.5)); } .tn-mb-in::placeholder { color:var(--mute, #5b6670); }
