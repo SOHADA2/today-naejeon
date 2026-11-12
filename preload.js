@@ -102,6 +102,11 @@ contextBridge.exposeInMainWorld('api', {
   restoreAugGuide: (champId, k, which) => ipcRenderer.invoke('augguide-restore', { champId, k, which }),   // ✍️ 되돌리기
   getAugPatches: () => ipcRenderer.invoke('aug-patches'),                   // 📰 v0.1.144 패치 노트
   getAugLab: () => ipcRenderer.invoke('auglab-pool'),   // 🧪 증강 연구(뽑을 증강 목록)
+  auglabOpen: () => ipcRenderer.send('auglab-open'),    // 🧪 v0.1.175 가운데 창 열기(이미 떠 있으면 새 판)
+  auglabClose: () => ipcRenderer.send('auglab-close'),
+  auglabDone: (r) => ipcRenderer.send('auglab-done', r),   // 한 판 결과 → 오른쪽 창 「연구」 탭
+  onAuglabStart: (cb) => ipcRenderer.on('auglab-start', () => cb()),
+  onAuglabResult: (cb) => ipcRenderer.on('auglab-result', (_e, d) => cb(d)),
   openAugLink: (url) => ipcRenderer.send('augguide-link', url),   // 🧭 플랜 원문(arammayhem) 기본 브라우저로   // 🧩 증강 번호 → {name, icon, rarity}(최신 패치 데이터)
   // 📼 게임 끝난 뒤 기록 저장 진행 상태 {stage:'get'|'save'|'rec'|'done', since, src, tries, max, problem}
   onRec: (cb) => ipcRenderer.on('rec', (_e, d) => cb(d)),

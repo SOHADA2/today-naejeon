@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>증강 연구</title>
+<link rel="stylesheet" href="../shared.css">
+<link rel="stylesheet" href="auglab.css">
+</head>
+<body>
+  <!-- 🧪 증강 연구 가운데 창(v0.1.175 · 사장님: 오른쪽 창이 아니라 가운데에서 진짜 아수라장처럼 카드 3장)
+       배치 = 실제 증강 화면 실측 비율(docs/screen-layout.md · 화면 높이 H 기준): 카드 가운데 = 가운데, 가운데 ± 0.340H · 너비 0.296H · 위 0.178H · 아래 0.66H · 다시 뽑기 0.69~0.73H -->
+  <div id="lab" class="lab">
+    <button id="lab-x" class="lab-x tn-wb x" title="닫기 (Esc)"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.4"/></svg></button>
+    <div class="lab-hd"><span class="lab-en">AUGMENT LAB</span><b id="lab-title">증강을 선택하세요</b></div>
+    <div id="lab-cards" class="lab-cards"></div>
+    <div id="lab-foot" class="lab-foot"></div>
+    <div id="lab-state" class="lab-state">불러오는 중…</div>
+    <div id="lab-src" class="lab-src"></div>
+  </div>
+  <script src="../desktop/tip.js"></script>
+  <script src="auglab.js"></script>
+</body>
+</html>

@@ -107,6 +107,8 @@ module.exports = makeRating;
 makeRating.tierOf = tierOf;
 makeRating.inhouseScore = inhouseScore;
 makeRating.normalGames = normalGames;
+// v0.1.175: 서버 「같이 한 일반 판」만으로 매긴 아수라장 일반 점수(앱을 안 켠 친구용 · 한 판 기록에 10명이 다 있음)
+makeRating.serverMayhem = (normals, puuid) => scoreQueue(normalGames(normals, puuid).sort((x, y) => y.t - x.t));
 makeRating.SEASON = SEASON;
 function makeRating(d) {   // d = { lcuGet(path) → data|null, userData, log }
   const cacheFile = path.join(d.userData, 'rating-games.json');

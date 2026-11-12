@@ -279,9 +279,9 @@ function ratingRow(R, me, who) {
       : st ? big('t-' + st.tier.toLowerCase(), st.div || '', tierLabel(st.tier, st.div), `<b>${x.s}점</b> · ${x.n}판 ${x.w}승 · 승률 ${Math.round(x.wr * 100)}%`)
       : big('none', '', `배치 ${x.pl || x.n}/5`, `${x.n}판 ${x.w}승 · 5판부터 티어가 나와요`);
   };
-  const when = R && R.at ? `<div class="pf-rt-at">전적 기준 · ${new Date(R.at).getMonth() + 1}/${new Date(R.at).getDate()} ${String(new Date(R.at).getHours()).padStart(2, "0")}:${String(new Date(R.at).getMinutes()).padStart(2, "0")}</div>` : (me ? '<div class="pf-rt-at">롤을 켜 두면 내 전적으로 매겨져요</div>' : '');
+  const when = R && R.at && !R.mhSrv ? `<div class="pf-rt-at">전적 기준 · ${new Date(R.at).getMonth() + 1}/${new Date(R.at).getDate()} ${String(new Date(R.at).getHours()).padStart(2, "0")}:${String(new Date(R.at).getMinutes()).padStart(2, "0")}</div>` : (me ? '<div class="pf-rt-at">롤을 켜 두면 내 전적으로 매겨져요</div>' : '');
   return `${row(R && R.custom, '아수라장 내전 티어', '투데이 내전으로 기록된 아수라장 내전', `아수라장 ${season} · 투데이 내전 기록 전부`, '투데이 내전으로 아수라장 내전을 5판 하면 티어가 나와요', 'custom')}`
-    + `${row(R && R.mayhem, '아수라장 티어 · 일반', '아수라장 일반 판(내전 제외)', `아수라장 ${season} · 롤 전적 + 투데이 내전으로 같이 한 판 · 계속 쌓임`, `롤을 켜 두면 아수라장 ${season} 일반 판(5판부터)으로 티어를 매겨요`, 'mayhem')}${when}`;
+    + `${row(R && R.mayhem, '아수라장 티어 · 일반', '아수라장 일반 판(내전 제외)', R && R.mhSrv ? `아수라장 ${season} · 투데이 내전으로 같이 한 판 · 친구들 기록에서 셈` : `아수라장 ${season} · 롤 전적 + 투데이 내전으로 같이 한 판 · 계속 쌓임`, `롤을 켜 두면 아수라장 ${season} 일반 판(5판부터)으로 티어를 매겨요`, 'mayhem')}${when}`;
 }
 async function renderProfile() {
   const body = $('pf-body'), arg = _pfArg;

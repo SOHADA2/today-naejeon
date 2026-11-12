@@ -1178,7 +1178,7 @@ async function pollGame() {
     inGame = nowIn;
     // 게임 중(전체화면)만 위로, 로비/클라에선 같은 층위(클라 활성 시에만 evalRaise가 올림)
     try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setAlwaysOnTop(inGame, inGame ? 'screen-saver' : 'normal'); } catch (_) {}
-    if (inGame) { hideOverlay(); hideLeftPanel(); hideHome(200); _slotDoneFormed = lastFormed; hideSlotMarker(); closePotg(); if (potg) potg.startCollect(bridge.getGameId()); }   // 🎬 팟지 수집 시작   // 게임 시작 → 양쪽 패널 완전히 숨김(전투 중 정보 미노출, 새 폼 재설계 예정) · 좌측 내 정보 패널도 숨김(클라 창 사라지며 floatPanels가 잠깐 띄우는 레이스 차단) · applyRaise/floatPanels가 inGame return이라 재등장 없음
+    if (inGame) { hideOverlay(); hideLeftPanel(); hideHome(200); _slotDoneFormed = lastFormed; hideSlotMarker(); closePotg(); closeAugLab(); if (potg) potg.startCollect(bridge.getGameId()); }   // 🎬 팟지 수집 시작   // 게임 시작 → 양쪽 패널 완전히 숨김(전투 중 정보 미노출, 새 폼 재설계 예정) · 좌측 내 정보 패널도 숨김(클라 창 사라지며 floatPanels가 잠깐 띄우는 레이스 차단) · applyRaise/floatPanels가 inGame return이라 재등장 없음
     else { setTimeout(tryInstallUpdate, 90000); hideOverlay(); userHid = false; latestPlayers = []; _lastRaise = null; evalRaise(); recGameEnded(); if (potg) potg.stopCollect(bridge.getGameId()).catch(() => {}); }   // 🎬 수집 올림   // 게임 종료 → 로비 층위 재적용 · 📼 「기록 저장 중」 시작
     broadcast('state', { inGame, label: inGame ? '게임 중' : '대기' });
     if (!inGame) { setTimeout(() => ratingUpdate(true), 90000);   // 🏅 판 끝 → 전적에 들어간 뒤 점수 다시
@@ -2631,9 +2631,9 @@ async function balanceScores(names) {
   for (const [puuid, p] of Object.entries(pres || {})) if (p && p.name && !String(puuid).startsWith('g_')) byName[normName(p.name)] = puuid;
   const scores = {}, has = {}; let known = 0;
   await Promise.all(names.map(async n => {
-    const puuid = byName[n] || (idx && idx.nameToPuuid[n]) || null, key = puuid ? 'p:' + puuid : 'n:' + n;
+    const puuid = byName[n] || (idx && (idx.nameToPuuid[n] || idx.statPuuid[n])) || null, key = puuid ? 'p:' + puuid : 'n:' + n;
     const inh = idx ? inhouseOf(idx, key) : null;
-    const rt = puuid ? await getRating(puuid).catch(() => null) : null;
+    const rt = puuid ? await mayhemFor(idx, puuid).catch(() => null) : null;   // v0.1.175: 앱 안 켠 친구도 같이 한 일반 판에서
     const x = playerScore(inh, rt && rt.mayhem);
     scores[n] = x.s; has[n] = x.known; if (x.known) known++;
   }));
@@ -2977,6 +2977,30 @@ ipcMain.handle('auglab-pool', async () => {
   }
   return { patch: idx ? idx.p : '', list };
 });
+// 🧪 v0.1.175(사장님: 오른쪽 창이 아니라 가운데에서 진짜 아수라장처럼 카드 3장) — 가운데 창 auglab/ · 롤 클라가 붙어 있으면 클라 자리 그대로(16:9), 없으면 화면 가운데 16:9
+//   카드 배치는 창 높이 기준(실제 증강 화면 실측 비율) · 게임이 시작되면 닫음 · 한 판 결과는 오른쪽 창 「연구」 탭에 남김(auglab-result)
+let auglabWin = null;
+function auglabBounds() {
+  if (_lastRect && !_floating) { const sf = screen.getPrimaryDisplay().scaleFactor || 1; return { x: Math.round(_lastRect[0] / sf), y: Math.round(_lastRect[1] / sf), width: Math.round((_lastRect[2] - _lastRect[0]) / sf), height: Math.round((_lastRect[3] - _lastRect[1]) / sf) }; }
+  const wa = screen.getPrimaryDisplay().workArea, W = Math.round(Math.min(1280, wa.width * 0.86, wa.height * 0.86 * 16 / 9)), H = Math.round(W * 9 / 16);
+  return { x: Math.round(wa.x + (wa.width - W) / 2), y: Math.round(wa.y + (wa.height - H) / 2), width: W, height: H };
+}
+function openAugLab() {
+  if (inGame) return;
+  if (auglabWin && !auglabWin.isDestroyed()) { auglabWin.setBounds(auglabBounds()); auglabWin.show(); auglabWin.focus(); try { auglabWin.webContents.send('auglab-start'); } catch (_) {} return; }
+  auglabWin = new BrowserWindow(Object.assign(auglabBounds(), {
+    show: false, frame: false, resizable: false, skipTaskbar: true, alwaysOnTop: true, roundedCorners: false, backgroundColor: '#05090e',
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, autoplayPolicy: 'no-user-gesture-required' },
+  }));
+  try { auglabWin.setAlwaysOnTop(true, 'floating'); } catch (_) {}
+  auglabWin.once('ready-to-show', () => { if (auglabWin && !auglabWin.isDestroyed()) { auglabWin.show(); auglabWin.focus(); } });
+  auglabWin.loadFile('auglab/auglab.html');
+  auglabWin.on('closed', () => { auglabWin = null; });
+}
+function closeAugLab() { if (auglabWin && !auglabWin.isDestroyed()) { try { auglabWin.destroy(); } catch (_) {} } auglabWin = null; }
+ipcMain.on('auglab-open', () => openAugLab());
+ipcMain.on('auglab-close', () => closeAugLab());
+ipcMain.on('auglab-done', (_e, r) => { try { if (leftWin && !leftWin.isDestroyed()) leftWin.webContents.send('auglab-result', r); } catch (_) {} });
 ipcMain.on('augguide-link', (_e, url) => { if (guideLinkOk(url)) shell.openExternal(url); });   // 플랜 원문 보기(기본 브라우저)
 // 편집(오른쪽 창 「증강」 탭) — 누구나 채울 수 있음 · 저장 = 그 챔피언 칸 통째로 교체(마지막 저장이 이김)
 ipcMain.handle('augguide-all', async () => {
@@ -3065,7 +3089,13 @@ async function profileIndex() {
   matches.sort((a, b) => (a.ts || 0) - (b.ts || 0));   // 시간순
   const nameToPuuid = {};
   for (const [puuid, a] of Object.entries(accounts || {})) if (a && a.name) { const n = normName(a.name); nameToPuuid[n] = nameToPuuid[n] === undefined ? puuid : null; }   // 같은 이름 둘이면 못 씀(null)
-  _profIdx = { matches, normals, accounts: accounts || {}, nameToPuuid }; _profAt = Date.now();
+  // v0.1.175: 앱을 안 켠 친구(계정 목록에 없음)도 경기 기록 선수 줄의 이름 → puuid로 찾음(내전 기록 먼저 · 같은 이름에 puuid가 둘이면 못 씀)
+  const statPuuid = {};
+  const addSt = list => { for (const p of list || []) { if (!p || !p.puuid || !p.summonerName) continue; const n = normName(p.summonerName); if (!n) continue; statPuuid[n] = statPuuid[n] === undefined || statPuuid[n] === p.puuid ? p.puuid : null; } };
+  for (const x of matches) addSt(x.stats);
+  const inMatch = new Set(Object.keys(statPuuid));
+  for (const g of normals) addSt((g.stats || []).filter(p => p && p.summonerName && !inMatch.has(normName(p.summonerName))));
+  _profIdx = { matches, normals, accounts: accounts || {}, nameToPuuid, statPuuid }; _profAt = Date.now();
   return _profIdx;
 }
 function matchKeyOf(idx, m, name) {
@@ -3075,6 +3105,7 @@ function matchKeyOf(idx, m, name) {
   const st = (m.stats || []).find(p => p.puuid && norm(p.summonerName) === norm(n));
   if (st) return 'p:' + st.puuid;
   if (idx.nameToPuuid[n]) return 'p:' + idx.nameToPuuid[n];
+  if (idx.statPuuid && idx.statPuuid[n]) return 'p:' + idx.statPuuid[n];   // v0.1.175: 선수 기록 없는 판(수동 기록)도 같은 사람으로
   return 'n:' + n;
 }
 function statOf(m, name, key) {
@@ -3125,6 +3156,13 @@ function tierReveal(puuid, x, kind) {
   config[key] = Object.assign({}, seen, { [puuid]: t.tier }); saveConfig();
   console.log(`[rating] 🏅 ${kind === 'custom' ? '아수라장 내전' : '아수라장'} 티어 공개 ${prev || '처음'} → ${t.tier} ${t.div || ''} (${x.s}점 · ${x.n}판)`);
 }
+// v0.1.175(사장님 「진행」 · 앱 안 켜는 친구도 같이 한 판은 다른 친구 기록에서 셈): 아수라장 일반 점수 = 그 사람 앱이 올린 요약(롤 전적)과
+//   서버 「같이 한 일반 판」으로 매긴 점수 중 **판 수가 많은 쪽** · 앱을 안 켠 친구는 올린 요약이 없으니 서버 쪽 · srv = 서버 기록으로 매김
+async function mayhemFor(idx, puuid) {
+  const R = await getRating(puuid).catch(() => null), own = R && R.mayhem, sv = idx ? makeRating.serverMayhem(idx.normals, puuid) : null;
+  const useSv = sv && (!own || (sv.n || 0) > (own.n || 0));
+  return { R, mayhem: useSv ? sv : own || null, srv: !!useSv };
+}
 const _ratings = {};
 async function getRating(puuid) {   // 프로필용(1분 캐시)
   const x = _ratings[puuid]; if (x && Date.now() - x.at < 60e3) return x.v;
@@ -3137,7 +3175,7 @@ async function getProfile(arg) {
   let key = null;
   if (arg && arg.me) key = account ? 'p:' + account.puuid : null;
   else if (arg && arg.puuid && !String(arg.puuid).startsWith('g_')) key = 'p:' + arg.puuid;
-  else if (arg && arg.name) { const n = normName(arg.name); key = idx.nameToPuuid[n] ? 'p:' + idx.nameToPuuid[n] : 'n:' + n; }
+  else if (arg && arg.name) { const n = normName(arg.name), pk = idx.nameToPuuid[n] || idx.statPuuid[n]; key = pk ? 'p:' + pk : 'n:' + n; }
   if (!key) return { ok: false, err: '롤에 로그인하면 내 프로필을 볼 수 있어요' };
   const acc = key.startsWith('p:') ? idx.accounts[key.slice(2)] : null;
   const P = { ok: true, key, name: (acc && acc.name) || (arg && arg.name) || key.slice(2), tag: (acc && acc.tag) || '', me: !!(account && key === 'p:' + account.puuid),
@@ -3186,7 +3224,7 @@ async function getProfile(arg) {
   P.rivals = Object.values(rivals).filter(x => x.games >= MIN).sort((x, y) => rate(x) - rate(y) || y.games - x.games).slice(0, 3);
   for (const x of [...Object.values(mates), ...Object.values(rivals)]) { const pk = idx.nameToPuuid[x.name]; const a = pk && idx.accounts[pk]; if (a && a.name) x.name = normName(a.name); }   // 닉변한 사람은 지금 이름으로
   if (key.startsWith('p:')) {   // 🏅 아수라장 일반(서버 요약 = 그 사람 롤 전적) + 🏠 아수라장 내전(서버 경기 기록에서 바로 · v0.1.115 — 옛 v0.1.114 앱이 올린 custom은 무시)
-    const R = await getRating(key.slice(2)).catch(() => null), ih = inhouseOf(idx, key);
+    const mh = await mayhemFor(idx, key.slice(2)), R = mh.R || mh.mayhem ? Object.assign({}, mh.R || {}, { mayhem: mh.mayhem, mhSrv: mh.srv }) : null, ih = inhouseOf(idx, key);
     P.rating = R || ih ? Object.assign({}, R || {}, { custom: ih, season: `${makeRating.SEASON.name} · ${makeRating.SEASON.patch}~` }) : null;   // season = 「?」 근거에 「아수라장 시즌 3 · 26.21~」
   }
   return P;

@@ -1,0 +1,92 @@
+/* 🧪 증강 연구 가운데 창 — 모든 크기 = 화면 높이(vh) 기준(실제 증강 화면 실측 비율 · docs/screen-layout.md)
+   ⚠️ 무한 애니메이션 금지 — 효과는 전부 한 번만 */
+html, body { height:100%; overflow:hidden; background:#05090e; color:var(--ink); user-select:none; }
+.lab { --s:#B9C3CC; --g:#E8C46A; --p:#C58BFF; position:relative; width:100%; height:100%; overflow:hidden;
+  background:radial-gradient(ellipse 80% 62% at 50% 44%, #16222e 0%, #0a121a 55%, #04070b 100%); border:1px solid var(--line-2); -webkit-app-region:drag; }
+.lab button { -webkit-app-region:no-drag; }
+.num { font-family:var(--f-num); }
+.lab-x { position:absolute; top:1.6vh; right:1.6vh; z-index:5; }
+.lab-hd { position:absolute; left:0; right:0; top:5.2vh; display:flex; flex-direction:column; align-items:center; gap:0.7vh; pointer-events:none; }
+.lab-en { font-family:var(--f-num); font-weight:700; font-size:1.9vh; letter-spacing:0.3em; color:var(--gold); }
+.lab-hd b { font-size:3.5vh; font-weight:800; color:var(--ink); letter-spacing:-0.02em; }
+.lab-hd b i { font-style:normal; color:var(--s); } .lab-hd b i.gold { color:var(--g); }
+.lab-hd b i.prismatic { background:linear-gradient(90deg, #C58BFF, #7FD0FF, #F5A3E0); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.lab-state { position:absolute; left:0; right:0; top:44vh; text-align:center; font-size:2.4vh; color:var(--dim); }
+.lab-state:empty { display:none; }
+
+/* 카드 3장 */
+.lab-cards { position:absolute; left:0; right:0; top:0; height:100%; pointer-events:none; }
+.cw { position:absolute; top:17.8vh; left:50%; width:29.6vh; margin-left:-14.8vh; perspective:130vh; pointer-events:auto; transition:opacity .3s, transform .3s; }
+.cw.i0 { transform:translateX(-34vh); } .cw.i2 { transform:translateX(34vh); }
+.cw.off { opacity:0.42; }
+.cw.i0.picked { transform:translateX(-34vh) scale(1.035); } .cw.i1.picked { transform:scale(1.035); } .cw.i2.picked { transform:translateX(34vh) scale(1.035); }
+.card { --rc:var(--s); --rc2:#6f7a85; --cc:polygon(2.2vh 0, calc(100% - 2.2vh) 0, 100% 2.2vh, 100% calc(100% - 2.2vh), calc(100% - 2.2vh) 100%, 2.2vh 100%, 0 calc(100% - 2.2vh), 0 2.2vh);
+  position:relative; display:block; width:100%; height:48.2vh; padding:0.32vh; border:none; cursor:pointer; color:var(--ink); text-align:center;
+  background:linear-gradient(180deg, var(--rc) 0%, var(--rc2) 55%, var(--rc) 100%); clip-path:var(--cc); transition:transform .16s ease-out, filter .16s; }
+.card.gold { --rc:var(--g); --rc2:#8a6a22; } .card.prismatic { --rc:var(--p); --rc2:#5fb8f0; }
+.card:not(:disabled):hover { transform:translateY(-1.2vh); filter:brightness(1.16); }
+.card:disabled { cursor:default; }
+.card-in { position:relative; display:flex; flex-direction:column; align-items:center; width:100%; height:100%; padding:2.6vh 1.8vh 2vh; overflow:hidden; clip-path:var(--cc);
+  background:linear-gradient(180deg, color-mix(in srgb, var(--rc) 20%, #0d1620) 0%, #0c141c 38%, #080e14 100%); }
+.card-in::before { content:""; position:absolute; left:0; right:0; top:0; height:20vh; background:radial-gradient(ellipse 70% 100% at 50% 0%, color-mix(in srgb, var(--rc) 34%, transparent), transparent 72%); pointer-events:none; }
+.c-rar { position:relative; font-family:var(--f-num); font-weight:700; font-size:1.7vh; letter-spacing:0.26em; color:var(--rc); text-transform:uppercase; }
+.card.prismatic .c-rar { background:linear-gradient(90deg, #C58BFF, #7FD0FF, #F5A3E0); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.c-ic { position:relative; flex:none; width:12vh; height:12vh; margin-top:2vh; display:flex; align-items:center; justify-content:center; }
+.c-ic::before { content:""; position:absolute; inset:0; transform:rotate(45deg) scale(0.74); border:0.22vh solid var(--rc); background:#0a1017; box-shadow:0 0 2.4vh color-mix(in srgb, var(--rc) 45%, transparent); }
+.c-ic img { position:relative; width:8.6vh; height:8.6vh; object-fit:contain; }
+.c-nm { position:relative; margin-top:2.2vh; min-height:6.2vh; display:flex; align-items:center; justify-content:center; font-size:2.55vh; font-weight:800; line-height:1.22; word-break:keep-all; overflow-wrap:anywhere; }
+.c-bar { position:relative; flex:none; width:62%; height:1px; margin:1.6vh 0 1.8vh; background:linear-gradient(90deg, transparent, var(--rc), transparent); }
+.c-body { position:relative; flex:1; min-height:0; width:100%; display:flex; flex-direction:column; align-items:center; gap:0.9vh; }
+.c-hint { font-size:1.75vh; line-height:1.5; color:var(--dim); word-break:keep-all; }
+.c-res { display:flex; flex-direction:column; align-items:center; gap:0.9vh; animation:labIn .35s ease both; }
+.c-t { font-family:var(--f-num); font-weight:700; font-size:4.4vh; line-height:1; padding:0.4vh 1.6vh; color:#10131a; background:var(--dim); }
+.c-t.t1 { background:#ff8a4c; } .c-t.t2 { background:#c58bff; } .c-t.t3 { background:#6fb6ff; } .c-t.t4 { background:#9aa4ad; } .c-t.t5 { background:#6c7177; }
+.c-wr { font-size:1.9vh; color:var(--ink-soft); } .c-wr b { font-family:var(--f-num); font-size:2.6vh; color:var(--ink); }
+.c-our { font-size:1.7vh; color:#8fd3c7; }
+.c-best { font-size:1.7vh; font-weight:800; padding:0.2vh 1.2vh; color:#10131a; background:var(--gold-hi); }
+.c-nod { font-size:1.8vh; color:var(--dim); }
+.cw.picked .card { filter:brightness(1.12); }
+.cw.picked::after { content:"선택"; position:absolute; top:-1.5vh; left:50%; transform:translateX(-50%); padding:0.2vh 1.6vh; font-size:1.7vh; font-weight:800; color:#10131a; background:var(--gold-hi); }
+/* 등장 = 뒤집히며 한 번 · 프리즘은 빛이 한 번 훑음 */
+.card.flip { animation:labFlip .55s cubic-bezier(.2,.8,.3,1) both; }
+.card.prismatic.flip .card-in::after { content:""; position:absolute; inset:0; background:linear-gradient(105deg, transparent 35%, rgba(255,255,255,.42) 50%, transparent 65%); transform:translateX(-120%); animation:labShine .85s .5s ease-out both; pointer-events:none; }
+@keyframes labFlip { 0% { opacity:0; transform:translateY(-5vh) rotateY(88deg); } 55% { opacity:1; } 100% { opacity:1; transform:none; } }
+@keyframes labShine { to { transform:translateX(120%); } }
+@keyframes labIn { from { opacity:0; transform:translateY(0.8vh); } to { opacity:1; transform:none; } }
+
+/* 다시 뽑기 — 카드 아래 둥근 버튼(돌아가는 화살표 + 남은 횟수) */
+.rr { position:absolute; left:50%; top:51.2vh; transform:translateX(-50%); display:flex; align-items:center; gap:0.9vh; height:4.4vh; padding:0 1.8vh 0 1.3vh; cursor:pointer;
+  color:var(--gold-hi); background:#0b131a; border:1px solid var(--gold-line); border-radius:2.2vh; }
+.rr svg { width:2.5vh; height:2.5vh; flex:none; transition:transform .35s; }
+.rr b { font-family:var(--f-num); font-size:2.4vh; font-weight:700; line-height:1; }
+.rr:hover:not(:disabled) { background:#16222e; border-color:var(--gold-hi); } .rr:hover:not(:disabled) svg { transform:rotate(-180deg); }
+.rr:disabled { opacity:0.32; cursor:default; }
+
+/* 아래 = 고른 증강 칸 · 안내 · 다음 */
+.lab-foot { position:absolute; left:0; right:0; top:77.5vh; display:flex; flex-direction:column; align-items:center; gap:1.5vh; }
+.f-row { display:flex; align-items:center; gap:2.2vh; }
+.f-slots { display:flex; gap:1vh; }
+.f-slot { position:relative; width:5.4vh; height:5.4vh; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#0b131a; border:0.2vh dashed var(--line-2); font-family:var(--f-num); font-size:2.3vh; color:var(--dim); }
+.f-slot.cur { border-style:solid; border-color:var(--gold); }
+.f-slot.silver { border:0.22vh solid var(--s); } .f-slot.gold { border:0.22vh solid var(--g); } .f-slot.prismatic { border:0.22vh solid var(--p); }
+.f-slot img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.f-meta { font-size:1.9vh; color:var(--dim); white-space:nowrap; } .f-meta b { font-family:var(--f-num); font-size:2.6vh; color:var(--gold-hi); }
+.f-msg { font-size:2.1vh; font-weight:700; color:var(--ink-soft); word-break:keep-all; text-align:center; } .f-msg.ok { color:var(--gold-hi); }
+.f-go { min-width:30vh; padding:1.5vh 3vh; font-size:2.2vh; }
+
+/* 결과 */
+.done { position:absolute; left:50%; top:17vh; width:62vh; margin-left:-31vh; display:flex; flex-direction:column; gap:1.3vh; padding:3.2vh 3.4vh; background:var(--bg-1); border:1px solid var(--line-2); border-top:0.3vh solid var(--gold); animation:labIn .35s ease both; pointer-events:auto; -webkit-app-region:no-drag; }
+.done .lab-en { letter-spacing:0.24em; }
+.done > b { font-size:3vh; } .done > b .num { font-size:4.6vh; color:var(--gold-hi); }
+.done p { font-size:1.95vh; color:var(--ink-soft); }
+.d-list { display:flex; flex-direction:column; gap:0.8vh; margin:0.6vh 0; }
+.d-li { display:flex; align-items:center; gap:1.4vh; padding:1vh 1.3vh; background:var(--bg-2); border:1px solid var(--hair); min-width:0; }
+.d-li > .num { width:1.6vh; font-size:2.2vh; color:var(--dim); }
+.d-li i { position:relative; flex:none; width:4.4vh; height:4.4vh; overflow:hidden; background:var(--bg-3); border:0.22vh solid var(--s); }
+.d-li i.gold { border-color:var(--g); } .d-li i.prismatic { border-color:var(--p); }
+.d-li i img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.d-li b { flex:1; min-width:0; font-size:2.1vh; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.d-li .c-t { font-size:2.2vh; padding:0.2vh 0.9vh; }
+.d-li em { font-style:normal; font-size:1.6vh; font-weight:800; padding:0.1vh 0.9vh; color:#10131a; background:var(--gold-hi); white-space:nowrap; }
+.d-btns { display:flex; gap:1.2vh; margin-top:0.6vh; } .d-btns button { flex:1; padding:1.5vh; font-size:2.1vh; }
+.lab-src { position:absolute; left:0; right:0; bottom:1.6vh; text-align:center; font-size:1.5vh; color:var(--mute); pointer-events:none; }
