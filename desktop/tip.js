@@ -69,3 +69,28 @@ window.tnZipFx = (panel, side, keep) => {   // keep(v0.1.176) = 문짝이 아직
   for (const e of [ot, ob]) e.animate([{ transform: 'scaleY(0)', opacity: 1 }, { transform: 'scaleY(1)', opacity: 1 }], { duration: 200, delay: 200, easing: E, fill: 'both' });
   setTimeout(() => { for (const e of [seam, top, bot, ot, ob]) if (e.isConnected) e.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 600, easing: 'ease-out', fill: 'forwards' }).onfinish = () => e.remove(); }, 750);   // 홈으로 안 넘어가는 합침(도킹 끔 등)은 테두리가 남지 않게
 };
+// 🪟 v0.1.192 확인·알림 창 = 앱 안에 그림(사장님: 윈도우 기본 확인 창이 톤앤매너가 안 맞음 · 투명한 왼쪽 창에서는 기본 확인 창이 안 보이고 창이 멈춘 것처럼 됨)
+//   window.tnConfirm(글, {title, ok, cancel, danger}) → Promise<true|false> · window.tnAlert(글, {title}) → Promise · Enter = 확인 · Esc·바깥 누름 = 취소 · 줄바꿈(\n) 그대로
+(() => {
+  if (window.tnConfirm) return;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let queue = Promise.resolve();
+  const open = (msg, o, two) => new Promise(done => {
+    const wrap = document.createElement('div');
+    wrap.className = 'tn-mb';
+    wrap.innerHTML = `<div class="tn-mb-card${o.danger ? ' danger' : ''}" role="dialog" aria-modal="true"><span class="tn-mb-en">${esc(o.en || (two ? 'CONFIRM' : 'NOTICE'))}</span>`
+      + (o.title ? `<b class="tn-mb-t">${esc(o.title)}</b>` : '') + `<p class="tn-mb-m">${esc(msg)}</p><div class="tn-mb-btns">`
+      + (two ? `<button class="ui-btn-ghost tn-mb-no">${esc(o.cancel || '취소')}</button>` : '') + `<button class="ui-btn-gold tn-mb-ok">${esc(o.ok || '확인')}</button></div></div>`;
+    const end = v => { document.removeEventListener('keydown', key, true); wrap.remove(); done(v); };
+    const key = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); end(false); } else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); end(true); } };
+    wrap.addEventListener('mousedown', e => { if (e.target === wrap) end(false); });
+    wrap.querySelector('.tn-mb-ok').onclick = () => end(true);
+    const no = wrap.querySelector('.tn-mb-no'); if (no) no.onclick = () => end(false);
+    document.addEventListener('keydown', key, true);
+    (document.body || document.documentElement).appendChild(wrap);
+    try { wrap.querySelector('.tn-mb-ok').focus(); } catch (_) {}
+  });
+  const q = (msg, o, two) => (queue = queue.then(() => open(msg, o || {}, two)));   // 여러 개면 차례로
+  window.tnConfirm = (msg, o) => q(msg, o, true);
+  window.tnAlert = (msg, o) => q(msg, o, false).then(() => undefined);
+})();

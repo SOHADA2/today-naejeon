@@ -85,7 +85,7 @@
         <button class="tn-quit" data-act="quit">투데이 내전 완전히 종료</button>
       </div>`;
     panel.querySelector('.tn-set-x').onclick = closePanel;
-    panel.querySelectorAll('.tn-sw').forEach(c => c.onchange = () => (c.dataset.k === 'augRank' && c.checked && !confirm(AUG_ASK) ? (c.checked = false, Promise.resolve(null)) : api.setSetting(c.dataset.k, c.checked).then(v => { if (v) { S = v; applyVol(); renderPanel(); } })));
+    panel.querySelectorAll('.tn-sw').forEach(c => c.onchange = async () => { if (c.dataset.k === 'augRank' && c.checked && !(await tnConfirm(AUG_ASK, { ok: '켜기' }))) { c.checked = false; return; } api.setSetting(c.dataset.k, c.checked).then(v => { if (v) { S = v; applyVol(); renderPanel(); } }); });
     const r = panel.querySelector('.tn-range'), n = panel.querySelector('.tn-vol-n');
     if (r) { r.oninput = () => { n.textContent = r.value; S.sfxVol = r.value / 100; applyVol(); }; r.onchange = () => api.setSetting('sfxVol', r.value / 100); }
     { const ii = panel.querySelector('.tn-inv-in'); if (ii) ii.onkeydown = e => { if (e.key === 'Enter') panel.querySelector('[data-act=dcinvsave]').click(); }; }
@@ -94,10 +94,10 @@
       else if (b.dataset.act === 'up') updateNow();
       else if (b.dataset.act === 'check') api.checkUpdate();
       else if (b.dataset.act === 'dcinv') { invEdit = true; renderPanel(); const i = panel.querySelector('.tn-inv-in'); if (i) { i.focus(); i.select(); } }
-      else if (b.dataset.act === 'dcinvsave' && api.discordInvite) { const i = panel.querySelector('.tn-inv-in'); api.discordInvite(i ? i.value : '').then(r => { if (r && !r.ok) alert('초대 링크 · ' + r.err); else { invEdit = false; renderPanel(); } }).catch(() => {}); }
+      else if (b.dataset.act === 'dcinvsave' && api.discordInvite) { const i = panel.querySelector('.tn-inv-in'); api.discordInvite(i ? i.value : '').then(r => { if (r && !r.ok) tnAlert('초대 링크 · ' + r.err); else { invEdit = false; renderPanel(); } }).catch(() => {}); }
       else if (b.dataset.act === 'dcroom' && api.discordJoin && S.discord && S.discord.room) { const R = S.discord.room; api.discordJoin(R.ch ? { gid: R.gid, ch: R.ch } : { gid: R.gid, code: R.code }); }   // v0.1.157 「이 방 디스코드」
-      else if (b.dataset.act === 'dcgo' && api.discordConnect) api.discordConnect().then(r => { if (r && !r.ok && r.err) alert('디스코드 서버 연결 · ' + r.err); else if (r && r.ok && r.lack && r.lack.length) alert(`연결됐어요 · 서버에 음성 채널 ${r.lack.join('·')}을 만들어 주세요`); }).catch(() => {});
-      else if (b.dataset.act === 'quit' && confirm('투데이 내전을 완전히 종료할까요?')) api.quitApp();
+      else if (b.dataset.act === 'dcgo' && api.discordConnect) api.discordConnect().then(r => { if (r && !r.ok && r.err) tnAlert('디스코드 서버 연결 · ' + r.err); else if (r && r.ok && r.lack && r.lack.length) tnAlert(`연결됐어요 · 서버에 음성 채널 ${r.lack.join('·')}을 만들어 주세요`); }).catch(() => {});
+      else if (b.dataset.act === 'quit') tnConfirm('투데이 내전을 완전히 종료할까요?', { ok: '종료', danger: true }).then(y => { if (y) api.quitApp(); });
     });
   }
   function openPanel() { const r = (strip.style.display === 'none' ? header : strip).getBoundingClientRect(); panel.style.top = Math.round(r.bottom) + 'px'; panel.style.display = ''; gear.classList.add('on'); renderPanel(); api.getSettings().then(v => { if (v) { S = v; renderPanel(); } }).catch(() => {}); if (U.state === 'idle' || U.state === 'error') api.checkUpdate(); }

@@ -200,11 +200,11 @@ function renderTeam() {
 function showCancel(id, ask) {
   const b = el(id); b.style.display = myIsHost ? '' : 'none';
   b.onclick = async () => {
-    if (b.disabled || !confirm(ask)) return;
+    if (b.disabled || !(await tnConfirm(ask))) return;
     b.disabled = true;
     const r = await window.api.lobbyReopen().catch(e => ({ ok: false, err: String(e) }));
     b.disabled = false;
-    if (!r || !r.ok) alert('취소 실패 · ' + ((r && r.err) || '다시 눌러주세요'));
+    if (!r || !r.ok) tnAlert('취소 실패 · ' + ((r && r.err) || '다시 눌러주세요'));
   };
 }
 
@@ -240,7 +240,7 @@ function renderDraft() {
         + `<div class="dr-map-b">${Object.keys(LOL_MAP_KO).map(k => `<button class="dr-mp${cur === k ? ' on' : ''}" data-map="${k}" ${can ? '' : 'disabled'}>${LOL_MAP_KO[k]}</button>`).join('')}</div>`;
       box.style.display = '';
       if (box.dataset.h !== h) { box.innerHTML = h; box.dataset.h = h; }
-      box.querySelectorAll('.dr-mp').forEach(b => b.onclick = async () => { if (b.disabled || !can) return; const r = await window.api.draftMap(b.dataset.map); if (!r || !r.ok) alert((r && r.err) || '다리를 못 골랐어요'); });
+      box.querySelectorAll('.dr-mp').forEach(b => b.onclick = async () => { if (b.disabled || !can) return; const r = await window.api.draftMap(b.dataset.map); if (!r || !r.ok) tnAlert((r && r.err) || '다리를 못 골랐어요'); });
     }
   }
   el('dr-a').innerHTML = col('teamA', '1팀');
@@ -746,7 +746,7 @@ async function lbAct(fn) {
 // 🎮 v0.1.191 일반판 롤 파티 만들기·초대 — 남의 파티에 있으면 나가도 되는지 묻고 · 자리 없어 못 부른 사람은 알려 줌
 async function lolPartyGo() {
   let r = await window.api.lolParty({});
-  if (r && r.need === 'leave') { if (!confirm('지금 다른 사람이 파티장인 롤 파티에 있어요.\n나가고 내 파티를 새로 만들까요?')) return null; r = await window.api.lolParty({ force: true }); }
+  if (r && r.need === 'leave') { if (!(await tnConfirm('지금 다른 사람이 파티장인 롤 파티에 있어요.\n나가고 내 파티를 새로 만들까요?', { ok: '나가고 만들기' }))) return null; r = await window.api.lolParty({ force: true }); }
   if (!r || !r.ok) { lbErr((r && r.err) || '롤 파티를 만들지 못했어요'); return r; }
   if (r.left && r.left.length) lbErr(`롤 파티는 5명까지라 ${r.left.join(', ')}님은 초대 안 했어요`);
   return r;
@@ -770,7 +770,7 @@ function renderLobby() {
       + (myIsHost ? '<button id="lb-hostme" class="lb-hostme">👑 내가 방장 <i>▾</i></button>'
         : `<span class="lb-host">${L.hostName ? `<em>방장</em><span class="lb-hn">${esc(L.hostName)}</span>` : '<em class="no">방장 없음</em>'}</span>`)
       + (L.room ? '<button id="lb-leave" class="lb-mini lb-leave" title="방에서 나가 방 목록으로">나가기</button>' : '');
-  { const lv = el('lb-leave'); if (lv) lv.onclick = () => { if (myIsHost && !confirm('방에서 나갈까요?\n방장은 방에 남은 사람에게 넘어가요.')) return; lbAct(() => window.api.roomLeave()); }; }
+  { const lv = el('lb-leave'); if (lv) lv.onclick = async () => { if (myIsHost && !(await tnConfirm('방에서 나갈까요?\n방장은 방에 남은 사람에게 넘어가요.', { ok: '나가기' }))) return; lbAct(() => window.api.roomLeave()); }; }
   { // 👑 방장 자리 — 아무도 없으면(또는 응답 없으면) 대기실 맨 위에 큰 버튼
     const cta = el('lb-hostcta'), need = myName && !myIsHost && !L.hostName;
     cta.style.display = need ? '' : 'none';
@@ -806,12 +806,12 @@ function renderLobby() {
     box.querySelectorAll('[data-lol]').forEach(b => b.onclick = async () => {
       if (b.disabled) return; b.disabled = true; const t0 = b.textContent;
       try {
-        if (b.dataset.lol === 'accept') { const r = await window.api.lolAccept(); if (!r || !r.ok) alert((r && r.err) || '수락하지 못했어요'); return; }
+        if (b.dataset.lol === 'accept') { const r = await window.api.lolAccept(); if (!r || !r.ok) tnAlert((r && r.err) || '수락하지 못했어요'); return; }
         if (b.dataset.lol === 'party') { b.textContent = '초대 중…'; const r = await lolPartyGo(); if (r && r.ok) { b.textContent = r.total ? `${r.invited}명 초대함` : '초대할 사람 없음'; setTimeout(() => { b.textContent = t0; }, 2500); } return; }
         b.textContent = '만드는 중…';
         let r = await window.api.lolLobby({});
-        if (r && r.need === 'leave') { if (!confirm('지금 롤 대기방(일반 큐)에 있어요.\n나가고 사용자 설정 방을 만들까요?')) return; r = await window.api.lolLobby({ force: true }); }
-        if (!r || !r.ok) { alert((r && r.err) || '롤 방을 만들지 못했어요'); return; }
+        if (r && r.need === 'leave') { if (!(await tnConfirm('지금 롤 대기방(일반 큐)에 있어요.\n나가고 사용자 설정 방을 만들까요?', { ok: '나가고 만들기' }))) return; r = await window.api.lolLobby({ force: true }); }
+        if (!r || !r.ok) { tnAlert((r && r.err) || '롤 방을 만들지 못했어요'); return; }
         b.textContent = r.total ? `${r.invited}명 초대함` : '초대할 사람 없음'; setTimeout(() => { b.textContent = t0; }, 2500);
       } finally { b.disabled = false; }
     });
@@ -837,7 +837,7 @@ function renderLobby() {
       const inv = !!L.dcGuild;   // 서버는 있는데 초대 링크가 없음
       h = `<button class="lb-dcn-go" id="lb-dcn-go" title="${inv ? '친구들이 들어올 디스코드 초대 링크 · 넣어 두면 서버에 없는 사람에게 「들어가기」가 떠요' : '디스코드 음성 채널 자동 나누기 · 서버를 연결하면 팀이 정해질 때 1팀·2팀 채널로 옮겨요'}">${DC_ICO}<span>${inv ? '초대 링크 넣기' : '디스코드 연결'}</span></button><button class="lb-dcn-x" id="lb-dcn-x" title="닫기(⚙ 설정 → 디스코드에서 언제든)">✕</button>`;
       go = inv ? () => { const g = document.querySelector('.tn-gear'); if (g) g.click(); setTimeout(() => { const bd = document.querySelector('.tn-set-body'), t = bd && [...bd.querySelectorAll('.tn-sec')].find(e => e.textContent === '디스코드'); if (t) bd.scrollTop = t.offsetTop - 50; const ib = document.querySelector('.tn-set [data-act=dcinv]'); if (ib) ib.click(); }, 80); }
-        : () => window.api.discordConnect && window.api.discordConnect().then(r => { if (r && !r.ok && r.err) alert('디스코드 서버 연결 · ' + r.err); }).catch(() => {});
+        : () => window.api.discordConnect && window.api.discordConnect().then(r => { if (r && !r.ok && r.err) tnAlert('디스코드 서버 연결 · ' + r.err); }).catch(() => {});
       x = () => { window.api.setSetting('dcNudgeOff', true); _set = Object.assign({}, _set, { dcNudgeOff: true }); dn.style.display = 'none'; };
     }
     dn.style.display = h ? '' : 'none';
@@ -905,8 +905,8 @@ function renderLobby() {
     const b = el('lb-mebtn'), spec = !!(me && me.st === 'spec');
     b.className = 'lb-mebtn ' + (spec ? 'rejoin' : 'leave');
     b.textContent = spec ? '다시 참가하기' : '이번 판은 관전할게요';
-    b.onclick = () => {
-      if (!spec && myIsHost && !normal && !confirm(HSPEC_ASK)) return;   // 👀 v0.1.150 방장이 관전으로 빠지기 전에 한 번 더
+    b.onclick = async () => {
+      if (!spec && myIsHost && !normal && !(await tnConfirm(HSPEC_ASK))) return;   // 👀 v0.1.150 방장이 관전으로 빠지기 전에 한 번 더
       lbAct(() => window.api.lobbyMe(spec ? 'in' : 'spec'));
     };
     hostSpecNote(el('lb-hspec'), myIsHost && spec && !normal, ins.map(m => m.name), true);
@@ -977,9 +977,9 @@ function hostSpecNote(box, on, names, inLobby) {
   box.innerHTML = `<span><b>방장이 관전하면 이번 판 팟지 영상을 찍을 수 없습니다</b></span>
     <small>롤은 관전한 판의 리플레이를 남기지 않습니다. 경기에 나가는 사람에게 방장을 넘기면 그 사람 PC가 찍습니다.</small>
     <div class="hs-row">${cand.length ? '<span class="hs-lb">방장 넘기기</span>' + cand.map(m => `<button class="hs-pick" data-hs="${esc(m.key)}" title="${esc(m.name)}님에게 방장 넘기기">${avatar(m, 'chip-av')}<span>${esc(m.name)}</span></button>`).join('') : '<span class="hs-none">방장을 넘길 사람(앱 켠 참가자)이 없습니다</span>'}</div>`;
-  box.querySelectorAll('[data-hs]').forEach(b => b.onclick = () => {
+  box.querySelectorAll('[data-hs]').forEach(b => b.onclick = async () => {
     const m = cand.find(x => x.key === b.dataset.hs); if (!m) return;
-    if (!confirm(`${m.name}님에게 방장을 넘길까요?\n이번 판 팟지는 ${m.name}님 PC가 찍습니다.`)) return;
+    if (!await tnConfirm(`${m.name}님에게 방장을 넘길까요?\n이번 판 팟지는 ${m.name}님 PC가 찍습니다.`)) return;
     lbAct(() => window.api.handHost(m.key));
   });
 }
@@ -1012,9 +1012,9 @@ function toggleHostMenu(L) {   // 👑 내가 방장 ▾ = 접속 중인 사람�
     + (others.length ? others.map(o => `<button class="lb-hm-item" data-p="${esc(o.key)}">${avatar(o, 'chip-av')}<span>${esc(o.name)}</span></button>`).join('') : '<div class="lb-hm-empty">앱을 켠 다른 사람이 없어요</div>')
     + '<button class="lb-hm-item stop" id="lb-hm-stop">방장 그만하기</button>';
   m.style.display = '';
-  m.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
+  m.querySelectorAll('[data-p]').forEach(b => b.onclick = async () => {
     const o = others.find(x => x.key === b.dataset.p); if (!o) return;
-    if (!confirm(`${o.name}님에게 방장을 넘길까요?\n진행 중인 판은 그대로 이어져요.`)) return;
+    if (!await tnConfirm(`${o.name}님에게 방장을 넘길까요?\n진행 중인 판은 그대로 이어져요.`)) return;
     m.style.display = 'none'; lbAct(() => window.api.handHost(o.key));
   });
   el('lb-hm-stop').onclick = () => { m.style.display = 'none'; lbAct(() => window.api.setHost(false)); };

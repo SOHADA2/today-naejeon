@@ -84,7 +84,7 @@ function ageChamp() {
      <div class="age-save"><input id="age-sum" class="age-sum" maxlength="40" placeholder="무엇을 바꿨나요? (선택)" title="적으면 「기록」에 같이 남아요" value="${escH(AGE.sum)}"><button class="ui-btn-gold" id="age-save"${AGE.dirty ? '' : ' disabled'}>저장 · 모두에게 반영</button></div>`;
   $('age-sum').oninput = e => { AGE.sum = e.target.value; };
   $('age-histbtn').onclick = ageHist;
-  $('age-back').onclick = () => { if (AGE.dirty && !confirm('저장하지 않은 내용이 있어요. 버릴까요?')) return; AGE.champ = 0; AGE.dirty = false; AGE.editing = false; renderAugEdit(); };
+  $('age-back').onclick = async () => { if (AGE.dirty && !await tnConfirm('저장하지 않은 내용이 있어요. 버릴까요?')) return; AGE.champ = 0; AGE.dirty = false; AGE.editing = false; renderAugEdit(); };
   const mark = () => { AGE.dirty = true; $('age-save').disabled = false; };
   const q = s => $('ag-ed').querySelectorAll(s);
   q('.age-title').forEach(x => x.oninput = () => { d[+x.dataset.i].title = x.value; mark(); });
@@ -122,7 +122,7 @@ async function ageSave() {
   if (r && r.ok) { toast('🧭 저장했어요 — 모두의 챔피언 선택 화면에 반영돼요 · 「기록」에 남아요'); AGE.dirty = false; AGE.sum = ''; AGE.baseAt = r.at; await renderAugEdit(true); }
   else if (r && r.conflict) {   // 편집 충돌 — 덮어쓰지 않음(위키와 같음)
     b.disabled = false; b.textContent = '저장 · 모두에게 반영';
-    if (confirm(`그사이 ${r.by || '다른 사람'}님이 이 챔피언을 먼저 고쳤어요.\n\n[확인] 최신 내용 불러오기(내가 고친 건 사라져요)\n[취소] 그대로 두기 — 「기록」에서 바뀐 걸 보고 다시 고쳐 주세요`)) { AGE.dirty = false; const id = AGE.champ; await renderAugEdit(true); ageOpen(id); }
+    if (await tnConfirm(`그사이 ${r.by || '다른 사람'}님이 이 챔피언을 먼저 고쳤어요.\n\n[확인] 최신 내용 불러오기(내가 고친 건 사라져요)\n[취소] 그대로 두기 — 「기록」에서 바뀐 걸 보고 다시 고쳐 주세요`)) { AGE.dirty = false; const id = AGE.champ; await renderAugEdit(true); ageOpen(id); }
   }
   else { toast('저장 실패 — ' + ((r && r.err) || '다시 시도해 주세요')); b.disabled = false; b.textContent = '저장 · 모두에게 반영'; }
 }
@@ -137,8 +137,8 @@ async function ageHist() {
   box.innerHTML = `<div class="age-hist"><div class="age-rc-hd">고친 기록 <small>최근 ${h.length}개</small></div>${h.map((x, i) => `<div class="age-hrow"><span class="age-rc-tx"><b>${escH(x.by || '?')} <small>${agWhen(x.at)}</small></b><small>${escH(x.sum || '')} · 플랜 ${x.n}개</small></span>${i ? `<button class="age-hbtn" data-k="${x.k}" data-w="after">이 버전으로</button>` : '<span class="age-hnow">지금</span>'}</div>`).join('')}
     <div class="age-hrow"><span class="age-rc-tx"><b>처음 내용</b><small>${escH(first.by || '')}님이 처음 고치기 전 · 플랜 ${first.before.length}개</small></span><button class="age-hbtn" data-k="${first.k}" data-w="before">이 버전으로</button></div></div>`;
   box.querySelectorAll('.age-hbtn').forEach(b => b.onclick = async () => {
-    if (AGE.dirty && !confirm('저장하지 않은 내용은 사라져요. 되돌릴까요?')) return;
-    if (!confirm('이 버전으로 되돌릴까요? 되돌린 것도 기록에 남아서 다시 바꿀 수 있어요.')) return;
+    if (AGE.dirty && !await tnConfirm('저장하지 않은 내용은 사라져요. 되돌릴까요?')) return;
+    if (!await tnConfirm('이 버전으로 되돌릴까요? 되돌린 것도 기록에 남아서 다시 바꿀 수 있어요.')) return;
     b.disabled = true;
     const r = await window.api.restoreAugGuide(AGE.champ, b.dataset.k, b.dataset.w).catch(e => ({ ok: false, err: String(e) }));
     if (r && r.ok) { toast('↩ 되돌렸어요 — 모두에게 반영돼요'); AGE.dirty = false; const id = AGE.champ; await renderAugEdit(true); ageOpen(id); }

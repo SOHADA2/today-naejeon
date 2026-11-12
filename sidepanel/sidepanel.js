@@ -107,7 +107,7 @@ async function openHostMenu() {
     + '<button class="thm-item thm-stop" id="thm-stop">방장 그만하기</button>';
   m.querySelectorAll('.thm-item[data-p]').forEach(b => b.onclick = async () => {
     const name = b.firstChild.textContent;
-    if (!confirm(`${name}님에게 방장을 넘길까요?
+    if (!await tnConfirm(`${name}님에게 방장을 넘길까요?
 진행 중인 판은 그대로 이어져요.`)) return;
     closeHostMenu();
     const res = await window.api.handHost(b.dataset.p).catch(() => null);
@@ -119,7 +119,7 @@ $('s-hostbtn').addEventListener('click', async () => {
   if (_isHost) { $('s-hostmenu').style.display === 'none' ? openHostMenu() : closeHostMenu(); return; }
   const h = _hostInfo.host;
   if (h && h.alive && !h.mine) { toast(`👑 ${h.name}님이 방장이에요`); return; }
-  if (h && !h.alive && !h.mine && !confirm(`${h.name}님(방장)이 1분 넘게 응답이 없어요.
+  if (h && !h.alive && !h.mine && !await tnConfirm(`${h.name}님(방장)이 1분 넘게 응답이 없어요.
 방장을 이어받을까요?`)) return;
   const res = await window.api.setHost(true).catch(() => null);
   if (!res || !res.ok) toast((res && res.err) || '방장을 맡지 못했어요');
