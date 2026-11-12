@@ -105,7 +105,9 @@ async function showIntro(my, c, o) {
   const sp = el('pg-splash'); sp.getAnimations().forEach(a => a.cancel()); sp.style.opacity = '0';
   if (c.splash) { if (sp.getAttribute('src') !== c.splash) sp.src = c.splash; } else sp.removeAttribute('src');
   const en = intro.querySelector('.pg-intro-en'), hero = intro.querySelector('.pg-hero'), lab = el('pg-label'), slash = intro.querySelector('.pg-slash');
-  en.innerHTML = `<i></i>${esc(o.eyebrow)}`;
+  // v0.1.179 윗줄 영문 = 리틱체 그림(PLAY OF THE GAME · UNSUNG HERO — tools/title-img.cjs) · 뒤에 붙는 한글(「· 숨은 영웅」)은 글자 그대로
+  const eb = String(o.eyebrow || ''), ebImg = eb.startsWith('PLAY OF THE GAME') ? ['potg-en', 'PLAY OF THE GAME'] : eb.startsWith('UNSUNG HERO') ? ['unsung-en', 'UNSUNG HERO'] : null;
+  en.innerHTML = ebImg ? `<i></i><img src="../assets/title/${ebImg[0]}.png" alt="${ebImg[1]}">${esc(eb.slice(ebImg[1].length))}` : `<i></i>${esc(eb)}`;
   [en, hero, lab, slash, el('pg-iflash')].forEach(n => n.getAnimations().forEach(a => a.cancel()));
   const k = o.dur / 3200;   // 짧은 소개(숨은 영웅)는 같은 순서로 빠르게
   if (c.splash) go(sp, [{ opacity: 0, transform: 'scale(1.14)', filter: 'brightness(1.6) blur(3px)' }, { opacity: 1, transform: 'scale(1.06)', filter: 'brightness(1) blur(0)', offset: 0.18 }, { opacity: 1, transform: 'scale(1)', filter: 'brightness(1) blur(0)' }], { duration: o.dur + 300, easing: 'cubic-bezier(.2,.7,.3,1)' });   // 천천히 다가오는 줌(한 번만)

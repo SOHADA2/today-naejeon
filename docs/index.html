@@ -103,6 +103,8 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 .hero .copy { position:absolute; left:0; right:0; bottom:clamp(28px, 6vh, 64px); }
 .hero h1 { font-size:clamp(44px, 8.4vw, 124px); line-height:1.02; font-weight:850; letter-spacing:-0.055em; text-shadow:0 2px 24px rgba(0,0,0,.35); }
 .hero h1 .g { color:var(--gold); }
+/* 큰 제목 = 리틱체(REATIC Narrow Bold)로 그린 그림(글꼴 파일은 재배포 금지라 그림만 · tools/title-img.cjs) · 높이 1.16em = 글자 크기 그대로 · 좁은 화면에선 폭에 맞춰 줄어듦 */
+.hero h1 img { display:block; width:min(var(--w), 100%); height:auto; filter:drop-shadow(0 2px 14px rgba(0,0,0,.35)); }
 .ln { display:block; overflow:hidden; padding-bottom:0.04em; }
 .ln > span { display:inline-block; }
 .js .ln > span { transform:translateY(105%); transition:transform .9s var(--ease); }
@@ -375,7 +377,7 @@ footer p + p { margin-top:6px; }
     <div class="hero-tag"><span>실제 내전 장면 · 자야 트리플킬</span></div>
     <div class="copy">
       <div class="wrap">
-        <h1><span class="ln"><span>오늘 모인 사람끼리,</span></span><span class="ln"><span>롤 <span class="g">내전</span> 한 판.</span></span></h1>
+        <h1><span class="ln"><span><img src="img/title-1.png" alt="오늘 모인 사람끼리," style="--w:7.05em"></span></span><span class="ln"><span><img src="img/title-2.png" alt="롤 내전 한 판." style="--w:4.99em"></span></span></h1>
         <div class="hero-row">
           <p>방 하나 만들고 팀만 나누면 준비가 끝납니다. 승패, MVP, 오늘 순위는 앱이 정리하고, 판이 끝나면 위 영상 같은 하이라이트도 만들어 드립니다.</p>
           <div class="dl-box">

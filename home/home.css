@@ -13,6 +13,7 @@ body { display:flex; flex-direction:column; border:1px solid var(--line-2); }
 .tt { display:flex; flex-direction:column; gap:2px; }
 .tt-en { font-family:var(--f-num); font-size:13px; font-weight:700; letter-spacing:.3em; color:var(--gold); }
 .tt h1 { font-size:34px; font-weight:900; letter-spacing:-0.04em; line-height:1.05; }
+.tt-img { display:block; height:44px; width:auto; margin:3px 0 0 -2px; }
 .go { display:none; }
 
 /* 본문 */
