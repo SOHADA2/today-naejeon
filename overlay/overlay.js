@@ -158,6 +158,8 @@ function playerRow(name, i) {
   const rec = st ? `<span class="lp"><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : '';
   return `<li${me}><span class="no num">${i + 1}</span><span class="nm">${esc(name)}</span>${rec}</li>`;
 }
+const DC_LOGO = '<svg class="dc-logo" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.865-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.028C.533 9.046-.32 13.58.099 18.058a.082.082 0 0 0 .031.056 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.1 13.1 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.009c.12.1.246.198.373.292a.077.077 0 0 1-.007.128 12.3 12.3 0 0 1-1.873.891.077.077 0 0 0-.041.107c.36.698.772 1.363 1.225 1.993a.076.076 0 0 0 .084.029 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.331c-1.183 0-2.157-1.086-2.157-2.42 0-1.333.956-2.418 2.157-2.418 1.21 0 2.176 1.095 2.157 2.419 0 1.333-.956 2.419-2.157 2.419zm7.975 0c-1.183 0-2.157-1.086-2.157-2.42 0-1.333.955-2.418 2.157-2.418 1.21 0 2.176 1.095 2.157 2.419 0 1.333-.946 2.419-2.157 2.419z"/></svg>';   // 🎧 v0.1.194 디스코드 로고(방 카드 아이콘)
+let _dcHintUntil = 0;
 const DC_ICO = '<svg class="dc-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 9V8a5 5 0 0 1 10 0v1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="9" width="3" height="5" rx="0.6" fill="currentColor"/><rect x="11" y="9" width="3" height="5" rx="0.6" fill="currentColor"/></svg>';   // 🎧 v0.1.131 디스코드(헤드셋)
 function renderTeam() {
   const s = sessionData, A = s.teamA || [], B = s.teamB || [], mt = myTeam();
@@ -770,7 +772,7 @@ function renderLobby() {
   const sA = ins.filter(m => sides[m.name] === 'teamA'), sB = ins.filter(m => sides[m.name] === 'teamB'), sNone = ins.filter(m => !sides[m.name]);   // 🧩 직접
   const me = M.find(m => m.me);
   el('lb-head').innerHTML = !myName ? '<span class="lb-wait"><span class="lobby-pulse"></span>롤 클라이언트에 로그인하면 자동으로 입장돼요</span>'
-    : `<span class="lb-title"><span class="lb-en">${L.room && L.room.priv ? 'PRIVATE ROOM' : 'ROOM'}</span><b class="lb-rname" title="${esc(L.room ? L.room.name : '')}">${esc(L.room ? L.room.name : '대기실')}</b></span>`
+    : `<span class="lb-title"><span class="lb-enrow"><span class="lb-en">${L.room && L.room.priv ? 'PRIVATE ROOM' : 'ROOM'}</span><span id="lb-dci" class="lb-dci"></span></span><b class="lb-rname" title="${esc(L.room ? L.room.name : '')}">${esc(L.room ? L.room.name : '대기실')}</b></span>`
       + (myIsHost ? '<button id="lb-hostme" class="lb-hostme">👑 내가 방장 <i>▾</i></button>'
         : `<span class="lb-host">${L.hostName ? `<em>방장</em><span class="lb-hn">${esc(L.hostName)}</span>` : '<em class="no">방장 없음</em>'}</span>`)
       + (L.room ? '<button id="lb-leave" class="lb-mini lb-leave" title="방에서 나가 방 목록으로">나가기</button>' : '');
@@ -825,34 +827,30 @@ function renderLobby() {
       try { const r = await window.api.lolAccept(); if (!r || !r.ok) tnAlert((r && r.err) || '수락하지 못했어요'); } finally { b.disabled = false; }
     });
   }
-  { // 🎧 디스코드 한 줄 — ① 나 = 방 서버에 아직 없음 → 「들어가기」(v0.1.138 · 방장이 넣은 초대 링크) ② 방장 = 서버 연결 안 됨 → 「서버 연결」(v0.1.134) · 초대 링크 없음 → 「링크 넣기」
-    const dn = el('lb-dcn'), S = _set || {}, J = L.dcJoin;
-    let h = '', go = null, x = null;
-    if (L.room && J && J.kind === 'voice') {   // v0.1.157 서버엔 있는데 음성 채널 밖 → 대기 채널을 디스코드 앱으로
-      h = `<button class="lb-dcn-go" id="lb-dcn-go" title="디스코드 「${esc(J.name)}」 내전 대기실 화면을 열어요 → 디스코드에서 「음성 채널 참가하기」를 누르면 들어가요 · 음성 채널에 있어야 팀이 정해질 때 1팀·2팀으로 옮겨져요(다른 서버 음성 채널에서는 못 옮김)">${DC_ICO}<span>음성 채널 들어가기</span></button><button class="lb-dcn-x" id="lb-dcn-x" title="닫기(앱을 다시 켜면 다시 보여요 · ⚙ 설정 → 디스코드에서 언제든)">✕</button>`;
-      // v0.1.158(사장님: 클릭해도 대기실로 안 감) — 디스코드는 채널 화면만 열고 음성은 「음성 채널 참가하기」를 눌러야 들어감(앱이 대신 넣는 RPC는 디스코드 승인 앱만) → 누른 뒤 9초 동안 칩이 할 일을 알려 줌
-      go = () => {
-        window.api.discordJoin({ gid: J.gid, ch: J.ch });
-        const s = dn.querySelector('.lb-dcn-go span'); if (!s) return;
-        s.textContent = '디스코드에서 「참가하기」'; dn.classList.add('hint');
-        clearTimeout(dn._ht); dn._ht = setTimeout(() => { dn.classList.remove('hint'); dn.dataset.h = ''; if (lobbyData) render(); }, 9000);
-      };
-      x = () => window.api.discordJoin({ gid: J.gid, ch: J.ch, off: true });
+  { // 🎧 디스코드 = 방 카드 「ROOM」 옆 작은 디스코드 아이콘 하나(v0.1.194 · 사장님: 「음성 채널 들어가기」 칩이 톤앤매너 안 맞고 번잡 → 버튼 늘리지 말고 · 내가 안 들어가 있을 때만 방 이름 쪽에)
+    //   ① 서버엔 있는데 음성 채널 밖 → 누르면 디스코드 대기 채널 화면 + 옆에 「디스코드에서 참가하기」 9초(v0.1.158: 음성은 디스코드에서 「참가하기」를 눌러야 들어감)
+    //   ② 서버에 없음 → 누르면 초대 링크로 서버 들어가기 ③ 방장 = 서버 연결 안 됨 / 초대 링크 없음 → 흐린 아이콘(누르면 연결 / 설정의 초대 링크 칸) · 음성 채널 안이면 아이콘 없음 · ✕ 없음
+    const box = el('lb-dci'), S = _set || {}, J = L.dcJoin;
+    let kind = '', tip = '', go = null;
+    if (L.room && J && J.kind === 'voice') {
+      kind = 'act'; tip = `디스코드 음성 채널 참가 · 「${J.name}」 대기 채널이 열려요`;
+      go = () => { window.api.discordJoin({ gid: J.gid, ch: J.ch }); _dcHintUntil = Date.now() + 9000; setTimeout(() => { if (lobbyData) render(); }, 9100); if (lobbyData) render(); };
     } else if (L.room && J) {
-      // v0.1.148: 따로 상자(두 줄) → ROOM 줄 오른쪽 작은 칩(사장님: 위쪽이 번잡) · 설명은 마우스 올림
-      h = `<button class="lb-dcn-go" id="lb-dcn-go" title="디스코드 「${esc(J.name)}」 서버에 들어와 주세요 · 디스코드 앱으로 열려요 · 팀이 정해지면 1팀·2팀 음성 채널로 옮겨져요">${DC_ICO}<span>디스코드 들어가기</span></button><button class="lb-dcn-x" id="lb-dcn-x" title="닫기(이 서버는 다시 안 띄움 · ⚙ 설정 → 디스코드에서 언제든)">✕</button>`;
-      go = () => window.api.discordJoin({ code: J.code, gid: J.gid }); x = () => window.api.discordJoin({ gid: J.gid, off: true });
+      kind = 'act'; tip = `디스코드 「${J.name}」 서버 들어가기`;
+      go = () => window.api.discordJoin({ code: J.code, gid: J.gid });
     } else if (myIsHost && L.room && S.discord && S.discord.app && !S.dcNudgeOff && (!L.dcGuild || !L.dcInv)) {
-      const inv = !!L.dcGuild;   // 서버는 있는데 초대 링크가 없음
-      h = `<button class="lb-dcn-go" id="lb-dcn-go" title="${inv ? '친구들이 들어올 디스코드 초대 링크 · 넣어 두면 서버에 없는 사람에게 「들어가기」가 떠요' : '디스코드 음성 채널 자동 나누기 · 서버를 연결하면 팀이 정해질 때 1팀·2팀 채널로 옮겨요'}">${DC_ICO}<span>${inv ? '초대 링크 넣기' : '디스코드 연결'}</span></button><button class="lb-dcn-x" id="lb-dcn-x" title="닫기(⚙ 설정 → 디스코드에서 언제든)">✕</button>`;
+      const inv = !!L.dcGuild;
+      kind = 'dim'; tip = inv ? '디스코드 초대 링크 넣기 · 서버에 없는 친구에게 「들어가기」가 떠요' : '디스코드 서버 연결 · 팀이 정해지면 1팀·2팀 음성 채널로 나눠요';
       go = inv ? () => { const g = document.querySelector('.tn-gear'); if (g) g.click(); setTimeout(() => { const bd = document.querySelector('.tn-set-body'), t = bd && [...bd.querySelectorAll('.tn-sec')].find(e => e.textContent === '디스코드'); if (t) bd.scrollTop = t.offsetTop - 50; const ib = document.querySelector('.tn-set [data-act=dcinv]'); if (ib) ib.click(); }, 80); }
         : () => window.api.discordConnect && window.api.discordConnect().then(r => { if (r && !r.ok && r.err) tnAlert('디스코드 서버 연결 · ' + r.err); }).catch(() => {});
-      x = () => { window.api.setSetting('dcNudgeOff', true); _set = Object.assign({}, _set, { dcNudgeOff: true }); dn.style.display = 'none'; };
     }
-    dn.style.display = h ? '' : 'none';
-    dn.parentNode.classList.toggle('has-dc', !!h);
-    if (h && dn.dataset.h !== h) { dn.innerHTML = h; dn.dataset.h = h; }
-    if (h) { el('lb-dcn-go').onclick = go; el('lb-dcn-x').onclick = x; }
+    const hint = kind === 'act' && J && J.kind === 'voice' && Date.now() < _dcHintUntil;
+    if (box) {
+      box.innerHTML = kind ? `<button class="lb-dci-b ${kind}" title="${esc(tip)}" aria-label="${esc(tip)}">${DC_LOGO}${kind === 'act' ? '<i class="lb-dci-dot"></i>' : ''}</button>` + '' : '';
+      const b = box.querySelector('.lb-dci-b'); if (b) b.onclick = e => { e.stopPropagation(); go && go(); };
+    }
+    { const hh = el('lb-dchint'); if (hh) hh.style.display = hint ? '' : 'none'; }   // 누른 뒤 9초 · 방식 칩 줄 오른쪽(방 카드 버튼을 안 가림)
+    const dn = el('lb-dcn'); if (dn) { dn.style.display = 'none'; dn.parentNode.classList.remove('has-dc'); }   // 예전 칩(v0.1.148~193) 자리
   }
   const cb = el('lb-caps');
   cb.style.display = draft || manual ? '' : 'none';   // v0.1.83: 일반판 설명 글은 튜토리얼로(화면엔 방식 버튼만)
@@ -883,10 +881,11 @@ function renderLobby() {
     const ctl = myIsHost ? ((draft ? `<button class="seat-btn cap${cap ? ' on' : ''}" data-cap="${esc(m.name)}" title="팀장 지정/해제">팀장</button>` : '')
       + (sn ? `<button class="seat-btn" data-side="${esc(m.name)}" data-t="${sn === 1 ? 'teamB' : 'teamA'}" title="${sn === 1 ? 2 : 1}팀으로 옮기기">⇄</button><button class="seat-btn" data-side="${esc(m.name)}" data-t="" title="팀에서 빼기(미정)">↩</button>` : '')
       + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="${m.guest ? '목록에서 빼기' : '관전으로 보내기'}">${m.guest ? '✕' : '↓'}</button>` : '')) : '';
-    return `<div class="seat filled${over ? ' over' : ''}${m.me ? ' me' : ''}${cap ? ' cap' + cap : ''}${sn ? ' side' + sn : ''}">`
+    // v0.1.194(사장님: 마우스 올리면 버튼이 이름 칸을 줄여 이름이 잘림) — 버튼은 이름 줄 옆이 아니라 아랫줄 자리에(올렸을 때 아랫줄 대신 보임) → 이름 폭 그대로
+    return `<div class="seat filled${ctl ? ' has-ctl' : ''}${over ? ' over' : ''}${m.me ? ' me' : ''}${cap ? ' cap' + cap : ''}${sn ? ' side' + sn : ''}">`
       + `<span class="seat-no">${no}</span>${avatar(m, 'seat-av')}`
-      + `<span class="seat-main"><span class="seat-nmrow">${m.host ? '<i class="seat-crown" title="방장">👑</i>' : ''}<b class="lb-nm" data-pk="${esc(m.key)}" title="${m.me ? '나 · ' : ''}프로필 보기">${esc(m.name)}</b></span><small>${over ? '<span class="seat-ov">파티 자리 없음</span>' : ''}${tags}${m.dc ? `<span class="seat-dc" title="디스코드 연결됨 · 팀이 정해지면 음성 채널로 옮겨져요">${DC_ICO}</span>` : ''}${m.guest ? '<span>앱 없음</span>' : m.online ? '' : '<span>오프라인</span>'}${st ? `<span><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : ''}</small></span>`
-      + (ctl ? `<span class="seat-ctl">${ctl}</span>` : '') + '</div>';
+      + `<span class="seat-main"><span class="seat-nmrow">${m.host ? '<i class="seat-crown" title="방장">👑</i>' : ''}<b class="lb-nm" data-pk="${esc(m.key)}" title="${m.me ? '나 · ' : ''}프로필 보기">${esc(m.name)}</b></span><small>${over ? '<span class="seat-ov">파티 자리 없음</span>' : ''}${tags}${m.dc ? `<span class="seat-dc" title="디스코드 연결됨 · 팀이 정해지면 음성 채널로 옮겨져요">${DC_ICO}</span>` : ''}${m.guest ? '<span>앱 없음</span>' : m.online ? '' : '<span>오프라인</span>'}${st ? `<span><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : ''}</small>${ctl ? `<span class="seat-ctl">${ctl}</span>` : ''}</span>`
+      + '</div>';
   };
   el('lb-seats').innerHTML = manual ? Array.from({ length: 5 }, (_, i) => seat(sA[i], i, 'teamA') + seat(sB[i], i, 'teamB')).join('')   // 🧩 직접: 왼쪽 열 1팀 · 오른쪽 열 2팀
     : normal ? Array.from({ length: Math.max(5, ins.length) }, (_, i) => seat(ins[i], i, null, i >= 5)).join('')   // 🎮 v0.1.191 일반판 = 롤 파티 5자리

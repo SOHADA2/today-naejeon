@@ -207,7 +207,8 @@ body { -webkit-font-smoothing:antialiased; font-feature-settings:'tnum' 0; lette
 #bar, #sbar { position:relative; z-index:0; overflow:hidden; }
 .brand-mk, .s-brand-mk { display:none; }
 .hd-bg { position:absolute; inset:0; z-index:-1; pointer-events:none; overflow:hidden;
-  -webkit-mask-image:linear-gradient(90deg, transparent 0%, rgba(0,0,0,.3) 26%, #000 52%, rgba(0,0,0,.55) 82%, transparent 100%); mask-image:linear-gradient(90deg, transparent 0%, rgba(0,0,0,.3) 26%, #000 52%, rgba(0,0,0,.55) 82%, transparent 100%); }
+  /* v0.1.194(사장님: 배경 글자가 오른쪽 버튼을 살짝 가림) — 오른쪽 버튼 자리(끝에서 150px) 전에 다 사라지게 */
+  -webkit-mask-image:linear-gradient(90deg, transparent 0, rgba(0,0,0,.3) 60px, #000 120px, #000 calc(100% - 230px), transparent calc(100% - 150px)); mask-image:linear-gradient(90deg, transparent 0, rgba(0,0,0,.3) 60px, #000 120px, #000 calc(100% - 230px), transparent calc(100% - 150px)); }
 .hd-bg span { position:absolute; left:58px; top:50%; transform:translateY(-44%) skewX(-10deg); font-family:var(--f-num); font-weight:700; font-size:62px; letter-spacing:.03em; line-height:1; white-space:nowrap;
   color:transparent; -webkit-text-stroke:1px rgba(200,170,110,.22); }
 /* 🪟 v0.1.192 앱 확인·알림 창(desktop/tip.js tnConfirm·tnAlert) — 윈도우 기본 확인 창 대신 · 짙은 남색 · 금색 가는 선 · 자른 모서리 · 한 번만 나타남 */
