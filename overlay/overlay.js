@@ -66,7 +66,7 @@ if (window.api.onDoorFx) window.api.onDoorFx(d => {
 });
 
 function showView(v) {
-  for (const k of ['rooms', 'lobby', 'rec', 'team', 'draft', 'vote', 'result', 'roster']) el('view-' + k).style.display = v === k ? (k === 'team' ? 'flex' : 'block') : 'none';
+  for (const k of ['rooms', 'lobby', 'rec', 'team', 'draft', 'vote', 'result', 'roster']) el('view-' + k).style.display = v === k ? (k === 'team' || k === 'lobby' ? 'flex' : 'block') : 'none';   // lobby = 위 내용 + 아래 고정 구역(v0.1.196)
 }
 
 // ── 🚪 방 목록(v0.1.94) — 방에 들어가기 전 화면 · 방 만들기(만든 사람 = 방장) · 비공개 방 = 비밀번호 ─────────
@@ -128,17 +128,18 @@ function renderRooms() {
   if (!myName) { list.innerHTML = '<div class="rm-empty"><span class="lb-wait">롤 클라이언트에 로그인하면 방에 들어갈 수 있어요</span></div>'; return; }
   if (!R.length) {
     list.innerHTML = D.ready === false ? '<div class="rm-empty">방 목록을 불러오는 중이에요</div>'
-      : '<div class="rm-empty"><span>아직 만들어진 방이 없어요</span><button id="rm-new2" class="ui-btn-gold">방 만들기</button></div>';
+      : '<div class="rm-empty"><b class="rm-empty-t">아직 만들어진 방이 없어요</b><span>방을 만들면 친구들 앱의 방 목록에 떠요<br>만든 사람이 방장이에요</span><button id="rm-new2" class="ui-btn-gold">＋ 방 만들기</button></div>';   // v0.1.196 처음 온 사람: 방을 만들면 어떻게 되는지 한 줄
     const b = el('rm-new2'); if (b) b.onclick = () => rmForm(true);
     return;
   }
-  list.innerHTML = R.map(r => `<div class="rm-card${r.mine ? ' mine' : ''}"><div class="rm-row">`
+  list.innerHTML = R.map(r => `<div class="rm-card${r.mine ? ' mine' : ''}"><div class="rm-row" data-rid="${esc(r.id)}" title="이 방에 들어가기">`
     + `<span class="rm-main"><b class="rm-nm" title="${esc(r.name)}">${esc(r.name)}</b><small class="rm-sub">${r.host ? `방장 <b>${esc(r.host)}</b>` : '방장 없음'}${r.members.length ? ' · ' + esc(r.members.join(', ')) : ''}</small></span>`
     + (r.priv ? '<span class="rm-tag">비공개</span>' : '')
     + `<span class="rm-n"><b>${r.n}</b>명</span><button class="rm-join" data-room="${esc(r.id)}">들어가기</button></div>`
     + (_pwFor === r.id ? `<div class="rm-pwrow"><input id="rm-pw-in" class="rm-in" type="password" maxlength="20" placeholder="비밀번호"><button class="rm-join" data-pwgo="${esc(r.id)}">확인</button></div>` : '')
     + '</div>').join('');
-  list.querySelectorAll('[data-room]').forEach(b => b.onclick = () => rmJoin(b.dataset.room));
+  list.querySelectorAll('[data-room]').forEach(b => b.onclick = e => { e.stopPropagation(); rmJoin(b.dataset.room); });
+  list.querySelectorAll('.rm-row[data-rid]').forEach(r => r.onclick = () => rmJoin(r.dataset.rid));   // v0.1.196 방 카드 어디를 눌러도 들어감(누를 곳이 넓게)
   const pg = list.querySelector('[data-pwgo]');
   if (pg) { const go = () => rmJoin(pg.dataset.pwgo, el('rm-pw-in').value); pg.onclick = go; el('rm-pw-in').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
 }
@@ -765,140 +766,124 @@ function avatar(m, cls) {
   return `<span class="${cls}">${m.icon ? `<img src="${iconUrl(m.icon)}" alt="" onerror="this.remove()">` : ''}<i>${ini}</i></span>`;
 }
 const verLt = (a, b) => { const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0; } return false; };   // 🔄 a가 b보다 옛 버전(v0.1.56)
+// 🧭 v0.1.196 대기실 = 두 구역(사장님: 효율·직관·시인성 · 자주 쓰는 기능이 손쉽게 · 처음 온 사람도 바로)
+//   위(lb-body) = 방과 사람: 방 줄([방 이름 ▾ = 방 메뉴] [디스코드] [PLAYERS n/10]) · 자리 · 관전
+//   아래(lb-dock · 늘 창 아래 고정) = 이번 판:
+//     방장  = 안내 한 줄(무엇이 모자란지·어떻게 하는지 + 그 일을 하는 작은 버튼) + [방식 ▾][시작] — 가장 자주 누르는 둘을 붙여 둠 · 방식 고르는 창은 버튼 바로 위로 열림(고른 방식 설명 한 줄)
+//     팀원  = 지금 방식 · 방장 이름 · 무엇을 기다리는지 한 줄(v0.1.83에서 뺀 설명 글 대신 = 상태에 맞는 한 줄만)
+//     방장 없음 = 「👑 방장 하기」(예전엔 맨 위 lb-hostcta)
+//   처음 온 사람이 막히던 곳: 드래프트 팀장 = 마우스를 올려야 보이던 「팀장」 버튼을 팀장이 다 정해질 때까지 늘 보이게(lb-seats.pick) · 빈 자리를 누르면 앱 없는 사람 추가(방장) · 롤 로그인 전 = 빈 자리 대신 시작하는 법 3단계
+const MODE_KO = { random: '랜덤', balance: '밸런스', draft: '드래프트', manual: '직접' };
+const MODE_DESC = {   // 방식 고르는 창 맨 아래 한 줄(방장)
+  random: '무작위로 두 팀을 나눠요',
+  balance: '아수라장 티어 점수로 두 팀을 비슷하게 나눠요',
+  draft: '팀장 둘이 번갈아 한 명씩 뽑아요 · 선픽은 동전으로 정해요',
+  manual: '방장이 1팀·2팀을 직접 정해요',
+  normal: '같은 팀으로 일반 게임을 해요 · 롤 파티는 5명까지',
+};
+const MODE_WAIT = { random: '무작위로 팀이 정해져요', balance: '티어 점수로 비슷하게 팀이 정해져요', draft: '팀장 둘이 번갈아 뽑아요' };   // 팀원: 「방장이 시작하면 …」
+const GAME_PHASES = ['ReadyCheck', 'ChampSelect', 'GameStart', 'InProgress', 'Reconnect'];
+async function addGuestAsk() {   // 방장: 롤 앱이 없는 사람을 이름으로 자리에(방 메뉴 · 빈 자리 누름)
+  const v = await tnPrompt('롤 앱이 없는 사람도 자리에 앉혀 팀에 넣을 수 있어요', { title: '앱 없는 사람 추가', placeholder: '이름', ok: '추가', max: 24 });
+  if (v) lbAct(() => window.api.lobbyGuest(v));
+}
 function renderLobby() {
   const L = lobbyData || { members: [], mode: 'random', captains: {} };
   const M = L.members || [], caps = L.captains || {}, draft = L.mode === 'draft', manual = L.mode === 'manual', normal = L.mode === 'normal', sides = L.sides || {};
   const ins = M.filter(m => m.st === 'in'), specs = M.filter(m => m.st === 'spec');
   const sA = ins.filter(m => sides[m.name] === 'teamA'), sB = ins.filter(m => sides[m.name] === 'teamB'), sNone = ins.filter(m => !sides[m.name]);   // 🧩 직접
-  const me = M.find(m => m.me);
-  // 🧱 v0.1.195 방 줄 하나(사장님: 스크롤 없이 다 보이게 · 방 이름·내가 방장·나가기 레이아웃 다시) — [방 이름 ▾](누르면 방 메뉴: 방장 넘겨주기·그만하기·앱 없는 사람 추가·나가기) [디스코드] … [⚔ 방식 ▾]
-  //   방장 표시는 자리의 왕관으로 충분 · 「나가기」는 방 메뉴 안으로
-  el('lb-head').innerHTML = !myName ? '<span class="lb-wait"><span class="lobby-pulse"></span>롤 클라이언트에 로그인하면 자동으로 입장돼요</span><button id="lb-mchip" class="lb-mchip" style="display:none;"></button>'
+  const me = M.find(m => m.me), login = !!myName;
+  const G = L.lol || {}, nq = G.nq || 2400, P = G.party, QN = nq === 450 ? '칼바람 나락' : '아수라장';
+  const n = ins.length, capN = (caps.teamA ? 1 : 0) + (caps.teamB ? 1 : 0), seatCap = normal ? 5 : SEATS;
+  const ts = Math.min(5, Math.floor(n / 2)), left = n - ts * 2;   // 팀 크기 · 남는 사람(관전)
+
+  // 🎧 디스코드 = 방 줄의 작은 아이콘 하나(v0.1.194) — 음성 채널 밖 = 누르면 대기 채널 + 「디스코드 참가하기」 9초 / 서버에 없음 = 초대 링크 / 방장 연결 안 됨 = 흐린 아이콘 · 음성 채널 안이면 없음
+  const S = _set || {}, J = L.dcJoin;
+  let dcKind = '', dcTip = '', dcGo = null;
+  if (L.room && J && J.kind === 'voice') {
+    dcKind = 'act'; dcTip = `디스코드 음성 채널 참가 · 「${J.name}」 대기 채널이 열려요`;
+    dcGo = () => { window.api.discordJoin({ gid: J.gid, ch: J.ch }); _dcHintUntil = Date.now() + 9000; setTimeout(() => { if (lobbyData) render(); }, 9100); if (lobbyData) render(); };
+  } else if (L.room && J) {
+    dcKind = 'act'; dcTip = `디스코드 「${J.name}」 서버 들어가기`;
+    dcGo = () => window.api.discordJoin({ code: J.code, gid: J.gid });
+  } else if (myIsHost && L.room && S.discord && S.discord.app && !S.dcNudgeOff && (!L.dcGuild || !L.dcInv)) {
+    const inv = !!L.dcGuild;
+    dcKind = 'dim'; dcTip = inv ? '디스코드 초대 링크 넣기 · 서버에 없는 친구에게 「들어가기」가 떠요' : '디스코드 서버 연결 · 팀이 정해지면 1팀·2팀 음성 채널로 나눠요';
+    dcGo = inv ? () => { const g = document.querySelector('.tn-gear'); if (g) g.click(); setTimeout(() => { const bd = document.querySelector('.tn-set-body'), t = bd && [...bd.querySelectorAll('.tn-sec')].find(e => e.textContent === '디스코드'); if (t) bd.scrollTop = t.offsetTop - 50; const ib = document.querySelector('.tn-set [data-act=dcinv]'); if (ib) ib.click(); }, 80); }
+      : () => window.api.discordConnect && window.api.discordConnect().then(r => { if (r && !r.ok && r.err) tnAlert('디스코드 서버 연결 · ' + r.err); }).catch(() => {});
+  }
+  const dcHint = dcKind === 'act' && J && J.kind === 'voice' && Date.now() < _dcHintUntil;
+
+  // ① 방 줄 — [방 이름 ▾ = 방 메뉴(방장 넘겨주기·앱 없는 사람 추가·그만하기·나가기)] [디스코드] [PLAYERS n/10] · 방장 = 자리의 왕관
+  const head = el('lb-head');
+  head.style.display = login ? '' : 'none';
+  const cntTip = normal ? '롤 파티에 들어갈 사람 · 5명까지(6번째부터는 초대 안 해요)' : '참가 인원(관전은 빼고) · 한 판에 10명까지';
+  head.innerHTML = !login ? ''
     : `<button id="lb-rbtn" class="lb-rbtn${_rmenu ? ' open' : ''}" title="방 메뉴${myIsHost ? ' · 방장 넘겨주기·앱 없는 사람 추가·나가기' : ' · 나가기'}"><span class="lb-en">${L.room && L.room.priv ? 'PRIVATE ROOM' : 'ROOM'}</span><span class="lb-rrow"><b class="lb-rname">${esc(L.room ? L.room.name : '대기실')}</b><i>▾</i></span></button>`
-      + `<span id="lb-dci" class="lb-dci"></span><button id="lb-mchip" class="lb-mchip"></button>`;
-  { const rb = el('lb-rbtn'); if (rb) rb.onclick = e => { e.stopPropagation(); toggleRoomMenu(L); }; if (_rmenu) fillRoomMenu(L); }
-  { // 👑 방장 자리 — 아무도 없으면(또는 응답 없으면) 대기실 맨 위에 큰 버튼
-    const cta = el('lb-hostcta'), need = myName && !myIsHost && !L.hostName;
-    cta.style.display = need ? '' : 'none';
-    if (need) {
-      // v0.1.39: 설명 글 대신 버튼만 — 설명은 마우스를 올리면(tn-tip)
-      cta.dataset.tip = (L.hostStale ? `방장 ${L.hostStale}님이 1분 넘게 응답이 없어요.\n` : '') + '방장은 방식을 고르고 「시작」을 눌러 팀을 짜요.\n경기 기록·투표 마감도 방장 앱이 해요.';
-      cta.innerHTML = `<button id="lb-hc-go" class="ui-btn-gold lb-hc-go">👑 ${L.hostStale ? '방장 이어받기' : '방장 하기'}</button>`;
-      el('lb-hc-go').onclick = () => lbAct(() => window.api.setHost(true));
-    }
+      + (dcKind ? `<button id="lb-dci" class="lb-dci-b ${dcKind}" title="${esc(dcTip)}" aria-label="${esc(dcTip)}">${DC_LOGO}${dcKind === 'act' ? '<i class="lb-dci-dot"></i>' : ''}</button>` : '')
+      + (dcHint ? '<span class="lb-dci-hint" title="디스코드 대기 채널 화면에서 「음성 채널 참가하기」를 눌러 주세요">디스코드 「참가하기」</span>'
+        : `<span class="lb-cnt" title="${cntTip}"><span class="lb-en">${normal ? 'PARTY' : 'PLAYERS'}</span><span class="lb-cnt-n"><b>${Math.min(n, seatCap)}</b><i>/${seatCap}</i>${n > seatCap ? `<em>+${n - seatCap}</em>` : ''}</span></span>`);
+  { const rb = el('lb-rbtn'); if (rb) rb.onclick = e => { e.stopPropagation(); toggleRoomMenu(L); };
+    const db = el('lb-dci'); if (db) db.onclick = e => { e.stopPropagation(); if (dcGo) dcGo(); };
+    if (!login) closeRoomMenu(); else if (_rmenu) fillRoomMenu(L); }
+
+  // ② 롤 로그인 전 = 빈 자리 대신 시작하는 법 3단계(처음 온 사람)
+  const lg = el('lb-login');
+  lg.style.display = login ? 'none' : '';
+  if (!login && !lg.dataset.h) {
+    lg.dataset.h = '1';
+    lg.innerHTML = '<span class="lb-en">START</span><b class="lb-lg-t">이렇게 시작해요</b>'
+      + '<ol class="lb-lg-steps"><li class="now"><i>1</i><span><b>롤 클라이언트에 로그인</b><small>그 계정으로 자동 입장해요</small></span></li>'
+      + '<li><i>2</i><span><b>방을 만들거나 들어가기</b><small>만든 사람이 방장이에요</small></span></li>'
+      + '<li><i>3</i><span><b>방장이 팀을 짜면 게임 시작</b><small>결과 기록·투표·하이라이트는 자동이에요</small></span></li></ol>'
+      + '<span class="lb-wait"><span class="lobby-pulse"></span>롤 로그인을 기다리는 중</span>';
   }
-  { // ⚔ v0.1.193 방식 칩 하나(사장님: 대기실이 너무 복잡 — 이번 판·팀 짜기·롤 방 줄이 쌓여 있었음) → 방장이 누르면 고르는 창(이번 판 · 팀 짜기 / 일반이면 큐 · 다시 초대)
-    const G = L.lol || {}, nq = G.nq || 2400, P = G.party, MODE_KO = { random: '랜덤', balance: '밸런스', draft: '드래프트', manual: '직접' };
-    const chip = el('lb-mchip'), pop = el('lb-mpop');
-    if (!myIsHost) _mpop = false;
-    chip.innerHTML = (normal ? `<i>🎮</i><span>일반 · ${nq === 450 ? '칼바람 나락' : '아수라장'}</span>` : `<i>⚔</i><span>내전 · ${MODE_KO[L.mode] || '랜덤'}</span>`) + (myIsHost ? '<em>▾</em>' : '');
-    chip.className = 'lb-mchip' + (myIsHost ? ' host' : '') + (normal ? ' normal' : '') + (_mpop ? ' open' : '');
-    chip.title = myIsHost ? '이번 판 방식 바꾸기' : '방장이 고른 이번 판 방식';
-    chip.onclick = e => { e.stopPropagation(); if (!myIsHost) return; _mpop = !_mpop; pop.style.display = _mpop ? '' : 'none'; chip.classList.toggle('open', _mpop); };
-    pop.style.display = _mpop ? '' : 'none';
-    pop.querySelectorAll('.lb-kind').forEach(b => {
-      const on = (b.dataset.kind === 'normal') === normal; b.classList.toggle('on', on);
-      b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyMode(b.dataset.kind)); };   // 내전 = main이 마지막에 고른 방식으로 · 창은 열어 둠(이어서 팀 짜기·큐 고르게)
-    });
-    el('lb-sub').style.display = normal ? 'none' : '';
-    el('lb-nq').style.display = normal ? '' : 'none';
-    pop.querySelectorAll('.lb-seg').forEach(b => {
-      b.classList.toggle('on', b.dataset.mode === L.mode);
-      b.onclick = () => { if (!myIsHost) return; _mpop = false; pop.style.display = 'none'; chip.classList.remove('open'); if (b.dataset.mode !== L.mode) lbAct(() => window.api.lobbyMode(b.dataset.mode)); };
-    });
-    pop.querySelectorAll('.lb-qb').forEach(b => { const q = Number(b.dataset.q); b.classList.toggle('on', q === nq); b.onclick = () => { if (q !== nq) window.api.lolNormalQ(q); }; });
-    const party = normal && P && P.leader && P.q === nq && G.phase === 'Lobby';
-    el('lb-nqinv').style.display = party ? '' : 'none';
-    if (party) {
-      el('lb-nqn').textContent = `롤 파티 ${P.n}/${P.max || 5}명`;
-      const rb = el('lb-reinv');
-      rb.onclick = async () => { if (rb.disabled) return; rb.disabled = true; rb.textContent = '초대 중…'; try { const r = await lolPartyGo(); rb.textContent = r && r.ok ? (r.total ? `${r.invited}명 초대함` : '초대할 사람 없음') : '다시 초대'; setTimeout(() => { rb.textContent = '다시 초대'; }, 2500); } finally { rb.disabled = false; } };
-    }
-  }
-  { // 🎮 롤 초대 수락 줄 = 방장 아님 · 방장 초대가 왔는데 자동 수락이 꺼져 있을 때만(v0.1.193: 방장의 「롤 방 만들고 초대」 줄은 뺌 — 내전 = 팀 정해지면 자동 · 일반 = 아래 큰 버튼)
-    const box = el('lb-lol'), G = L.lol || null;
-    const h = G && G.invite && !myIsHost ? `<span class="lb-lol-t"><b>👑 ${esc(G.invite.from)}</b>님이 롤 ${normal ? '파티' : '방'}에 초대했어요</span><button class="lb-mini" data-lol="accept">수락</button>` : '';
-    box.style.display = h ? '' : 'none';
-    if (h && box.dataset.h !== h) { box.innerHTML = h; box.dataset.h = h; }
-    box.querySelectorAll('[data-lol]').forEach(b => b.onclick = async () => {
-      if (b.disabled) return; b.disabled = true;
-      try { const r = await window.api.lolAccept(); if (!r || !r.ok) tnAlert((r && r.err) || '수락하지 못했어요'); } finally { b.disabled = false; }
-    });
-  }
-  { // 🎧 디스코드 = 방 카드 「ROOM」 옆 작은 디스코드 아이콘 하나(v0.1.194 · 사장님: 「음성 채널 들어가기」 칩이 톤앤매너 안 맞고 번잡 → 버튼 늘리지 말고 · 내가 안 들어가 있을 때만 방 이름 쪽에)
-    //   ① 서버엔 있는데 음성 채널 밖 → 누르면 디스코드 대기 채널 화면 + 옆에 「디스코드에서 참가하기」 9초(v0.1.158: 음성은 디스코드에서 「참가하기」를 눌러야 들어감)
-    //   ② 서버에 없음 → 누르면 초대 링크로 서버 들어가기 ③ 방장 = 서버 연결 안 됨 / 초대 링크 없음 → 흐린 아이콘(누르면 연결 / 설정의 초대 링크 칸) · 음성 채널 안이면 아이콘 없음 · ✕ 없음
-    const box = el('lb-dci'), S = _set || {}, J = L.dcJoin;
-    let kind = '', tip = '', go = null;
-    if (L.room && J && J.kind === 'voice') {
-      kind = 'act'; tip = `디스코드 음성 채널 참가 · 「${J.name}」 대기 채널이 열려요`;
-      go = () => { window.api.discordJoin({ gid: J.gid, ch: J.ch }); _dcHintUntil = Date.now() + 9000; setTimeout(() => { if (lobbyData) render(); }, 9100); if (lobbyData) render(); };
-    } else if (L.room && J) {
-      kind = 'act'; tip = `디스코드 「${J.name}」 서버 들어가기`;
-      go = () => window.api.discordJoin({ code: J.code, gid: J.gid });
-    } else if (myIsHost && L.room && S.discord && S.discord.app && !S.dcNudgeOff && (!L.dcGuild || !L.dcInv)) {
-      const inv = !!L.dcGuild;
-      kind = 'dim'; tip = inv ? '디스코드 초대 링크 넣기 · 서버에 없는 친구에게 「들어가기」가 떠요' : '디스코드 서버 연결 · 팀이 정해지면 1팀·2팀 음성 채널로 나눠요';
-      go = inv ? () => { const g = document.querySelector('.tn-gear'); if (g) g.click(); setTimeout(() => { const bd = document.querySelector('.tn-set-body'), t = bd && [...bd.querySelectorAll('.tn-sec')].find(e => e.textContent === '디스코드'); if (t) bd.scrollTop = t.offsetTop - 50; const ib = document.querySelector('.tn-set [data-act=dcinv]'); if (ib) ib.click(); }, 80); }
-        : () => window.api.discordConnect && window.api.discordConnect().then(r => { if (r && !r.ok && r.err) tnAlert('디스코드 서버 연결 · ' + r.err); }).catch(() => {});
-    }
-    const hint = kind === 'act' && J && J.kind === 'voice' && Date.now() < _dcHintUntil;
-    if (box) {
-      box.innerHTML = kind ? `<button class="lb-dci-b ${kind}" title="${esc(tip)}" aria-label="${esc(tip)}">${DC_LOGO}${kind === 'act' ? '<i class="lb-dci-dot"></i>' : ''}</button>` + '' : '';
-      const b = box.querySelector('.lb-dci-b'); if (b) b.onclick = e => { e.stopPropagation(); go && go(); };
-    }
-    { const hh = el('lb-dchint'); if (hh) hh.style.display = hint ? '' : 'none'; }   // 누른 뒤 9초 · 방식 칩 줄 오른쪽(방 카드 버튼을 안 가림)
-    const dn = el('lb-dcn'); if (dn) { dn.style.display = 'none'; dn.parentNode.classList.remove('has-dc'); }   // 예전 칩(v0.1.148~193) 자리
-  }
-  const cb = el('lb-caps');
-  cb.style.display = draft || manual ? '' : 'none';   // v0.1.83: 일반판 설명 글은 튜토리얼로(화면엔 방식 버튼만)
-  if (draft) {   // 🧱 v0.1.195 팀장 줄 + 뽑는 순서 줄 → 한 줄(뽑는 순서 막대 · 팀장 n/2 · 랜덤 팀장) · 누가 팀장인지는 자리의 「팀장」 표시
-    const n0 = ins.length, ts = Math.min(5, Math.floor(n0 / 2)), picks = Math.max(0, (ts - 1) * 2), ord = [];
-    for (let i = 0; i < picks; i++) ord.push(((i + 1) >> 1) % 2 === 0 ? 'teamA' : 'teamB');   // main draftOrder와 같은 스네이크
-    const capN = (caps.teamA ? 1 : 0) + (caps.teamB ? 1 : 0);
-    cb.innerHTML = `<span class="lb-cap${capN === 2 ? ' ok' : ''}"><em>팀장</em><b class="num">${capN}/2</b></span>`
-      + (picks ? `<span class="lb-ordmini" title="뽑는 순서 · 선 = 동전으로 정해지는 선픽 팀 · 후 = 다른 팀">${orderBar(ord, 0, true)}</span>` : '')
-      + (myIsHost ? '<button id="lb-caprand" class="lb-mini">랜덤 팀장</button>' : '');
-  }
-  if (manual) cb.innerHTML = `<span class="lb-cap t1"><em>1팀</em><b class="num">${sA.length}</b></span><span class="lb-cap t2"><em>2팀</em><b class="num">${sB.length}</b></span>`
-    + (sNone.length ? `<span class="lb-cap"><em>미정</em><b class="num">${sNone.length}</b></span>` : '')
-    + (myIsHost ? '<button id="lb-sprev" class="lb-mini">지난 판 팀 그대로</button>' + (sA.length + sB.length ? '<button id="lb-sclr" class="lb-mini plain">비우기</button>' : '') : '');
-  const cr = el('lb-caprand'); if (cr) cr.onclick = () => lbAct(() => window.api.lobbyCaptain(null, true));
-  const sp = el('lb-sprev'); if (sp) sp.onclick = () => lbAct(() => window.api.lobbySidesPrev());
-  const sc = el('lb-sclr'); if (sc) sc.onclick = () => lbAct(() => window.api.lobbySidesClear());
-  { // 🎯 드래프트면 뽑는 순서 미리보기(선픽은 동전으로 정해짐 → 선/후로 표시)
-    const n = M.filter(m => m.st === 'in').length, ts = Math.min(5, Math.floor(n / 2)), picks = Math.max(0, (ts - 1) * 2);
-    const ob = el('lb-order'), ord = [];
-    for (let i = 0; i < picks; i++) ord.push(((i + 1) >> 1) % 2 === 0 ? 'teamA' : 'teamB');   // main draftOrder와 같은 스네이크
-    ob.style.display = 'none';   // v0.1.195 위 팀장 줄로 합침
-  }
-  // 🪑 자리 10칸 — 참가한 사람 순서대로 앉고 나머지는 빈 자리
-  const capOf = n => nn(n) === nn(caps.teamA) ? 1 : nn(n) === nn(caps.teamB) ? 2 : 0;
-  el('lb-seat-cnt').innerHTML = normal ? `<b>${Math.min(ins.length, 5)}</b> / 5${ins.length > 5 ? ` <em>+${ins.length - 5}명 넘침</em>` : ''}` : manual ? `<b>${sA.length}</b> : <b>${sB.length}</b>` : `<b>${Math.min(ins.length, SEATS)}</b> / ${SEATS}${ins.length > SEATS ? ` <em>+${ins.length - SEATS}명 대기</em>` : ''}`;
-  const seat = (m, i, side, over) => {   // over = 🎮 v0.1.191 일반판 6번째부터(롤 파티는 5명까지 → 초대 안 됨)   // side = 직접 방식의 팀 열(왼쪽 1팀 · 오른쪽 2팀)
+
+  // ③ 자리 — 참가한 사람 순서대로 · 빈 자리는 한 줄까지만(v0.1.195) · 드래프트 팀장 고르는 중(pick)엔 「팀장」 버튼이 늘 보임
+  const capOf = nm => nn(nm) === nn(caps.teamA) ? 1 : nn(nm) === nn(caps.teamB) ? 2 : 0;
+  const pick = myIsHost && draft && capN < 2 && n >= 2, canAdd = myIsHost && !manual;
+  const seat = (m, i, side, over) => {   // side = 직접 방식의 팀 열(왼쪽 1팀 · 오른쪽 2팀) · over = 일반판 6번째부터(롤 파티는 5명까지 → 초대 안 됨)
     const no = String(i + 1).padStart(2, '0'), sn = side === 'teamA' ? 1 : side === 'teamB' ? 2 : 0;
-    if (!m) return `<div class="seat empty${sn ? ' side' + sn : ''}"><span class="seat-no">${no}</span><span class="seat-av"></span><span class="seat-main"><b>${sn ? sn + '팀 빈 자리' : '빈 자리'}</b></span></div>`;
+    if (!m) return `<div class="seat empty${sn ? ' side' + sn : ''}${canAdd ? ' add' : ''}"${canAdd ? ' data-addguest="1" title="앱 없는 사람 추가 · 롤 앱이 없는 친구도 이름으로 자리에 앉혀 팀에 넣어요"' : ''}><span class="seat-no">${no}</span><span class="seat-av">${canAdd ? '<i>＋</i>' : ''}</span>`
+      + `<span class="seat-main"><b class="e1">${sn ? sn + '팀 빈 자리' : '빈 자리'}</b>${canAdd ? '<b class="e2">앱 없는 사람 추가</b>' : ''}</span></div>`;
     const st = _standing(m.name), cap = capOf(m.name);
-    // v0.1.137(사장님: 아래 줄이 꽉 참) — 「나」= 금색 테두리로 충분 · 방장 = 이름 앞 왕관 · 디스코드 = 아래 줄 헤드셋 · 옛 버전 = 대기실 아래 안내 줄 → 아래 줄엔 팀장·앱 없음·오프라인·승패만
     const tags = cap ? `<span class="seat-tag c${cap}" title="${cap}팀 팀장">팀장</span>` : '';
-    const spec1 = m.me ? '<button class="seat-spec" data-mespec="1" title="이번 판은 관전할게요(자리에서 빠짐)">관전</button>' : '';   // 🧱 v0.1.195 「이번 판은 관전할게요」 큰 버튼 → 내 자리 안 작은 버튼
-    const ctl = myIsHost ? ((draft ? `<button class="seat-btn cap${cap ? ' on' : ''}" data-cap="${esc(m.name)}" title="팀장 지정/해제">팀장</button>` : '')
+    const spec1 = m.me ? '<button class="seat-spec" data-mespec="1" title="이번 판은 쉬고 관전할게요(자리에서 빠짐 · 아래 「다시 참가하기」로 돌아와요)">관전</button>' : '';
+    const ctl = myIsHost ? ((draft ? `<button class="seat-btn cap${cap ? ' on' : ''}" data-cap="${esc(m.name)}" title="${cap ? '팀장 해제' : '이 사람을 팀장으로'}">팀장</button>` : '')
       + (sn ? `<button class="seat-btn" data-side="${esc(m.name)}" data-t="${sn === 1 ? 'teamB' : 'teamA'}" title="${sn === 1 ? 2 : 1}팀으로 옮기기">⇄</button><button class="seat-btn" data-side="${esc(m.name)}" data-t="" title="팀에서 빼기(미정)">↩</button>` : '')
       + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="${m.guest ? '목록에서 빼기' : '관전으로 보내기'}">${m.guest ? '✕' : '↓'}</button>` : '') + spec1) : '';
-    // v0.1.194(사장님: 마우스 올리면 버튼이 이름 칸을 줄여 이름이 잘림) — 버튼은 이름 줄 옆이 아니라 아랫줄 자리에(올렸을 때 아랫줄 대신 보임) → 이름 폭 그대로
+    // 버튼은 이름 줄 옆이 아니라 아랫줄 자리(v0.1.194) — 올렸을 때 아랫줄 대신 보임 → 이름 폭 그대로
     return `<div class="seat filled${ctl ? ' has-ctl' : ''}${over ? ' over' : ''}${m.me ? ' me' : ''}${cap ? ' cap' + cap : ''}${sn ? ' side' + sn : ''}">`
       + `<span class="seat-no">${no}</span>${avatar(m, 'seat-av')}`
       + `<span class="seat-main"><span class="seat-nmrow">${m.host ? '<i class="seat-crown" title="방장">👑</i>' : ''}<b class="lb-nm" data-pk="${esc(m.key)}" title="${m.me ? '나 · ' : ''}프로필 보기">${esc(m.name)}</b></span><small>${over ? '<span class="seat-ov">파티 자리 없음</span>' : ''}${tags}${m.dc ? `<span class="seat-dc" title="디스코드 연결됨 · 팀이 정해지면 음성 채널로 옮겨져요">${DC_ICO}</span>` : ''}${m.guest ? '<span>앱 없음</span>' : m.online ? '' : '<span>오프라인</span>'}${st ? `<span><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : ''}${spec1}</small>${ctl ? `<span class="seat-ctl">${ctl}</span>` : ''}</span>`
       + '</div>';
   };
-  // 🧱 v0.1.195 자리 칸 = 사람 수 + 빈 자리 한 줄까지(사장님: 스크롤 없이 다 보이게) · 인원 표시(n / 10 · n / 5)는 그대로
-  const fit = (n, cap) => n >= cap ? n : Math.min(cap, n + 1 + ((n + 1) % 2));
-  el('lb-seats').innerHTML = manual ? Array.from({ length: Math.min(5, Math.max(sA.length, sB.length) + 1) }, (_, i) => seat(sA[i], i, 'teamA') + seat(sB[i], i, 'teamB')).join('')   // 🧩 직접: 왼쪽 열 1팀 · 오른쪽 열 2팀
-    : normal ? Array.from({ length: fit(ins.length, 5) }, (_, i) => seat(ins[i], i, null, i >= 5)).join('')   // 🎮 v0.1.191 일반판 = 롤 파티 5자리
-    : Array.from({ length: Math.min(Math.max(ins.length, 0), SEATS) < SEATS ? fit(ins.length, SEATS) : SEATS }, (_, i) => seat(ins[i], i)).join('');
-  el('lb-me').style.display = myName && me && me.st === 'spec' ? '' : 'none';   // v0.1.195 관전 중일 때만(「다시 참가하기」) · 앉아 있으면 내 자리 「관전」
-  { // 🔄 내 앱이 옛 버전이면 나에게만 안내(v0.1.62 · 방장 「업데이트 시키기」는 뺌) — 최신 = 접속한 사람들 앱·받은 새 버전 중 가장 높은 것
-    // v0.1.148: 새 버전을 이미 받았으면(ready) 머리 아래 업데이트 줄이 같은 말을 하니 여기선 안 띄움
+  const fit = (k, cap) => k >= cap ? k : Math.min(cap, k + 1 + ((k + 1) % 2));   // 사람 수 + 빈 자리 한 줄까지
+  const seats = el('lb-seats');
+  seats.style.display = login ? '' : 'none';
+  seats.className = 'lb-seats' + (pick ? ' pick' : '');
+  seats.innerHTML = manual ? Array.from({ length: Math.min(5, Math.max(sA.length, sB.length) + 1) }, (_, i) => seat(sA[i], i, 'teamA') + seat(sB[i], i, 'teamB')).join('')   // 🧩 직접: 왼쪽 열 1팀 · 오른쪽 열 2팀
+    : normal ? Array.from({ length: fit(n, 5) }, (_, i) => seat(ins[i], i, null, i >= 5)).join('')   // 🎮 일반판 = 롤 파티 5자리
+    : Array.from({ length: n >= SEATS ? SEATS : fit(n, SEATS) }, (_, i) => seat(ins[i], i)).join('');
+
+  // ④ 자리에 없는 사람 = 팀 미정(직접) · 관전
+  const chip = m => `<span class="lb-chip ${m.st || 'none'}${m.me ? ' me' : ''}">${avatar(m, 'chip-av')}<b class="lb-nm" data-pk="${esc(m.key)}">${esc(m.name)}</b>`
+    + (myIsHost && !m.me ? `<button class="seat-btn in" data-in="${esc(m.key)}" title="참가로">＋</button>` : '')
+    + (myIsHost && m.guest ? `<button class="seat-btn out" data-rm="${esc(m.key)}" title="목록에서 빼기">✕</button>` : '') + '</span>';
+  const others = [];
+  if (manual && sNone.length) others.push(`<div class="lb-others none"><span class="lb-ol">팀 미정 <b>${sNone.length}</b></span>${sNone.map(m => `<span class="lb-chip in${m.me ? ' me' : ''}">${avatar(m, 'chip-av')}<b class="lb-nm" data-pk="${esc(m.key)}">${esc(m.name)}</b>`
+    + (myIsHost ? `<button class="seat-btn t1" data-side="${esc(m.name)}" data-t="teamA" title="1팀에 넣기">1팀</button><button class="seat-btn t2" data-side="${esc(m.name)}" data-t="teamB" title="2팀에 넣기">2팀</button>` + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="관전으로 보내기">↓</button>` : '') : '') + '</span>').join('')}</div>`);
+  if (specs.length) others.push(`<div class="lb-others"><span class="lb-ol">관전 <b>${specs.length}</b></span>${specs.map(chip).join('')}</div>`);
+  el('lb-list').style.display = login && others.length ? '' : 'none';
+  el('lb-list').innerHTML = others.join('');
+
+  // ⑤ 관전 중이면 「다시 참가하기」 · 방장 관전 경고 · 내 앱 옛 버전
+  { const b = el('lb-mebtn'), spec = !!(me && me.st === 'spec');
+    el('lb-me').style.display = login && spec ? '' : 'none';
+    b.className = 'lb-mebtn rejoin'; b.textContent = '다시 참가하기';
+    b.onclick = () => lbAct(() => window.api.lobbyMe('in'));
+    hostSpecNote(el('lb-hspec'), myIsHost && spec && !normal, ins.map(m => m.name), true); }
+  { // 🔄 내 앱이 옛 버전이면 나에게만(v0.1.62) · 새 버전을 이미 받았으면 머리 아래 업데이트 줄이 같은 말을 하니 안 띄움(v0.1.148)
     const ub = el('lb-upd'), mv = me && me.ver, old = !!(mv && L.latest && verLt(mv, L.latest)) && !(_upd && _upd.state === 'ready');
     ub.style.display = old ? '' : 'none';
     if (old) {
@@ -910,25 +895,6 @@ function renderLobby() {
       const go = el('lb-upd-go'); if (go) go.onclick = () => { if (ready) window.api.updateNow(); else window.api.checkUpdate(); };
     }
   }
-  { // 접속하면 바로 자리에 앉음 → 버튼은 하나: 앉아 있으면 「관전으로 빠지기」, 관전 중이면 「다시 참가하기」
-    const b = el('lb-mebtn'), spec = !!(me && me.st === 'spec');
-    b.className = 'lb-mebtn ' + (spec ? 'rejoin' : 'leave');
-    b.textContent = spec ? '다시 참가하기' : '이번 판은 관전할게요';
-    b.onclick = async () => {
-      if (!spec && myIsHost && !normal && !(await tnConfirm(HSPEC_ASK))) return;   // 👀 v0.1.150 방장이 관전으로 빠지기 전에 한 번 더
-      lbAct(() => window.api.lobbyMe(spec ? 'in' : 'spec'));
-    };
-    hostSpecNote(el('lb-hspec'), myIsHost && spec && !normal, ins.map(m => m.name), true);
-  }
-  // 자리에 없는 사람 = 관전
-  const chip = m => `<span class="lb-chip ${m.st || 'none'}${m.me ? ' me' : ''}">${avatar(m, 'chip-av')}<b class="lb-nm" data-pk="${esc(m.key)}">${esc(m.name)}</b>`
-    + (myIsHost && !m.me ? `<button class="seat-btn in" data-in="${esc(m.key)}" title="참가로">＋</button>` : '')
-    + (myIsHost && m.guest ? `<button class="seat-btn out" data-rm="${esc(m.key)}" title="목록에서 빼기">✕</button>` : '') + '</span>';
-  const others = [];
-  if (manual && sNone.length) others.push(`<div class="lb-others none"><span class="lb-ol">팀 미정 <b>${sNone.length}</b></span>${sNone.map(m => `<span class="lb-chip in${m.me ? ' me' : ''}">${avatar(m, 'chip-av')}<b class="lb-nm" data-pk="${esc(m.key)}">${esc(m.name)}</b>`
-    + (myIsHost ? `<button class="seat-btn t1" data-side="${esc(m.name)}" data-t="teamA" title="1팀에 넣기">1팀</button><button class="seat-btn t2" data-side="${esc(m.name)}" data-t="teamB" title="2팀에 넣기">2팀</button>` + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="관전으로 보내기">↓</button>` : '') : '') + '</span>').join('')}</div>`);
-  if (specs.length) others.push(`<div class="lb-others"><span class="lb-ol">관전 <b>${specs.length}</b></span>${specs.map(chip).join('')}</div>`);
-  el('lb-list').innerHTML = others.join('') || (M.length ? '' : '<div class="lb-empty">아직 아무도 없어요</div>');
   const root = el('view-lobby');
   root.querySelectorAll('[data-side]').forEach(b => b.onclick = () => lbAct(() => window.api.lobbySide(b.dataset.side, b.dataset.t || null)));
   root.querySelectorAll('[data-cap]').forEach(b => b.onclick = () => lbAct(() => window.api.lobbyCaptain(b.dataset.cap, false)));
@@ -936,38 +902,114 @@ function renderLobby() {
   root.querySelectorAll('[data-mespec]').forEach(b => b.onclick = async e => { e.stopPropagation(); if (myIsHost && !normal && !(await tnConfirm(HSPEC_ASK))) return; lbAct(() => window.api.lobbyMe('spec')); });
   root.querySelectorAll('[data-in]').forEach(b => b.onclick = () => lbAct(() => window.api.lobbySet(b.dataset.in, 'in')));
   root.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => lbAct(() => window.api.lobbyGuestRm(b.dataset.rm)));
-  root.querySelectorAll('.lb-nm').forEach(n => n.onclick = () => {
-    const m = M.find(x => x.key === n.dataset.pk); if (!m) return;
+  root.querySelectorAll('[data-addguest]').forEach(b => b.onclick = () => addGuestAsk());
+  root.querySelectorAll('.lb-nm').forEach(el2 => el2.onclick = () => {
+    const m = M.find(x => x.key === el2.dataset.pk); if (!m) return;
     window.api.openProfile(m.guest ? { name: m.name } : { puuid: m.key, name: m.name });
   });
-  // 👑 방장: 추가·시작 / 나머지: 안내
-  el('lb-hostbox').style.display = 'none';   // v0.1.195 「앱 없는 사람 추가」 = 방 메뉴(방 이름 ▾)
-  el('lb-gobar').style.display = myIsHost || normal ? '' : 'none';   // 🎮 일반판 = 모두에게 진행 상태
-  const n = ins.length, capsOk = !draft || (caps.teamA && caps.teamB), sideOk = !manual || (!sNone.length && sA.length && sB.length);
-  const go = el('lb-start');
-  // 🎮 v0.1.191 일반판 = 방장 큰 버튼이 「파티 만들고 초대」 → 「큐 시작 · 파티 n/5」 → 「큐 잡는 중 · 취소」 (팀원 = 상태 표시)
-  const G = L.lol || {}, P = G.party, nq = G.nq || 2400, QN = { 2400: '아수라장', 450: '칼바람 나락' }[nq] || '일반 큐';
-  const myParty = !!(P && P.leader && P.q === nq), qState = !normal ? null
-    : ['ReadyCheck', 'ChampSelect', 'GameStart', 'InProgress', 'Reconnect'].includes(G.phase) ? 'game'
-    : G.phase === 'Matchmaking' && P && P.leader ? 'search' : myParty && G.phase === 'Lobby' ? 'party' : 'none';
-  go.dataset.q = myIsHost && normal && L.room && G.phase !== undefined ? qState : '';
-  go.disabled = normal ? !go.dataset.q || qState === 'game' : n < 2 || !capsOk || !sideOk;
-  go.classList.toggle('normal', normal && (!go.dataset.q || qState === 'game'));
-  go.classList.toggle('qcancel', qState === 'search' && !!go.dataset.q);
-  go.textContent = normal ? (!go.dataset.q ? '🎮 일반판 진행 중' : qState === 'game' ? '🎮 게임 진행 중' : qState === 'search' ? '큐 잡는 중 · 누르면 취소'
-      : qState === 'party' ? `▶ 큐 시작 · 파티 ${P.n}/${P.max || 5}` : `🎮 ${QN} 파티 만들고 초대`) : n < 2 ? `2명부터 시작할 수 있어요 · 지금 ${n}명` : !capsOk ? '팀장 2명을 정해주세요'
-    : manual ? (sNone.length ? `팀 안 정한 사람 ${sNone.length}명` : !sideOk ? '두 팀에 한 명 이상씩' : `이 팀으로 시작 · ${sA.length}:${sB.length}`)
-    : draft ? `드래프트 시작 · ${n}명` : L.mode === 'balance' ? `밸런스로 팀 짜기 · ${n}명` : `랜덤으로 팀 짜기 · ${n}명`;
-  el('lb-foot').innerHTML = '';   // v0.1.83: 방식별 사용법·「방장이 시작하면…」 같은 설명 글은 튜토리얼로
-  // 오늘 순위(짧게)
+
+  // ⑥ 아래 고정 구역 = 이번 판
+  el('lb-dock').style.display = login ? '' : 'none';
+  const hostNm = L.hostName, noHost = login && !myIsHost && !hostNm;
+  { // 방식 버튼(방장 · 시작 버튼 왼쪽) + 고르는 창(버튼 위로 열림)
+    const chipB = el('lb-mchip'), pop = el('lb-mpop');
+    if (!myIsHost) _mpop = false;
+    chipB.innerHTML = (normal ? `<i>🎮</i><span><span class="mk">일반 · </span>${nq === 450 ? '칼바람' : '아수라장'}</span>` : `<i>⚔</i><span><span class="mk">내전 · </span>${MODE_KO[L.mode] || '랜덤'}</span>`) + '<em>▾</em>';
+    chipB.className = 'lb-mchip host' + (_mpop ? ' open' : '');
+    chipB.title = '이번 판 방식 바꾸기 — 내전(랜덤·밸런스·드래프트·직접) / 일반(아수라장·칼바람)';
+    chipB.onclick = e => { e.stopPropagation(); if (!myIsHost) return; _mpop = !_mpop; pop.style.display = _mpop ? '' : 'none'; chipB.classList.toggle('open', _mpop); };
+    pop.style.display = _mpop ? '' : 'none';
+    pop.querySelectorAll('.lb-kind').forEach(b => {
+      const on = (b.dataset.kind === 'normal') === normal; b.classList.toggle('on', on);
+      b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyMode(b.dataset.kind)); };   // 내전 = main이 마지막에 고른 방식으로 · 창은 열어 둠(이어서 팀 짜기·큐 고르게)
+    });
+    el('lb-sub').style.display = normal ? 'none' : '';
+    el('lb-nq').style.display = normal ? '' : 'none';
+    pop.querySelectorAll('.lb-seg').forEach(b => {
+      b.classList.toggle('on', b.dataset.mode === L.mode);
+      b.onclick = () => { if (!myIsHost) return; _mpop = false; pop.style.display = 'none'; chipB.classList.remove('open'); if (b.dataset.mode !== L.mode) lbAct(() => window.api.lobbyMode(b.dataset.mode)); };
+    });
+    pop.querySelectorAll('.lb-qb').forEach(b => { const q = Number(b.dataset.q); b.classList.toggle('on', q === nq); b.onclick = () => { if (q !== nq) window.api.lolNormalQ(q); }; });
+    el('lb-mdesc').textContent = MODE_DESC[normal ? 'normal' : MODE_KO[L.mode] ? L.mode : 'random'];
+  }
+  { // 🎮 롤 초대 수락 = 방장 아님 · 방장 초대가 왔는데 자동 수락을 꺼 둔 사람만
+    const box = el('lb-lol');
+    const h = G.invite && !myIsHost ? `<span class="lb-lol-t"><b>👑 ${esc(G.invite.from)}</b>님이 롤 ${normal ? '파티' : '방'}에 초대했어요</span><button class="lb-mini" data-lol="accept">수락</button>` : '';
+    box.style.display = h ? '' : 'none';
+    if (box.dataset.h !== h) { box.innerHTML = h; box.dataset.h = h; }
+    box.querySelectorAll('[data-lol]').forEach(b => b.onclick = async () => {
+      if (b.disabled) return; b.disabled = true;
+      try { const r = await window.api.lolAccept(); if (!r || !r.ok) tnAlert((r && r.err) || '수락하지 못했어요'); } finally { b.disabled = false; }
+    });
+  }
+  const capsOk = !draft || capN === 2, sideOk = !manual || (!sNone.length && sA.length && sB.length);
+  const myParty = !!(P && P.leader && P.q === nq);
+  const qState = !normal ? null : GAME_PHASES.includes(G.phase) ? 'game' : G.phase === 'Matchmaking' && P && P.leader ? 'search' : myParty && G.phase === 'Lobby' ? 'party' : 'none';
+  { // 방장 안내 한 줄 — 지금 모자란 것·알아 둘 것 하나 + 그 일을 하는 작은 버튼(없으면 줄 자체가 없음)
+    const cb = el('lb-caps'); let h = '';
+    if (myIsHost) {
+      if (normal) {
+        if (qState === 'party') h = `<span class="lb-hint"><b>롤 파티 ${P.n}/${P.max || 5}명</b> · 다 들어오면 큐를 시작해요</span><button id="lb-reinv" class="lb-mini">다시 초대</button>`;
+        else if (qState === 'none' && n > 5) h = '<span class="lb-hint">롤 파티는 <b>5명까지</b>예요 · 앞에 앉은 5명만 초대해요</span>';
+      } else if (n < 2) h = '<span class="lb-hint">친구가 앱을 켜고 <b>방 목록에서 이 방에 들어오면</b> 자리에 앉아요</span>';
+      else if (draft) {
+        const picks = Math.max(0, (ts - 1) * 2), ord = [];
+        for (let i = 0; i < picks; i++) ord.push(((i + 1) >> 1) % 2 === 0 ? 'teamA' : 'teamB');   // main draftOrder와 같은 스네이크
+        h = (capN < 2 ? `<span class="lb-hint"><b>팀장 ${capN}/2</b> · 자리의 「팀장」을 눌러 정해요</span>`
+          : '<span class="lb-cap ok"><em>팀장</em><b class="num">2/2</b></span>' + (picks ? `<span class="lb-ordmini" title="뽑는 순서 · 선 = 동전으로 정해지는 선픽 팀 · 후 = 다른 팀">${orderBar(ord, 0, true)}</span>` : '<span class="lb-hint"></span>'))
+          + '<button id="lb-caprand" class="lb-mini" title="참가한 사람 중 무작위로 팀장 둘">랜덤 팀장</button>';
+      } else if (manual) h = `<span class="lb-cap t1"><em>1팀</em><b class="num">${sA.length}</b></span><span class="lb-cap t2"><em>2팀</em><b class="num">${sB.length}</b></span>`
+        + (sNone.length ? `<span class="lb-cap"><em>미정</em><b class="num">${sNone.length}</b></span>` : '') + '<span class="lb-hint"></span>'
+        + '<button id="lb-sprev" class="lb-mini" title="지난 판과 같은 1팀·2팀으로">지난 판 그대로</button>' + (sA.length + sB.length ? '<button id="lb-sclr" class="lb-mini plain">비우기</button>' : '');
+      else if (left > 0) h = `<span class="lb-hint">${n}명 → <b>${ts} : ${ts}</b> · 남는 ${left}명은 관전이에요</span>`;
+    }
+    cb.style.display = h ? '' : 'none';
+    if (cb.dataset.h !== h) { cb.innerHTML = h; cb.dataset.h = h; }
+    const cr = el('lb-caprand'); if (cr) cr.onclick = () => lbAct(() => window.api.lobbyCaptain(null, true));
+    const sp = el('lb-sprev'); if (sp) sp.onclick = () => lbAct(() => window.api.lobbySidesPrev());
+    const sc = el('lb-sclr'); if (sc) sc.onclick = () => lbAct(() => window.api.lobbySidesClear());
+    const rb = el('lb-reinv'); if (rb) rb.onclick = async () => { if (rb.disabled) return; rb.disabled = true; rb.textContent = '초대 중…'; try { const r = await lolPartyGo(); rb.textContent = r && r.ok ? (r.total ? `${r.invited}명 초대함` : '초대할 사람 없음') : '다시 초대'; setTimeout(() => { rb.textContent = '다시 초대'; }, 2500); } finally { rb.disabled = false; } };
+  }
+  { // 방장 = [방식 ▾][시작] — 시작 버튼 글 = 누르면 일어날 일(못 누르면 모자란 것)
+    el('lb-gobar').style.display = myIsHost ? '' : 'none';
+    const go = el('lb-start');
+    go.dataset.q = normal && L.lol ? qState : '';   // 🎮 일반판: none 파티 만들고 초대 → party 큐 시작 → search 취소 → game
+    go.disabled = normal ? !go.dataset.q || qState === 'game' : n < 2 || !capsOk || !sideOk;
+    go.classList.toggle('normal', normal && (!go.dataset.q || qState === 'game'));
+    go.classList.toggle('qcancel', qState === 'search' && !!go.dataset.q);
+    go.textContent = normal ? (!go.dataset.q ? '일반판 진행 중' : qState === 'game' ? '게임 진행 중' : qState === 'search' ? '큐 잡는 중 · 취소' : qState === 'party' ? `큐 시작 · ${P.n}/${P.max || 5}` : '파티 만들고 초대')
+      : n < 2 ? '2명부터 시작' : !capsOk ? '팀장 2명 필요'
+      : manual ? (sNone.length ? `팀 미정 ${sNone.length}명` : !sideOk ? '두 팀에 1명 이상' : `시작 · ${sA.length} : ${sB.length}`)
+      : draft ? '드래프트 시작' : `팀 짜기 · ${ts} : ${ts}`;
+    go.title = go.disabled ? '' : normal ? '' : draft ? '동전으로 선픽을 정하고 팀장이 번갈아 뽑아요' : manual ? '이 팀으로 확정해요' : `${MODE_DESC[L.mode] || MODE_DESC.random} · 팀이 정해지면 롤 방을 만들고 모두 초대해요`;
+  }
+  { // 팀원 = 지금 방식 · 방장 · 무엇을 기다리는지 / 방장 없음 = 방장 하기
+    const st = el('lb-stat'); let h = '';
+    if (noHost) h = `<div class="lb-stat-tx"><b>${L.hostStale ? `방장 ${esc(L.hostStale)}님이 1분 넘게 응답이 없어요` : '아직 방장이 없어요'}</b><small>방장이 방식을 고르고 팀을 짜요 · 경기 기록·투표 마감도 방장 앱이 해요</small></div>`
+      + `<button id="lb-hc-go" class="ui-btn-gold lb-hc-go">👑 ${L.hostStale ? '방장 이어받기' : '방장 하기'}</button>`;
+    else if (login && !myIsHost) {
+      const sub = me && me.st === 'spec' ? '관전 중이에요 · 「다시 참가하기」를 누르면 자리에 앉아요'
+        : normal ? (qState === 'game' ? '게임 진행 중이에요' : G.phase === 'Matchmaking' ? '큐를 잡는 중이에요' : P ? `롤 파티 ${P.n}/${P.max || 5}명 · 방장이 큐를 시작해요` : '방장이 초대하면 자동으로 롤 파티에 들어가요')
+        : manual ? '방장이 1팀·2팀을 직접 정하고 있어요'
+        : `방장이 시작하면 ${MODE_WAIT[L.mode] || MODE_WAIT.random}`;
+      h = `<div class="lb-stat-tx"><span class="lb-stat-top"><b class="lb-stat-m">${normal ? `<i>🎮</i>일반 · ${QN}` : `<i>⚔</i>내전 · ${MODE_KO[L.mode] || '랜덤'}`}</b><span class="lb-stat-h" title="방장">👑 ${esc(hostNm)}</span></span><small>${sub}</small></div>`;
+    }
+    st.style.display = h ? '' : 'none';
+    st.className = 'lb-stat' + (noHost ? ' cta' : '');
+    if (st.dataset.h !== h) { st.innerHTML = h; st.dataset.h = h; }
+    const hc = el('lb-hc-go'); if (hc) hc.onclick = () => lbAct(() => window.api.setHost(true));
+  }
+
+  // ⑦ 오늘 순위(짧게)
   loadToday();
   const t = el('lb-today');
-  if (!_today || !_today.standings.length) { t.innerHTML = ''; return; }
+  if (!login || !_today || !_today.standings.length) { t.innerHTML = ''; t.style.display = 'none'; return; }
+  t.style.display = '';
   t.innerHTML = `<div class="lb-sec"><span class="lb-sec-en">TODAY</span><span>오늘 순위 · <span class="num">${_today.matches.length}</span>판</span></div><div class="wi-rk">` + _today.standings.slice(0, 5).map(p =>
     `<div class="wi-rk-row${nn(p.name) === nn(myName) ? ' me' : ''}"><span class="wi-rk-r num">${p.rank}</span><span class="wi-rk-nm">${esc(p.name)}</span><span class="wi-rk-lp"><span class="num">${p.wins}</span>승 <span class="num">${p.losses}</span>패</span></div>`).join('') + '</div>';
 }
 el('lb-start').onclick = () => {
-  const q = el('lb-start').dataset.q;   // 🎮 v0.1.191 일반판 큰 버튼
+  const q = el('lb-start').dataset.q;   // 🎮 일반판 큰 버튼
   if (q === 'none') return lbAct(() => lolPartyGo().then(() => null));
   if (q === 'party') return lbAct(() => window.api.lolQueue(true));
   if (q === 'search') return lbAct(() => window.api.lolQueue(false));
@@ -1037,13 +1079,10 @@ function fillRoomMenu(L) {
     lbAct(() => window.api.handHost(o.key));
   });
   const st = el('lb-hm-stop'); if (st) st.onclick = () => { closeRoomMenu(); lbAct(() => window.api.setHost(false)); };
-  const gs = el('lb-hm-guest'); if (gs) gs.onclick = async () => { closeRoomMenu(); const v = await tnPrompt('롤 앱이 없는 사람도 자리에 앉혀 팀에 넣을 수 있어요', { title: '앱 없는 사람 추가', placeholder: '이름', ok: '추가', max: 24 }); if (v) lbAct(() => window.api.lobbyGuest(v)); };
+  const gs = el('lb-hm-guest'); if (gs) gs.onclick = () => { closeRoomMenu(); addGuestAsk(); };
   const lv = el('lb-hm-leave'); if (lv) lv.onclick = async () => { closeRoomMenu(); if (myIsHost && !(await tnConfirm('방에서 나갈까요?\n방장은 방에 남은 사람에게 넘어가요.', { ok: '나가기' }))) return; lbAct(() => window.api.roomLeave()); };
 }
 document.addEventListener('mousedown', e => { if (_rmenu && !(e.target.closest && e.target.closest('#lb-hostmenu, #lb-rbtn'))) closeRoomMenu(); });
-function lbAddGuest() { const i = el('lb-add'), v = i.value.trim(); if (!v) return; i.value = ''; lbAct(() => window.api.lobbyGuest(v)); }
-{ const g = el('lb-add-go'); if (g) g.onclick = lbAddGuest; }   // v0.1.195 입력칸은 숨김(방 메뉴 「앱 없는 사람 추가」로)
-{ const i = el('lb-add'); if (i) i.addEventListener('keydown', e => { if (e.key === 'Enter') lbAddGuest(); }); }
 function renderRoster() {
   const has = roster.length > 0;
   el('roster-h').style.display = has ? 'block' : 'none';
@@ -1085,7 +1124,7 @@ function render() {
   if (!inGame && ph === 'teams' && hasTeams()) { loadToday(); renderTeam(); showView('team'); el('phase').textContent = _gamePlayed ? '결과 대기' : '팀 배정'; if (sessionData.mode === 'draft') maybePick(sessionData); return; }   // 마지막 픽은 바로 팀 화면이 되므로 여기서도
   if (inGame || roster.length) { renderRoster(); showView('roster'); el('phase').textContent = '게임 중'; return; }
   if (myName && roomData && !roomData.room) { renderRooms(); showView('rooms'); el('phase').textContent = '방 목록'; return; }   // 🚪 방에 들어가기 전
-  renderLobby(); showView('lobby'); el('phase').textContent = '대기실';
+  renderLobby(); showView('lobby'); el('phase').textContent = myName ? '대기실' : '시작하기';   // 롤 로그인 전 = 시작하는 법(v0.1.196)
 }
 // 🩹 v0.1.28: 켤 때 내 이름·판 상태를 직접 받아옴 — 롤이 이미 켜져 있으면 계정이 창 로딩 중(듣기 전)에 잡혀 이름 알림을 놓치고,
 // 같은 내용은 다시 안 보내서(broadcast 중복 차단) 이름이 끝까지 비어 「관전할게요」 버튼·안내가 사라지던 버그(특정 사람만 = 롤 먼저 켠 사람·느린 PC)
