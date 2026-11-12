@@ -57,7 +57,36 @@ body { display:flex; flex-direction:column; border:1px solid var(--line-2); }
 #foot .ui-btn-ghost { -webkit-app-region:no-drag; margin-left:auto; padding:9px 16px; font-size:13px; }
 
 /* 게임 시작 = 로고만(닫힌 두 문 위) */
-body.logo #hbar, body.logo #body { display:none; }
+body.logo #hbar, body.logo #body, body.logo #hero { display:none; }
+#lg { display:none; }
+body.logo #lg { display:block; position:fixed; inset:0; overflow:hidden; }
+.lg-bg { position:absolute; inset:0; background:linear-gradient(90deg, rgba(74,168,255,.17) 0%, rgba(74,168,255,.05) 26%, transparent 44%, transparent 56%, rgba(255,90,110,.05) 74%, rgba(255,90,110,.16) 100%); }
+.lg-col { position:absolute; left:0; right:0; top:50%; display:flex; flex-direction:column; align-items:center; }
+.lg-en { font-family:var(--f-num); font-size:17px; font-weight:700; letter-spacing:.34em; margin-right:-.34em; color:var(--gold); }
+.lg-ko { font-weight:900; letter-spacing:-0.05em; line-height:1.05; white-space:nowrap; }
+.lg-ko i { font-style:normal; }
+.lg-date { font-family:var(--f-num); font-size:18px; font-weight:600; letter-spacing:.3em; margin-right:-.3em; white-space:nowrap; }
+.lg-go { display:flex; align-items:center; gap:14px; font-family:var(--f-num); font-size:15px; font-weight:700; letter-spacing:.5em; color:var(--gold); }
+.lg-go span { margin-right:-.5em; white-space:nowrap; }
+.lg-go i { display:block; width:54px; height:1px; background:var(--gold-line); }
+/* 내전 = 포스터 */
+.lg-big { display:none; position:absolute; left:0; right:0; top:50%; margin-top:-164px; text-align:center; font-family:var(--f-num); font-weight:700; font-size:250px; line-height:1; letter-spacing:.02em; color:transparent; -webkit-text-stroke:1.5px rgba(200,170,110,.5); transform:skewX(-8deg); white-space:nowrap; }
+body.lgp .lg-big { display:block; }
+body.lgp .lg-col { margin-top:-44px; }
+body.lgp .lg-en { display:none; }
+body.lgp .lg-ko { font-size:96px; line-height:1; text-shadow:0 6px 24px #000, 0 0 2px #000; }
+body.lgp .lg-date { margin-top:22px; color:var(--gold); }
+body.lgp .lg-go { margin-top:32px; }
+body.lgp .lg-ln { display:none; }
+/* 일반 판 = 제목 카드 */
+.lg-ln { position:absolute; left:150px; right:150px; top:50%; height:1px; background:var(--gold-line); }
+.lg-ln.t { margin-top:-140px; } .lg-ln.b { margin-top:130px; }
+.lg-ln::after { content:""; position:absolute; left:50%; top:-4px; width:9px; height:9px; margin-left:-5px; background:var(--gold); transform:rotate(45deg); }
+body.lgc .lg-col { margin-top:-88px; gap:10px; }
+body.lgc .lg-ko { font-size:88px; } body.lgc .lg-ko i { color:var(--gold-hi); }
+body.lgc .lg-date { color:var(--dim); }
+body.lgc .lg-go { margin-top:96px; }
+@media (max-width:700px) { .lg-big { font-size:190px; margin-top:-128px; } body.lgp .lg-ko { font-size:76px; } body.lgc .lg-ko { font-size:70px; } .lg-ln { left:70px; right:70px; } }
 body.logo #hero { flex:1; flex-direction:column; justify-content:center; gap:18px; border:none; }
 body.logo #hero .mk { width:110px; height:110px; }
 body.logo .tt { align-items:center; }

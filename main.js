@@ -743,9 +743,13 @@ function onlineList() {   // 앱 켠 사람 전체(사장님 선택) = 전역 �
   out.sort((a, b) => b.me - a.me || a.guest - b.guest || String(a.name).localeCompare(String(b.name), 'ko'));
   return out.slice(0, 80);
 }
+let _todayGames = null;   // 오늘 이 방에서 끝난 내전 판 수(getToday가 채움 · 모르면 null → 「GAME START」만)
 function homeView() {
   const rv = roomsView();
-  return { mode: _homeMode, me: account ? { name: account.gameName, tag: account.tagLine || '' } : null, rooms: rv.rooms, room: rv.room, online: onlineList(), full: rv.full, ready: rv.ready || !!room, ver: app.getVersion() };
+  // 🎬 v0.1.177 게임 시작 화면에 이번 판 두 팀(내전 · 팀이 짜인 판만) + 오늘 몇 번째 판인지
+  const sd = sessionData, match = _homeMode === 'logo' && sd && sd.phase === 'teams' && sd.mode !== 'normal' && Array.isArray(sd.teamA) && Array.isArray(sd.teamB) && sd.teamA.length && sd.teamB.length
+    ? { n: _todayGames != null ? _todayGames + 1 : 0 } : null;
+  return { mode: _homeMode, match, day: dayKey(), me: account ? { name: account.gameName, tag: account.tagLine || '' } : null, rooms: rv.rooms, room: rv.room, online: onlineList(), full: rv.full, ready: rv.ready || !!room, ver: app.getVersion() };
 }
 function sendHome() { if (homeWin && !homeWin.isDestroyed() && _homeLoaded) try { homeWin.webContents.send('home', homeView()); } catch (_) {} }
 async function homeRefresh() {   // 홈이 떠 있을 때만 10초마다(접속 표시는 실시간으로 안 받아서 직접 읽음)
@@ -1773,6 +1777,7 @@ async function pollSession() {
   if (formed && formed !== lastFormed) {          // 새 팀 배정 → 오버레이 자동 표시
     const first = lastFormed === 0;
     lastFormed = formed;
+    _todayGames = null; getToday().then(t => { if (lastFormed === formed && t && Array.isArray(t.matches)) _todayGames = t.matches.length; }).catch(() => {});   // 🎬 v0.1.177 게임 시작 화면 「GAME n」 = 팀이 짜일 때 새로 셈(못 세면 숫자 없이)
     if (!first || (s.phase === 'teams' && Date.now() - formed < 30 * 60 * 1000)) { userHid = false; showOverlay(); }
   }
   if (s && s.phase === 'vote' && !inGame && !userHid && teamOf(s, config.myName)) showOverlay();   // 🗳️ 투표 = 참가자에게 자동 표시

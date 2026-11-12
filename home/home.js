@@ -8,6 +8,14 @@ function render(d) {
   const sig = JSON.stringify(d); if (sig === _last) return; _last = sig;   // 같은 내용이면 다시 안 그림
   document.body.classList.toggle('logo', d.mode === 'logo');
   $('h-ver').textContent = d.ver ? 'v' + d.ver : '';
+  // 🎬 v0.1.177 게임 시작 화면 — 내전(팀이 짜인 판) = 포스터 · 그 밖 = 제목 카드 · 날짜 = 오늘(새벽 6시 기준 day) · 내전이면 오늘 몇 번째 판
+  if (d.mode === 'logo') {
+    const mt = d.match || null;
+    document.body.classList.toggle('lgp', !!mt); document.body.classList.toggle('lgc', !mt);
+    const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(d.day || '');
+    $('lg-date').textContent = m ? `${m[1]} . ${m[2]} . ${m[3]}  ${['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][new Date(+m[1], +m[2] - 1, +m[3]).getDay()]}` : '';
+    $('lg-gotx').textContent = mt && mt.n ? `GAME ${mt.n} · START` : 'GAME START';
+  }
   // 나
   const me = $('me');
   me.classList.toggle('guest', !d.me);
@@ -50,8 +58,12 @@ function intro(mode) {
   const pop = (el, d, dy) => el && el.animate([{ opacity: 0, transform: `translateY(${dy}px)` }, { opacity: 1, transform: 'none' }], { duration: 420, delay: d, easing: E, fill: 'both' });
   if (mode === 'logo') {   // 문이 맞닿은 가운데 이음선이 위아래로 그어짐 → 선이 옅어지며 그 자리에서 로고가 피어남
     document.querySelector('.seam').animate([{ opacity: .9, transform: 'scaleY(0)' }, { opacity: .9, transform: 'scaleY(1)', offset: .45 }, { opacity: 0, transform: 'scaleY(1)' }], { duration: 760, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'both' });
-    $('hero').querySelector('.mk').animate([{ opacity: 0, transform: 'scale(.6)', filter: 'brightness(1.6)' }, { opacity: 1, transform: 'scale(1)', filter: 'brightness(1)' }], { duration: 560, delay: 260, easing: E, fill: 'both' });
-    pop(document.querySelector('.tt'), 420, 10); pop($('go'), 560, 6);
+    // v0.1.177 글자 중심(전부 한 번만 · 번쩍임·흔들림 없음): 이음선 → 좌우 팀 빛 → (포스터) 큰 윤곽 글자가 자간을 좁히며 자리 잡음 / (카드) 위아래 금색 선이 가운데서 벌어짐 → 제목 → 날짜 → GAME START 양옆 선
+    document.querySelector('.lg-bg').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 620, delay: 140, easing: 'ease-out', fill: 'both' });
+    $('lg-big').animate([{ opacity: 0, letterSpacing: '.16em', transform: 'skewX(-8deg) scale(1.05)' }, { opacity: 1, letterSpacing: '.02em', transform: 'skewX(-8deg) scale(1)' }], { duration: 760, delay: 180, easing: E, fill: 'both' });
+    document.querySelectorAll('.lg-ln').forEach(e => e.animate([{ opacity: 0, transform: 'scaleX(0)' }, { opacity: 1, transform: 'scaleX(1)' }], { duration: 560, delay: 200, easing: E, fill: 'both' }));
+    pop($('lg-en'), 340, 8); pop($('lg-ko'), 380, 14); pop($('lg-date'), 520, 8); pop($('lg-go'), 640, 6);
+    for (const [el, o] of [[$('lg-go').firstElementChild, '100% 50%'], [$('lg-go').lastElementChild, '0% 50%']]) { el.style.transformOrigin = o; el.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: 420, delay: 740, easing: E, fill: 'both' }); }
     return;
   }
   $('hero').querySelector('.mk').animate([{ opacity: 0, transform: 'rotate(-30deg) scale(.7)' }, { opacity: 1, transform: 'none' }], { duration: 520, easing: E, fill: 'both' });
