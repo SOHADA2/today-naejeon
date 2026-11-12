@@ -333,8 +333,10 @@ function autoLobbyMode() {
 const LOL_Q = 3270;
 //   맵(사장님: 아수라장 방 만들 때 「맵 선택」도 신경 써야) = aramMapMutator · 16.22 롤 화면 CUSTOM_GAME_ARAM_MAP_MUTATOR_OPTIONS = NONE(칼바람 나락)·MapSkin_Map12_Bloom(영혼의 꽃)·MapSkin_HA_Bilgewater(빌지워터)·RANDOM_MAP_SELECTION
 //   롤 화면의 「무작위 맵」은 화면이 위 셋 중 하나를 골라 보냄 → 똑같이(비우면 칼바람 나락으로만 만들어짐) · ⚠️ 롤 패치로 맵이 늘면 이 목록도(CommunityDragon latest rcp-fe-lol-parties.js에서 확인)
-const LOL_MAPS = ['NONE', 'MapSkin_Map12_Bloom', 'MapSkin_HA_Bilgewater'];
-const lolLobbyBody = name => ({ customGameLobby: { configuration: { gameMode: 'KIWI', gameMutator: '', gameServerRegion: '', mapId: 12, mutators: { id: LOL_Q }, spectatorPolicy: 'AllAllowed', spectatorDelayEnabled: false, teamSize: 5, hidePublicly: true, aramMapMutator: LOL_MAPS[Math.floor(Math.random() * LOL_MAPS.length)] }, lobbyName: name, hidePublicly: true, lobbyPassword: null }, queueId: LOL_Q });
+//   v0.1.186(사장님: 방 하나로 여러 판을 하니 셋 중 하나로 고정하면 안 됨 → 롤의 「무작위 맵」 값으로 만들어야) — 방을 만든 뒤 맵을 바꾸는 롤 기능은 없음(LCU 함수 전체 확인)
+//   → 「무작위 맵」 값 RANDOM_MAP_SELECTION을 그대로 보냄 · ⚠️ 롤은 아무 값이나 받아 줘서(없는 값도 200) 판마다 정말 바뀌는지는 실제 판으로 확인 필요
+const LOL_MAP = 'RANDOM_MAP_SELECTION';
+const lolLobbyBody = name => ({ customGameLobby: { configuration: { gameMode: 'KIWI', gameMutator: '', gameServerRegion: '', mapId: 12, mutators: { id: LOL_Q }, spectatorPolicy: 'AllAllowed', spectatorDelayEnabled: false, teamSize: 5, hidePublicly: true, aramMapMutator: LOL_MAP }, lobbyName: name, hidePublicly: true, lobbyPassword: null }, queueId: LOL_Q });
 const lolOk = r => r && r.status >= 200 && r.status < 300;
 ipcMain.handle('lol-lobby', async (_e, o) => {
   if (!bridge || !bridge.lcuRaw) return { ok: false, err: '롤 클라이언트가 켜져 있어야 해요' };
