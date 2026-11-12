@@ -15,6 +15,7 @@ for (const f of ['REATIC-Bold.otf', 'REATIC-NarrowBold.otf']) if (!fs.existsSync
 const DEFS = `<defs>
   <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#132332"/><stop offset="1" stop-color="#060b10"/></linearGradient>
   <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F7E4B0"/><stop offset=".45" stop-color="#D9B871"/><stop offset="1" stop-color="#A8822E"/></linearGradient>
+  <radialGradient id="vig" cx=".5" cy=".45" r=".72"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></radialGradient>
   <clipPath id="tile"><path d="M26 0H230L256 26V230L230 256H26L0 230V26Z"/></clipPath>
   <clipPath id="circ"><circle cx="128" cy="125.5" r="150"/></clipPath>
 </defs>`;
@@ -35,10 +36,15 @@ const SQ = small => `<g clip-path="url(#tile)"><rect width="256" height="256" fi
 const CI = () => `<circle cx="128" cy="128" r="128" fill="url(#bg)"/><g transform="translate(128 130) scale(0.8) translate(-128 -128)"><g clip-path="url(#circ)">${PAT() + H()}</g></g>`
   + '<circle cx="128" cy="128" r="123" fill="none" stroke="url(#gold)" stroke-width="10"/><circle cx="128" cy="128" r="110" fill="none" stroke="#C8AA6E" stroke-opacity=".45" stroke-width="2"/>';
 
+// 디스코드 서버 아이콘(2026-11-12 · 사장님: 서버 프로필은 둥근 네모) — 서버 목록은 동그라미 · 서버 프로필은 둥근 네모로 잘리므로 바탕·무늬를 끝까지 꽉 채우고
+//   테두리 없이 · 글자는 동그라미 안쪽(0.78배)에 → 어느 모양으로 잘려도 빈 모서리 없음 · 아래 그늘로 살짝 깊이
+const FB = () => `<rect width="256" height="256" fill="url(#bg)"/>${PAT()}<rect width="256" height="256" fill="url(#vig)"/>`
+  + `<g transform="translate(128 131) scale(0.78) translate(-128 -128)">${H()}</g>`;
 const OUT = [
   ...[16, 24, 32, 48, 64, 128, 256].map(s => ({ f: `assets/icon-src/${s}.png`, s, svg: SQ(s <= 32) })),
   { f: 'docs/img/icon.png', s: 512, svg: SQ(false) },
-  { f: 'docs/img/discord-icon.png', s: 512, svg: CI() },
+  { f: 'docs/img/discord-icon.png', s: 512, svg: CI() },        // 봇 사진(늘 동그라미)
+  { f: 'docs/img/discord-server.png', s: 512, svg: FB() },      // 서버 아이콘(동그라미·둥근 네모 둘 다)
 ];
 app.on('window-all-closed', () => {});
 app.whenReady().then(async () => {
