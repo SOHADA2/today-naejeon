@@ -20,7 +20,8 @@ const FIREBASE_DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.f
 const FIREBASE_API_KEY = 'AIzaSyDhVbSzNQ306LUTcPo44Ru9G4_RqV9Dl_E';   // 웹 앱 키(공개용 식별자 — 비밀 아님)
 const TOGGLE_HOTKEY = 'Shift+F7';   // 기존 오버레이(Shift+F5)와 겹치지 않게
 const T = 'today';                  // ⚠️ 이 앱의 모든 쓰기 루트 — 사이트 노드(session·lobby·bridge·matches…)에 절대 쓰지 않음
-const { buildTeams, normName } = require('./teams');   // ⚔️ 홈페이지 makeTeams 1:1 이식(밸런스 계산)
+const { buildTeams, normName } = require('./teams');   // ⚔️ 홈페이지 makeTeams 1:1 이식(랜덤 팀 짜기에 씀)
+const { balanceTeams, playerScore } = require('./balance');   // ⚖️ v0.1.174 티어 점수로 밸런스 팀 짜기
 const bridge = require('./bridge');                    // 🔌 내장 브릿지(LCU EOG 캡처 → today/bridge)
 const makeReplayRec = require('./replayrec');           // 🎬 팟지 영상 = 방장 PC가 리플레이를 열어 그 장면만 녹화(v0.1.33)
 const makeRating = require('./rating');                // 🏅 전적 기반 점수(솔로 랭크·칼바람·아수라장)
@@ -1603,7 +1604,7 @@ function lobbyView() {
   const inNames = members.filter(m => m.st === 'in').map(m => m.name);
   const sd = L.sides || {}, sides = {};
   for (const n of inNames) { const t = sd[fbKeyOf(n)]; if (t === 'teamA' || t === 'teamB') sides[n] = t; }
-  return { members, sides, mode: ['draft', 'manual', 'normal'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
+  return { members, sides, mode: ['draft', 'manual', 'normal', 'balance'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
     dcGuild: dcRoomGuild(members), dcInv: !!((dcRoomInfo(members) || {}).inv), dcJoin: dcJoinView(members), hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members), room: room ? { id: room.id, name: room.name, priv: room.priv } : null };
 }
 // 🔄 버전 비교(v0.1.56) — 대기실 내 자리 「업데이트 필요」·내 안내 줄
@@ -1658,7 +1659,7 @@ async function lobbyRemoveGuest(key) {
 async function lobbySetMode(mode, auto) {
   if (!config.isHost) return { ok: false, err: '방장만 방식을 정할 수 있어요' };
   if (mode === 'inhouse') mode = config.lastTeamMode || 'random';   // v0.1.134: 「내전」 = 마지막에 고른 팀 짜기 방식
-  const m = ['draft', 'manual', 'normal'].includes(mode) ? mode : 'random';   // normal = 🎮 일반판 진행(v0.1.60 · 팀짜기 없음)
+  const m = ['draft', 'manual', 'normal', 'balance'].includes(mode) ? mode : 'random';   // normal = 🎮 일반판 진행(v0.1.60 · 팀짜기 없음)
   if (!auto && m !== 'normal' && config.lastTeamMode !== m) { config.lastTeamMode = m; saveConfig(); }   // 일반판에서 내전으로 돌아올 때 쓸 방식
   lobbyLocal(L => { L.mode = m; });
   return lobbyWrite(fbUpdate(`${RP()}/lobby`, { mode: m }));
@@ -1724,7 +1725,7 @@ async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(�
     if (!A.length || !B.length) return { ok: false, err: '두 팀에 한 명 이상씩 넣어주세요' };
     return writeTeams(A, B, [], 'manual');
   }
-  return startTeamBuild(names, 'random');
+  return startTeamBuild(names, v.mode === 'balance' ? 'balance' : 'random');
 }
 async function lobbyReopen() {   // 👑 지금 판을 접고 대기실로(팀은 남겨둬서 「같은 팀으로 한 판 더」 가능)
   if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
@@ -2512,8 +2513,18 @@ async function startTeamBuild(names, mode) {
   _tbBusy = true;
   sendTb({ state: 'building' });
   try {
-    // ⚠️ 밸런스 모드는 새 로직 설계 전까지 비활성 — 지금은 랜덤만(사이트 승률 데이터도 더 이상 안 읽음)
     const prev = await fetchSession();
+    if (mode === 'balance') {   // ⚖️ v0.1.174: 아수라장 티어 점수(내전 + 일반)로 두 팀 합이 비슷하게 · 자료 없는 사람 = 50점
+      const sc = await balanceScores(names);
+      const b = balanceTeams({ names, scores: sc.scores, prevA: (prev && prev.teamA) || [], prevB: (prev && prev.teamB) || [] });
+      const avg = (t, sum) => t.length ? Math.round(sum / t.length * 10) / 10 : 0;
+      const bal = { a: avg(b.teamA, b.sumA), b: avg(b.teamB, b.sumB), known: sc.known, n: b.teamA.length + b.teamB.length, miss: [...b.teamA, ...b.teamB].filter(x => !sc.has[x]).slice(0, 10) };
+      console.log('[balance] ' + b.teamA.length + ':' + b.teamB.length + ' 합 ' + b.sumA + '/' + b.sumB + ' (차이 ' + b.diff + ' · 최소 ' + b.min + ' · 후보 ' + b.cands + ') 점수 있는 사람 ' + sc.known + '/' + names.length);
+      const res = await writeTeams(b.teamA, b.teamB, b.spectators, 'balance', bal);
+      if (!res.ok) { sendTb({ state: 'error', err: '팀 저장 실패 — ' + res.err }); return res; }
+      sendTb({ state: 'done', teamA: b.teamA, teamB: b.teamB, spectators: b.spectators });
+      return { ok: true };
+    }
     const r = buildTeams({
       names, mode: 'random', matches: {}, season: 0,
       prevTeamA: (prev && prev.teamA) || [], prevTeamB: (prev && prev.teamB) || [],
@@ -2612,14 +2623,30 @@ async function draftPick(name, auto) {
   return r.ok ? { ok: true } : r;
 }
 
-async function writeTeams(teamA, teamB, spectators, mode) {
+// ⚖️ 밸런스용 점수 — 이름마다 아수라장 내전(서버 경기 기록) + 아수라장 일반(today/ratings · 각자 앱이 올린 요약)을 판 수로 가중 평균(balance.js playerScore)
+//   사람 찾기 = 지금 방 접속 표시(puuid) → 없으면 계정 목록 이름 → 그래도 없으면(손님) 이름으로 내전 기록만
+async function balanceScores(names) {
+  const [idx, pres] = await Promise.all([profileIndex().catch(() => null), fetchPresence().catch(() => null)]);
+  const byName = {};
+  for (const [puuid, p] of Object.entries(pres || {})) if (p && p.name && !String(puuid).startsWith('g_')) byName[normName(p.name)] = puuid;
+  const scores = {}, has = {}; let known = 0;
+  await Promise.all(names.map(async n => {
+    const puuid = byName[n] || (idx && idx.nameToPuuid[n]) || null, key = puuid ? 'p:' + puuid : 'n:' + n;
+    const inh = idx ? inhouseOf(idx, key) : null;
+    const rt = puuid ? await getRating(puuid).catch(() => null) : null;
+    const x = playerScore(inh, rt && rt.mayhem);
+    scores[n] = x.s; has[n] = x.known; if (x.known) known++;
+  }));
+  return { scores, has, known };
+}
+async function writeTeams(teamA, teamB, spectators, mode, bal) {
   const now = Date.now();
   const ids = await teamIds([...teamA, ...teamB]);
   const w = await fbSet(`${RP()}/session`, {
     phase: 'teams', active: true, teamA, teamB, ids,
     spectators: (spectators && spectators.length) ? spectators : null,
     teamSize: Math.max(teamA.length, teamB.length), mode: mode || 'balance',
-    teamsFormedAt: now, day: dayKey(now), by: config.myName || null,
+    teamsFormedAt: now, day: dayKey(now), by: config.myName || null, bal: bal || null,
   });
   if (w.ok) fbSet(`${RP()}/lobby/captains`, null).catch(() => {});
   return w;

@@ -176,6 +176,12 @@ function renderTeam() {
     if (on) b.innerHTML = `<span class="tv-dc-h">${DC_ICO}<em>디스코드</em></span><span class="tv-dc-t">${D.err && !D.n ? (/403|404/.test(D.err) ? '봇이 연결된 서버에 없어요' : '음성 채널을 못 찾았어요') : D.n ? `<b class="num">${D.n}</b>명 1팀·2팀 음성 채널로 옮겼어요` : '아무도 못 옮겼어요'}</span>`
       + ((D.miss || []).length ? `<small class="tv-dc-miss">${D.miss.map(x => `<span><b>${esc(x.n || '')}</b> ${esc(x.w || '')}</span>`).join('')}</small>` : '');
   }
+  { // ⚖️ v0.1.174 밸런스로 짠 팀이면 두 팀 평균 점수(아수라장 티어 점수) · 점수 없는 사람은 50점으로 계산했다고 알림
+    const Q = s.mode === 'balance' ? s.bal : null, b = el('tv-bal');
+    b.style.display = Q ? '' : 'none';
+    if (Q) b.innerHTML = `<span class="tv-bal-h">밸런스</span><span class="tv-bal-s"><em class="t1">1팀 평균 <b class="num">${Number(Q.a).toFixed(1)}</b></em><em class="t2">2팀 평균 <b class="num">${Number(Q.b).toFixed(1)}</b></em></span>`
+      + (Q.n - Q.known > 0 ? `<small data-tip="${esc((Q.miss || []).join(', '))}">티어 점수 없는 ${Q.n - Q.known}명은 50점으로 계산</small>` : '');
+  }
   hostSpecNote(el('tv-hspec'), myIsHost && !mt, [...A, ...B], false);
   const pend = el('tv-pending');
   if (s.pendingEog) { pend.style.display = ''; pend.textContent = '경기가 끝났어요 · 방장이 승리팀을 확인하는 중'; }
@@ -874,7 +880,7 @@ function renderLobby() {
   go.classList.toggle('normal', normal);
   go.textContent = normal ? '🎮 일반판 진행 중' : n < 2 ? `2명부터 시작할 수 있어요 · 지금 ${n}명` : !capsOk ? '팀장 2명을 정해주세요'
     : manual ? (sNone.length ? `팀 안 정한 사람 ${sNone.length}명` : !sideOk ? '두 팀에 한 명 이상씩' : `이 팀으로 시작 · ${sA.length}:${sB.length}`)
-    : draft ? `드래프트 시작 · ${n}명` : `랜덤으로 팀 짜기 · ${n}명`;
+    : draft ? `드래프트 시작 · ${n}명` : L.mode === 'balance' ? `밸런스로 팀 짜기 · ${n}명` : `랜덤으로 팀 짜기 · ${n}명`;
   el('lb-foot').innerHTML = '';   // v0.1.83: 방식별 사용법·「방장이 시작하면…」 같은 설명 글은 튜토리얼로
   // 오늘 순위(짧게)
   loadToday();
