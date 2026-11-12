@@ -743,6 +743,14 @@ async function lbAct(fn) {
   try { const r = await fn(); if (r && r.ok === false && r.err) lbErr(r.err); } catch (_) { lbErr('실패했어요'); }
   _lbBusy = false;
 }
+// 🎮 v0.1.191 일반판 롤 파티 만들기·초대 — 남의 파티에 있으면 나가도 되는지 묻고 · 자리 없어 못 부른 사람은 알려 줌
+async function lolPartyGo() {
+  let r = await window.api.lolParty({});
+  if (r && r.need === 'leave') { if (!confirm('지금 다른 사람이 파티장인 롤 파티에 있어요.\n나가고 내 파티를 새로 만들까요?')) return null; r = await window.api.lolParty({ force: true }); }
+  if (!r || !r.ok) { lbErr((r && r.err) || '롤 파티를 만들지 못했어요'); return r; }
+  if (r.left && r.left.length) lbErr(`롤 파티는 5명까지라 ${r.left.join(', ')}님은 초대 안 했어요`);
+  return r;
+}
 const SEATS = 10;   // 최대 5:5
 const iconUrl = id => id ? `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/profile-icons/${Number(id)}.jpg` : '';
 const champUrl = id => id ? `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${Number(id)}.png` : '';
@@ -784,15 +792,22 @@ function renderLobby() {
   { // 🎮 v0.1.185 롤 사용자 설정 방 — 방장 = 「만들고 초대」(이미 사용자 설정 방이면 「방 사람 초대」) · 방장 아님 = 방장 초대가 왔을 때만 「수락」
     const box = el('lb-lol'), G = L.lol || null;
     let h = '';
-    if (G && G.invite && !myIsHost) h = `<span class="lb-lol-t"><b>👑 ${esc(G.invite.from)}</b>님이 롤 방에 초대했어요</span><button class="lb-mini" data-lol="accept">수락</button>`;
-    else if (G && myIsHost && L.room && (!G.phase || G.phase === 'None' || G.phase === 'Lobby'))
+    const P = G && G.party, nq = (G && G.nq) || 2400;
+    if (G && G.invite && !myIsHost) h = `<span class="lb-lol-t"><b>👑 ${esc(G.invite.from)}</b>님이 롤 ${normal ? '파티' : '방'}에 초대했어요</span><button class="lb-mini" data-lol="accept">수락</button>`;
+    else if (normal && G && myIsHost && L.room && (!G.phase || ['None', 'Lobby', 'Matchmaking'].includes(G.phase)))   // 🎮 v0.1.191 일반판 = 큐 고르기 + 「다시 초대」(파티 있을 때) · 큰 버튼은 아래 lb-start
+      h = `<span class="lb-lol-t tn-tip" data-tip="아래 버튼으로 롤 일반 큐 파티를 만들고 대기실에 참가한 사람을 초대해요(방장 포함 5명까지 · 앉은 순서) · 친구 앱이 자동으로 수락해요"><span class="lb-lol-ic">🎮</span>일반 큐</span>`
+        + `<span class="lb-qs">${[[2400, '아수라장'], [450, '칼바람']].map(([q, t]) => `<button class="lb-qb${q === nq ? ' on' : ''}" data-q="${q}">${t}</button>`).join('')}</span>`
+        + (P && P.leader && P.q === nq && G.phase === 'Lobby' ? `<button class="lb-mini" data-lol="party">다시 초대</button>` : '');
+    else if (!normal && G && myIsHost && L.room && (!G.phase || G.phase === 'None' || G.phase === 'Lobby'))
       h = `<span class="lb-lol-t tn-tip" data-tip="롤에 아수라장 사용자 설정 방을 이 방 이름으로 만들고(공개 목록엔 안 뜸), 앱을 켠 방 사람들에게 롤 초대를 보내요. 친구 앱 대기실에 「수락」이 떠요"><span class="lb-lol-ic">🎮</span>${G.inCustom ? '롤 방에 있어요' : '롤 사용자 설정 방'}</span><button class="lb-mini" data-lol="make">${G.inCustom ? '방 사람 초대' : '만들고 초대'}</button>`;
     box.style.display = h ? '' : 'none';
     if (h && box.dataset.h !== h) { box.innerHTML = h; box.dataset.h = h; }
+    box.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { if (!b.classList.contains('on')) window.api.lolNormalQ(Number(b.dataset.q)); });
     box.querySelectorAll('[data-lol]').forEach(b => b.onclick = async () => {
       if (b.disabled) return; b.disabled = true; const t0 = b.textContent;
       try {
         if (b.dataset.lol === 'accept') { const r = await window.api.lolAccept(); if (!r || !r.ok) alert((r && r.err) || '수락하지 못했어요'); return; }
+        if (b.dataset.lol === 'party') { b.textContent = '초대 중…'; const r = await lolPartyGo(); if (r && r.ok) { b.textContent = r.total ? `${r.invited}명 초대함` : '초대할 사람 없음'; setTimeout(() => { b.textContent = t0; }, 2500); } return; }
         b.textContent = '만드는 중…';
         let r = await window.api.lolLobby({});
         if (r && r.need === 'leave') { if (!confirm('지금 롤 대기방(일반 큐)에 있어요.\n나가고 사용자 설정 방을 만들까요?')) return; r = await window.api.lolLobby({ force: true }); }
@@ -854,8 +869,8 @@ function renderLobby() {
   }
   // 🪑 자리 10칸 — 참가한 사람 순서대로 앉고 나머지는 빈 자리
   const capOf = n => nn(n) === nn(caps.teamA) ? 1 : nn(n) === nn(caps.teamB) ? 2 : 0;
-  el('lb-seat-cnt').innerHTML = manual ? `<b>${sA.length}</b> : <b>${sB.length}</b>` : `<b>${Math.min(ins.length, SEATS)}</b> / ${SEATS}${ins.length > SEATS ? ` <em>+${ins.length - SEATS}명 대기</em>` : ''}`;
-  const seat = (m, i, side) => {   // side = 직접 방식의 팀 열(왼쪽 1팀 · 오른쪽 2팀)
+  el('lb-seat-cnt').innerHTML = normal ? `<b>${Math.min(ins.length, 5)}</b> / 5${ins.length > 5 ? ` <em>+${ins.length - 5}명 넘침</em>` : ''}` : manual ? `<b>${sA.length}</b> : <b>${sB.length}</b>` : `<b>${Math.min(ins.length, SEATS)}</b> / ${SEATS}${ins.length > SEATS ? ` <em>+${ins.length - SEATS}명 대기</em>` : ''}`;
+  const seat = (m, i, side, over) => {   // over = 🎮 v0.1.191 일반판 6번째부터(롤 파티는 5명까지 → 초대 안 됨)   // side = 직접 방식의 팀 열(왼쪽 1팀 · 오른쪽 2팀)
     const no = String(i + 1).padStart(2, '0'), sn = side === 'teamA' ? 1 : side === 'teamB' ? 2 : 0;
     if (!m) return `<div class="seat empty${sn ? ' side' + sn : ''}"><span class="seat-no">${no}</span><span class="seat-av"></span><span class="seat-main"><b>${sn ? sn + '팀 빈 자리' : '빈 자리'}</b></span></div>`;
     const st = _standing(m.name), cap = capOf(m.name);
@@ -864,12 +879,13 @@ function renderLobby() {
     const ctl = myIsHost ? ((draft ? `<button class="seat-btn cap${cap ? ' on' : ''}" data-cap="${esc(m.name)}" title="팀장 지정/해제">팀장</button>` : '')
       + (sn ? `<button class="seat-btn" data-side="${esc(m.name)}" data-t="${sn === 1 ? 'teamB' : 'teamA'}" title="${sn === 1 ? 2 : 1}팀으로 옮기기">⇄</button><button class="seat-btn" data-side="${esc(m.name)}" data-t="" title="팀에서 빼기(미정)">↩</button>` : '')
       + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="${m.guest ? '목록에서 빼기' : '관전으로 보내기'}">${m.guest ? '✕' : '↓'}</button>` : '')) : '';
-    return `<div class="seat filled${m.me ? ' me' : ''}${cap ? ' cap' + cap : ''}${sn ? ' side' + sn : ''}">`
+    return `<div class="seat filled${over ? ' over' : ''}${m.me ? ' me' : ''}${cap ? ' cap' + cap : ''}${sn ? ' side' + sn : ''}">`
       + `<span class="seat-no">${no}</span>${avatar(m, 'seat-av')}`
-      + `<span class="seat-main"><span class="seat-nmrow">${m.host ? '<i class="seat-crown" title="방장">👑</i>' : ''}<b class="lb-nm" data-pk="${esc(m.key)}" title="${m.me ? '나 · ' : ''}프로필 보기">${esc(m.name)}</b></span><small>${tags}${m.dc ? `<span class="seat-dc" title="디스코드 연결됨 · 팀이 정해지면 음성 채널로 옮겨져요">${DC_ICO}</span>` : ''}${m.guest ? '<span>앱 없음</span>' : m.online ? '' : '<span>오프라인</span>'}${st ? `<span><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : ''}</small></span>`
+      + `<span class="seat-main"><span class="seat-nmrow">${m.host ? '<i class="seat-crown" title="방장">👑</i>' : ''}<b class="lb-nm" data-pk="${esc(m.key)}" title="${m.me ? '나 · ' : ''}프로필 보기">${esc(m.name)}</b></span><small>${over ? '<span class="seat-ov">파티 자리 없음</span>' : ''}${tags}${m.dc ? `<span class="seat-dc" title="디스코드 연결됨 · 팀이 정해지면 음성 채널로 옮겨져요">${DC_ICO}</span>` : ''}${m.guest ? '<span>앱 없음</span>' : m.online ? '' : '<span>오프라인</span>'}${st ? `<span><span class="num">${st.wins}</span>승 <span class="num">${st.losses}</span>패</span>` : ''}</small></span>`
       + (ctl ? `<span class="seat-ctl">${ctl}</span>` : '') + '</div>';
   };
   el('lb-seats').innerHTML = manual ? Array.from({ length: 5 }, (_, i) => seat(sA[i], i, 'teamA') + seat(sB[i], i, 'teamB')).join('')   // 🧩 직접: 왼쪽 열 1팀 · 오른쪽 열 2팀
+    : normal ? Array.from({ length: Math.max(5, ins.length) }, (_, i) => seat(ins[i], i, null, i >= 5)).join('')   // 🎮 v0.1.191 일반판 = 롤 파티 5자리
     : Array.from({ length: SEATS }, (_, i) => seat(ins[i], i)).join('');
   el('lb-me').style.display = myName ? '' : 'none';
   { // 🔄 내 앱이 옛 버전이면 나에게만 안내(v0.1.62 · 방장 「업데이트 시키기」는 뺌) — 최신 = 접속한 사람들 앱·받은 새 버전 중 가장 높은 것
@@ -919,9 +935,17 @@ function renderLobby() {
   el('lb-gobar').style.display = myIsHost || normal ? '' : 'none';   // 🎮 일반판 = 모두에게 진행 상태
   const n = ins.length, capsOk = !draft || (caps.teamA && caps.teamB), sideOk = !manual || (!sNone.length && sA.length && sB.length);
   const go = el('lb-start');
-  go.disabled = normal || n < 2 || !capsOk || !sideOk;
-  go.classList.toggle('normal', normal);
-  go.textContent = normal ? '🎮 일반판 진행 중' : n < 2 ? `2명부터 시작할 수 있어요 · 지금 ${n}명` : !capsOk ? '팀장 2명을 정해주세요'
+  // 🎮 v0.1.191 일반판 = 방장 큰 버튼이 「파티 만들고 초대」 → 「큐 시작 · 파티 n/5」 → 「큐 잡는 중 · 취소」 (팀원 = 상태 표시)
+  const G = L.lol || {}, P = G.party, nq = G.nq || 2400, QN = { 2400: '아수라장', 450: '칼바람 나락' }[nq] || '일반 큐';
+  const myParty = !!(P && P.leader && P.q === nq), qState = !normal ? null
+    : ['ReadyCheck', 'ChampSelect', 'GameStart', 'InProgress', 'Reconnect'].includes(G.phase) ? 'game'
+    : G.phase === 'Matchmaking' && P && P.leader ? 'search' : myParty && G.phase === 'Lobby' ? 'party' : 'none';
+  go.dataset.q = myIsHost && normal && L.room && G.phase !== undefined ? qState : '';
+  go.disabled = normal ? !go.dataset.q || qState === 'game' : n < 2 || !capsOk || !sideOk;
+  go.classList.toggle('normal', normal && (!go.dataset.q || qState === 'game'));
+  go.classList.toggle('qcancel', qState === 'search' && !!go.dataset.q);
+  go.textContent = normal ? (!go.dataset.q ? '🎮 일반판 진행 중' : qState === 'game' ? '🎮 게임 진행 중' : qState === 'search' ? '큐 잡는 중 · 누르면 취소'
+      : qState === 'party' ? `▶ 큐 시작 · 파티 ${P.n}/${P.max || 5}` : `🎮 ${QN} 파티 만들고 초대`) : n < 2 ? `2명부터 시작할 수 있어요 · 지금 ${n}명` : !capsOk ? '팀장 2명을 정해주세요'
     : manual ? (sNone.length ? `팀 안 정한 사람 ${sNone.length}명` : !sideOk ? '두 팀에 한 명 이상씩' : `이 팀으로 시작 · ${sA.length}:${sB.length}`)
     : draft ? `드래프트 시작 · ${n}명` : L.mode === 'balance' ? `밸런스로 팀 짜기 · ${n}명` : `랜덤으로 팀 짜기 · ${n}명`;
   el('lb-foot').innerHTML = '';   // v0.1.83: 방식별 사용법·「방장이 시작하면…」 같은 설명 글은 튜토리얼로
@@ -932,7 +956,14 @@ function renderLobby() {
   t.innerHTML = `<div class="lb-sec"><span class="lb-sec-en">TODAY</span><span>오늘 순위 · <span class="num">${_today.matches.length}</span>판</span></div><div class="wi-rk">` + _today.standings.slice(0, 5).map(p =>
     `<div class="wi-rk-row${nn(p.name) === nn(myName) ? ' me' : ''}"><span class="wi-rk-r num">${p.rank}</span><span class="wi-rk-nm">${esc(p.name)}</span><span class="wi-rk-lp"><span class="num">${p.wins}</span>승 <span class="num">${p.losses}</span>패</span></div>`).join('') + '</div>';
 }
-el('lb-start').onclick = () => lbAct(() => window.api.lobbyStart());
+el('lb-start').onclick = () => {
+  const q = el('lb-start').dataset.q;   // 🎮 v0.1.191 일반판 큰 버튼
+  if (q === 'none') return lbAct(() => lolPartyGo().then(() => null));
+  if (q === 'party') return lbAct(() => window.api.lolQueue(true));
+  if (q === 'search') return lbAct(() => window.api.lolQueue(false));
+  if (q) return;
+  lbAct(() => window.api.lobbyStart());
+};
 // 👀 v0.1.150 방장이 관전 = 롤은 관전한 판의 리플레이를 안 남겨 방장 PC가 팟지 영상을 못 찍음 → 방장에게만 미리 안내 + 경기에 나가는 사람에게 넘기기
 const HSPEC_ASK = '방장이 관전하면 이번 판 팟지 영상을 찍을 수 없습니다.\n롤은 관전한 판의 리플레이를 남기지 않습니다.\n\n경기에 나가는 사람에게 방장을 넘기면 그 사람 PC가 찍습니다.\n그래도 관전으로 바꿀까요?';
 function hostSpecNote(box, on, names, inLobby) {

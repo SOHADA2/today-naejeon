@@ -613,22 +613,24 @@ const _teamOf = (gc, mine) => {
 };
 async function pollSeat() {
   if (_seatBusy) return; _seatBusy = true;
-  let phase = null, seat = null, custom = null;
+  let phase = null, seat = null, custom = null, party = null;
   try {
     if (basePort) {
       try { phase = await lcu('/lol-gameflow/v1/gameflow-phase'); } catch (_) {}
-      if (phase === 'Lobby') {
+      if (phase === 'Lobby' || phase === 'Matchmaking') {
         try {
           const lb = await lcu('/lol-lobby/v2/lobby');
           const gc = lb && lb.gameConfig, me = lb && lb.localMember;
           if (gc) custom = !!gc.isCustom;
-          if (gc && gc.isCustom && me) seat = _teamOf(gc, (m) => m && ((me.puuid && m.puuid === me.puuid) || (me.summonerId && m.summonerId === me.summonerId)));
-          if (gc && gc.isCustom) lobbyProbe(lb, seat);
+          if (phase === 'Lobby' && gc && gc.isCustom && me) seat = _teamOf(gc, (m) => m && ((me.puuid && m.puuid === me.puuid) || (me.summonerId && m.summonerId === me.summonerId)));
+          if (phase === 'Lobby' && gc && gc.isCustom) lobbyProbe(lb, seat);
+          // 🎮 v0.1.191 일반 큐 파티 = 큐 번호·인원·내가 파티장인지·파티 사람 puuid(일반판 「파티 만들고 초대 → 큐 시작」)
+          if (gc && !gc.isCustom) party = { q: gc.queueId || 0, n: Array.isArray(lb.members) ? lb.members.length : 1, max: gc.maxLobbySize || 5, leader: !!(me && me.isLeader), ids: (lb.members || []).map(m => m && m.puuid).filter(Boolean) };
         } catch (_) {}
       }
     }
-    const key = `${phase}|${seat}|${custom}`;
-    if (key !== _seatKey) { _seatKey = key; log(`🪑 로비: ${phase || '-'} · 자리 ${seat == null ? '-' : seat}${custom === false ? ' (일반 큐)' : ''}`); try { _onLobbySeat({ phase, seat, custom }); } catch (_) {} }
+    const key = `${phase}|${seat}|${custom}|${party ? `${party.q}/${party.n}/${party.leader ? 1 : 0}/${party.ids.join(',')}` : ''}`;
+    if (key !== _seatKey) { _seatKey = key; log(`🪑 로비: ${phase || '-'} · 자리 ${seat == null ? '-' : seat}${custom === false ? ` (일반 큐${party ? ` ${party.q} · ${party.n}명` : ''})` : ''}`); try { _onLobbySeat({ phase, seat, custom, party }); } catch (_) {} }
   } finally { _seatBusy = false; }
 }
 // 🔎 실제 롤 대기방 응답 모양 기록(v0.1.51) — 필드 이름을 실기 없이 짐작해 넣었기 때문. 롤에서 사용자 설정 게임 방만 만들면 됨(게임 안 해도 됨)

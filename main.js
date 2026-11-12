@@ -316,7 +316,7 @@ function _repaintSlot() {   // 투명창이 흰 박스로 안 그려지는 Win �
   if (!slotWin || slotWin.isDestroyed()) return;
   try { const b = slotWin.getBounds(); slotWin.setBounds({ x: b.x, y: b.y, width: b.width + 1, height: b.height }); slotWin.setBounds(b); } catch (_) {}
 }
-let lobbySeat = null, lobbyPhase = null, lobbyCustom = null, _slotMsg = '';   // 🪑 브릿지 pollSeat(1초): 롤 페이즈 · 커스텀 로비에서 내가 앉은 쪽(1·2·'spec'·null) · 커스텀 방인지
+let lobbySeat = null, lobbyPhase = null, lobbyCustom = null, lobbyParty = null, _slotMsg = '';   // 🪑 브릿지 pollSeat(1초): 롤 페이즈 · 커스텀 로비에서 내가 앉은 쪽(1·2·'spec'·null) · 커스텀 방인지
 // 🔀 대기실 방식 자동(v0.1.81 · 사장님) — 방장 롤 대기방이 일반 큐(커스텀 아님)면 「일반판」, 사용자 설정 방이면 마지막 내전 방식(랜덤·드래프트·직접)
 //   바뀔 때만(롤 대기방 종류가 바뀐 순간) · 방장이 그 뒤에 직접 바꾸면 그대로 둠
 let _autoModeKey = null;
@@ -436,6 +436,54 @@ async function draftMap(map) {
   return r.ok ? { ok: true } : r;
 }
 ipcMain.handle('draft-map', (_e, { map }) => draftMap(map));
+// 🎮 v0.1.191 일반판 = 방장이 롤 일반 큐 파티를 만들고 방 사람 초대 → 「큐 시작」(사장님: 내전 말고 일반판도 만들고 시작 · 일반은 5명이 최대)
+//   큐 = 아수라장(2400 · 우리 일반 판 기록 전부 이 큐) / 칼바람 나락(450) · ⚙ 대신 대기실 한 줄에서 고름(config.lolNormalQ)
+//   초대 = 대기실에 참가(관전 X)로 앉은 앱 켠 사람 · 방장 포함 5명까지 앉은 순서대로 · 이미 파티에 있는 사람은 건너뜀 · 넘치는 사람은 이름을 돌려줌(관전으로 돌려 맞추게)
+//   받는 쪽 = 예전 그대로(lolInvTick 방장 초대 자동 수락) · 큐 시작/취소 = 파티장만(롤 규칙) · 방장이 남의 파티에 있으면 나가고 새로 만들지 먼저 물음
+const LOL_NQ = [2400, 450], LOL_NQ_KO = { 2400: '아수라장', 450: '칼바람 나락' };
+function normalInvitees(partyIds) {
+  const inParty = new Set(partyIds || []);
+  const others = (lobbyView().members || []).filter(m => m.st !== 'spec' && !m.guest && !m.me && m.online && /^[0-9a-f-]{30,}$/i.test(m.key) && !inParty.has(m.key));
+  const slots = Math.max(0, 5 - Math.max(1, inParty.size));
+  return { invite: others.slice(0, slots), left: others.slice(slots).map(m => m.name) };
+}
+ipcMain.handle('lol-party', async (_e, o) => {
+  if (!bridge || !bridge.lcuRaw) return { ok: false, err: '롤 클라이언트가 켜져 있어야 해요' };
+  if (!config.isHost || !room) return { ok: false, err: '방장만 만들 수 있어요' };
+  if (inGame) return { ok: false, err: '게임 중에는 못 만들어요' };
+  const q = LOL_NQ.includes(o && o.q) ? o.q : LOL_NQ.includes(config.lolNormalQ) ? config.lolNormalQ : 2400;
+  if (config.lolNormalQ !== q) { config.lolNormalQ = q; saveConfig(); }
+  const ph = await bridge.lcuRaw('GET', '/lol-gameflow/v1/gameflow-phase').catch(() => null), phase = ph && ph.data;
+  if (!lolOk(ph)) return { ok: false, err: '롤 클라이언트에 연결되지 않았어요' };
+  if (phase !== 'None' && phase !== 'Lobby') return { ok: false, err: phase === 'Matchmaking' ? '큐를 잡는 중이에요 — 먼저 취소해 주세요' : `지금은 못 만들어요(롤: ${phase})` };
+  let lb = null;
+  if (phase === 'Lobby') { const r = await bridge.lcuRaw('GET', '/lol-lobby/v2/lobby').catch(() => null); lb = lolOk(r) ? r.data : null; }
+  const gc = lb && lb.gameConfig, leader = !!(lb && lb.localMember && lb.localMember.isLeader);
+  if (lb && !leader && !(o && o.force)) return { ok: false, need: 'leave' };   // 남의 파티에 있음 → 나가도 되는지 먼저
+  let made = false;
+  if (!lb || !gc || gc.isCustom || gc.queueId !== q || !leader) {
+    if (lb && !leader) await bridge.lcuRaw('DELETE', '/lol-lobby/v2/lobby').catch(() => null);
+    const r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', { queueId: q }).catch(() => null);
+    if (!lolOk(r)) { console.log('[lol] 일반 파티 만들기 실패', q, r && r.status, r && JSON.stringify(r.data).slice(0, 200)); return { ok: false, err: `${LOL_NQ_KO[q]} 파티를 만들지 못했어요` + (r && r.data && r.data.message ? ` (${r.data.message})` : '') }; }
+    made = true; lb = r.data && r.data.members ? r.data : lb && !gc.isCustom && leader ? lb : null;
+  }
+  const ids = ((lb && lb.members) || []).map(m => m && m.puuid).filter(Boolean);
+  if (account && account.puuid && !ids.includes(account.puuid)) ids.push(account.puuid);
+  const { invite, left } = normalInvitees(ids);
+  const invited = invite.length ? await lolInvite(invite.map(m => m.key)) : 0;
+  console.log('[lol] 일반 파티', LOL_NQ_KO[q], made ? '만듦' : '그대로', '· 초대', invited, '/', invite.length, left.length ? `· 자리 없음 ${left.join(', ')}` : '');
+  broadcast('lobby', lobbyView());
+  return { ok: true, made, invited, total: invite.length, left, q };
+});
+ipcMain.handle('lol-queue', async (_e, o) => {   // 큐 시작(on) / 취소
+  if (!bridge || !bridge.lcuRaw || !config.isHost || !room || inGame) return { ok: false, err: '방장만 할 수 있어요' };
+  const r = await bridge.lcuRaw(o && o.on ? 'POST' : 'DELETE', '/lol-lobby/v2/lobby/matchmaking/search').catch(() => null);
+  if (lolOk(r)) { console.log('[lol] 큐', o && o.on ? '시작' : '취소'); return { ok: true }; }
+  console.log('[lol] 큐', o && o.on ? '시작' : '취소', '실패', r && r.status, r && JSON.stringify(r.data).slice(0, 200));
+  const m = r && r.data && (r.data.message || r.data.errorCode) || '';
+  return { ok: false, err: (o && o.on ? '큐를 시작하지 못했어요' : '큐를 취소하지 못했어요') + (m ? ` (${m})` : '') + (o && o.on ? ' — 롤에서 파티장인지·모두 준비됐는지 확인해 주세요' : '') };
+});
+ipcMain.on('lol-normal-q', (_e, q) => { if (LOL_NQ.includes(q) && config.lolNormalQ !== q) { config.lolNormalQ = q; saveConfig(); broadcast('lobby', lobbyView()); } });
 ipcMain.handle('lol-accept', async () => {
   if (!_lolInv || !bridge || !bridge.lcuRaw) return { ok: false };
   const r = await bridge.lcuRaw('POST', `/lol-lobby/v2/received-invitations/${encodeURIComponent(_lolInv.id)}/accept`).catch(() => null);
@@ -465,6 +513,7 @@ function autoSeat() {
 function onLobbySeat(d) {
   const prevPhase = lobbyPhase;
   lobbyPhase = d && d.phase || null; lobbySeat = d ? d.seat : null; lobbyCustom = d ? d.custom : null;
+  { const pp = JSON.stringify(lobbyParty); lobbyParty = d && d.party || null; if (room && (pp !== JSON.stringify(lobbyParty) || prevPhase !== lobbyPhase)) broadcast('lobby', lobbyView()); }   // 🎮 v0.1.191 일반 파티 인원·큐 상태를 대기실 버튼에
   autoLobbyMode(); autoSeat();
   if ((prevPhase === 'ChampSelect') !== (lobbyPhase === 'ChampSelect')) { if (lobbyPhase !== 'ChampSelect') { champSel = null; _champSelSig = ''; } pushAugGuide().catch(() => {}); }   // 🧭 증강 가이드 켜고 끄기
   if (lobbyPhase === 'ChampSelect' && prevPhase !== 'ChampSelect') borderlessOn();   // 🎯 증강 순위 켠 사람 = 게임 뜨기 전에 테두리 없는 창으로
@@ -1726,7 +1775,7 @@ function lobbyView() {
   const sd = L.sides || {}, sides = {};
   for (const n of inNames) { const t = sd[fbKeyOf(n)]; if (t === 'teamA' || t === 'teamB') sides[n] = t; }
   return { members, sides, mode: ['draft', 'manual', 'normal', 'balance'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
-    dcGuild: dcRoomGuild(members), dcInv: !!((dcRoomInfo(members) || {}).inv), dcJoin: dcJoinView(members), hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members), room: room ? { id: room.id, name: room.name, priv: room.priv } : null, lol: room ? { inCustom: lobbyPhase === 'Lobby' && lobbyCustom === true, phase: lobbyPhase || null, invite: _lolInv } : null };   // 🎮 v0.1.185 롤 방
+    dcGuild: dcRoomGuild(members), dcInv: !!((dcRoomInfo(members) || {}).inv), dcJoin: dcJoinView(members), hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members), room: room ? { id: room.id, name: room.name, priv: room.priv } : null, lol: room ? { inCustom: lobbyPhase === 'Lobby' && lobbyCustom === true, phase: lobbyPhase || null, invite: _lolInv, party: lobbyCustom === false ? lobbyParty : null, nq: LOL_NQ.includes(config.lolNormalQ) ? config.lolNormalQ : 2400 } : null };   // 🎮 v0.1.185 롤 방
 }
 // 🔄 버전 비교(v0.1.56) — 대기실 내 자리 「업데이트 필요」·내 안내 줄
 const verCmp = (a, b) => { const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return 0; };

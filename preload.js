@@ -44,6 +44,9 @@ contextBridge.exposeInMainWorld('api', {
   discordInvite: (link) => ipcRenderer.invoke('discord-invite', link),       // 🎧 v0.1.138 방장 초대 링크
   discordJoin: (o) => ipcRenderer.invoke('discord-join', o),
   lolLobby: (o) => ipcRenderer.invoke('lol-lobby', o),      // 🎮 v0.1.185 롤 사용자 설정 방 만들기 + 초대
+  lolParty: (o) => ipcRenderer.invoke('lol-party', o),      // 🎮 v0.1.191 일반판 = 롤 일반 큐 파티 만들기 + 초대(5명까지)
+  lolQueue: (on) => ipcRenderer.invoke('lol-queue', { on: !!on }),   // 큐 시작 / 취소
+  lolNormalQ: (q) => ipcRenderer.send('lol-normal-q', q),   // 일반판 큐 고르기(아수라장 2400 · 칼바람 450)
   lolAccept: () => ipcRenderer.invoke('lol-accept'),        // 🎮 방장 롤 초대 수락
   onSettings: (cb) => ipcRenderer.on('settings', (_e, d) => cb(d)),
   quitApp: () => ipcRenderer.send('app-quit'),
