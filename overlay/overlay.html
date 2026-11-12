@@ -8,7 +8,7 @@
 </head>
 <body>
   <div id="panel">
-    <header id="bar">
+    <header id="bar"><div class="hd-bg" aria-hidden="true"><span>TODAY IN-HOUSE</span></div>
       <span class="brand"><img class="brand-mk" src="../assets/mark.png" alt=""><span class="brand-tx"><span class="brand-en">TODAY IN-HOUSE</span><span class="ttl">투데이 내전</span></span></span>
       <span id="phase" class="phase">대기</span>
       <button id="ov-min" class="win-btn tn-wb" title="최소화"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1.5 6h9" stroke="currentColor" stroke-width="1.4"/></svg></button>
@@ -104,6 +104,7 @@
       <div id="lb-hostmenu" class="lb-hostmenu" style="display:none;"></div>
       <!-- 👑 방장이 없으면 대기실 맨 위에 「내가 방장 할게요」(v0.1.38 · 전엔 오른쪽 창 위에만 있어서 못 찾음) -->
       <div id="lb-hostcta" class="lb-hostcta tn-tip" style="display:none;"></div>
+      <div id="lb-lol" class="lb-lol" style="display:none;"></div>   <!-- 🎮 v0.1.185 롤 사용자 설정 방 만들기·초대 / 방장 초대 수락 -->
       <!-- v0.1.134(사장님): 이번 판 = 내전 / 일반 · 내전이면 아래 줄에서 팀 짜기 방식(롤 대기방 따라 자동 전환은 그대로) -->
       <div class="lb-mode"><span class="lb-mode-l">이번 판</span><button class="lb-kind" data-kind="inhouse" title="우리끼리 1팀 vs 2팀(롤 사용자 설정 게임)">내전</button><button class="lb-kind" data-kind="normal" title="내전 말고 같은 팀으로 일반 게임(칼바람 등)을 할 때 · 판 기록·하이라이트 자동">일반</button></div>
       <div class="lb-sub" id="lb-sub"><span class="lb-mode-l">팀 짜기</span><button class="lb-seg" data-mode="random">랜덤</button><button class="lb-seg" data-mode="balance">밸런스</button><button class="lb-seg" data-mode="draft">드래프트</button><button class="lb-seg" data-mode="manual">직접</button></div>

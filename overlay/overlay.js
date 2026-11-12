@@ -760,6 +760,26 @@ function renderLobby() {
     b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyMode(b.dataset.kind)); };   // 내전 = main이 마지막에 고른 방식으로
   });
   el('lb-sub').style.display = normal ? 'none' : '';
+  { // 🎮 v0.1.185 롤 사용자 설정 방 — 방장 = 「만들고 초대」(이미 사용자 설정 방이면 「방 사람 초대」) · 방장 아님 = 방장 초대가 왔을 때만 「수락」
+    const box = el('lb-lol'), G = L.lol || null;
+    let h = '';
+    if (G && G.invite && !myIsHost) h = `<span class="lb-lol-t"><b>👑 ${esc(G.invite.from)}</b>님이 롤 방에 초대했어요</span><button class="lb-mini" data-lol="accept">수락</button>`;
+    else if (G && myIsHost && L.room && (!G.phase || G.phase === 'None' || G.phase === 'Lobby'))
+      h = `<span class="lb-lol-t tn-tip" data-tip="롤에 아수라장 사용자 설정 방을 이 방 이름으로 만들고(공개 목록엔 안 뜸), 앱을 켠 방 사람들에게 롤 초대를 보내요. 친구 앱 대기실에 「수락」이 떠요"><span class="lb-lol-ic">🎮</span>${G.inCustom ? '롤 방에 있어요' : '롤 사용자 설정 방'}</span><button class="lb-mini" data-lol="make">${G.inCustom ? '방 사람 초대' : '만들고 초대'}</button>`;
+    box.style.display = h ? '' : 'none';
+    if (h && box.dataset.h !== h) { box.innerHTML = h; box.dataset.h = h; }
+    box.querySelectorAll('[data-lol]').forEach(b => b.onclick = async () => {
+      if (b.disabled) return; b.disabled = true; const t0 = b.textContent;
+      try {
+        if (b.dataset.lol === 'accept') { const r = await window.api.lolAccept(); if (!r || !r.ok) alert((r && r.err) || '수락하지 못했어요'); return; }
+        b.textContent = '만드는 중…';
+        let r = await window.api.lolLobby({});
+        if (r && r.need === 'leave') { if (!confirm('지금 롤 대기방(일반 큐)에 있어요.\n나가고 사용자 설정 방을 만들까요?')) return; r = await window.api.lolLobby({ force: true }); }
+        if (!r || !r.ok) { alert((r && r.err) || '롤 방을 만들지 못했어요'); return; }
+        b.textContent = r.total ? `${r.invited}명 초대함` : '초대할 사람 없음'; setTimeout(() => { b.textContent = t0; }, 2500);
+      } finally { b.disabled = false; }
+    });
+  }
   { // 🎧 디스코드 한 줄 — ① 나 = 방 서버에 아직 없음 → 「들어가기」(v0.1.138 · 방장이 넣은 초대 링크) ② 방장 = 서버 연결 안 됨 → 「서버 연결」(v0.1.134) · 초대 링크 없음 → 「링크 넣기」
     const dn = el('lb-dcn'), S = _set || {}, J = L.dcJoin;
     let h = '', go = null, x = null;
