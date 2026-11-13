@@ -2457,7 +2457,7 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   const metas = [null, null], whys = [], secs = [null, null], ups = [], LIMIT = H ? 260000 : 180000;
   try {
     const files = await Promise.race([recP, new Promise(r => setTimeout(() => r(null), LIMIT))]);
-    if (_potgSkip) { whys.push('건너뜀(녹화한 사람)'); card.skipped = true; }   // 🚫 v0.1.118 — 영상이 있어도 안 올림
+    if (_potgSkip) { whys.push('건너뜀(녹화한 사람)'); card.skipped = true; for (const f of (Array.isArray(files) ? files : [files])) if (f) try { fs.unlinkSync(f); } catch (_) {} }   // 🚫 v0.1.118 — 영상이 있어도 안 올림 · v0.1.207 찍어 둔 파일은 지움(예전엔 replay-rec 폴더에 남았음)
     else if (!files) whys.push(Date.now() - t0 >= LIMIT - 1000 ? `${LIMIT / 60000}분 초과` : '녹화 안 됨');
     for (let i = 0; files && !_potgSkip && i < parts.length; i++) {
       const file = files[i], tag = i ? '숨은 영웅' : '팟지';
@@ -3938,6 +3938,12 @@ else {
       muteAudio: process.platform === 'win32' ? gameAudioMute : null,   // 🔇 v0.1.92
     }));
     try { replayRec.restorePending(); } catch (_) {}   // 지난번에 녹화하다 앱이 꺼졌으면 game.cfg 창 설정 되돌림
+    // 🧹 v0.1.207 녹화 임시 폴더(userData/replay-rec) 정리 — 올린 뒤 지우기가 실패하거나(롤이 파일을 잡고 있는 순간) 건너뛴 판 파일이 남아 쌓였음(이 PC 33개 387MB)
+    //   앱이 녹화용으로만 쓰는 폴더 · 녹화 중이 아닐 때 · 6시간 지난 영상 파일만 · 켤 때 + 30분마다
+    const pruneRec = () => { if (replayBusy) return; const dir = path.join(app.getPath('userData'), 'replay-rec'); let n = 0;
+      try { for (const f of fs.readdirSync(dir)) { if (!/\.(webm|mp4)$/i.test(f)) continue; const p = path.join(dir, f); try { if (Date.now() - fs.statSync(p).mtimeMs > 6 * 3600e3) { fs.unlinkSync(p); n++; } } catch (_) {} } } catch (_) {}
+      if (n) console.log('[replay] 지난 녹화 파일 정리', n); };
+    setTimeout(pruneRec, 30000); setInterval(pruneRec, 30 * 60e3);
     setTimeout(() => { if (!inGame && lobbyPhase !== 'ChampSelect') borderlessOff(); }, 15000);   // 🖥️ 지난번 게임 중 앱이 꺼졌으면 화면 모드 원래대로(롤이 게임 중이면 기다림)
     rating = makeRating({ userData: app.getPath('userData'), log: m => { try { console.log(m); } catch (_) {} },
       lcuGet: async p => { const r = await bridge.lcuRaw('GET', p); return r && r.status >= 200 && r.status < 300 ? r.data : null; } });
