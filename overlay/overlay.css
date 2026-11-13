@@ -765,3 +765,20 @@ header .phase, header .win-btn { flex-shrink:0; }
 .lb-bub { position:absolute; inset:0; z-index:6; pointer-events:none; overflow:hidden; }
 .lb-emj { position:absolute; left:0; top:0; width:46px; height:46px; font-size:30px; line-height:46px; text-align:center; filter:drop-shadow(0 3px 6px rgba(0,0,0,0.7)); }
 .lb-emj img { display:block; width:100%; height:100%; }
+/* 😊 v0.1.204 이모티콘 = 입력 줄 버튼 → 위로 고르는 창(4×2) · 접기 ▾는 입력 줄 끝 · 디스코드 마크 = 인원 칸 안(숫자 왼쪽) */
+.lb-chat-box { position:relative; }
+.lb-emo-pop { position:absolute; left:0; right:0; bottom:34px; z-index:6; padding:6px; background:linear-gradient(180deg, #0e1a24, var(--bg-1)); border:1px solid var(--gold-line); clip-path:var(--cut-sm); box-shadow:0 -6px 18px rgba(0,0,0,0.45); animation:wrIn .14s ease-out both; }
+.lb-emo-pop .lb-chat-emos { display:grid; grid-template-columns:repeat(4, 1fr); gap:4px; }
+.lb-emo-pop .lb-emo { flex:none; width:auto; height:40px; }
+.lb-emo-pop .lb-emo img { width:38px; height:38px; }
+.lb-emo-btn { -webkit-app-region:no-drag; flex:none; width:30px; height:28px; padding:0; display:inline-flex; align-items:center; justify-content:center; overflow:hidden; cursor:pointer; background:var(--bg-2); border:1px solid var(--hair); clip-path:var(--cut-sm); }
+.lb-emo-btn img { width:26px; height:26px; transform:scale(1.2); opacity:0.75; pointer-events:none; filter:saturate(0.7); }
+.lb-emo-btn:hover, .lb-emo-btn.on { border-color:var(--gold-line); background:var(--gold-soft); }
+.lb-emo-btn:hover img, .lb-emo-btn.on img { opacity:1; filter:none; }
+.lb-chat-row .lb-chat-dn { height:28px; width:24px; }
+.lb-cnt-n { align-items:center; gap:3px; }
+.lb-cnt-n b { line-height:1; }
+.lb-cnt-n > .lb-dci-b { margin-right:5px; width:24px; height:19px; }
+.lb-cnt-n > .lb-dci-b .dc-logo { width:14px; height:14px; }
+@media (max-height:600px) { .lb-emo-pop .lb-emo { height:32px; } .lb-emo-pop .lb-emo img { width:30px; height:30px; } .lb-chat-row .lb-chat-dn, .lb-emo-btn { height:26px; } }
+.lb-emo-btn img { opacity:0.9; filter:none; }   /* v0.1.204 펭귄 인사 그림(작아도 알아보게) */

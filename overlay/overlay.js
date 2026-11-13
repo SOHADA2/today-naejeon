@@ -822,9 +822,8 @@ function renderLobby() {
   const cntTip = normal ? '롤 파티에 들어갈 사람 · 5명까지(6번째부터는 초대 안 해요)' : '참가 인원(관전은 빼고) · 한 판에 10명까지';
   head.innerHTML = !login ? ''
     : `<button id="lb-rbtn" class="lb-rbtn${_rmenu ? ' open' : ''}" title="방 메뉴${myIsHost ? ' · 방장 넘겨주기·앱 없는 사람 추가·나가기' : ' · 나가기'}"><span class="lb-en">${L.room && L.room.priv ? 'PRIVATE ROOM' : 'ROOM'}</span><span class="lb-rrow"><b class="lb-rname">${esc(L.room ? L.room.name : '대기실')}</b><i>▾</i></span></button>`
-      + (dcKind ? `<button id="lb-dci" class="lb-dci-b ${dcKind}" title="${esc(dcTip)}" aria-label="${esc(dcTip)}">${DC_LOGO}${dcKind === 'act' ? '<i class="lb-dci-dot"></i>' : ''}</button>` : '')
       + (dcHint ? '<span class="lb-dci-hint" title="디스코드 대기 채널 화면에서 「음성 채널 참가하기」를 눌러 주세요">디스코드 「참가하기」</span>'
-        : `<span class="lb-cnt" title="${cntTip}"><span class="lb-en">${normal ? 'PARTY' : 'PLAYERS'}</span><span class="lb-cnt-n"><b>${Math.min(n, seatCap)}</b><i>/${seatCap}</i>${n > seatCap ? `<em>+${n - seatCap}</em>` : ''}</span></span>`);
+        : `<span class="lb-cnt" title="${cntTip}"><span class="lb-en">${normal ? 'PARTY' : 'PLAYERS'}</span><span class="lb-cnt-n">${dcKind ? `<button id="lb-dci" class="lb-dci-b ${dcKind}" title="${esc(dcTip)}" aria-label="${esc(dcTip)}">${DC_LOGO}${dcKind === 'act' ? '<i class="lb-dci-dot"></i>' : ''}</button>` : ''}<b>${Math.min(n, seatCap)}</b><i>/${seatCap}</i>${n > seatCap ? `<em>+${n - seatCap}</em>` : ''}</span></span>`);
   { const rb = el('lb-rbtn'); if (rb) rb.onclick = e => { e.stopPropagation(); toggleRoomMenu(L); };
     const db = el('lb-dci'); if (db) db.onclick = e => { e.stopPropagation(); if (dcGo) dcGo(); };
     if (!login) closeRoomMenu(); else if (_rmenu) fillRoomMenu(L); }
@@ -954,7 +953,7 @@ function renderLobby() {
       if (normal) {
         if (qState === 'party') h = `<span class="lb-hint"><b>롤 파티 ${P.n}/${P.max || 5}명</b> · 다 들어오면 큐를 시작해요</span><button id="lb-reinv" class="lb-mini">다시 초대</button>`;
         else if (qState === 'none' && n > 5) h = '<span class="lb-hint">롤 파티는 <b>5명까지</b>예요 · 앞에 앉은 5명만 초대해요</span>';
-      } else if (n < 2) h = '<span class="lb-hint">친구가 앱을 켜고 <b>방 목록에서 이 방에 들어오면</b> 자리에 앉아요</span>';
+      } else if (n < 2) h = '';   // v0.1.204 사장님: 「친구가 앱을 켜고 … 자리에 앉아요」 문구 뺌
       else if (draft) {
         const picks = Math.max(0, (ts - 1) * 2), ord = [];
         for (let i = 0; i < picks; i++) ord.push(((i + 1) >> 1) % 2 === 0 ? 'teamA' : 'teamB');   // main draftOrder와 같은 스네이크
@@ -1254,8 +1253,13 @@ async function chatSend(emo) {
   else if (r && r.err && !(emo && r.slow)) lbErr(r.err);              // 이모티콘을 너무 빨리 누른 건 조용히 넘김
 }
 el('lb-chat-emo').innerHTML = EMO.map(e => '<button class="lb-emo" data-emo="' + e[0] + '" title="' + esc(e[1]) + '"><img src="' + EMO_IMG[e[0]] + '" alt="' + e[0] + '" draggable="false"></button>').join('');
-el('lb-chat-emo').addEventListener('click', e => { const b = e.target.closest('[data-emo]'); if (b) { b.blur(); chatSend(b.dataset.emo); } });
-el('lb-chat-dn').onclick = () => chatFold(true);
+el('lb-chat-emo').addEventListener('click', e => { const b = e.target.closest('[data-emo]'); if (b) { b.blur(); emoPop(false); chatSend(b.dataset.emo); } });
+// 😊 v0.1.204 이모티콘 고르는 창 — 입력 줄 버튼으로 열고 닫음 · 고르면 보내고 닫힘 · 밖을 누르거나 Esc = 닫힘
+function emoPop(on) { const p = el('lb-emo-pop'), b = el('lb-emo-btn'); if (!p) return; const v = on === undefined ? p.style.display === 'none' : !!on; p.style.display = v ? '' : 'none'; if (b) b.classList.toggle('on', v); }
+el('lb-emo-btn').onclick = e => { e.stopPropagation(); emoPop(); };
+document.addEventListener('mousedown', e => { const p = el('lb-emo-pop'); if (p && p.style.display !== 'none' && !(e.target.closest && e.target.closest('#lb-emo-pop, #lb-emo-btn'))) emoPop(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') emoPop(false); });
+el('lb-chat-dn').onclick = () => { emoPop(false); chatFold(true); };
 el('lb-chat-fold').onclick = () => { chatFold(false); el('lb-chat-in').focus(); };
 chatFold(CHAT.fold);
 // 한글을 조합하는 중에 Enter를 누르면(isComposing) 조합이 끝난 직후에 보냄 — 조합 중에 바로 보내면 마지막 글자가 빠지거나 두 번 감 · 조합이 끝난 뒤 Enter가 한 번 더 와도 입력 칸이 비어 있어 안 보냄

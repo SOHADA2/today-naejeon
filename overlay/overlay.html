@@ -121,8 +121,9 @@
           <button id="lb-chat-fold" class="lb-chat-fold" style="display:none;" title="채팅 펴기 (Enter)"><span class="lb-chat-ftt">채팅</span><span id="lb-chat-pv" class="lb-chat-pv"></span><b id="lb-chat-new" class="lb-chat-new" style="display:none;"></b><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
           <div id="lb-chat-box" class="lb-chat-box">
             <div id="lb-chat-feed" class="lb-chat-feed"></div>
-            <div class="lb-chat-emo"><span id="lb-chat-emo" class="lb-chat-emos"></span><button id="lb-chat-dn" class="lb-chat-dn" title="채팅 접기"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button></div>
-            <div class="lb-chat-row"><input id="lb-chat-in" class="lb-chat-in" maxlength="50" placeholder="한마디 · Enter" autocomplete="off" spellcheck="false"><button id="lb-chat-go" class="lb-chat-go" title="보내기"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h7M6 2.5 9.5 6 6 9.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button></div>
+            <!-- v0.1.204(사장님: 이모티콘 줄이 늘 펼쳐져 있음 → 열어서 보내게) — 입력 줄 😊 버튼 → 위로 고르는 창(4×2) · 고르면 보내고 닫힘 -->
+            <div id="lb-emo-pop" class="lb-emo-pop" style="display:none;"><span id="lb-chat-emo" class="lb-chat-emos"></span></div>
+            <div class="lb-chat-row"><input id="lb-chat-in" class="lb-chat-in" maxlength="50" placeholder="한마디 · Enter" autocomplete="off" spellcheck="false"><button id="lb-emo-btn" class="lb-emo-btn" title="이모티콘 · 누르면 고르는 창"><img src="../assets/emote/1505.png" alt="" draggable="false"></button><button id="lb-chat-go" class="lb-chat-go" title="보내기"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h7M6 2.5 9.5 6 6 9.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button><button id="lb-chat-dn" class="lb-chat-dn" title="채팅 접기"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button></div>
           </div>
         </div>
         <!-- 방식 고르는 창(방장) — 방식 버튼 바로 위로 열림 -->
