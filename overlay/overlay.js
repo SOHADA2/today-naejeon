@@ -1144,9 +1144,12 @@ window.api.onUpdate(u => { _upd = u; if (lobbyData) render(); });
 // ── 💬 대기실 채팅(v0.1.202 · 사장님: 말풍선이 창 안에 우겨 넣어져 닉네임을 가림 → 글은 입력 칸 위 줄 · 말풍선 대신 이모티콘이 그 사람 자리에서) ──────────
 //   글 = 아래 고정 구역 입력 칸 바로 위에 「얼굴 · 이름 · 글」로 최근 CHAT_ROWS줄(2분 지나면 사라짐 · 기록은 안 남음) — 자리·닉네임을 덮지 않음
 //   이모티콘 = 입력 칸 위 버튼 줄 → 누르면 그 사람 자리의 얼굴에서 한 번 톡 떴다 사라짐(모두에게) · 그 이모티콘 하나만 글로 써서 보내도 같음(서버엔 글과 같은 칸 · 규칙 그대로)
+//   그림 = 롤 감정표현(v0.1.203 · 사장님: 롤과 관련된 이모티콘) — 앱에 넣어 둔 assets/emote/{번호}.png(tools/emote-img.cjs) · 서버로 보내는 글자는 그대로 그림 글자(👍 …)라
+//     옛 앱(v0.1.202 = 그림 글자가 뜸 · v0.1.201 = 말풍선)과도 통하고 규칙도 그대로 · 그림을 못 읽으면 그 글자로
 //   채팅을 접으면(▾) 한 줄만 남음 — 창이 낮고 사람이 많아 자리가 밀릴 때 · 접힌 동안 누가 쓰면 그 줄이 반짝이고 「새 말 n」 · 접힘은 이 PC에 기억
 //   말한 사람 자리는 몇 초 테두리가 밝아짐 · 움직임은 전부 한 번만(무한 애니메이션 없음) · 글은 textContent로만 넣음(태그·스크립트가 와도 글자 그대로)
-const EMO = [['👋', '인사'], ['👍', '좋아요'], ['✅', '준비 완료'], ['⏳', '잠깐만요'], ['😂', 'ㅋㅋ'], ['😭', 'ㅠㅠ'], ['🔥', '가자'], ['❓', '?']];   // ⚠️ 옛 윈도우에도 있는 그림 글자만
+const EMO = [['👋', '인사', 1505], ['👍', '좋아요', 1459], ['✅', '준비 완료', 3159], ['⏳', '잠깐만요', 3173], ['😂', 'ㅋㅋ', 3177], ['😭', 'ㅠㅠ', 3155], ['🔥', '가자', 1474], ['❓', '?', 1468]];   // [보내는 글자(옛 윈도우에도 있는 그림 글자만) · 뜻 · 롤 감정표현 번호] — M'Pengu · Nice · Okay · Snoozy Poro · Wahaha · Bee Sad · Let's Do This · Does Not Compute
+const EMO_IMG = Object.fromEntries(EMO.map(e => [e[0], '../assets/emote/' + e[2] + '.png']));
 const EMO_SET = new Set(EMO.map(e => e[0]));
 const CHAT_ROWS = 3, CHAT_ROW_MS = 120000, CHAT_TALK_MS = 3500, CHAT_POP_MS = 2200;
 const CHAT = { seen: {}, rows: [], pops: {}, talk: {}, fold: false, unread: 0, room: null };   // seen = 사람 키 → 마지막으로 띄운 {at, text} · rows = 최근 말 줄 · pops = 떠 있는 이모티콘 · talk = 테두리 밝힐 때까지
@@ -1208,7 +1211,10 @@ function chatPop(k, emo) {   // 그 사람 자리(얼굴)에서 이모티콘이 
   const cur = CHAT.pops[k];
   if (cur) cur.el.remove();
   const e = document.createElement('div');
-  e.className = 'lb-emj'; e.textContent = emo;
+  e.className = 'lb-emj';
+  const im = document.createElement('img');
+  im.alt = emo; im.draggable = false; im.onerror = () => { e.textContent = emo; };   // 그림을 못 읽으면 그림 글자로
+  im.src = EMO_IMG[emo]; e.appendChild(im);
   chatLayer().appendChild(e);
   const o = CHAT.pops[k] = { el: e }, done = () => { e.remove(); if (CHAT.pops[k] === o) delete CHAT.pops[k]; };
   chatPlace();
@@ -1223,7 +1229,8 @@ function chatPlace() {   // 떠 있는 이모티콘을 그 사람 얼굴 가운�
   for (const [k, o] of Object.entries(CHAT.pops)) {
     const a = chatAnchor(k), av = a && a.querySelector('.seat-av, .chip-av'), r = av && av.getBoundingClientRect();
     if (!r || !r.width || r.bottom < br.top + 4 || r.top > br.bottom - 4) { o.el.style.display = 'none'; continue; }   // 자리가 없거나 스크롤 밖
-    o.el.style.display = ''; o.el.style.fontSize = (a.classList.contains('seat') ? 30 : 22) + 'px';
+    const sz = a.classList.contains('seat') ? 46 : 32;   // 자리 = 46px(얼굴 30px을 덮고 조금 넘침 — 그림 가장자리는 빛이라 닉네임은 안 가림) · 관전 칩 = 32px
+    o.el.style.display = ''; o.el.style.width = o.el.style.height = o.el.style.lineHeight = sz + 'px'; o.el.style.fontSize = Math.round(sz * 0.65) + 'px';
     o.el.style.left = (r.left + r.width / 2 - vr.left) + 'px'; o.el.style.top = (r.top + r.height / 2 - vr.top) + 'px';
   }
 }
@@ -1246,7 +1253,7 @@ async function chatSend(emo) {
   if (r && r.ok) chatShow({ key: r.key, text: r.text, at: r.at });   // 내 화면엔 바로
   else if (r && r.err && !(emo && r.slow)) lbErr(r.err);              // 이모티콘을 너무 빨리 누른 건 조용히 넘김
 }
-el('lb-chat-emo').innerHTML = EMO.map(e => '<button class="lb-emo" data-emo="' + e[0] + '" title="' + esc(e[1]) + '">' + e[0] + '</button>').join('');
+el('lb-chat-emo').innerHTML = EMO.map(e => '<button class="lb-emo" data-emo="' + e[0] + '" title="' + esc(e[1]) + '"><img src="' + EMO_IMG[e[0]] + '" alt="' + e[0] + '" draggable="false"></button>').join('');
 el('lb-chat-emo').addEventListener('click', e => { const b = e.target.closest('[data-emo]'); if (b) { b.blur(); chatSend(b.dataset.emo); } });
 el('lb-chat-dn').onclick = () => chatFold(true);
 el('lb-chat-fold').onclick = () => { chatFold(false); el('lb-chat-in').focus(); };

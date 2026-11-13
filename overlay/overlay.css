@@ -738,10 +738,12 @@ header .phase, header .win-btn { flex-shrink:0; }
 /* 이모티콘 버튼 줄 + 접기 */
 .lb-chat-emo { display:flex; gap:3px; }
 .lb-chat-emos { flex:1; min-width:0; display:flex; gap:3px; }
-.lb-emo { -webkit-app-region:no-drag; flex:1; min-width:0; height:24px; padding:0; font-size:14.5px; line-height:1; cursor:pointer; background:rgba(255,255,255,0.03); border:1px solid var(--hair); }
+.lb-emo { -webkit-app-region:no-drag; flex:1; min-width:0; height:30px; padding:0; display:inline-flex; align-items:center; justify-content:center; overflow:hidden; font-size:14.5px; line-height:1; cursor:pointer; background:rgba(255,255,255,0.03); border:1px solid var(--hair); }
+.lb-emo img { flex:none; width:30px; height:30px; transform:scale(1.25); pointer-events:none; }   /* 롤 감정표현 그림(v0.1.203) — 가장자리 빛은 잘라 내고 가운데를 크게 */
+.lb-emo:hover img { transform:scale(1.38); }
 .lb-emo:hover { border-color:var(--gold-line); background:var(--bg-2); }
 .lb-emo:active { background:var(--gold-soft); }
-.lb-chat-dn { -webkit-app-region:no-drag; flex:none; width:24px; height:24px; padding:0; display:inline-flex; align-items:center; justify-content:center; color:var(--dim); background:transparent; border:1px solid var(--hair); cursor:pointer; }
+.lb-chat-dn { -webkit-app-region:no-drag; flex:none; width:24px; height:30px; padding:0; display:inline-flex; align-items:center; justify-content:center; color:var(--dim); background:transparent; border:1px solid var(--hair); cursor:pointer; }
 .lb-chat-dn svg, .lb-chat-fold svg { flex:none; width:11px; height:11px; }
 .lb-chat-dn:hover { color:var(--gold-hi); border-color:var(--gold-line); }
 /* 접힌 한 줄 = 「채팅 · 마지막 말 미리 보기 · 새 말 n · ▴」 — 접힌 동안 누가 쓰면 두 번 반짝(overlay.js) 뒤 금색 테두리로 남음 */
@@ -758,7 +760,8 @@ header .phase, header .win-btn { flex-shrink:0; }
 .seat.me.talk, .lb-chip.me.talk { border-color:var(--gold-hi); }
 .seat.me.talk .seat-av { border-color:var(--gold-hi); }
 /* 짧은 창(롤 클라 1024×576 옆 = 높이 576)에선 채팅 줄만큼 자리가 모자람 → 맨 아래 단축키 안내 줄을 접고 아래 구역 여백을 줄임(안내는 ⚙ 설정에도 있음) · 그래도 9~10명이면 자리가 밀려 스크롤 → 채팅 접기(▾) */
-@media (max-height:600px) { body.in-lobby footer { display:none; } .lb-dock { gap:6px; padding:8px 14px 10px; } .lb-body { padding-bottom:6px; } .lb-chat, .lb-chat-box { gap:3px; } .lb-emo, .lb-chat-dn { height:22px; } .lb-chat-in, .lb-chat-go { height:26px; } }
+@media (max-height:600px) { body.in-lobby footer { display:none; } .lb-dock { gap:5px; padding:8px 14px 10px; } .lb-body { padding-bottom:6px; } .lb-chat, .lb-chat-box { gap:3px; } .lb-emo, .lb-chat-dn { height:24px; } .lb-emo img { width:24px; height:24px; } .lb-chat-in, .lb-chat-go { height:26px; } }
 /* 이모티콘이 뜨는 층(자리를 다시 그려도 그대로 · 클릭 통과) */
 .lb-bub { position:absolute; inset:0; z-index:6; pointer-events:none; overflow:hidden; }
-.lb-emj { position:absolute; left:0; top:0; font-size:30px; line-height:1; filter:drop-shadow(0 3px 6px rgba(0,0,0,0.7)); }
+.lb-emj { position:absolute; left:0; top:0; width:46px; height:46px; font-size:30px; line-height:46px; text-align:center; filter:drop-shadow(0 3px 6px rgba(0,0,0,0.7)); }
+.lb-emj img { display:block; width:100%; height:100%; }
