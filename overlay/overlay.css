@@ -782,3 +782,4 @@ header .phase, header .win-btn { flex-shrink:0; }
 .lb-cnt-n > .lb-dci-b .dc-logo { width:14px; height:14px; }
 @media (max-height:600px) { .lb-emo-pop .lb-emo { height:32px; } .lb-emo-pop .lb-emo img { width:30px; height:30px; } .lb-chat-row .lb-chat-dn, .lb-emo-btn { height:26px; } }
 .lb-emo-btn img { opacity:0.9; filter:none; }   /* v0.1.204 펭귄 인사 그림(작아도 알아보게) */
+.lb-cnt-v { display:inline-flex; align-items:baseline; gap:2px; }   /* v0.1.208 인원 숫자(설명은 여기와 PARTY 글자에만 · 디스코드 아이콘 설명과 안 섞이게) */

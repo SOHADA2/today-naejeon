@@ -133,7 +133,7 @@ function renderRooms() {
     const b = el('rm-new2'); if (b) b.onclick = () => rmForm(true);
     return;
   }
-  list.innerHTML = R.map(r => `<div class="rm-card${r.mine ? ' mine' : ''}"><div class="rm-row" data-rid="${esc(r.id)}" title="이 방에 들어가기">`
+  list.innerHTML = R.map(r => `<div class="rm-card${r.mine ? ' mine' : ''}"><div class="rm-row" data-rid="${esc(r.id)}">`
     + `<span class="rm-main"><b class="rm-nm" title="${esc(r.name)}">${esc(r.name)}</b><small class="rm-sub">${r.host ? `방장 <b>${esc(r.host)}</b>` : '방장 없음'}${r.members.length ? ' · ' + esc(r.members.join(', ')) : ''}</small></span>`
     + (r.priv ? '<span class="rm-tag">비공개</span>' : '')
     + `<span class="rm-n"><b>${r.n}</b>명</span><button class="rm-join" data-room="${esc(r.id)}">들어가기</button></div>`
@@ -823,7 +823,7 @@ function renderLobby() {
   head.innerHTML = !login ? ''
     : `<button id="lb-rbtn" class="lb-rbtn${_rmenu ? ' open' : ''}" title="방 메뉴${myIsHost ? ' · 방장 넘겨주기·앱 없는 사람 추가·나가기' : ' · 나가기'}"><span class="lb-en">${L.room && L.room.priv ? 'PRIVATE ROOM' : 'ROOM'}</span><span class="lb-rrow"><b class="lb-rname">${esc(L.room ? L.room.name : '대기실')}</b><i>▾</i></span></button>`
       + (dcHint ? '<span class="lb-dci-hint" title="디스코드 대기 채널 화면에서 「음성 채널 참가하기」를 눌러 주세요">디스코드 「참가하기」</span>'
-        : `<span class="lb-cnt" title="${cntTip}"><span class="lb-en">${normal ? 'PARTY' : 'PLAYERS'}</span><span class="lb-cnt-n">${dcKind ? `<button id="lb-dci" class="lb-dci-b ${dcKind}" title="${esc(dcTip)}" aria-label="${esc(dcTip)}">${DC_LOGO}${dcKind === 'act' ? '<i class="lb-dci-dot"></i>' : ''}</button>` : ''}<b>${Math.min(n, seatCap)}</b><i>/${seatCap}</i>${n > seatCap ? `<em>+${n - seatCap}</em>` : ''}</span></span>`);
+        : `<span class="lb-cnt"><span class="lb-en" title="${cntTip}">${normal ? 'PARTY' : 'PLAYERS'}</span><span class="lb-cnt-n">${dcKind ? `<button id="lb-dci" class="lb-dci-b ${dcKind}" title="${esc(dcTip)}" aria-label="${esc(dcTip)}">${DC_LOGO}${dcKind === 'act' ? '<i class="lb-dci-dot"></i>' : ''}</button>` : ''}<span class="lb-cnt-v" title="${cntTip}"><b>${Math.min(n, seatCap)}</b><i>/${seatCap}</i>${n > seatCap ? `<em>+${n - seatCap}</em>` : ''}</span></span></span>`);
   { const rb = el('lb-rbtn'); if (rb) rb.onclick = e => { e.stopPropagation(); toggleRoomMenu(L); };
     const db = el('lb-dci'); if (db) db.onclick = e => { e.stopPropagation(); if (dcGo) dcGo(); };
     if (!login) closeRoomMenu(); else if (_rmenu) fillRoomMenu(L); }
