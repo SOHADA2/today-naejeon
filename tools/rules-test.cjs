@@ -62,6 +62,17 @@ const SV = { '.sv': 'timestamp' }, D = 'today/days/2000-01-01';
   await t('방 판 상태', 'ok', 'PUT', 'today/rooms/rt_r/session', { phase: 'teams', teamA: ['a'] });
   await t('방 대기실·방장·브릿지', 'ok', 'PATCH', 'today/rooms/rt_r', { lobby: { v: 1 }, host: { puuid: 'x' }, bridge: { gamePhase: 'Lobby' } });
   await t('방 안 모르는 칸', 'deny', 'PUT', 'today/rooms/rt_r/junk', 'x');
+  // 💬 대기실 한마디(v0.1.202 규칙 · 글 50자까지 · 대기실의 다른 칸은 그대로 자유)
+  await t('한마디 — 한글 50자', 'ok', 'PUT', 'today/rooms/rt_r/lobby/chat/rt_p', { text: '가'.repeat(50), at: Date.now() });
+  await t('한마디 — 그림 글자 25개', 'ok', 'PUT', 'today/rooms/rt_r/lobby/chat/rt_p', { text: '😀'.repeat(25), at: Date.now() });
+  await t('한마디 — 51자', 'deny', 'PUT', 'today/rooms/rt_r/lobby/chat/rt_p', { text: '가'.repeat(51), at: Date.now() });
+  await t('한마디 — 빈 글', 'deny', 'PUT', 'today/rooms/rt_r/lobby/chat/rt_p', { text: '', at: 1 });
+  await t('한마디 — 글자가 아님', 'deny', 'PUT', 'today/rooms/rt_r/lobby/chat/rt_p', { text: 123, at: 1 });
+  await t('한마디 — 시각 없음', 'deny', 'PUT', 'today/rooms/rt_r/lobby/chat/rt_p', { text: 'a' });
+  await t('한마디 — 모르는 칸', 'deny', 'PUT', 'today/rooms/rt_r/lobby/chat/rt_p', { text: 'a', at: 1, junk: 'x' });
+  await t('한마디 — 대기실 통째 쓰기에 긴 글 끼워 넣기', 'deny', 'PUT', 'today/rooms/rt_r/lobby', { mode: 'random', chat: { rt_p: { text: 'x'.repeat(51), at: 1 } } });
+  await t('대기실 다른 칸은 그대로(방식·참가)', 'ok', 'PATCH', 'today/rooms/rt_r/lobby', { mode: 'draft', join: { rt_p: { name: '시험', st: 'in' } } });
+  await t('한마디 지우기', 'ok', 'DELETE', 'today/rooms/rt_r/lobby/chat/rt_p');
   // 📦 v0.1.110 방 단위 데이터
   await t('방 사람 칸', 'ok', 'PUT', 'today/rooms/rt_r/members/rt_p', { name: '시험', tag: 'KR1', icon: 29, at: Date.now(), host: false, app: '0.1.110', room: 'rt_r' });
   await t('방 사람 칸 — 모르는 칸', 'deny', 'PUT', 'today/rooms/rt_r/members/rt_p', { name: '시험', at: 1, junk: 'x' });

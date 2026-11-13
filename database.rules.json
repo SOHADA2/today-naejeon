@@ -79,7 +79,22 @@
           ".write": "auth != null && ($rid !== '_none')",
           ".validate": "$rid.length <= 40",
           "session": {},
-          "lobby": {},
+          "lobby": {
+            "chat": {
+              "$k": {
+                ".validate": "$k.length <= 80 && newData.hasChildren(['text', 'at'])",
+                "text": {
+                  ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50"
+                },
+                "at": {
+                  ".validate": "newData.isNumber()"
+                },
+                "$other": {
+                  ".validate": false
+                }
+              }
+            }
+          },
           "host": {},
           "normalLive": {},
           "potgWait": {},
