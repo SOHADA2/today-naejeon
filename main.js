@@ -1449,8 +1449,8 @@ function roomStreams() {   // 방 바뀜 → 방 스트림 다시(예전 방 데
   broadcast('lobby', lobbyView()); broadcast('session', { session: null, myName: config.myName || '' });
   if (!room || !runSession) return;
   fbMirror('room', d => {
-    const p = _roomPrev || {}, c = d || {}; _roomPrev = c;
-    if (p.lobby !== c.lobby) { lobbyRaw = c.lobby || null; broadcast('lobby', lobbyView()); }               // ⚡ 대기실(참가·방식·팀장)
+    const first = !_roomPrev, p = _roomPrev || {}, c = d || {}; _roomPrev = c;
+    if (p.lobby !== c.lobby) { lobbyRaw = c.lobby || null; broadcast('lobby', lobbyView()); if (!first) chatDiff((p.lobby || {}).chat, (c.lobby || {}).chat); }               // ⚡ 대기실(참가·방식·팀장)
     if (p.members !== c.members) { presenceRaw = c.members || null; broadcast('lobby', lobbyView()); broadcastRooms(); }   // 📦 v0.1.110: 방 사람(들어오고 나감)
     if (['session', 'host', 'normalLive', 'potgWait', 'potgRec'].some(k => p[k] !== c[k])) runSession();     // ⚡ 판·방장·팟지(일반 판·기다림·녹화 안내)
     if ((p.bridge && p.bridge.eogStats) !== (c.bridge && c.bridge.eogStats) && config.isHost) runHost();      // ⚡ 경기 종료 → 방장 앱이 바로 기록
@@ -1494,7 +1494,7 @@ async function roomLeave(quiet) {
     const next = roomMembers(id).filter(m => !account || m.key !== account.puuid).sort((a, b) => a.key.localeCompare(b.key))[0];
     if (next) await handHost(next.key).catch(() => {}); else await releaseHost().catch(() => {});
   }
-  if (account) fbSet(`${T}/rooms/${id}/lobby/join/${account.puuid}`, null).catch(() => {});
+  if (account) { fbSet(`${T}/rooms/${id}/lobby/join/${account.puuid}`, null).catch(() => {}); fbSet(`${T}/rooms/${id}/lobby/chat/${account.puuid}`, null).catch(() => {}); }   // 💬 내 한마디도 같이
   if (account) fbSet(`${T}/rooms/${id}/members/${account.puuid}`, null).catch(() => {});   // 📦 방 사람 칸
   room = null; config.lastRoom = null; saveConfig();
   roomStreams();
@@ -1759,6 +1759,30 @@ async function handHost(puuid) {
 // 각자 자기 참가/관전을 누름(key=puuid) · 방장은 남의 상태도 바꾸고 앱 없는 사람(key='g_'+이름)을 추가 · 방식·팀장은 방장만
 // 사람 목록 = 지금 접속 중(presence) + 방장이 추가한 사람. 참가 표시는 그날만 유효(새벽 6시 기준).
 // v0.1.16~: 접속 = 기본 참가(아무것도 안 눌러도 자리에 앉음) · 저장된 'spec'만 관전
+// 💬 대기실 한마디(v0.1.201 · 사장님: 채팅 창 말고, 말을 쓰면 본인 자리에서 말풍선으로) — 사람마다 「가장 최근 한마디 하나」만 서버에(기록 안 남김)
+//   자리 = `rooms/{방}/lobby/chat/{puuid}` {text, at} — 대기실 칸(lobby) 아래라 서버 규칙을 안 바꿔도 되고 방 스트림 하나로 모두에게 감(연결 안 늘어남)
+//   받는 쪽 = 방 스트림에서 「바뀐 한마디」만 왼쪽 창으로('chat') · 방에 막 들어왔을 때 남아 있던 옛 한마디는 안 띄움(first) · PC 시계에 안 기댐
+//   글은 CHAT_MAX자까지 · 0.8초에 한 번 · 서버 규칙으로 길이를 막진 않아서(대기실 칸은 자유) 받을 때도 자름 · 옛 앱은 이 칸을 그냥 무시
+const CHAT_MAX = 50;
+let _chatAt = 0;
+function chatDiff(a, b) {
+  for (const [k, m] of Object.entries(b || {})) {
+    if (!m || typeof m.text !== 'string' || !m.text) continue;
+    const o = a && a[k];
+    if (o && o.at === m.at && o.text === m.text) continue;
+    try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.webContents.send('chat', { key: k, text: m.text.slice(0, CHAT_MAX), at: Number(m.at) || 0 }); } catch (_) {}
+  }
+}
+ipcMain.handle('chat-send', async (_e, text) => {
+  const t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX);
+  if (!t) return { ok: false };
+  if (!account || !room) return { ok: false, err: '방에 들어가야 말할 수 있습니다' };
+  const now = Date.now();
+  if (now - _chatAt < 800) return { ok: false, err: '조금 천천히 보내 주세요' };
+  _chatAt = now;
+  const w = await fbSet(`${RP()}/lobby/chat/${account.puuid}`, { text: t, at: now });
+  return w && w.ok ? { ok: true, key: account.puuid, text: t, at: now } : { ok: false, err: '보내지 못했습니다 · 인터넷 연결을 확인해 주세요' };
+});
 let lobbyRaw = null, presenceRaw = null;
 function lobbyView() {
   const L = lobbyRaw || {}, join = L.join || {}, today = dayKey(), now = Date.now();

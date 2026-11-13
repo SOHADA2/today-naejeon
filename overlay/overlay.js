@@ -66,6 +66,7 @@ if (window.api.onDoorFx) window.api.onDoorFx(d => {
 });
 
 function showView(v) {
+  document.body.classList.toggle('in-lobby', v === 'lobby');   // 짧은 창(높이 600 이하)에서 대기실일 때만 맨 아래 안내 줄을 접음(overlay.css · v0.1.201 한마디 줄 자리)
   for (const k of ['rooms', 'lobby', 'rec', 'team', 'draft', 'vote', 'result', 'roster']) el('view-' + k).style.display = v === k ? (k === 'team' || k === 'lobby' ? 'flex' : 'block') : 'none';   // lobby = 위 내용 + 아래 고정 구역(v0.1.196)
 }
 
@@ -788,6 +789,7 @@ async function addGuestAsk() {   // 방장: 롤 앱이 없는 사람을 이름�
   if (v) lbAct(() => window.api.lobbyGuest(v));
 }
 function renderLobby() {
+  setTimeout(chatPlace, 0);   // 💬 자리를 다시 그린 뒤 말풍선 자리 맞춤(v0.1.201)
   const L = lobbyData || { members: [], mode: 'random', captains: {} };
   const M = L.members || [], caps = L.captains || {}, draft = L.mode === 'draft', manual = L.mode === 'manual', normal = L.mode === 'normal', sides = L.sides || {};
   const ins = M.filter(m => m.st === 'in'), specs = M.filter(m => m.st === 'spec');
@@ -910,6 +912,7 @@ function renderLobby() {
 
   // ⑥ 아래 고정 구역 = 이번 판
   el('lb-dock').style.display = login ? '' : 'none';
+  el('lb-chat').style.display = me && !me.guest ? '' : 'none';   // 💬 한마디 입력(방에 들어온 앱 켠 사람만)
   const hostNm = L.hostName, noHost = login && !myIsHost && !hostNm;
   { // 방식 버튼(방장 · 시작 버튼 왼쪽) + 고르는 창(버튼 위로 열림)
     const chipB = el('lb-mchip'), pop = el('lb-mpop');
@@ -1137,3 +1140,80 @@ render();
 let _upd = null;
 window.api.getUpdate().then(u => { _upd = u; if (lobbyData) render(); }).catch(() => {});
 window.api.onUpdate(u => { _upd = u; if (lobbyData) render(); });
+
+// ── 💬 대기실 한마디 = 말풍선(v0.1.201 · 사장님: 채팅 창 말고, 말을 쓰면 본인 자리에서 말풍선으로) ───────────────
+//   아래 고정 구역 맨 위 입력 줄에 쓰고 Enter(대기실에서 그냥 Enter를 누르면 입력 줄로) → 내 자리(자리 칸·관전 칩) 위에 몇 초 떴다 사라짐 · 기록은 안 남음
+//   말풍선은 자리 위에 겹쳐 뜸(몇 초뿐 · 꼬리가 얼굴을 가리킴) — 자리를 다시 그려도 그대로 있게 따로 둔 층(#lb-bub)에 그리고 chatPlace가 자리 맞춤
+//   움직임은 나타날 때·사라질 때 한 번씩만(무한 애니메이션 없음)
+const CHAT = { m: {} };   // 사람 키 → { el, text, at, tm }
+function chatLayer() {
+  let l = el('lb-bub');
+  if (!l) { l = document.createElement('div'); l.id = 'lb-bub'; l.className = 'lb-bub'; el('view-lobby').appendChild(l); }
+  return l;
+}
+function chatShow(d) {
+  if (!d || !d.key || !d.text) return;
+  const cur = CHAT.m[d.key];
+  if (cur && cur.at === d.at && cur.text === d.text) return;   // 내가 보낸 것 = 이미 띄움
+  if (cur) { clearTimeout(cur.tm); cur.el.remove(); }
+  const b = document.createElement('div');
+  b.className = 'lb-bb'; b.innerHTML = '<b><span></span></b><i></i>'; b.querySelector('span').textContent = String(d.text).slice(0, 50);   // b = 바탕(자른 모서리) · span = 3줄까지 · i = 꼬리
+  chatLayer().appendChild(b);
+  const o = CHAT.m[d.key] = { el: b, text: d.text, at: d.at };
+  o.tm = setTimeout(() => {
+    const a = b.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, fill: 'forwards' });
+    a.onfinish = () => { b.remove(); if (CHAT.m[d.key] === o) delete CHAT.m[d.key]; };
+  }, Math.min(8000, 3800 + String(d.text).length * 70));
+  chatPlace();
+  b.animate([{ opacity: 0, transform: 'translateY(4px) scale(.94)' }, { opacity: 1, transform: 'none' }], { duration: 150, easing: 'ease-out' });
+}
+function chatPlace() {
+  const view = el('view-lobby'), body = view && view.querySelector('.lb-body');
+  if (!view || !body) return;
+  const vr = view.getBoundingClientRect(), br = body.getBoundingClientRect(), mine = ((lobbyData && lobbyData.members) || []).find(m => m.me);
+  for (const [k, o] of Object.entries(CHAT.m)) {
+    const nm = [...view.querySelectorAll('.lb-nm[data-pk]')].find(x => x.dataset.pk === k), a = nm && nm.closest('.seat, .lb-chip');
+    const r = a && a.getBoundingClientRect();
+    if (!r || !r.width || r.bottom < br.top + 6 || r.top > br.bottom - 6) { o.el.style.display = 'none'; continue; }   // 자리가 없거나 스크롤 밖
+    o.el.style.display = '';
+    o.el.classList.toggle('me', !!(mine && mine.key === k));
+    const bw = o.el.offsetWidth, bh = o.el.offsetHeight, right = r.left + r.width / 2 > vr.left + vr.width / 2;   // 오른쪽 열 자리 = 오른쪽 끝 맞춤
+    const x = Math.max(8, Math.min(vr.width - bw - 8, right ? r.right - vr.left - bw : r.left - vr.left));
+    let y = r.top - vr.top - bh - 6, below = false;
+    if (y < br.top - vr.top + 2) { y = r.bottom - vr.top + 6; below = true; }   // 위에 자리가 없으면 자리 아래로
+    o.el.style.left = x + 'px'; o.el.style.top = y + 'px';
+    o.el.classList.toggle('below', below);
+    const av = a.querySelector('.seat-av, .chip-av'), ar = av ? av.getBoundingClientRect() : r;   // 꼬리 = 얼굴 가운데
+    o.el.lastChild.style.left = Math.max(8, Math.min(bw - 16, ar.left + ar.width / 2 - vr.left - x - 4)) + 'px';
+  }
+}
+async function chatSend() {
+  const inp = el('lb-chat-in'), t = inp.value.replace(/\s+/g, ' ').trim();
+  if (!t) return;
+  inp.value = '';
+  const r = await window.api.chatSend(t).catch(() => null);
+  if (r && r.ok) chatShow({ key: r.key, text: r.text, at: r.at });   // 내 화면엔 바로
+  else if (r && r.err) lbErr(r.err);
+}
+// 한글을 조합하는 중에 Enter를 누르면(isComposing) 조합이 끝난 직후에 보냄 — 조합 중에 바로 보내면 마지막 글자가 빠지거나 두 번 감 · 조합이 끝난 뒤 Enter가 한 번 더 와도 입력 칸이 비어 있어 안 보냄
+let _chatImeAt = 0;
+el('lb-chat-in').addEventListener('keydown', e => {
+  if (e.key === 'Escape') { e.target.blur(); return; }
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  if (e.isComposing) { _chatImeAt = Date.now(); return; }
+  chatSend();
+});
+el('lb-chat-in').addEventListener('compositionend', () => { if (Date.now() - _chatImeAt < 400) { _chatImeAt = 0; setTimeout(chatSend, 0); } });
+el('lb-chat-go').onclick = () => { chatSend(); el('lb-chat-in').focus(); };
+document.addEventListener('keydown', e => {   // 대기실에서 그냥 Enter = 입력 줄로(다른 입력 칸·확인 창이 떠 있을 땐 그대로)
+  if (e.key !== 'Enter' || e.isComposing || e.ctrlKey || e.altKey || e.metaKey) return;
+  const t = e.target, tag = t && t.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'SELECT' || document.querySelector('.tn-mb')) return;
+  const box = el('lb-chat');
+  if (el('view-lobby').style.display === 'none' || !box || box.style.display === 'none') return;
+  e.preventDefault(); el('lb-chat-in').focus();
+});
+{ const lbBody = document.querySelector('#view-lobby .lb-body'); if (lbBody) lbBody.addEventListener('scroll', chatPlace, { passive: true }); }
+window.addEventListener('resize', chatPlace);
+if (window.api.onChat) window.api.onChat(chatShow);

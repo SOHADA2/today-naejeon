@@ -714,3 +714,24 @@ header .phase, header .win-btn { flex-shrink:0; }
 .rm-empty > span { word-break:keep-all; }
 .rm-row[data-rid] { cursor:pointer; -webkit-app-region:no-drag; }
 .rm-card:hover { border-color:var(--gold-line); }
+
+/* ═══ 💬 대기실 한마디 = 말풍선(v0.1.201) ═══
+   입력 = 아래 고정 구역 맨 위 가는 줄 · 말풍선 = 자리 위에 몇 초(짙은 남색 + 금색 가는 선 + 얼굴을 가리키는 꼬리 · 내 것은 금빛 글자) · 각진 모서리 · 한 번만 나타남 */
+#view-lobby { position:relative; }
+.lb-chat { display:flex; gap:6px; }
+.lb-chat-in { -webkit-app-region:no-drag; flex:1; min-width:0; height:28px; padding:0 10px; font:500 12.5px var(--f-body); color:var(--ink); background:rgba(255,255,255,0.03); border:1px solid var(--hair); outline:none; -webkit-user-select:text; user-select:text; }
+.lb-chat-in::placeholder { color:var(--mute); }
+.lb-chat-in:focus { border-color:var(--gold-line); background:var(--bg-2); }
+.lb-chat-go { -webkit-app-region:no-drag; flex:none; width:30px; height:28px; padding:0; display:inline-flex; align-items:center; justify-content:center; color:var(--dim); background:var(--bg-2); border:1px solid var(--hair); clip-path:var(--cut-sm); cursor:pointer; }
+.lb-chat-go svg { width:12px; height:12px; }
+.lb-chat-go:hover { color:var(--gold-hi); border-color:var(--gold-line); }
+/* 짧은 창(롤 클라 1024×576 옆 = 높이 576)에선 한마디 줄만큼 자리가 모자라 10명 드래프트가 한 화면에 안 들어감 → 맨 아래 단축키 안내 줄을 접고 아래 구역 여백을 줄임(안내는 ⚙ 설정에도 있음) */
+@media (max-height:600px) { body.in-lobby footer { display:none; } .lb-dock { gap:6px; padding:8px 14px 10px; } }
+.lb-bub { position:absolute; inset:0; z-index:6; pointer-events:none; overflow:hidden; }
+/* 말풍선 = 자리 카드(짙은 남색·가는 선)와 섞이지 않게 밝은 바탕 + 어두운 글자(주 버튼과 같은 계열) · 자른 모서리 · 내 것만 금색 */
+.lb-bb { position:absolute; left:0; top:0; max-width:min(250px, calc(100% - 16px)); filter:drop-shadow(0 4px 9px rgba(0,0,0,0.6)); }
+.lb-bb b { display:block; padding:5px 10px 6px; font-size:12.5px; font-weight:700; line-height:1.4; letter-spacing:-0.01em; color:#161109; background:var(--ink); clip-path:var(--cut-sm); }
+.lb-bb span { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; overflow-wrap:anywhere; word-break:keep-all; }
+.lb-bb i { position:absolute; bottom:-4px; width:9px; height:9px; background:var(--ink); transform:rotate(45deg); }
+.lb-bb.below i { bottom:auto; top:-4px; }
+.lb-bb.me b, .lb-bb.me i { background:var(--gold-hi); }

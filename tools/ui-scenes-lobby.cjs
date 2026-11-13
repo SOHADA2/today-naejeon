@@ -1,6 +1,6 @@
 // 🧪 대기실·방 목록 캡처 장면 만들기(가짜 이름) — 왼쪽 창(overlay)을 고친 뒤 화면 검사에 씀(v0.1.196 · 다른 PC에서도 같은 검사를 돌리게 리포에 둠)
 // 사용(리포 루트 · 이 PC 셸은 ELECTRON_RUN_AS_NODE 끄고 = env -u ELECTRON_RUN_AS_NODE):
-//   node tools/ui-scenes-lobby.cjs <장면.json>                                  ← 장면 파일 만들기(46장면: 302·402px × 23가지 상태 · 서버·롤 연결 없음)
+//   node tools/ui-scenes-lobby.cjs <장면.json>                                  ← 장면 파일 만들기(50장면: 302·402px × 25가지 상태 · 서버·롤 연결 없음)
 //   ./node_modules/electron/dist/electron.exe tools/ui-shot.cjs <장면.json> <출력 폴더>    ← PNG + 글자 겹침·잘림 검사(「TODAY IN-HOUSE」 머리 배경 글자 겹침·잘림은 원래 그런 것)
 //   ./node_modules/electron/dist/electron.exe tools/ui-errcheck.cjs <장면.json>            ← 렌더러 실행 오류(다시 그리기·방장 여부 뒤집기까지)
 // 장면 이름: h- 방장 · m- 팀원 · x- 그 밖(롤 초대·디스코드 안내·12명·오류 줄·오늘 순위·방 목록) · 끝 숫자 = 창 폭
@@ -49,6 +49,10 @@ for (const w of [302, 402]) {
   S.push({ name: 'x-rooms-empty-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms: [], room: null, ready: true }) + ");" + wait });
   S.push({ name: 'x-rooms-list-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms, room: null, ready: true }) + ");" + wait });
   S.push(sc('x-short-' + w, w, 10, 0, 'draft', '', { captains: { teamA: NM[0], teamB: NM[2] } }, false, 560));          // 낮은 창(560)에서 10명 드래프트 = 한 화면
+  // 💬 한마디 말풍선(v0.1.201) — 왼쪽 열·오른쪽 열·내 것(금빛)·긴 글 · ⚠️ 말풍선은 자리 위에 겹쳐 뜨는 게 정상(겹침 검사에 걸림)
+  const CHAT = "__emit('chat',{key:'p0',text:'다들 준비됐어?',at:1}); __emit('chat',{key:'p3',text:'잠깐만 물 좀 떠 올게 금방 옴 ㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋ',at:2}); __emit('chat',{key:'p2',text:'ㄱㄱ',at:3}); await new Promise(r=>setTimeout(r,400));";
+  S.push(sc('x-chat-' + w, w, 6, 2, 'random', CHAT));                                                                 // 팀원 화면
+  S.push(sc('x-chat-host-' + w, w, 5, 0, 'draft', "__emit('chat',{key:'p0',text:'팀장 누가 할래',at:1}); __emit('chat',{key:'p4',text:'나!',at:2}); await new Promise(r=>setTimeout(r,400));"));   // 방장 화면(내 것 = 첫 줄 → 아래로)
 }
 fs.writeFileSync(out, JSON.stringify(S));
 console.log('장면', S.length, '개 →', out);
