@@ -13,7 +13,7 @@
   const EMB = { iron: [0.5008, 0.4944, 0.1516, 0.1611], bronze: [0.5, 0.4889, 0.1781, 0.2111], silver: [0.5, 0.4708, 0.1938, 0.2417], gold: [0.4984, 0.4806, 0.1969, 0.2944], platinum: [0.5, 0.4646, 0.2031, 0.3014],
     emerald: [0.5004, 0.4688, 0.2242, 0.2931], diamond: [0.5, 0.4931, 0.2406, 0.2528], master: [0.5008, 0.4792, 0.2297, 0.2917], grandmaster: [0.5, 0.4861, 0.2406, 0.3], challenger: [0.5, 0.4736, 0.2469, 0.325] };
   window.tnEmblem = (tier, W, H, fill) => { const t = String(tier || '').toLowerCase(), b = EMB[t] || [0.5, 0.48, 0.2, 0.3], f = fill || 0.96, k = Math.min(W * f / b[2], H * f / (b[3] * 0.5625));
-    // v0.1.199(사장님: 문장이 늦게 뜸 → 앱에 넣어 빨리) — 문장 그림 10장은 앱 안 assets/rank(tools/rank-emblems.cjs가 받아 1280폭으로 줄임 · 비율 그대로라 EMB 값 그대로) · 모르는 티어 이름만 서버에서
+    // v0.1.199(사장님: 문장이 늦게 뜸 → 앱에 넣어 빨리) — 문장 그림 9장(브론즈~챌린저)은 앱 안 assets/rank(tools/rank-emblems.cjs가 받아 1280폭으로 줄임 · 비율 그대로라 EMB 값 그대로) · 모르는 티어 이름만 서버에서
     const src = EMB[t] ? `../assets/rank/emblem-${t}.png` : `${CD}ranked-emblem/emblem-${t}.png`;   // 이 파일을 쓰는 창(overlay·sidepanel)은 둘 다 한 단계 아래 폴더
     //   앱 안 파일이 없으면(받지 못한 티어) 서버 그림으로 한 번 바꿔 받음(onerror)
     return `<img class="tn-emb" src="${src}" onerror="this.onerror=null;this.src='${CD}ranked-emblem/emblem-${t}.png'" alt="" style="width:${k.toFixed(1)}px;left:calc(50% - ${(b[0] * k).toFixed(1)}px);top:calc(50% - ${(b[1] * k * 0.5625).toFixed(1)}px)">`; };

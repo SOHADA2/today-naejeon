@@ -21,10 +21,10 @@ const GRADES = [[75, 'S+'], [70, 'S'], [65, 'A+'], [60, 'A'], [55, 'B+'], [50, '
 const gradeOf = s => GRADES.find(([min]) => s >= min)[1];
 // v0.1.113: 화면은 글자 등급 대신 롤 티어 이름(사장님: 롤 티어표처럼) — 8점마다 한 티어 · 2점마다 한 단계(4 → 1) · 마스터부터 단계 없음
 //   ⚠️ sidepanel.js `scoreTier`와 같은 표(렌더러는 이 파일을 못 불러서 두 군데 · 바꾸면 둘 다)
-const SCORE_TIERS = [[90, 'CHALLENGER'], [84, 'GRANDMASTER'], [78, 'MASTER'], [70, 'DIAMOND'], [62, 'EMERALD'], [54, 'PLATINUM'], [46, 'GOLD'], [38, 'SILVER'], [30, 'BRONZE'], [22, 'IRON']];
+const SCORE_TIERS = [[90, 'CHALLENGER'], [84, 'GRANDMASTER'], [78, 'MASTER'], [70, 'DIAMOND'], [62, 'EMERALD'], [54, 'PLATINUM'], [46, 'GOLD'], [38, 'SILVER'], [30, 'BRONZE']];   // v0.1.200(사장님: 아이언은 없애도 됨) — 가장 낮은 티어 = 브론즈(30점 아래는 전부 브론즈 4)
 function tierOf(s) {
   const f = SCORE_TIERS.findIndex(([lo]) => s >= lo), i = f < 0 ? SCORE_TIERS.length - 1 : f, [lo, tier] = SCORE_TIERS[i];
-  return { tier, div: ['MASTER', 'GRANDMASTER', 'CHALLENGER'].includes(tier) ? null : Math.max(1, 4 - Math.max(0, Math.floor((s - lo) / 2))), rank: SCORE_TIERS.length - 1 - i };   // rank = 아이언 0 ~ 챌린저 9
+  return { tier, div: ['MASTER', 'GRANDMASTER', 'CHALLENGER'].includes(tier) ? null : Math.max(1, 4 - Math.max(0, Math.floor((s - lo) / 2))), rank: SCORE_TIERS.length - 1 - i };   // rank = 브론즈 0 ~ 챌린저 8
 }
 const r3 = v => Math.round(v * 1000) / 1000;
 

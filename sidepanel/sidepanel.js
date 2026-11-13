@@ -279,7 +279,7 @@ const augMapP = async () => _augMapP || (_augMapP = await window.api.getAugments
 // 🏅 전적 기반 점수(v0.1.111) → 롤 티어 이름: 8점마다 한 티어 · 2점마다 한 단계(4 → 1) · 마스터부터 단계 없음(우리끼리 점수 · 공식 랭크 아님)
 //   ⚠️ rating.js `tierOf`와 같은 표(메인은 이 파일을 못 불러서 두 군데 · 바꾸면 둘 다)
 const TIER_KO = { IRON: '아이언', BRONZE: '브론즈', SILVER: '실버', GOLD: '골드', PLATINUM: '플래티넘', EMERALD: '에메랄드', DIAMOND: '다이아', MASTER: '마스터', GRANDMASTER: '그마', CHALLENGER: '챌린저' };
-const SCORE_TIERS = [[90, 'CHALLENGER'], [84, 'GRANDMASTER'], [78, 'MASTER'], [70, 'DIAMOND'], [62, 'EMERALD'], [54, 'PLATINUM'], [46, 'GOLD'], [38, 'SILVER'], [30, 'BRONZE'], [22, 'IRON']];
+const SCORE_TIERS = [[90, 'CHALLENGER'], [84, 'GRANDMASTER'], [78, 'MASTER'], [70, 'DIAMOND'], [62, 'EMERALD'], [54, 'PLATINUM'], [46, 'GOLD'], [38, 'SILVER'], [30, 'BRONZE']];   // 가장 낮은 티어 = 브론즈(v0.1.200 아이언 없앰 · rating.js와 같은 표)
 function scoreTier(s) {
   const i = SCORE_TIERS.findIndex(([lo]) => s >= lo), [lo, tier] = SCORE_TIERS[i < 0 ? SCORE_TIERS.length - 1 : i];
   return { tier, div: ['MASTER', 'GRANDMASTER', 'CHALLENGER'].includes(tier) ? null : Math.max(1, 4 - Math.max(0, Math.floor((s - lo) / 2))) };

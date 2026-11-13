@@ -3332,6 +3332,7 @@ function tierReveal(puuid, x, kind) {
   const key = kind === 'custom' ? 'customTier' : 'mayhemTier';
   const t = makeRating.tierOf(x.s), seen = config[key] || {}, prev = seen[puuid] || null;
   if (prev === t.tier) return;
+  if (prev === 'IRON' && t.tier === 'BRONZE') { config[key] = Object.assign({}, seen, { [puuid]: t.tier }); saveConfig(); return; }   // v0.1.200 아이언 없앰 → 예전 아이언이 브론즈로 보이는 건 승급이 아님(공개 연출 없이 값만 바꿈)
   const order = ['IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER', 'GRANDMASTER', 'CHALLENGER'];
   const dir = !prev ? 'first' : order.indexOf(t.tier) > order.indexOf(prev) ? 'up' : 'down';
   try { overlayWin.webContents.send('tier-reveal', { kind: kind || 'mayhem', season: `${makeRating.SEASON.name} · ${makeRating.SEASON.patch}~`, tier: t.tier, div: t.div, rank: t.rank, s: x.s, n: x.n, w: x.w, wr: x.wr, kda: x.kda, prev, dir }); } catch (_) { return; }
