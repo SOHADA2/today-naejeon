@@ -2448,7 +2448,11 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   const parts = [{ from: Math.max(0, card.clipFrom - 2), to: card.clipTo, focus: card.name, champ: alias(card.championId), fov: await fov(card.championId), direct: { victims }, speed: slowKeys(potgSlow(kts), kts.flatMap(m => [m - 0.7, m - 0.45, m + 0.3, m + FREEZE_AFTER])) }]
     .concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: alias(H.championId), fov: await fov(H.championId), direct: { victims: [] }, speed: slowKeys(heroSlow(H.peak), [H.peak - 0.6, H.peak + 0.35]) }] : []);
   recProgStart(parts);
-  const t0 = Date.now(), recP = replayRec.record({ gameId: g.id, parts });
+  // 🚫 v0.1.206(사장님: 건너뛰기를 바로 눌렀는데 정상으로 돌아가며 녹화가 다시 시작됨) — 녹화 모듈은 record()를 부를 때 건너뛰기 표시(_cancel)를 지움
+  //   → 위 준비(챔피언 정보·시야 계산 · 2~3초) 사이에 누른 건너뛰기가 사라져 리플레이를 열었음(11/14 00:38 판: 누름 00:38:17 → 녹화 시작 00:38:20)
+  //   → 이미 눌렀으면 녹화를 아예 부르지 않음(record()의 지우기는 부르는 순간 바로 일어나 그 뒤에 누른 건 그대로 먹음)
+  if (_potgSkip) _recLog.push(`${new Date().toTimeString().slice(0, 8)} 🚫 녹화 시작 전에 건너뜀 → 리플레이 안 엶`);
+  const t0 = Date.now(), recP = _potgSkip ? Promise.resolve(null) : replayRec.record({ gameId: g.id, parts });
   recP.catch(() => {}).finally(() => setTimeout(() => { replayBusy = false; }, 6000));   // 리플레이가 실제로 끝나고(닫히고) 조금 더 지나야 풀림(시간 초과로 먼저 카드를 보여줘도)
   const metas = [null, null], whys = [], secs = [null, null], ups = [], LIMIT = H ? 260000 : 180000;
   try {
