@@ -66,7 +66,7 @@ if (window.api.onDoorFx) window.api.onDoorFx(d => {
 });
 
 function showView(v) {
-  document.body.classList.toggle('in-lobby', v === 'lobby');   // 짧은 창(높이 600 이하)에서 대기실일 때만 맨 아래 안내 줄을 접음(overlay.css · v0.1.201 한마디 줄 자리)
+  document.body.classList.toggle('in-lobby', v === 'lobby');   // 짧은 창(높이 600 이하)에서 대기실일 때만 맨 아래 안내 줄을 접음(overlay.css · 채팅 줄 자리)
   for (const k of ['rooms', 'lobby', 'rec', 'team', 'draft', 'vote', 'result', 'roster']) el('view-' + k).style.display = v === k ? (k === 'team' || k === 'lobby' ? 'flex' : 'block') : 'none';   // lobby = 위 내용 + 아래 고정 구역(v0.1.196)
 }
 
@@ -789,7 +789,7 @@ async function addGuestAsk() {   // 방장: 롤 앱이 없는 사람을 이름�
   if (v) lbAct(() => window.api.lobbyGuest(v));
 }
 function renderLobby() {
-  setTimeout(chatPlace, 0);   // 💬 자리를 다시 그린 뒤 말풍선 자리 맞춤(v0.1.201)
+  setTimeout(() => { chatRoom(); chatMark(); chatPlace(); }, 0);   // 💬 자리를 다시 그린 뒤 방 바뀜 확인·말한 사람 테두리·이모티콘 자리 맞춤(v0.1.202 · ⚠️ 바로 부르면 안 됨 — 켤 때는 아래 CHAT이 아직 안 만들어진 채로 여기가 먼저 돎)
   const L = lobbyData || { members: [], mode: 'random', captains: {} };
   const M = L.members || [], caps = L.captains || {}, draft = L.mode === 'draft', manual = L.mode === 'manual', normal = L.mode === 'normal', sides = L.sides || {};
   const ins = M.filter(m => m.st === 'in'), specs = M.filter(m => m.st === 'spec');
@@ -912,7 +912,7 @@ function renderLobby() {
 
   // ⑥ 아래 고정 구역 = 이번 판
   el('lb-dock').style.display = login ? '' : 'none';
-  el('lb-chat').style.display = me && !me.guest ? '' : 'none';   // 💬 한마디 입력(방에 들어온 앱 켠 사람만)
+  el('lb-chat').style.display = me && !me.guest ? '' : 'none';   // 💬 채팅(방에 들어온 앱 켠 사람만)
   const hostNm = L.hostName, noHost = login && !myIsHost && !hostNm;
   { // 방식 버튼(방장 · 시작 버튼 왼쪽) + 고르는 창(버튼 위로 열림)
     const chipB = el('lb-mchip'), pop = el('lb-mpop');
@@ -1141,60 +1141,116 @@ let _upd = null;
 window.api.getUpdate().then(u => { _upd = u; if (lobbyData) render(); }).catch(() => {});
 window.api.onUpdate(u => { _upd = u; if (lobbyData) render(); });
 
-// ── 💬 대기실 한마디 = 말풍선(v0.1.201 · 사장님: 채팅 창 말고, 말을 쓰면 본인 자리에서 말풍선으로) ───────────────
-//   아래 고정 구역 맨 위 입력 줄에 쓰고 Enter(대기실에서 그냥 Enter를 누르면 입력 줄로) → 내 자리(자리 칸·관전 칩) 위에 몇 초 떴다 사라짐 · 기록은 안 남음
-//   말풍선은 자리 위에 겹쳐 뜸(몇 초뿐 · 꼬리가 얼굴을 가리킴) — 자리를 다시 그려도 그대로 있게 따로 둔 층(#lb-bub)에 그리고 chatPlace가 자리 맞춤
-//   움직임은 나타날 때·사라질 때 한 번씩만(무한 애니메이션 없음)
-const CHAT = { m: {} };   // 사람 키 → { el, text, at, tm }
+// ── 💬 대기실 채팅(v0.1.202 · 사장님: 말풍선이 창 안에 우겨 넣어져 닉네임을 가림 → 글은 입력 칸 위 줄 · 말풍선 대신 이모티콘이 그 사람 자리에서) ──────────
+//   글 = 아래 고정 구역 입력 칸 바로 위에 「얼굴 · 이름 · 글」로 최근 CHAT_ROWS줄(2분 지나면 사라짐 · 기록은 안 남음) — 자리·닉네임을 덮지 않음
+//   이모티콘 = 입력 칸 위 버튼 줄 → 누르면 그 사람 자리의 얼굴에서 한 번 톡 떴다 사라짐(모두에게) · 그 이모티콘 하나만 글로 써서 보내도 같음(서버엔 글과 같은 칸 · 규칙 그대로)
+//   채팅을 접으면(▾) 한 줄만 남음 — 창이 낮고 사람이 많아 자리가 밀릴 때 · 접힌 동안 누가 쓰면 그 줄이 반짝이고 「새 말 n」 · 접힘은 이 PC에 기억
+//   말한 사람 자리는 몇 초 테두리가 밝아짐 · 움직임은 전부 한 번만(무한 애니메이션 없음) · 글은 textContent로만 넣음(태그·스크립트가 와도 글자 그대로)
+const EMO = [['👋', '인사'], ['👍', '좋아요'], ['✅', '준비 완료'], ['⏳', '잠깐만요'], ['😂', 'ㅋㅋ'], ['😭', 'ㅠㅠ'], ['🔥', '가자'], ['❓', '?']];   // ⚠️ 옛 윈도우에도 있는 그림 글자만
+const EMO_SET = new Set(EMO.map(e => e[0]));
+const CHAT_ROWS = 3, CHAT_ROW_MS = 120000, CHAT_TALK_MS = 3500, CHAT_POP_MS = 2200;
+const CHAT = { seen: {}, rows: [], pops: {}, talk: {}, fold: false, unread: 0, room: null };   // seen = 사람 키 → 마지막으로 띄운 {at, text} · rows = 최근 말 줄 · pops = 떠 있는 이모티콘 · talk = 테두리 밝힐 때까지
+try { CHAT.fold = localStorage.getItem('tnChatFold') === '1'; } catch (_) {}
+const chatMember = k => ((lobbyData && lobbyData.members) || []).find(m => m.key === k);
+const chatAnchor = k => { const nm = [...el('view-lobby').querySelectorAll('.lb-nm[data-pk]')].find(x => x.dataset.pk === k); return nm ? nm.closest('.seat, .lb-chip') : null; };
 function chatLayer() {
   let l = el('lb-bub');
   if (!l) { l = document.createElement('div'); l.id = 'lb-bub'; l.className = 'lb-bub'; el('view-lobby').appendChild(l); }
   return l;
 }
 function chatShow(d) {
-  if (!d || !d.key || !d.text) return;
-  const cur = CHAT.m[d.key];
-  if (cur && cur.at === d.at && cur.text === d.text) return;   // 내가 보낸 것 = 이미 띄움
-  if (cur) { clearTimeout(cur.tm); cur.el.remove(); }
-  const b = document.createElement('div');
-  b.className = 'lb-bb'; b.innerHTML = '<b><span></span></b><i></i>'; b.querySelector('span').textContent = String(d.text).slice(0, 50);   // b = 바탕(자른 모서리) · span = 3줄까지 · i = 꼬리
-  chatLayer().appendChild(b);
-  const o = CHAT.m[d.key] = { el: b, text: d.text, at: d.at };
-  o.tm = setTimeout(() => {
-    const a = b.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, fill: 'forwards' });
-    a.onfinish = () => { b.remove(); if (CHAT.m[d.key] === o) delete CHAT.m[d.key]; };
-  }, Math.min(8000, 3800 + String(d.text).length * 70));
-  chatPlace();
-  b.animate([{ opacity: 0, transform: 'translateY(4px) scale(.94)' }, { opacity: 1, transform: 'none' }], { duration: 150, easing: 'ease-out' });
+  if (!d || !d.key || typeof d.text !== 'string' || !d.text) return;
+  const text = d.text.slice(0, 50), cur = CHAT.seen[d.key];
+  if (cur && cur.at === d.at && cur.text === text) return;   // 내가 보낸 것 = 이미 띄움
+  CHAT.seen[d.key] = { at: d.at, text };
+  const m = chatMember(d.key);
+  if (!m) return;   // 이 방 사람이 아니면 안 띄움
+  CHAT.talk[d.key] = Date.now() + CHAT_TALK_MS; chatMark(); setTimeout(chatMark, CHAT_TALK_MS + 40);
+  if (EMO_SET.has(text)) chatPop(d.key, text); else chatSay(m, text);
 }
-function chatPlace() {
+function chatSay(m, text) {   // 최근 말 줄에 한 줄
+  const row = document.createElement('div');
+  row.className = 'lb-say' + (m.me ? ' me' : '');
+  row.innerHTML = avatar(m, 'chip-av') + '<p><b></b><span></span></p>';
+  row.querySelector('p b').textContent = m.name; row.querySelector('p span').textContent = text;   // ⚠️ 'span'만 쓰면 얼굴 칸(chip-av)이 먼저 잡힘
+  el('lb-chat-feed').appendChild(row);
+  const o = { el: row, name: m.name, text };
+  CHAT.rows.push(o);
+  while (CHAT.rows.length > CHAT_ROWS) chatDrop(CHAT.rows[0], true);
+  o.tm = setTimeout(() => chatDrop(o), CHAT_ROW_MS);
+  if (!m.me && CHAT.fold) CHAT.unread++;
+  chatBar();
+  if (m.me) return;
+  if (CHAT.fold) el('lb-chat-fold').animate([{ backgroundColor: 'rgba(240,215,154,0.6)', borderColor: '#F0D79A' }, { backgroundColor: 'rgba(200,170,110,0.12)', borderColor: 'rgba(200,170,110,0.42)' }], { duration: 460, iterations: 2, easing: 'ease-out' });   // 접힌 줄 = 두 번 반짝
+  else row.animate([{ backgroundColor: 'rgba(240,215,154,0.32)' }, { backgroundColor: 'rgba(240,215,154,0)' }], { duration: 900, easing: 'ease-out' });   // 새 줄 = 한 번 밝았다 가라앉음
+}
+function chatDrop(o, now) {
+  const i = CHAT.rows.indexOf(o);
+  if (i < 0) return;
+  CHAT.rows.splice(i, 1); clearTimeout(o.tm);
+  if (now) o.el.remove(); else { const a = o.el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250, fill: 'forwards' }); a.onfinish = () => o.el.remove(); setTimeout(() => o.el.remove(), 600); }
+  CHAT.unread = Math.min(CHAT.unread, CHAT.rows.length); chatBar();
+}
+function chatBar() {   // 접힌 한 줄 = 마지막 말 미리 보기 + 새 말 수
+  const last = CHAT.rows[CHAT.rows.length - 1], n = el('lb-chat-new');
+  el('lb-chat-pv').textContent = last ? last.name + ' · ' + last.text : '누르면 펴집니다';
+  n.style.display = CHAT.unread ? '' : 'none'; n.textContent = CHAT.unread ? '새 말 ' + CHAT.unread : '';
+  el('lb-chat-fold').classList.toggle('new', CHAT.unread > 0);
+}
+function chatFold(on) {
+  CHAT.fold = !!on;
+  if (!on) CHAT.unread = 0;
+  el('lb-chat-box').style.display = on ? 'none' : ''; el('lb-chat-fold').style.display = on ? '' : 'none';
+  try { localStorage.setItem('tnChatFold', on ? '1' : '0'); } catch (_) {}
+  chatBar(); chatPlace();
+}
+function chatPop(k, emo) {   // 그 사람 자리(얼굴)에서 이모티콘이 한 번 뜸
+  const cur = CHAT.pops[k];
+  if (cur) cur.el.remove();
+  const e = document.createElement('div');
+  e.className = 'lb-emj'; e.textContent = emo;
+  chatLayer().appendChild(e);
+  const o = CHAT.pops[k] = { el: e }, done = () => { e.remove(); if (CHAT.pops[k] === o) delete CHAT.pops[k]; };
+  chatPlace();
+  const C = 'translate(-50%, -50%) ';
+  e.animate([{ opacity: 0, transform: C + 'scale(.3)' }, { opacity: 1, transform: C + 'translateY(-3px) scale(1.5)', offset: 0.14 }, { opacity: 1, transform: C + 'translateY(-2px) scale(1.12)', offset: 0.28 }, { opacity: 1, transform: C + 'translateY(-4px) scale(1.12)', offset: 0.78 }, { opacity: 0, transform: C + 'translateY(-16px) scale(.95)' }], { duration: CHAT_POP_MS, easing: 'ease-out', fill: 'forwards' }).onfinish = done;
+  setTimeout(done, CHAT_POP_MS + 400);   // 숨긴 창에선 애니메이션 끝 알림이 늦을 수 있음
+}
+function chatPlace() {   // 떠 있는 이모티콘을 그 사람 얼굴 가운데로(다시 그리기·스크롤·창 크기)
   const view = el('view-lobby'), body = view && view.querySelector('.lb-body');
   if (!view || !body) return;
-  const vr = view.getBoundingClientRect(), br = body.getBoundingClientRect(), mine = ((lobbyData && lobbyData.members) || []).find(m => m.me);
-  for (const [k, o] of Object.entries(CHAT.m)) {
-    const nm = [...view.querySelectorAll('.lb-nm[data-pk]')].find(x => x.dataset.pk === k), a = nm && nm.closest('.seat, .lb-chip');
-    const r = a && a.getBoundingClientRect();
-    if (!r || !r.width || r.bottom < br.top + 6 || r.top > br.bottom - 6) { o.el.style.display = 'none'; continue; }   // 자리가 없거나 스크롤 밖
-    o.el.style.display = '';
-    o.el.classList.toggle('me', !!(mine && mine.key === k));
-    const bw = o.el.offsetWidth, bh = o.el.offsetHeight, right = r.left + r.width / 2 > vr.left + vr.width / 2;   // 오른쪽 열 자리 = 오른쪽 끝 맞춤
-    const x = Math.max(8, Math.min(vr.width - bw - 8, right ? r.right - vr.left - bw : r.left - vr.left));
-    let y = r.top - vr.top - bh - 6, below = false;
-    if (y < br.top - vr.top + 2) { y = r.bottom - vr.top + 6; below = true; }   // 위에 자리가 없으면 자리 아래로
-    o.el.style.left = x + 'px'; o.el.style.top = y + 'px';
-    o.el.classList.toggle('below', below);
-    const av = a.querySelector('.seat-av, .chip-av'), ar = av ? av.getBoundingClientRect() : r;   // 꼬리 = 얼굴 가운데
-    o.el.lastChild.style.left = Math.max(8, Math.min(bw - 16, ar.left + ar.width / 2 - vr.left - x - 4)) + 'px';
+  const vr = view.getBoundingClientRect(), br = body.getBoundingClientRect();
+  for (const [k, o] of Object.entries(CHAT.pops)) {
+    const a = chatAnchor(k), av = a && a.querySelector('.seat-av, .chip-av'), r = av && av.getBoundingClientRect();
+    if (!r || !r.width || r.bottom < br.top + 4 || r.top > br.bottom - 4) { o.el.style.display = 'none'; continue; }   // 자리가 없거나 스크롤 밖
+    o.el.style.display = ''; o.el.style.fontSize = (a.classList.contains('seat') ? 30 : 22) + 'px';
+    o.el.style.left = (r.left + r.width / 2 - vr.left) + 'px'; o.el.style.top = (r.top + r.height / 2 - vr.top) + 'px';
   }
 }
-async function chatSend() {
-  const inp = el('lb-chat-in'), t = inp.value.replace(/\s+/g, ' ').trim();
+function chatMark() {   // 방금 말한 사람 자리 테두리(자리를 다시 그려도 남게 여기서 다시 붙임)
+  const now = Date.now();
+  for (const k of Object.keys(CHAT.talk)) if (CHAT.talk[k] <= now) delete CHAT.talk[k];
+  for (const nm of el('view-lobby').querySelectorAll('.lb-nm[data-pk]')) { const a = nm.closest('.seat, .lb-chip'); if (a) a.classList.toggle('talk', !!CHAT.talk[nm.dataset.pk]); }
+}
+function chatRoom() {   // 방이 바뀌면 지난 방에서 본 말은 지움
+  const id = (lobbyData && lobbyData.room && lobbyData.room.id) || null;
+  if (id === CHAT.room) return;
+  CHAT.room = id; CHAT.seen = {};
+  for (const o of CHAT.rows.slice()) chatDrop(o, true);
+}
+async function chatSend(emo) {
+  const inp = el('lb-chat-in'), t = emo || inp.value.replace(/\s+/g, ' ').trim();
   if (!t) return;
-  inp.value = '';
+  if (!emo) inp.value = '';
   const r = await window.api.chatSend(t).catch(() => null);
   if (r && r.ok) chatShow({ key: r.key, text: r.text, at: r.at });   // 내 화면엔 바로
-  else if (r && r.err) lbErr(r.err);
+  else if (r && r.err && !(emo && r.slow)) lbErr(r.err);              // 이모티콘을 너무 빨리 누른 건 조용히 넘김
 }
+el('lb-chat-emo').innerHTML = EMO.map(e => '<button class="lb-emo" data-emo="' + e[0] + '" title="' + esc(e[1]) + '">' + e[0] + '</button>').join('');
+el('lb-chat-emo').addEventListener('click', e => { const b = e.target.closest('[data-emo]'); if (b) { b.blur(); chatSend(b.dataset.emo); } });
+el('lb-chat-dn').onclick = () => chatFold(true);
+el('lb-chat-fold').onclick = () => { chatFold(false); el('lb-chat-in').focus(); };
+chatFold(CHAT.fold);
 // 한글을 조합하는 중에 Enter를 누르면(isComposing) 조합이 끝난 직후에 보냄 — 조합 중에 바로 보내면 마지막 글자가 빠지거나 두 번 감 · 조합이 끝난 뒤 Enter가 한 번 더 와도 입력 칸이 비어 있어 안 보냄
 let _chatImeAt = 0;
 el('lb-chat-in').addEventListener('keydown', e => {
@@ -1206,13 +1262,15 @@ el('lb-chat-in').addEventListener('keydown', e => {
 });
 el('lb-chat-in').addEventListener('compositionend', () => { if (Date.now() - _chatImeAt < 400) { _chatImeAt = 0; setTimeout(chatSend, 0); } });
 el('lb-chat-go').onclick = () => { chatSend(); el('lb-chat-in').focus(); };
-document.addEventListener('keydown', e => {   // 대기실에서 그냥 Enter = 입력 줄로(다른 입력 칸·확인 창이 떠 있을 땐 그대로)
+document.addEventListener('keydown', e => {   // 대기실에서 그냥 Enter = 입력 줄로(접혀 있으면 펴고 · 다른 입력 칸·확인 창이 떠 있을 땐 그대로)
   if (e.key !== 'Enter' || e.isComposing || e.ctrlKey || e.altKey || e.metaKey) return;
   const t = e.target, tag = t && t.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'SELECT' || document.querySelector('.tn-mb')) return;
   const box = el('lb-chat');
   if (el('view-lobby').style.display === 'none' || !box || box.style.display === 'none') return;
-  e.preventDefault(); el('lb-chat-in').focus();
+  e.preventDefault();
+  if (CHAT.fold) chatFold(false);
+  el('lb-chat-in').focus();
 });
 { const lbBody = document.querySelector('#view-lobby .lb-body'); if (lbBody) lbBody.addEventListener('scroll', chatPlace, { passive: true }); }
 window.addEventListener('resize', chatPlace);

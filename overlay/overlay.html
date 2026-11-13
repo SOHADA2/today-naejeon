@@ -116,8 +116,15 @@
         <div id="lb-today" class="lb-today"></div>
       </div>
       <div id="lb-dock" class="lb-dock" style="display:none;">
-        <!-- 💬 한마디(v0.1.201) — 쓰고 Enter = 내 자리 위에 말풍선(모두에게 · 기록은 안 남음) -->
-        <div id="lb-chat" class="lb-chat" style="display:none;"><input id="lb-chat-in" class="lb-chat-in" maxlength="50" placeholder="한마디 · Enter" autocomplete="off" spellcheck="false"><button id="lb-chat-go" class="lb-chat-go" title="보내기"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h7M6 2.5 9.5 6 6 9.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button></div>
+        <!-- 💬 채팅(v0.1.202) — 글 = 입력 칸 위 「최근 말」 줄 · 이모티콘 = 누르면 그 사람 자리에서 뜸 · ▾ 로 접으면 한 줄(접힌 동안 누가 쓰면 반짝) · 기록은 안 남음 -->
+        <div id="lb-chat" class="lb-chat" style="display:none;">
+          <button id="lb-chat-fold" class="lb-chat-fold" style="display:none;" title="채팅 펴기 (Enter)"><span class="lb-chat-ftt">채팅</span><span id="lb-chat-pv" class="lb-chat-pv"></span><b id="lb-chat-new" class="lb-chat-new" style="display:none;"></b><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+          <div id="lb-chat-box" class="lb-chat-box">
+            <div id="lb-chat-feed" class="lb-chat-feed"></div>
+            <div class="lb-chat-emo"><span id="lb-chat-emo" class="lb-chat-emos"></span><button id="lb-chat-dn" class="lb-chat-dn" title="채팅 접기"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button></div>
+            <div class="lb-chat-row"><input id="lb-chat-in" class="lb-chat-in" maxlength="50" placeholder="한마디 · Enter" autocomplete="off" spellcheck="false"><button id="lb-chat-go" class="lb-chat-go" title="보내기"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h7M6 2.5 9.5 6 6 9.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button></div>
+          </div>
+        </div>
         <!-- 방식 고르는 창(방장) — 방식 버튼 바로 위로 열림 -->
         <div id="lb-mpop" class="lb-mpop" style="display:none;">
           <div class="lb-mp-row"><span class="lb-mode-l">이번 판</span><button class="lb-kind" data-kind="inhouse" title="우리끼리 1팀 vs 2팀(롤 사용자 설정 게임)">내전</button><button class="lb-kind" data-kind="normal" title="내전 말고 같은 팀으로 일반 게임(아수라장 등)을 할 때 · 판 기록·하이라이트 자동">일반</button></div>

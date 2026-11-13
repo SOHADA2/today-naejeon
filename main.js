@@ -1759,7 +1759,7 @@ async function handHost(puuid) {
 // 각자 자기 참가/관전을 누름(key=puuid) · 방장은 남의 상태도 바꾸고 앱 없는 사람(key='g_'+이름)을 추가 · 방식·팀장은 방장만
 // 사람 목록 = 지금 접속 중(presence) + 방장이 추가한 사람. 참가 표시는 그날만 유효(새벽 6시 기준).
 // v0.1.16~: 접속 = 기본 참가(아무것도 안 눌러도 자리에 앉음) · 저장된 'spec'만 관전
-// 💬 대기실 한마디(v0.1.201 · 사장님: 채팅 창 말고, 말을 쓰면 본인 자리에서 말풍선으로) — 사람마다 「가장 최근 한마디 하나」만 서버에(기록 안 남김)
+// 💬 대기실 채팅(v0.1.201 말풍선 → v0.1.202 입력 칸 위 「최근 말」 줄 + 이모티콘은 그 사람 자리에서 — 보여 주는 쪽은 overlay.js) — 사람마다 「가장 최근 한마디 하나」만 서버에(기록 안 남김 · 이모티콘도 같은 칸에 그 글자 하나로)
 //   자리 = `rooms/{방}/lobby/chat/{puuid}` {text, at} — 대기실 칸(lobby) 아래라 서버 규칙을 안 바꿔도 되고 방 스트림 하나로 모두에게 감(연결 안 늘어남)
 //   받는 쪽 = 방 스트림에서 「바뀐 한마디」만 왼쪽 창으로('chat') · 방에 막 들어왔을 때 남아 있던 옛 한마디는 안 띄움(first) · PC 시계에 안 기댐
 //   글은 CHAT_MAX자까지 · 0.8초에 한 번 · 서버 규칙도 같은 길이로 막음(2026-11-13 · database.rules.json `lobby/chat/$k` — CHAT_MAX를 바꾸면 규칙도 같이) · 받을 때도 한 번 더 자름 · 옛 앱은 이 칸을 그냥 무시
@@ -1778,7 +1778,7 @@ ipcMain.handle('chat-send', async (_e, text) => {
   if (!t) return { ok: false };
   if (!account || !room) return { ok: false, err: '방에 들어가야 말할 수 있습니다' };
   const now = Date.now();
-  if (now - _chatAt < 800) return { ok: false, err: '조금 천천히 보내 주세요' };
+  if (now - _chatAt < 800) return { ok: false, err: '조금 천천히 보내 주세요', slow: true };   // slow = 이모티콘을 연달아 누른 건 화면이 조용히 넘김
   _chatAt = now;
   const w = await fbSet(`${RP()}/lobby/chat/${account.puuid}`, { text: t, at: now });
   return w && w.ok ? { ok: true, key: account.puuid, text: t, at: now } : { ok: false, err: '보내지 못했습니다 · 인터넷 연결을 확인해 주세요' };
