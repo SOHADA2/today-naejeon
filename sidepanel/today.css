@@ -153,7 +153,7 @@
 .age-top b + .age-histbtn { margin-left:0; }
 /* 🏅 티어 칸(프로필) — v0.1.198(사장님: 티어 표시가 새 톤앤매너와 안 맞음) = 다른 카드와 같은 짙은 남색 카드 · 가는 선 · 자른 모서리
    티어 색(--tc)은 왼쪽 굵은 선 · 옅은 바탕 · 티어 이름 · 점수에만(진한 색 바탕·문장 뒤 빛·글자 빛은 뺌) · 머리 = 영문 라벨(.sp-en) + 작은 한글
-   문장(.pf-emb) = 롤 클라이언트 문장 그림 — 받는 중이거나 못 받으면 티어 색 방패 + 단계 숫자(그림이 뜨면 방패는 사라짐 · sidepanel.js spEmb) */
+   문장(.pf-emb) = 롤 클라이언트 문장 그림(v0.1.199 앱 안 assets/rank — 바로 뜸 · sidepanel.js spEmb) · 티어가 없으면 흐린 자리 표시(.rk-fb) */
 .t-iron { --tc:#a0948f; } .t-bronze { --tc:#c68e66; } .t-silver { --tc:#b7c4ce; } .t-gold { --tc:#e6bf62; } .t-platinum { --tc:#55c9bd; }
 .t-emerald { --tc:#43d27f; } .t-diamond { --tc:#8c9cff; } .t-master { --tc:#cd78e4; } .t-grandmaster { --tc:#ec6157; } .t-challenger { --tc:#f4d987; }
 .pf-mh { position:relative; display:flex; align-items:center; gap:12px; padding:10px 10px 11px 14px; min-width:0;
@@ -174,14 +174,8 @@
 .pf-mh-why b { color:var(--ink); }
 .pf-emb { position:relative; flex:none; width:62px; height:54px; display:grid; place-items:center; }
 .pf-emb .rk-c { position:absolute; inset:0; overflow:hidden; }
-.pf-emb img { position:absolute; opacity:0; transition:opacity .2s; }   /* 크기·자리 = tnEmblem(티어마다 실측) · 다 받으면 보임 */
-.pf-emb.ok img { opacity:1; }
-.pf-emb .rk-fb { width:34px; height:40px; display:grid; place-items:center;
-  background:linear-gradient(165deg, color-mix(in srgb, var(--tc, #6b7684) 62%, #fff), var(--tc, #6b7684) 52%, color-mix(in srgb, var(--tc, #6b7684) 52%, #000));
-  clip-path:polygon(50% 0, 100% 20%, 100% 68%, 50% 100%, 0 68%, 0 20%); }
-.pf-emb .rk-fb b { font:800 17px var(--f-num); color:rgba(8,12,20,0.85); }
-.pf-emb.ok .rk-fb { display:none; }
-.pf-mh.none .rk-fb { opacity:0.3; }
+.pf-emb img { position:absolute; }   /* 크기·자리 = tnEmblem(티어마다 실측) */
+.pf-emb .rk-fb { width:34px; height:40px; opacity:0.28; background:linear-gradient(165deg, #8a94a0, #5b6670 55%, #3a424b); clip-path:polygon(50% 0, 100% 20%, 100% 68%, 50% 100%, 0 68%, 0 20%); }   /* 티어 없음 */
 @media (max-width:340px) { .pf-mh { gap:8px; padding-left:12px; } .pf-emb { zoom:0.84; } .pf-mh-tx > b { font-size:19px; } }   /* 300px 도킹 폭에서 「플래티넘 3」이 안 잘리게 */
 
 /* 📰 v0.1.144 패치 노트(증강 아래 「패치」 탭) — 패치마다 접기 · 신규 = 아이콘·이름·설명 · 조정 = 「기본 피해량 50–125 → 25–125」(전 = 흐린 취소선 · 후 = 금색) */

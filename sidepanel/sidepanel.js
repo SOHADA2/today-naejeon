@@ -101,8 +101,8 @@ const pct = (w, g) => g ? Math.round(w / g * 100) : 0;
 const kdaOf = (k, d, a) => ((k + a) / Math.max(1, d)).toFixed(2);
 const hhmm = ts => { const d = new Date(ts); return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; };
 const AW_KO = { mvp: 'MVP', svp: 'SVP', manner: '매너' };
-// 🏅 티어 문장(홈 「나」 카드·프로필 티어 칸 공용 · v0.1.198) — 롤 문장 그림(받는 서버가 느릴 때가 있음) + 그동안 보이는 티어 색 방패·단계 숫자 · tier = 소문자 티어 이름(없으면 흐린 방패만)
-const spEmb = (tier, div) => `<i class="pf-emb"><span class="rk-c">${tier && window.tnEmblem ? window.tnEmblem(tier, 62, 54).replace('<img ', `<img onload="this.closest('.pf-emb').classList.add('ok')" `) : ''}</span><i class="rk-fb"><b>${div || ''}</b></i></i>`;
+// 🏅 티어 문장(홈 「나」 카드·프로필 티어 칸 공용) — 롤 문장 그림 = 앱 안 파일(v0.1.199 · assets/rank · 바로 뜸) · tier = 소문자 티어 이름 · 티어가 없으면(배치 중·기록 없음) 흐린 자리 표시만
+const spEmb = tier => `<i class="pf-emb">${tier && window.tnEmblem ? `<span class="rk-c">${window.tnEmblem(tier, 62, 54)}</span>` : '<i class="rk-fb"></i>'}</i>`;
 // 한 판의 두 팀 줄(1팀 파랑 · 2팀 빨강 · 이긴 팀 = 청록 「승」) — 홈 「이번 판」·기록의 경기 카드가 같이 씀
 function teamRows(m, win) {
   const row = (k, label) => `<div class="hm-team ${k === 'teamA' ? 't1' : 't2'}${win === k ? ' win' : ''}"><i>${label}</i><span>${(m[k] || []).map(escH).join(' · ')}</span>${win === k ? '<em>승</em>' : ''}</div>`;
@@ -139,7 +139,7 @@ function hmMe() {
   const name = (P && P.name) || a.gameName, tag = (P && P.tag) || a.tagLine || '';
   const t = hmTierPick(P && P.rating), st = t && !t.pl ? scoreTier(t.x.s) : null;
   const sub = P ? (P.games ? `내전 ${P.games}판 <b>${P.wins}승</b> ${P.losses}패 · 승률 ${pct(P.wins, P.games)}%` : '아직 내전 기록이 없습니다') : (_hm.loaded ? '기록을 불러오지 못했습니다' : '불러오는 중');
-  const tier = st ? `<span class="hm-tier">${spEmb(st.tier.toLowerCase(), st.div)}<b>${tierLabel(st.tier, st.div)}</b><small>${t.label}</small></span>`
+  const tier = st ? `<span class="hm-tier">${spEmb(st.tier.toLowerCase())}<b>${tierLabel(st.tier, st.div)}</b><small>${t.label}</small></span>`
     : t ? `<span class="hm-tier none"><b>배치 <span class="num">${t.x.pl || t.x.n}/5</span></b><small>${t.label}</small></span>` : '';
   return `<button class="sp-card hm-me${st ? ' t t-' + st.tier.toLowerCase() : ''}" data-go="profile" title="내 프로필 보기">`
     + `<span class="hm-me-l"><span class="sp-en">PLAYER</span><b class="hm-nm"><span>${escH(name)}</span>${tag ? `<small>#${escH(tag)}</small>` : ''}</b><span class="hm-sub">${sub}</span></span>${tier}</button>`;
@@ -298,12 +298,12 @@ function ratingRow(R, me, who) {
     const why = x && x.n ? `${src} <b>${x.n}판</b>(${from}) 기준 · 점수 = 승률 + 경기력(팀 안 딜 순위·킬 관여·KDA) · 최근 판일수록 크게 · 8점마다 한 티어 · <b>우리끼리 점수</b>(공식 랭크 아님)` : `${none} · 우리끼리 점수(공식 랭크 아님)`;
     const tap = st ? _pfTiers.push({ kind, season, tier: st.tier, div: st.div, s: x.s, n: x.n, w: x.w, wr: x.wr, kda: x.kda, dir: 'replay', who: me ? null : who }) - 1 : -1;
     // 카드 한 장 = [문장] [영문 라벨 + 작은 한글 / 티어 이름 / 점수·판·승률] [?]
-    const card = (cls, tier, div, main, sub) => `<div class="pf-mh ${cls}${tap >= 0 ? ' tap' : ''}"${tap >= 0 ? ` onclick="pfTierReplay(${tap})" title="눌러서 티어 공개 다시 보기"` : ''}>${spEmb(tier, div)}`
+    const card = (cls, tier, main, sub) => `<div class="pf-mh ${cls}${tap >= 0 ? ' tap' : ''}"${tap >= 0 ? ` onclick="pfTierReplay(${tap})" title="눌러서 티어 공개 다시 보기"` : ''}>${spEmb(tier)}`
       + `<div class="pf-mh-tx"><span class="pf-mh-lb"><span class="sp-en">${en}</span><i>${label}</i></span><b>${main}</b><em>${sub}</em></div>`
       + `<button class="pf-mh-q" title="어떻게 매긴 티어인지" onclick="event.stopPropagation();this.classList.toggle('on');this.parentNode.nextElementSibling.hidden=!this.classList.contains('on')">?</button></div><div class="pf-mh-why" hidden>${why}</div>`;
-    return !x ? card('none', '', '', '아직 없음', '5판부터 티어가 나옵니다')
-      : st ? card('t-' + st.tier.toLowerCase(), st.tier.toLowerCase(), st.div || '', tierLabel(st.tier, st.div), `<b>${x.s}점</b> · ${x.n}판 ${x.w}승 · 승률 ${Math.round(x.wr * 100)}%`)
-      : card('none', '', '', `배치 ${x.pl || x.n}/5`, `${x.n}판 ${x.w}승 · 5판부터 티어`);
+    return !x ? card('none', '', '아직 없음', '5판부터 티어가 나옵니다')
+      : st ? card('t-' + st.tier.toLowerCase(), st.tier.toLowerCase(), tierLabel(st.tier, st.div), `<b>${x.s}점</b> · ${x.n}판 ${x.w}승 · 승률 ${Math.round(x.wr * 100)}%`)
+      : card('none', '', `배치 ${x.pl || x.n}/5`, `${x.n}판 ${x.w}승 · 5판부터 티어`);
   };
   return `<div class="pf-tiers">${row(R && R.custom, 'IN-HOUSE TIER', '아수라장 내전', '투데이 내전으로 기록된 아수라장 내전', `아수라장 ${season} · 투데이 내전 기록 전부`, '투데이 내전으로 아수라장 내전을 5판 하면 티어가 나옵니다', 'custom')}`
     + `${row(R && R.mayhem, 'NORMAL TIER', '아수라장 일반', '아수라장 일반 판(내전 제외)', R && R.mhSrv ? `아수라장 ${season} · 투데이 내전으로 같이 한 판 · 친구들 기록에서 셈` : `아수라장 ${season} · 롤 전적 + 투데이 내전으로 같이 한 판 · 계속 쌓임`, `롤을 켜 두면 아수라장 ${season} 일반 판(5판부터)으로 티어를 매깁니다`, 'mayhem')}</div>`;
