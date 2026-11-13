@@ -5,6 +5,8 @@
 //          → 방장 앱이 오늘 기록에 저장(today/days/{날짜}/matches/{gameId}) → MVP·매너 투표 → 결과
 //   · 기존 aram-overlay(사이트 프로그램 버전)는 그대로 둠. 이 앱은 별도 설치·별도 업데이트.
 const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, shell, nativeImage, screen, dialog } = require('electron');
+const imgcache = require('./imgcache');   // 🖼️ v0.1.205 CommunityDragon 그림이 느림(한 장 ~21초) → 챔피언·소환사 아이콘은 Data Dragon · 나머지는 PC에 저장해 두고 바로
+imgcache.registerScheme();   // 앱 준비 전에
 const { pathToFileURL } = require('url');
 const { autoUpdater } = require('electron-updater');   // 🔄 GitHub Releases 자동 업데이트(SOHADA2/today-naejeon)
 const path = require('path');
@@ -3884,6 +3886,7 @@ if (!_gotLock) { app.quit(); }
 else {
   app.on('second-instance', () => showMainPanel());
   app.whenReady().then(() => {
+    try { imgcache.install(); } catch (e) { console.log('[img] 설치 실패', e && e.message); }   // 🖼️ 창보다 먼저
     CONFIG_PATH = path.join(app.getPath('userData'), 'today-naejeon-config.json');
     config = loadConfig();
     // 🧪 개발용: TN_HIDDEN=1 → 창을 화면에 한 번도 안 띄우고 테스트(CDP로만 조작 · 배포본에선 무시)
