@@ -39,7 +39,7 @@ function ageList(pre) {
   const ids = Object.keys(champs).map(Number).filter(id => !q || champs[id].name.toLowerCase().includes(q) || champs[id].alias.toLowerCase().includes(q))
     .sort((a, b) => (has(b) ? 1 : 0) - (has(a) ? 1 : 0) || champs[a].name.localeCompare(champs[b].name, 'ko'));
   const done = Object.keys(guide || {}).filter(has).length;
-  $('ag-ed').innerHTML = (pre || `<div class="age-intro">챔피언 선택 화면에서 내 챔피언과 벤치 챔피언의 「노려볼 증강」을 보여줘요.<br>채운 챔피언 <b class="num">${done}</b>개 · 저장하면 모두에게 바로 반영돼요.</div>`) + ageOverview() + `
+  $('ag-ed').innerHTML = (pre || `<div class="age-intro">챔피언 선택 때 내 챔피언의 추천 증강이 여기에 뜹니다 · 채운 챔피언 <b class="num">${done}</b>개</div>`) + ageOverview() + `
     <div class="age-find">다른 챔피언 보기</div>
     <div id="age-recent">${recentH()}</div>
     <input id="age-q" class="age-q" placeholder="챔피언 이름으로 찾기" value="${escH(AGE.q)}">

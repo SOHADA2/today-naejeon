@@ -4,85 +4,66 @@
   <meta charset="utf-8">
   <title>투데이 내전</title>
   <link rel="stylesheet" href="../shared.css">
-  <link rel="stylesheet" href="../desktop/desktop.css">
   <link rel="stylesheet" href="sidepanel.css">
   <link rel="stylesheet" href="today.css">
 </head>
 <body>
-  <div class="bg"></div>
+  <!-- 오른쪽 창(v0.1.197 다시 설계 · 사장님: 왼쪽 창의 새 레이아웃·디자인을 오른쪽에도 · 시인성 · 처음 켰을 때 보여 줄 화면 · 글 줄이기)
+       머리 → 탭 4개(홈 · 기록 · 프로필 · 증강) → 내용(스크롤은 여기만) → 꼬리(버전)
+       홈 = 첫 화면: 나(티어) · 이번 판(진행 중일 때 · 방장 조작) · 오늘 · 바로 가기 / 증강 = 가이드 · 패치 노트 · 뽑아 보기 -->
   <div id="panel">
     <header id="sbar"><div class="hd-bg" aria-hidden="true"><span>TODAY IN-HOUSE</span></div>
-      <span class="s-brand"><img class="s-brand-mk" src="../assets/mark.png" alt=""><span class="s-brand-tx"><span class="s-brand-en">TODAY IN-HOUSE</span><span class="s-ttl">투데이 내전</span></span></span>
-      <span class="s-me" id="s-me" style="display:none;"></span>
+      <span class="s-brand"><span class="s-brand-tx"><span class="s-brand-en">TODAY IN-HOUSE</span><span class="s-ttl">투데이 내전</span></span></span>
       <span class="s-sp"></span>
-      <button id="s-hostbtn" class="s-hostbtn" style="display:none;" title="방장 = 팀짜기·경기 기록·투표 마감 담당">👑 방장 하기</button>
       <button id="s-min" class="s-winbtn tn-wb" title="최소화"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1.5 6h9" stroke="currentColor" stroke-width="1.4"/></svg></button>
       <button id="s-close" class="s-winbtn tn-wb x" title="닫기"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.4"/></svg></button>
     </header>
-    <!-- 👑 방장 메뉴(넘겨주기·그만하기) -->
-    <div id="s-hostmenu" class="tn-hostmenu" style="display:none;"></div>
     <div id="sp-toast"></div>
 
-    <!-- 입장 -->
-    <section id="s-login" class="s-login" style="display:none;">
-      <div class="slh"><div class="slh-crest">⚔️</div><div class="slh-title">투데이 내전</div><div class="slh-sub">오늘 하루의 내전</div></div>
-      <div class="s-login-box">
-        <div class="tn-wait"><span class="lobby-pulse"></span><b>롤 클라이언트를 켜고 로그인하면</b><br>그 계정으로 자동 입장돼요</div>
-      </div>
-      <div class="app-ver" id="s-ver"></div>
-    </section>
+    <nav class="sp-tabs" id="sp-tabs">
+      <button class="sp-tab on" data-cat="home">홈</button>
+      <button class="sp-tab" data-cat="today">기록</button>
+      <button class="sp-tab" data-cat="profile">프로필</button>
+      <button class="sp-tab" data-cat="aug">증강</button>
+    </nav>
 
-    <!-- 입장 후 -->
-    <div class="app-shell" id="s-app" style="display:none;">
-      <nav class="rail">
-        <button class="rail-btn" data-cat="team" id="s-rail-team" style="display:none;"><span class="ri">⚔️</span><span class="rl">진행</span></button>
-        <button class="rail-btn" data-cat="profile"><span class="ri">👤</span><span class="rl">프로필</span></button>
-        <button class="rail-btn on" data-cat="today"><span class="ri">📅</span><span class="rl">오늘</span></button>
-        <button class="rail-btn" data-cat="aug"><span class="ri">🧭</span><span class="rl">증강</span></button>
-        <button class="rail-btn" data-cat="patch"><span class="ri">📰</span><span class="rl">패치</span></button>
-        <button class="rail-btn" data-cat="lab"><span class="ri">🧪</span><span class="rl">연구</span></button>
-      </nav>
-      <div class="cat">
-        <!-- ⚔️ 팀짜기(방장) -->
-        <section class="cat-view" id="cat-team">
-          <div class="cat-hd">진행 <span class="cat-hd-sub">방장</span></div>
-          <div class="cat-scroll ui-scroll">
-            <!-- 진행 중인 판(팀 확정 이후) -->
-            <div id="tb-live" style="display:none;"></div>
-            <!-- 진행 중인 판이 없을 때 -->
-            <div id="tb-idle">
-              <div class="td-state">참가자·방식(랜덤/드래프트/직접)·팀장은 <b>왼쪽 대기실</b>에서 정하고 시작해요.<br>모두가 같은 화면을 보고 있어요.</div>
-              <button id="tb-open-lobby" class="btn-ghost">대기실 보기</button>
-            </div>
-            <div id="tb-err" class="tb-err" style="display:none;"></div>
-          </div>
-        </section>
-        <!-- 👤 개인 내전 프로필 -->
-        <section class="cat-view" id="cat-profile" style="display:none;">
-          <div class="cat-hd"><span id="pf-title">내 프로필</span><button class="pf-back" id="pf-back" style="display:none;">내 프로필로</button></div>
-          <div id="pf-body" class="cat-scroll ui-scroll"></div>
-        </section>
-        <!-- 🧭 증강 가이드 편집 -->
-        <section class="cat-view" id="cat-aug" style="display:none;">
-          <div class="cat-hd">증강 가이드 <span class="cat-hd-sub">챔피언별 추천</span></div>
-          <div id="ag-ed" class="cat-scroll ui-scroll"></div>
-        </section>
-        <!-- 📅 오늘 -->
-        <section class="cat-view" id="cat-patch" style="display:none;">
-          <div class="cat-hd">패치 노트 <span class="cat-hd-sub">아수라장 증강 변경</span></div>
-          <div id="pn-body" class="cat-scroll ui-scroll"></div>
-        </section>
-        <!-- 🧪 증강 연구(뽑아 보기) -->
-        <section class="cat-view" id="cat-lab" style="display:none;">
-          <div class="cat-hd">증강 연구 <span class="cat-hd-sub">뽑아 보기</span></div>
-          <div id="al-body" class="cat-scroll ui-scroll"></div>
-        </section>
-        <section class="cat-view" id="cat-today" style="display:flex;">
-          <div class="cat-hd"><button class="td-nav" id="td-prev" title="이전 날">‹</button><span id="td-day">오늘</span><button class="td-nav" id="td-next" title="다음 날">›</button></div>
-          <div id="td-body" class="cat-scroll ui-scroll"></div>
-        </section>
+    <main class="sp-main">
+      <!-- 증강 묶음(가이드 · 패치 노트 · 뽑아 보기)일 때만 보이는 작은 갈래 줄 -->
+      <div class="sp-seg" id="sp-seg" style="display:none;">
+        <button data-cat="aug">가이드</button><button data-cat="patch">패치 노트</button><button data-cat="lab">뽑아 보기</button>
       </div>
-    </div>
+
+      <!-- 홈(첫 화면) -->
+      <section class="cat-view" id="cat-home" style="display:flex;">
+        <div id="hm-body" class="cat-scroll ui-scroll"></div>
+      </section>
+      <!-- 기록(날짜별 순위 · 경기 · 같이 한 일반 판) -->
+      <section class="cat-view" id="cat-today" style="display:none;">
+        <div class="sp-bar">
+          <button class="sp-nav" id="td-prev" title="이전 날"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M7.5 2 3.5 6l4 4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+          <div class="sp-bar-tx"><span class="sp-en">RECORD</span><b id="td-day">오늘</b></div>
+          <button class="sp-nav" id="td-next" title="다음 날"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+        </div>
+        <div id="td-body" class="cat-scroll ui-scroll"></div>
+      </section>
+      <!-- 프로필 -->
+      <section class="cat-view" id="cat-profile" style="display:none;">
+        <div id="pf-body" class="cat-scroll ui-scroll"></div>
+      </section>
+      <!-- 증강: 가이드 -->
+      <section class="cat-view" id="cat-aug" style="display:none;">
+        <div id="ag-ed" class="cat-scroll ui-scroll"></div>
+      </section>
+      <!-- 증강: 패치 노트 -->
+      <section class="cat-view" id="cat-patch" style="display:none;">
+        <div id="pn-body" class="cat-scroll ui-scroll"></div>
+      </section>
+      <!-- 증강: 뽑아 보기 -->
+      <section class="cat-view" id="cat-lab" style="display:none;">
+        <div id="al-body" class="cat-scroll ui-scroll"></div>
+      </section>
+    </main>
+    <footer class="sp-foot" id="s-ver"></footer>
   </div>
   <script src="../desktop/tip.js"></script>
   <script src="../desktop/settings.js"></script>
