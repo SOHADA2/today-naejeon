@@ -3,7 +3,9 @@
 //   받는 것: /ko/augments(전체 증강 등급 T1~T5·승률 — HTML) · /data/champions-stats.json(챔피언 목록) · /data/champion-details/{id}.json(챔피언별 증강 등급·승률·픽률 + 3개 조합)
 //   약관 = 과도한 속도의 수집·재판매 금지 → 하루 한 번(aramgg.yml) · 요청 사이 1.2초 쉼 · 출처 표시(앱 화면 「aramgg.com」+ 원문 링크)
 // 사용: node tools/aramgg-fetch.cjs [출력 폴더=docs/data/aramgg] [--only=498,17]   · 바뀐 게 없으면(같은 날짜) 파일 그대로
+//       node tools/aramgg-fetch.cjs --augments=<받아 둔 /ko/augments HTML>   ← 그 파일로 desc.json만 만듦(시험·처음 한 번)
 // 출력: index.json = {p:패치, d:자료 날짜, at, n:챔피언 수, g:{증강 id:[등급 1~5, 승률|null]}}
+//       desc.json = {at, src, d:{증강 id: 설명 글}} — 증강 카드에 쓰는 짧은 설명(v0.1.209 「증강 뽑아 보기」 · /ko/augments 카드의 title · 같은 요청이라 요청 수 그대로)
 //       c/{championId}.json = {p, d, t:[챔피언 등급, 승률, 픽률, 순위], a:{증강 id:[등급, 승률|null, 픽률, 사이트 순위]}, c:[[[증강 3개], 승률, 게임 수] ≤5]}
 const fs = require('fs'), path = require('path');
 const BASE = 'https://aramgg.com';
@@ -75,6 +77,22 @@ function parseGlobal(html) {   // 전체 증강 등급표: T1~T5 제목 뒤 카�
   }
   return g;
 }
+// 📝 v0.1.209 증강 설명(/ko/augments 카드 링크의 title = 게임 안 카드 설명 글 · <keyword>·<br> 같은 표시는 떼고 글만 · 줄바꿈은 살림)
+function parseDesc(html) {
+  const d = {};
+  for (const m of html.matchAll(/<a href="\/ko\/augments\/(\d+)"[^>]*\btitle="([^"]*)"/g)) {
+    const t = String(m[2]).replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&[#\w]+;/g, x => ENT[x] || x).replace(/[ \t]+/g, ' ').replace(/ ?\n ?/g, '\n').replace(/\n{2,}/g, '\n').trim().slice(0, 400);
+    if (t && !d[m[1]]) d[m[1]] = t;
+  }
+  return d;
+}
+function writeDesc(html) {   // 내용이 같으면 파일 안 바꿈(매일 쓸데없는 커밋 X)
+  const d = parseDesc(html), n = Object.keys(d).length, f = path.join(OUT, 'desc.json');
+  if (n < 50) { console.log('증강 설명 못 읽음(' + n + '개) — 그대로'); return; }
+  let same = false; try { same = JSON.stringify(JSON.parse(fs.readFileSync(f, 'utf8')).d) === JSON.stringify(d); } catch (_) {}
+  if (!same) fs.writeFileSync(f, JSON.stringify({ at: Date.now(), src: 'aramgg.com', d }));
+  console.log('증강 설명', n, '개', same ? '· 그대로' : '· 저장');
+}
 function compactChamp(d, st) {
   const raw = d && d.championAugments && d.championAugments[0] && d.championAugments[0][1];
   const x = typeof raw === 'string' ? JSON.parse(raw) : raw; if (!x || !x.augments) return null;
@@ -88,6 +106,7 @@ function compactChamp(d, st) {
 }
 (async () => {
   fs.mkdirSync(path.join(OUT, 'c'), { recursive: true });
+  { const af = (process.argv.find(a => a.startsWith('--augments=')) || '').split('=')[1]; if (af) { writeDesc(fs.readFileSync(af, 'utf8')); return; } }   // 받아 둔 HTML로 설명만
   { // 📰 패치 노트 먼저(요청 1번) · --patches=파일 이면 그 HTML로만(시험)
     const pf = (process.argv.find(a => a.startsWith('--patches=')) || '').split('=')[1];
     const ph = pf ? fs.readFileSync(pf, 'utf8') : await get('/ko/new-augments');
@@ -98,6 +117,7 @@ function compactChamp(d, st) {
     if (pf) return;
   }
   const html = await get('/ko/augments'); const g = html ? parseGlobal(html) : {};
+  if (html) writeDesc(html);
   // ℹ️ 2026-11-02 확인: 증강 짝 자료는 champion-details의 augment_trios(챔피언당 판 수 151+ 조합 5개)뿐 · /ko/augments/{id}엔 챔피언 궁합만 · 짝 전용 data 파일 없음(404)
   console.log('전체 증강 등급', Object.keys(g).length);
   const stats = await get('/data/champions-stats.json', true);
