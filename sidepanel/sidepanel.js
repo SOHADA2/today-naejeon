@@ -194,7 +194,7 @@ function hmTiles() {
   const tiles = [
     ['aug', 'GUIDE', '증강 가이드', '챔피언별 추천'],
     ['patch', 'PATCH', '패치 노트', p ? `<b>${escH(p.patch)}</b>${(p.added || []).length ? ` · 신규 ${p.added.length}` : (p.changes || []).length ? ` · 조정 ${p.changes.length}` : ''}` : '증강 변경점'],
-    ['draw', 'DRAW', '증강 뽑아 보기', '카드 3장 고르기'],
+    ['draw', 'DRAW', '증강 뽑아 보기', '실제처럼 카드 3장'],
     ['help', 'HELP', '사용법', '처음이라면'],
   ];
   return `<div class="hm-grid">${tiles.map(([k, en, t, sub]) => `<button class="hm-tile" data-tile="${k}"><span class="sp-en">${en}</span><b>${t}</b><small>${sub}</small></button>`).join('')}</div>`;

@@ -229,6 +229,7 @@
 #al-body .al-idle p, #al-body .al-done p { font-size:12px; line-height:1.55; color:var(--ink-soft); word-break:keep-all; }
 #al-body .al-go { width:100%; margin-top:4px; }
 #al-body .al-src { font-size:10.5px; color:var(--dim); word-break:keep-all; }
+#al-body .al-at { flex:none; font-style:normal; font-family:var(--f-num); font-size:12px; font-weight:700; color:var(--dim); white-space:nowrap; }
 #al-body .al-t { font-family:var(--f-num); font-style:normal; font-size:13px; font-weight:700; padding:0 5px; color:#10131a; background:var(--dim); }
 #al-body .al-t.t1 { background:#ff8a4c; } #al-body .al-t.t2 { background:#c58bff; } #al-body .al-t.t3 { background:#6fb6ff; } #al-body .al-t.t4 { background:#9aa4ad; } #al-body .al-t.t5 { background:#6c7177; }
 #al-body .al-list { display:flex; flex-direction:column; gap:4px; }

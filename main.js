@@ -2909,10 +2909,11 @@ async function getAugments() {
     const list = await getJson(AUG_URL);
     if (Array.isArray(list) && list.length) {
       const map = {};
-      // 🎸 v0.1.140 헤드라이너 특성(사장님: 시즌 3 초반 「헤드라이너」 증강을 고르면 따라오는 특성 — 값이 오르거나 스킬이 강화) = 펜타킬 아이콘(헤비·파워·스래시·둠·이름 빈칸)
-      //   증강이 아니라서 「많이 고른 증강」·우리 기록 짝에서 빼고, 이름은 「헤드라이너 · 헤비」(빈칸이면 「헤드라이너 · 특성」)
+      // 🎸 v0.1.140 헤드라이너 특성 = 펜타킬 아이콘(헤비·파워·스래시·둠·이름 빈칸) — ⚠️ v0.1.209 확인: 증강을 골라서 붙는 게 아니라 **펜타킬 헤드라이너 판**(26.21~ · 판마다 무작위 헤드라이너 하나)에서
+      //   그 판 모든 사람이 게임 시작·18레벨에 고르는 스킬 강화(헤비 Q · 파워 W · 스래시 E · 둠 R · 3176 = 그 판 표시) — 우리 기록 78판 중 5판 · 그 판 10명 전원에게 있음
+      //   증강이 아니라서 「많이 고른 증강」·우리 기록 짝에서 빼고, 이름은 「펜타킬 · 헤비」(이름이 빈 3176은 「펜타킬 헤드라이너」)
       for (const a of list) if (a && a.id) { const nm = String(a.nameTRA || '').trim(), head = /\/pentakill_(small|large)\.png$/i.test(a.augmentSmallIconPath || ''); map[a.id] = {
-        name: head ? `헤드라이너 · ${nm || '특성'}` : (nm || '증강 #' + a.id), trait: head ? 'headliner' : undefined,
+        name: head ? (nm ? `펜타킬 · ${nm}` : '펜타킬 헤드라이너') : (nm || '증강 #' + a.id), trait: head ? 'headliner' : undefined,
         icon: a.augmentSmallIconPath ? AUG_ICON_BASE + a.augmentSmallIconPath.replace('/lol-game-data/assets', '').toLowerCase() : '',
         rarity: String(a.rarity || '').replace(/^k/, '').toLowerCase(),   // silver / gold / prismatic
         desc: String(a.descriptionTRA || a.desc || '').replace(/<[^>]+>/g, '').slice(0, 300),   // 설명(있으면 · 증강 가이드 편집 화면용)
@@ -3176,18 +3177,23 @@ ipcMain.handle('aug-patches', async () => {
 });
 // 🧪 증강 연구(2026-11-11 · 사장님: 오른쪽 창에서 롤처럼 증강 3장 뽑아 보기) — 뽑을 증강 = 지금 시즌 아수라장 증강(aramgg 전체 등급에 있는 것 · 못 받으면 1000번대 전부) · 특성(헤드라이너) 뺌
 //   돌려주는 것 = [{id, name, icon, rarity, t(aramgg T1~T5), wr(승률), g·w(우리 기록)}] · 확률·뽑기는 화면(sidepanel/auglab.js)이 함
-ipcMain.handle('auglab-pool', async () => {
-  const [augs, idx, rec] = await Promise.all([getAugments().catch(() => ({})), ggIndex().catch(() => null), augRecords().catch(() => ({}))]);
-  const g = (idx && idx.g) || null, ours = {};
-  for (const k of Object.keys(rec)) { const x = k.split(':')[1]; const o = ours[x] = ours[x] || { g: 0, w: 0 }; o.g += rec[k].g; o.w += rec[k].w; }
-  const list = [];
+let _ggDesc = null, _ggDescAt = 0;
+async function ggDesc() {   // 📝 v0.1.209 증강 설명 글(docs/data/aramgg/desc.json = tools/aramgg-fetch.cjs가 매일 · 3시간 보관)
+  if (_ggDesc && Date.now() - _ggDescAt < GG_TTL) return _ggDesc;
+  const j = await getJson(`${GG_URL}/desc.json`).catch(() => null);
+  if (j && j.d) { _ggDesc = j.d; _ggDescAt = Date.now(); }
+  return _ggDesc || {};
+}
+ipcMain.handle('auglab-pool', async () => {   // v0.1.209: 실제 규칙대로 뽑기만(등급 T·승률·우리 기록 = 채점 자료는 안 보냄 · 사장님: 정답 맞히기가 아님)
+  const [augs, idx, desc] = await Promise.all([getAugments().catch(() => ({})), ggIndex().catch(() => null), ggDesc().catch(() => ({}))]);
+  const g = (idx && idx.g) || null, list = [];
   for (const [id, a] of Object.entries(augs)) {
     if (!(+id >= 1000) || a.trait || !/^(silver|gold|prismatic)$/.test(a.rarity)) continue;
     if (g && !g[id]) continue;
-    const s = g && g[id], o = ours[id];
-    list.push({ id: +id, name: a.name, icon: a.icon, rarity: a.rarity, t: s ? s[0] : 0, wr: s ? s[1] : 0, g: o ? o.g : 0, w: o ? o.w : 0 });
+    list.push({ id: +id, name: a.name, icon: a.icon, rarity: a.rarity, desc: desc[id] || '' });
   }
-  return { patch: idx ? idx.p : '', list };
+  const penta = [[3170, '헤비', 'Q'], [3171, '파워', 'W'], [3172, '스래시', 'E'], [3173, '둠', 'R']].map(([id, name, key]) => ({ id, name, key, icon: (augs[id] && augs[id].icon) || '' }));   // 펜타킬 헤드라이너의 스킬 강화
+  return { patch: idx ? idx.p : '', list, penta };
 });
 // 🧪 v0.1.175(사장님: 오른쪽 창이 아니라 가운데에서 진짜 아수라장처럼 카드 3장) — 가운데 창 auglab/ · 롤 클라가 붙어 있으면 클라 자리 그대로(16:9), 없으면 화면 가운데 16:9
 //   카드 배치는 창 높이 기준(실제 증강 화면 실측 비율) · 게임이 시작되면 닫음 · 한 판 결과는 오른쪽 창 「연구」 탭에 남김(auglab-result)

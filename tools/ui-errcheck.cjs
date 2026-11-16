@@ -9,10 +9,10 @@ app.on('window-all-closed', () => {});
 app.whenReady().then(async () => {
   let bad = 0, n = 0;
   for (const f of files) for (const s of JSON.parse(fs.readFileSync(f, 'utf8'))) {
-    if (s.page !== 'overlay' && s.page !== 'sidepanel') continue;
+    if (s.page !== 'overlay' && s.page !== 'sidepanel' && s.page !== 'auglab') continue;   // auglab = 증강 뽑아 보기 가운데 창(v0.1.209 · tools/ui-scenes-auglab.cjs)
     const side = s.page === 'sidepanel';
     n++;
-    const win = new BrowserWindow({ width: s.w, height: s.h, show: false, frame: false, transparent: !side,
+    const win = new BrowserWindow({ width: s.w, height: s.h, show: false, frame: false, transparent: s.page === 'overlay',
       webPreferences: { offscreen: true, contextIsolation: false, nodeIntegration: false, preload: path.join(repo, 'tools', 'ui-stub-preload.js') } });
     win.webContents.setAudioMuted(true);
     const errs = [];
