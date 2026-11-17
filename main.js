@@ -3884,6 +3884,40 @@ ipcMain.handle('potg-save', async (_e, { meta, name, hero }) => {   // 🎬 「�
   if (r.canceled || !r.filePath) return { ok: false, canceled: true };
   try { fs.copyFileSync(p, r.filePath); return { ok: true, path: r.filePath }; } catch (_) { return { ok: false }; }
 });
+// 🎞️ v0.1.212 「효과 넣어 저장」(사장님: 받은 영상엔 카메라 연출만 있음) — 저장 위치를 고르면 화면 밖(offscreen) 1280×720 내보내기 창에서
+//   팟지 화면(potg.html?export=…)을 한 번 더 재생하며 그 창의 화면+소리를 탭 녹화(getDisplayMedia · 아래 setDisplayMediaRequestHandler가 이 창만 허락)
+//   → MediaRecorder mp4(H.264+AAC · 안 되면 webm) → 파일 · 영상 변환 프로그램 없이 · 실제 재생 시간만큼 걸림 · 동시에 하나만
+let _exportWin = null;
+function exportMediaHandler(req, cb) {
+  const w = _exportWin;
+  if (w && !w.isDestroyed() && req.frame && req.frame === w.webContents.mainFrame) cb({ video: req.frame, audio: req.frame });
+  else { try { cb({}); } catch (_) {} }
+}
+ipcMain.handle('potg-export', async (_e, { card, hero }) => {
+  if (!card) return { ok: false, err: '팟지 정보 없음' };
+  if (_exportWin && !_exportWin.isDestroyed()) return { ok: false, err: '다른 영상을 만드는 중이에요' };
+  const who = hero ? (card.hero && card.hero.name) : card.name, day = (card.clip && card.clip.day) || (card.hero && card.hero.clip && card.hero.clip.day) || dayKey();
+  const safe = String(who || '팟지').replace(/[\\/:*?"<>|]/g, '_');
+  const r = await dialog.showSaveDialog(potgWin && !potgWin.isDestroyed() ? potgWin : undefined, { title: hero ? '숨은 영웅 영상 저장' : '팟지 영상 저장', defaultPath: path.join(app.getPath('videos'), `투데이내전_${hero ? '숨은영웅' : '팟지'}_${day}_${safe}.mp4`), filters: [{ name: '영상', extensions: ['mp4', 'webm'] }] });
+  if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+  const w = _exportWin = new BrowserWindow({ width: 1280, height: 720, show: false, frame: false, skipTaskbar: true, backgroundColor: '#000000',
+    webPreferences: { offscreen: true, preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, autoplayPolicy: 'no-user-gesture-required', backgroundThrottling: false } });
+  try {
+    w.webContents.setAudioMuted(true);   // 스피커로는 안 나감(녹음은 됨)
+    w.webContents.setFrameRate(30);
+    await w.loadFile(path.join(__dirname, 'potg', 'potg.html'), { query: { export: hero ? 'hero' : 'potg' } });
+    const out = await w.webContents.executeJavaScript(`window.__exportGo(${JSON.stringify({ card, hero: !!hero })})`, true);   // true = 사용자 동작으로 쳐 줌(녹화 시작 허락)
+    if (!out || !out.ok || !out.data) return { ok: false, err: (out && out.err) || '녹화 실패' };
+    let file = r.filePath; const ext = out.mime === 'video/mp4' ? '.mp4' : '.webm';
+    if (path.extname(file).toLowerCase() !== ext) file = file.replace(/\.[^.\\/]*$/, '') + ext;
+    const buf = Buffer.from(out.data);
+    if (ext === '.mp4') { try { const fx = require('./mp4fix').fixAnnexB(buf); console.log('[potg] mp4 바로잡음', JSON.stringify(fx)); } catch (e) { console.log('[potg] mp4 바로잡기 실패', e && e.message); } }   // 크롬 mp4의 영상 프레임 구분 방식을 mp4 규칙대로(엄격한 재생기용)
+    fs.writeFileSync(file, buf);
+    console.log('[potg] 효과 넣어 저장', file, (out.data.byteLength / 1048576).toFixed(1) + 'MB');
+    return { ok: true, path: file };
+  } catch (e) { return { ok: false, err: String(e && e.message || e).slice(0, 80) }; }
+  finally { try { w.destroy(); } catch (_) {} _exportWin = null; }
+});
 ipcMain.on('potg-close', () => { if (_potgMode === 'wait' && potgWaitRaw) _waitClosed = potgWaitRaw.gameId; closePotg(); });   // ⏳ 기다림 화면을 닫으면 그 판엔 다시 안 띄움
 ipcMain.on('potg-guess', (_e, i) => {   // 🔮 팟지 예측 한 표(바꿀 수 있음)
   const W = potgWaitRaw, me = config.myName;
@@ -3908,6 +3942,7 @@ else {
   app.on('second-instance', () => showMainPanel());
   app.whenReady().then(() => {
     try { imgcache.install(); } catch (e) { console.log('[img] 설치 실패', e && e.message); }   // 🖼️ 창보다 먼저
+    try { require('electron').session.defaultSession.setDisplayMediaRequestHandler(exportMediaHandler); } catch (_) {}   // 🎞️ v0.1.212 효과 넣어 저장 = 내보내기 창만 자기 화면 녹화 허락
     CONFIG_PATH = path.join(app.getPath('userData'), 'today-naejeon-config.json');
     config = loadConfig();
     // 🧪 개발용: TN_HIDDEN=1 → 창을 화면에 한 번도 안 띄우고 테스트(CDP로만 조작 · 배포본에선 무시)

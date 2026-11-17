@@ -300,3 +300,9 @@ html, body { height:100%; background:var(--bg-0); color:var(--ink); overflow:hid
   .wr-h b { font-size:13.5px; } .wr-h span { font-size:11px; }
   .wr-rank .row { padding:2px 5px; }
 }
+
+/* 🎞️ v0.1.212 「효과 넣어 저장」 내보내기 창(potg.html?export=…) — 머리줄·테두리·끝 화면 없이 1280×720 영상 칸만 */
+html.export .pg { border:none; }
+html.export .pg-top, html.export .pg-end, html.export #pg-room { display:none !important; }
+html.export .pg-intro { inset:0; }
+html.export .tn-tt { display:none !important; }
