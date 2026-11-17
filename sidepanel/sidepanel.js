@@ -95,6 +95,8 @@ document.querySelectorAll('.sp-tab').forEach(b => b.addEventListener('click', ()
 document.querySelectorAll('#sp-seg button').forEach(b => b.addEventListener('click', () => switchCat(b.dataset.cat)));
 
 // ── 공용 ────────────────────────────────────────────────────────────────
+// 🚫 v0.1.211 건너뛴 판 표시(사장님: 건너뛴 것도 알게 — 그때 뜨는 안내를 놓쳐도 기록에서 보이게)
+const pgSkipTag = by => `<span class="rc-pgx" title="${escH(by || '방장')}님이 이 판 팟지를 건너뛰었어요">팟지 건너뜀</span>`;
 const champIcon = id => id ? `<img class="pf-ci" src="https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${Number(id)}.png" onerror="this.style.visibility='hidden'" alt="">` : '<span class="pf-ci"></span>';
 const md = day => { if (!day) return ''; const [, m, d] = day.split('-'); return `${Number(m)}/${Number(d)}`; };
 const pct = (w, g) => g ? Math.round(w / g * 100) : 0;
@@ -252,13 +254,13 @@ async function renderToday() {
     return `<tr class="${nn(p.name) === nn(_myName) ? 'me' : ''}"><td class="r">${p.rank}</td><td class="n"><a class="pf-link" data-name="${escH(p.name)}">${escH(p.name)}</a></td><td>${p.wins}-${p.losses}</td><td>${pct(p.wins, p.games)}%</td>${zero(p.mvp)}${zero(p.manner)}<td>${kda}</td></tr>`;
   }).join('');
   const games = t.matches.map((m, i) => `<div class="rc-g"><div class="rc-gh"><b>${t.matches.length - i}판</b><span class="num">${hhmm(m.ts)}</span>${m.source === 'manual' ? '<span class="rc-tag">직접 기록</span>' : ''}`
-    + `${m.potg && !m.potg.none ? `<button class="rc-pg" data-pg="m${i}" title="팟지 다시 보기">팟지</button>` : ''}</div>${teamRows(m, m.winner)}${awardRow(m)}</div>`).join('');
+    + `${m.potg && !m.potg.none ? `<button class="rc-pg" data-pg="m${i}" title="팟지 다시 보기">팟지</button>` : m.potg && m.potg.skipped ? pgSkipTag(m.potg.by) : ''}</div>${teamRows(m, m.winner)}${awardRow(m)}</div>`).join('');
   // 🎮 같이 한 일반 판(v0.1.48) — 내전 순위와 따로 · 우리 팀(앱 켠 사람)만 · 재미 지표 · 팟지 다시 보기
   const nwin = normals.filter(m => m.win).length;
   const ngames = normals.map((m, i) => {
     const ps = (m.players || []).map(p => `<span class="nm-p">${champIcon(p.champId)}<span class="nm-pn"><a class="pf-link" data-name="${escH(p.name)}">${escH(p.name)}</a><small>${p.k}/${p.d}/${p.a}</small></span></span>`).join('');
     const fun = (m.fun || []).map(x => `<span class="nm-f ${x.k}"><em>${escH(x.label)}</em><span class="nm-fn">${escH(x.name)}</span>${x.v ? `<small>${escH(x.v)}</small>` : ''}</span>`).join('');
-    return `<div class="rc-g nm"><div class="rc-gh"><span class="nm-res ${m.win ? 'w' : 'l'}">${m.win ? '승' : '패'}</span><b>${escH(m.queue || '일반 게임')}</b><span class="num">${hhmm(m.ts)}</span>${m.gameTime ? `<span class="nm-len num">${Math.round(m.gameTime / 60)}분</span>` : ''}${m.potg && !m.potg.none ? `<button class="rc-pg" data-pg="n${i}" title="팟지·숨은 영웅 다시 보기">팟지</button>` : ''}</div>`
+    return `<div class="rc-g nm"><div class="rc-gh"><span class="nm-res ${m.win ? 'w' : 'l'}">${m.win ? '승' : '패'}</span><b>${escH(m.queue || '일반 게임')}</b><span class="num">${hhmm(m.ts)}</span>${m.gameTime ? `<span class="nm-len num">${Math.round(m.gameTime / 60)}분</span>` : ''}${m.potg && !m.potg.none ? `<button class="rc-pg" data-pg="n${i}" title="팟지·숨은 영웅 다시 보기">팟지</button>` : m.potgSkip ? pgSkipTag(m.potgSkip) : ''}</div>`
       + `<div class="nm-ps">${ps}</div>${fun ? `<div class="nm-fun">${fun}</div>` : ''}</div>`;
   }).join('');
   body.innerHTML = (t.matches.length ? `<div class="td-sec">순위<small>${t.matches.length}판</small></div>`

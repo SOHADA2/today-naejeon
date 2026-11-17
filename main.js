@@ -2903,7 +2903,7 @@ async function getToday(day) {
   const raw2 = {}; for (const [k, m] of Object.entries(raw || {})) if (m && inRoom(m)) raw2[k] = m;
   const normals = Object.values(nraw || {}).filter(m => m && Array.isArray(m.us) && inRoom(m)).sort((a, b) => (b.ts || 0) - (a.ts || 0)).map(m => Object.assign({}, m, {
     fun: normalFun(m), players: (m.stats || []).filter(p => m.us.some(n => norm(n) === norm(p.summonerName))).map(p => ({ name: p.summonerName, champId: p.championId, champ: p.championName, k: p.kills, d: p.deaths, a: p.assists, damage: p.damage })),
-    stats: undefined, potg: m.potg && !m.potg.none ? m.potg : null }));
+    stats: undefined, potg: m.potg && !m.potg.none ? m.potg : null, potgSkip: m.potg && m.potg.none && m.potg.skipped ? (m.potg.by || '방장') : null }));   // v0.1.211 건너뛴 판 = 기록에 「팟지 건너뜀 · 누가」
   return Object.assign({ ok: true, day: d, today: dayKey(), normals, roomName: room ? room.name : null }, computeToday(raw2));
 }
 

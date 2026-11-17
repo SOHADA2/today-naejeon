@@ -238,3 +238,4 @@ button.sp-card:hover { border-color:var(--gold-line); }
   .pf-grid b { font-size:13px; letter-spacing:-0.02em; }
   .nm-len { display:none; } .nm-f em { min-width:46px; }
 }
+.rc-pgx { flex:none; margin-left:auto; padding:2px 7px; font-size:10.5px; font-weight:700; color:var(--dim); border:1px dashed var(--hair); white-space:nowrap; cursor:default; }   /* v0.1.211 팟지 건너뜀(누가 = 마우스 올림) */
