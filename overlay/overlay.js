@@ -1334,20 +1334,20 @@ if (window.api.onChat) window.api.onChat(chatShow);
 
 // 📍 v0.1.220 대기실 핑 = 롤 핑 그대로(사장님: 내 얼굴이 아니라 마우스로 찍은 곳에 · 롤처럼 도배 제한 · 생김새도 최대한 롤처럼)
 //   바퀴 = 롤 스마트 핑 8방향 + 가운데(2023~ 롤과 같은 자리): 위 후퇴 · 오른쪽 위 밀어붙이기 · 오른쪽 가는 중 · 오른쪽 아래 올인 · 아래 도움 요청 · 왼쪽 아래 시야 필요 · 왼쪽 적 실종(?) · 왼쪽 위 적 시야 · 끌지 않으면 기본 핑
-//   그림 = 롤 게임 안 핑 그림(CommunityDragon game/assets/shared/particles/pingupdate · assets/ping)
+//   그림·색 = 롤 게임 안 핑 아이콘 그대로(v0.1.222 · CommunityDragon game/assets/ux/lol/offscreenping_atlas.png 64px 칸 · assets/ping · 가운데 = 인게임과 같은 노란 「주의」 ⊖)
 //   찍는 곳 = 마우스 자리 → 다른 PC 창 크기가 달라도 같은 곳에 뜨게 「무엇 위에 찍었는지」로 보냄: 자리 칸(s · 몇 번째 칸 + 칸 안 비율) · 관전 칩(c · 사람 + 비율) · 그 밖(v · 대기실 창 비율)
 //   모양 = 찍은 곳에 핑 그림이 위에서 떨어져 박히고 바닥에 물결(타원) 두 번 + 아래 작게 보낸 사람 · 2.6초 · 여러 개 동시에 · 무한 애니메이션 없음
 //   도배 제한(롤과 비슷하게) = 같은 핑 6초에 3번 · 모든 핑 5초에 6번 넘으면 10초 못 찍음 → main ping-send가 막고 남은 초를 알려 줌
 const PING = {
-  look: { t: '핑', c: '#3aa0ff', img: 'ping' },
-  retreat: { t: '후퇴', c: '#ff4655', img: 'retreat' },
-  push: { t: '밀어붙이기', c: '#5ad06a', img: 'push' },
-  omw: { t: '가는 중', c: '#3a8cff', img: 'omw' },
-  allin: { t: '올인', c: '#f0c040', img: 'all_in' },
-  assist: { t: '도움 요청', c: '#5ad06a', img: 'assist' },
-  vision: { t: '시야 필요', c: '#7ad04a', img: 'vision' },
-  missing: { t: '적 실종', c: '#f0d040', img: 'missing' },
-  enemy: { t: '적 시야', c: '#ff4655', img: 'enemy' },
+  look: { t: '주의', c: '#f5b400', img: 'caution' },
+  retreat: { t: '후퇴', c: '#e8344a', img: 'retreat' },
+  push: { t: '밀어붙이기', c: '#20c97a', img: 'push' },
+  omw: { t: '가는 중', c: '#22a7f0', img: 'omw' },
+  allin: { t: '올인', c: '#f5b400', img: 'all_in' },
+  assist: { t: '도움 요청', c: '#20c97a', img: 'assist' },
+  vision: { t: '시야 필요', c: '#20c97a', img: 'vision' },
+  missing: { t: '적 실종', c: '#f5b400', img: 'missing' },
+  enemy: { t: '적 시야', c: '#e8344a', img: 'enemy' },
 };
 const PING_DIR = ['retreat', 'push', 'omw', 'allin', 'assist', 'vision', 'missing', 'enemy'];   // 위에서 시계 방향 45°씩
 const PING_MS = 2600, PW_R = 50;

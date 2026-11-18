@@ -23,9 +23,9 @@
     .pw .s.on { opacity:1; }
     .pw svg { position:absolute; left:0; top:0; width:1px; height:1px; overflow:visible; }
     .pw line { stroke:var(--pc); stroke-width:2.2; stroke-linecap:round; filter:drop-shadow(0 0 3px var(--pc)); }
-    .pw .i { position:absolute; width:30px; height:30px; margin:-15px 0 0 -15px; opacity:.72; filter:drop-shadow(0 1px 2px rgba(0,0,0,.9)); transition:transform .08s, opacity .08s; }
+    .pw .i { position:absolute; width:40px; height:40px; margin:-20px 0 0 -20px; opacity:.72; filter:drop-shadow(0 1px 2px rgba(0,0,0,.9)); transition:transform .08s, opacity .08s; }
     .pw .i.on { opacity:1; transform:scale(1.32); filter:drop-shadow(0 0 6px var(--pc)); }
-    .pw .c { position:absolute; left:-12px; top:-12px; width:24px; height:24px; opacity:.6; }
+    .pw .c { position:absolute; left:-16px; top:-16px; width:32px; height:32px; opacity:.6; }
     .pw .c.on { opacity:1; transform:scale(1.25); filter:drop-shadow(0 0 5px var(--pc)); }
     .pw .t { position:absolute; left:50%; top:90px; transform:translateX(-50%); padding:1px 9px; font-size:12.5px; font-weight:800; white-space:nowrap; color:#fff;
       background:rgba(4,9,15,.85); border:1px solid color-mix(in srgb, var(--pc) 70%, transparent); text-shadow:0 1px 2px #000; }
@@ -34,7 +34,7 @@
       box-shadow:0 0 9px var(--pc), inset 0 0 7px var(--pc); animation:wpG .8s ease-out forwards; }
     .wp .g2 { animation-delay:.32s; }
     .wp .sb { position:absolute; left:-1.5px; top:-46px; width:3px; height:46px; opacity:0; background:linear-gradient(0deg, var(--pc), transparent); animation:wpS .55s .05s ease-out forwards; }
-    .wp .ic { position:absolute; left:-21px; top:-54px; width:42px; height:42px; filter:drop-shadow(0 3px 4px rgba(0,0,0,.75)); animation:wpI .5s cubic-bezier(.3,1.5,.55,1) both; }
+    .wp .ic { position:absolute; left:-28px; top:-64px; width:56px; height:56px; filter:drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000) drop-shadow(0 3px 4px rgba(0,0,0,.75)); animation:wpI .5s cubic-bezier(.3,1.5,.55,1) both; }
     .wp .nm { position:absolute; left:50%; top:15px; transform:translateX(-50%); padding:0 6px; font-size:11.5px; font-weight:800; white-space:nowrap; color:var(--pc);
       background:rgba(4,9,15,.8); text-shadow:0 1px 2px #000; animation:wpN .3s .25s ease-out both; }
     .er { position:absolute; transform:translate(-50%, 18px); padding:2px 9px; font-size:12px; font-weight:800; white-space:nowrap; color:#ff8a8a; background:rgba(4,9,15,.9); border:1px solid rgba(255,90,110,.6); }
@@ -48,9 +48,15 @@
   <div id="root"></div>
   <script>
     const PING = {
-      look: { t: '핑', c: '#3aa0ff', img: 'ping' }, retreat: { t: '후퇴', c: '#ff4655', img: 'retreat' }, push: { t: '밀어붙이기', c: '#5ad06a', img: 'push' },
-      omw: { t: '가는 중', c: '#3a8cff', img: 'omw' }, allin: { t: '올인', c: '#f0c040', img: 'all_in' }, assist: { t: '도움 요청', c: '#5ad06a', img: 'assist' },
-      vision: { t: '시야 필요', c: '#7ad04a', img: 'vision' }, missing: { t: '적 실종', c: '#f0d040', img: 'missing' }, enemy: { t: '적 시야', c: '#ff4655', img: 'enemy' },
+      look: { t: '주의', c: '#f5b400', img: 'caution' },
+      retreat: { t: '후퇴', c: '#e8344a', img: 'retreat' },
+      push: { t: '밀어붙이기', c: '#20c97a', img: 'push' },
+      omw: { t: '가는 중', c: '#22a7f0', img: 'omw' },
+      allin: { t: '올인', c: '#f5b400', img: 'all_in' },
+      assist: { t: '도움 요청', c: '#20c97a', img: 'assist' },
+      vision: { t: '시야 필요', c: '#20c97a', img: 'vision' },
+      missing: { t: '적 실종', c: '#f5b400', img: 'missing' },
+      enemy: { t: '적 시야', c: '#e8344a', img: 'enemy' },
     };
     const DIR = ['retreat', 'push', 'omw', 'allin', 'assist', 'vision', 'missing', 'enemy'], R = 58, MS = 2600;
     const img = k => `../assets/ping/${(PING[k] || PING.look).img}.png`;

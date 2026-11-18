@@ -808,9 +808,9 @@ header .phase, header .win-btn { flex-shrink:0; }
 .lb-pw .pw-s.on { opacity:1; }
 .lb-pw .pw-ln { position:absolute; left:0; top:0; width:1px; height:1px; overflow:visible; }
 .lb-pw .pw-ln line { stroke:var(--pc); stroke-width:2; stroke-linecap:round; filter:drop-shadow(0 0 3px var(--pc)); }
-.lb-pw .pw-i { position:absolute; width:26px; height:26px; margin:-13px 0 0 -13px; opacity:.72; filter:drop-shadow(0 1px 2px rgba(0,0,0,.9)); transition:transform .08s, opacity .08s; }
+.lb-pw .pw-i { position:absolute; width:34px; height:34px; margin:-17px 0 0 -17px; opacity:.72; filter:drop-shadow(0 1px 2px rgba(0,0,0,.9)); transition:transform .08s, opacity .08s; }
 .lb-pw .pw-i.on { opacity:1; transform:scale(1.32); filter:drop-shadow(0 0 6px var(--pc)); }
-.lb-pw .pw-c { position:absolute; left:-11px; top:-11px; width:22px; height:22px; opacity:.6; }
+.lb-pw .pw-c { position:absolute; left:-14px; top:-14px; width:28px; height:28px; opacity:.6; }
 .lb-pw .pw-c.on { opacity:1; transform:scale(1.25); filter:drop-shadow(0 0 5px var(--pc)); }
 .lb-pw .pw-t { position:absolute; left:50%; top:80px; transform:translateX(-50%); padding:1px 8px; font-size:11.5px; font-weight:800; white-space:nowrap; color:#fff;
   background:rgba(4,9,15,.85); border:1px solid color-mix(in srgb, var(--pc) 70%, transparent); text-shadow:0 1px 2px #000; }
@@ -821,7 +821,7 @@ body.pw-drag, body.pw-drag * { cursor:crosshair !important; user-select:none; }
 .lb-wp .g2 { animation-delay:.32s; }
 .lb-wp .s { position:absolute; left:-1.5px; top:-38px; width:3px; height:38px; opacity:0;
   background:linear-gradient(0deg, var(--pc), transparent); filter:drop-shadow(0 0 3px var(--pc)); animation:wpS .55s .05s ease-out forwards; }
-.lb-wp .ic { position:absolute; left:-17px; top:-44px; width:34px; height:34px; filter:drop-shadow(0 3px 4px rgba(0,0,0,.75)); animation:wpI .5s cubic-bezier(.3,1.5,.55,1) both; }
+.lb-wp .ic { position:absolute; left:-22px; top:-52px; width:44px; height:44px; filter:drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000) drop-shadow(0 3px 4px rgba(0,0,0,.75)); animation:wpI .5s cubic-bezier(.3,1.5,.55,1) both; }
 .lb-wp .nm { position:absolute; left:50%; top:13px; transform:translateX(-50%); padding:0 5px; font-size:10.5px; font-weight:800; white-space:nowrap; color:var(--pc);
   background:rgba(4,9,15,.78); text-shadow:0 1px 2px #000; animation:wpN .3s .25s ease-out both; }
 @keyframes wpG { 0% { opacity:1; transform:scale(.25); } 100% { opacity:0; transform:scale(1.45); } }
