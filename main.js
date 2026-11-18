@@ -1846,29 +1846,42 @@ ipcMain.handle('chat-send', async (_e, text) => {
   const w = await fbSet(`${RP()}/lobby/chat/${account.puuid}`, { text: t, at: now });
   return w && w.ok ? { ok: true, key: account.puuid, text: t, at: now } : { ok: false, err: '보내지 못했습니다 · 인터넷 연결을 확인해 주세요' };
 });
-// 📍 v0.1.219 대기실 핑(사장님: 롤처럼 Alt + 클릭 후 드래그 → 방향 고르기) — rooms/{방}/lobby/ping/{puuid} = {k, to, at}(사람마다 마지막 하나 · 기록 안 남김)
-//   k = look(여기 봐요 · 끌지 않고 Alt+클릭) · go(위 · 시작하자 = 롤 올인) · omw(오른쪽 · 곧 가요 = 가는 중) · wait(아래 · 잠깐만 = 대기) · ask(왼쪽 · 물음표 = 적 실종 ?) · to = 핑을 찍은 자리의 사람(빈 곳이면 나)
-//   받는 쪽 = 방 스트림에서 바뀐 것만 왼쪽 창으로('ping') · 내 것은 화면이 바로 띄움 · 서버 규칙 변경 없음(lobby 아래 자유 칸)
-const PING_K = ['look', 'go', 'omw', 'wait', 'ask'];
-let _pingAt = 0;
+// 📍 v0.1.219 대기실 핑 · v0.1.220 롤 핑 그대로(사장님: 마우스로 찍은 곳에 · 롤처럼 도배 제한) — rooms/{방}/lobby/ping/{puuid} = {k, a, at}(사람마다 마지막 하나 · 기록 안 남김 · 서버 규칙 변경 없음)
+//   k = 롤 스마트 핑 8개 + 기본(look) · a = 찍은 곳 {t:'s' 자리 칸 i | 'c' 관전 칩 pk | 'v' 대기실 창, fx, fy(0~1)} → 받는 PC가 자기 창에서 같은 곳을 찾음
+//   도배 제한(롤과 비슷하게 · 인터넷 정리 기준 — 같은 종류 6초에 3번 · 연달아 5초에 6번이면 잠깐 막힘) = 같은 핑 6초에 3번 · 모든 핑 5초에 6번 넘으면 10초 못 찍음
+//   받는 쪽 = 방 스트림에서 바뀐 것만 왼쪽 창으로('ping') · 내 것은 화면이 바로 띄움 · v0.1.219 앱(얼굴에 띄우던 것)은 모르는 종류라 안 띄움
+const PING_K = ['look', 'retreat', 'push', 'omw', 'allin', 'assist', 'vision', 'missing', 'enemy'];
+let _pingLog = [], _pingLock = 0;
+function pingAnchor(a) {
+  if (!a || typeof a !== 'object') return null;
+  const n = v => +Math.max(0, Math.min(1, Number(v) || 0)).toFixed(3), o = { t: a.t, fx: n(a.fx), fy: n(a.fy) };
+  if (a.t === 's') o.i = Math.max(0, Math.min(40, a.i | 0));
+  else if (a.t === 'c') { if (typeof a.pk !== 'string' || !a.pk) return null; o.pk = a.pk.slice(0, 80); }
+  else if (a.t !== 'v') return null;
+  return o;
+}
 function pingDiff(a, b) {
   const me = account && account.puuid;
   for (const [k, m] of Object.entries(b || {})) {
     if (!m || k === me || !PING_K.includes(m.k)) continue;
     const o = a && a[k];
     if (o && o.at === m.at) continue;
-    try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.webContents.send('ping', { from: k, to: typeof m.to === 'string' ? m.to.slice(0, 80) : k, k: m.k, at: Number(m.at) || 0 }); } catch (_) {}
+    const an = pingAnchor(m.a); if (!an) continue;
+    try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.webContents.send('ping', { from: k, k: m.k, a: an, at: Number(m.at) || 0 }); } catch (_) {}
   }
 }
 ipcMain.handle('ping-send', async (_e, o) => {
-  const k = o && PING_K.includes(o.k) ? o.k : null, to = o && typeof o.to === 'string' ? o.to.slice(0, 80) : null;
-  if (!k) return { ok: false };
+  const k = o && PING_K.includes(o.k) ? o.k : null, a = pingAnchor(o && o.a);
+  if (!k || !a) return { ok: false };
   if (!account || !room) return { ok: false, err: '방에 들어가야 핑을 찍을 수 있어요' };
   const now = Date.now();
-  if (now - _pingAt < 450) return { ok: false, slow: true };
-  _pingAt = now;
-  const w = await fbSet(`${RP()}/lobby/ping/${account.puuid}`, { k, to: to || account.puuid, at: now });
-  return w && w.ok ? { ok: true, key: account.puuid, to: to || account.puuid, k, at: now } : { ok: false, err: '핑을 보내지 못했어요' };
+  if (now < _pingLock) return { ok: false, err: `핑을 너무 많이 찍었어요 · ${Math.ceil((_pingLock - now) / 1000)}초 뒤에 다시 찍을 수 있어요` };
+  _pingLog = _pingLog.filter(p => now - p.at < 6000);
+  if (_pingLog.filter(p => p.k === k).length >= 3) return { ok: false, err: '같은 핑은 6초에 3번까지 찍을 수 있어요' };
+  if (_pingLog.filter(p => now - p.at < 5000).length >= 6) { _pingLock = now + 10000; return { ok: false, err: '핑을 너무 많이 찍었어요 · 10초 뒤에 다시 찍을 수 있어요' }; }
+  _pingLog.push({ k, at: now });
+  const w = await fbSet(`${RP()}/lobby/ping/${account.puuid}`, { k, a, at: now });
+  return w && w.ok ? { ok: true, key: account.puuid, k, a, at: now } : { ok: false, err: '핑을 보내지 못했어요' };
 });
 let lobbyRaw = null, presenceRaw = null;
 function lobbyView() {

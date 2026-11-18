@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld('api', {
   onLobby: (cb) => ipcRenderer.on('lobby', (_e, d) => cb(d)),           // 🚪 대기실
   chatSend: (text) => ipcRenderer.invoke('chat-send', text),          // 💬 대기실 채팅 보내기(글·이모티콘 · v0.1.201~)
   onChat: (cb) => ipcRenderer.on('chat', (_e, d) => cb(d)),
-  pingSend: (k, to) => ipcRenderer.invoke('ping-send', { k, to }),       // 📍 v0.1.219 대기실 핑
+  pingSend: (k, a) => ipcRenderer.invoke('ping-send', { k, a }),         // 📍 v0.1.219 대기실 핑 · v0.1.220 a = 찍은 곳
   onPing: (cb) => ipcRenderer.on('ping', (_e, d) => cb(d)),             // 💬 방 사람의 한마디가 바뀜 {key(puuid), text, at}
   onMyName: (cb) => ipcRenderer.on('myname', (_e, n) => cb(n)),
   onDocked: (cb) => ipcRenderer.on('docked', (_e, v) => cb(v)),

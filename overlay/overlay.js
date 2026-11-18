@@ -810,7 +810,7 @@ async function addGuestAsk() {   // 방장: 롤 앱이 없는 사람을 이름�
   if (v) lbAct(() => window.api.lobbyGuest(v));
 }
 function renderLobby() {
-  setTimeout(() => { chatRoom(); chatMark(); pingMark(); chatPlace(); }, 0);   // 💬 자리를 다시 그린 뒤 방 바뀜 확인·말한 사람 테두리·이모티콘 자리 맞춤(v0.1.202 · ⚠️ 바로 부르면 안 됨 — 켤 때는 아래 CHAT이 아직 안 만들어진 채로 여기가 먼저 돎)
+  setTimeout(() => { chatRoom(); chatMark(); chatPlace(); pingPlace(); }, 0);   // 💬 자리를 다시 그린 뒤 방 바뀜 확인·말한 사람 테두리·이모티콘 자리 맞춤(v0.1.202 · ⚠️ 바로 부르면 안 됨 — 켤 때는 아래 CHAT이 아직 안 만들어진 채로 여기가 먼저 돎)
   const L = lobbyData || { members: [], mode: 'random', captains: {} };
   const M = L.members || [], caps = L.captains || {}, draft = L.mode === 'draft', manual = L.mode === 'manual', normal = L.mode === 'normal', sides = L.sides || {};
   const ins = M.filter(m => m.st === 'in'), specs = M.filter(m => m.st === 'spec');
@@ -1328,74 +1328,84 @@ document.addEventListener('keydown', e => {   // 대기실에서 그냥 Enter = 
   if (CHAT.fold) chatFold(false);
   el('lb-chat-in').focus();
 });
-{ const lbBody = document.querySelector('#view-lobby .lb-body'); if (lbBody) lbBody.addEventListener('scroll', chatPlace, { passive: true }); }
-window.addEventListener('resize', chatPlace);
+{ const lbBody = document.querySelector('#view-lobby .lb-body'); if (lbBody) lbBody.addEventListener('scroll', () => { chatPlace(); pingPlace(); }, { passive: true }); }
+window.addEventListener('resize', () => { chatPlace(); pingPlace(); });
 if (window.api.onChat) window.api.onChat(chatShow);
 
-// 📍 v0.1.219 대기실 핑(사장님: 롤처럼 Alt + 클릭 후 드래그하면 여러 방향으로 핑) — 대기실 창 아무 데서나 Alt + 왼쪽 누름 → 핑 바퀴 · 끄는 방향 = 고르기 · 놓으면 보냄
-//   끌지 않고 놓음 = 「여기 봐요」 · 사람 자리(관전 칩 포함) 위에서 시작하면 그 사람 자리에 · 빈 곳이면 내 자리에 · Esc·창 밖 = 취소
-//   보이는 것 = 그 자리 얼굴에 핑 표식이 한 번 톡 + 자리 아랫줄이 3.2초 「▶ 시작하자 · 보낸 사람」(닉네임은 안 가림) · 무한 애니메이션 없음
-// 그림 = 롤 게임 안 핑 그림 그대로(CommunityDragon game/assets/shared/particles/pingupdate/need · 128px · 앱에 넣음 assets/ping) · 바퀴 방향도 롤과 같은 자리(왼쪽 = 물음표 핑)
+// 📍 v0.1.220 대기실 핑 = 롤 핑 그대로(사장님: 내 얼굴이 아니라 마우스로 찍은 곳에 · 롤처럼 도배 제한 · 생김새도 최대한 롤처럼)
+//   바퀴 = 롤 스마트 핑 8방향 + 가운데(2023~ 롤과 같은 자리): 위 후퇴 · 오른쪽 위 밀어붙이기 · 오른쪽 가는 중 · 오른쪽 아래 올인 · 아래 도움 요청 · 왼쪽 아래 시야 필요 · 왼쪽 적 실종(?) · 왼쪽 위 적 시야 · 끌지 않으면 기본 핑
+//   그림 = 롤 게임 안 핑 그림(CommunityDragon game/assets/shared/particles/pingupdate · assets/ping)
+//   찍는 곳 = 마우스 자리 → 다른 PC 창 크기가 달라도 같은 곳에 뜨게 「무엇 위에 찍었는지」로 보냄: 자리 칸(s · 몇 번째 칸 + 칸 안 비율) · 관전 칩(c · 사람 + 비율) · 그 밖(v · 대기실 창 비율)
+//   모양 = 찍은 곳에 핑 그림이 위에서 떨어져 박히고 바닥에 물결(타원) 두 번 + 아래 작게 보낸 사람 · 2.6초 · 여러 개 동시에 · 무한 애니메이션 없음
+//   도배 제한(롤과 비슷하게) = 같은 핑 6초에 3번 · 모든 핑 5초에 6번 넘으면 10초 못 찍음 → main ping-send가 막고 남은 초를 알려 줌
 const PING = {
-  look: { t: '여기 봐요', c: '#5aa8ff', img: 'ping' },
-  go: { t: '시작하자', c: '#f0c040', img: 'all_in' },
-  omw: { t: '곧 가요', c: '#4a8cff', img: 'omw' },
-  wait: { t: '잠깐만', c: '#5ad06a', img: 'hold' },
-  ask: { t: '물음표', o: '?', c: '#f0d040', img: 'missing' },
+  look: { t: '핑', c: '#3aa0ff', img: 'ping' },
+  retreat: { t: '후퇴', c: '#ff4655', img: 'retreat' },
+  push: { t: '밀어붙이기', c: '#5ad06a', img: 'push' },
+  omw: { t: '가는 중', c: '#3a8cff', img: 'omw' },
+  allin: { t: '올인', c: '#f0c040', img: 'all_in' },
+  assist: { t: '도움 요청', c: '#5ad06a', img: 'assist' },
+  vision: { t: '시야 필요', c: '#7ad04a', img: 'vision' },
+  missing: { t: '적 실종', c: '#f0d040', img: 'missing' },
+  enemy: { t: '적 시야', c: '#ff4655', img: 'enemy' },
 };
-const PING_DIR = [['go', 0, -1], ['omw', 1, 0], ['wait', 0, 1], ['ask', -1, 0]];
-const PING_MS = 3200;
-const PINGS = {};   // 사람 키 → {k, from, until}
-const pingIco = k => `<img src="../assets/ping/${(PING[k] || PING.look).img}.png" alt="" draggable="false">`;
-function pingLabel(p) {
-  const P = PING[p.k] || PING.look, fm = chatMember(p.from);
-  return (P.o || P.t) + (p.from !== p.to && fm ? ' · ' + fm.name : '');   // 남이 내 자리에 찍으면 보낸 사람 이름도
+const PING_DIR = ['retreat', 'push', 'omw', 'allin', 'assist', 'vision', 'missing', 'enemy'];   // 위에서 시계 방향 45°씩
+const PING_MS = 2600, PW_R = 50;
+const pingImg = k => `../assets/ping/${(PING[k] || PING.look).img}.png`;
+const PINGS = [];   // 떠 있는 핑 {el, a, until}
+function pingSeats() { return [...el('view-lobby').querySelectorAll('.lb-body .seat')]; }
+function pingAnchorAt(x, y, target) {   // 찍은 곳 → 다른 PC에서도 같은 곳을 가리키는 표시
+  const fr = (r) => ({ fx: +((x - r.left) / r.width).toFixed(3), fy: +((y - r.top) / r.height).toFixed(3) });
+  const seat = target && target.closest && target.closest('.lb-body .seat');
+  if (seat) { const i = pingSeats().indexOf(seat); if (i >= 0) return Object.assign({ t: 's', i }, fr(seat.getBoundingClientRect())); }
+  const chip = target && target.closest && target.closest('.lb-chip'), nm = chip && chip.querySelector('.lb-nm[data-pk]');
+  if (nm) return Object.assign({ t: 'c', pk: nm.dataset.pk }, fr(chip.getBoundingClientRect()));
+  return Object.assign({ t: 'v' }, fr(el('view-lobby').getBoundingClientRect()));
 }
-function pingMark() {   // 핑 받은 자리 = 아랫줄을 핑 글로(자리를 다시 그려도 남게 여기서 다시 붙임)
+function pingPoint(a) {   // 표시 → 지금 내 창의 좌표(대기실 창 기준) · 못 찾으면 null
+  const vr = el('view-lobby').getBoundingClientRect();
+  let r = null;
+  if (a.t === 's') r = (pingSeats()[a.i] || null); else if (a.t === 'c') { const nm = [...el('view-lobby').querySelectorAll('.lb-chip .lb-nm[data-pk]')].find(x => x.dataset.pk === a.pk); r = nm ? nm.closest('.lb-chip') : null; }
+  const rr = a.t === 'v' ? vr : r && r.getBoundingClientRect();
+  if (!rr || !rr.width) return null;
+  const x = rr.left + Math.max(0, Math.min(1, a.fx)) * rr.width - vr.left, y = rr.top + Math.max(0, Math.min(1, a.fy)) * rr.height - vr.top;
+  if (a.t !== 'v') { const body = el('view-lobby').querySelector('.lb-body'), br = body && body.getBoundingClientRect(); if (br && (y + vr.top < br.top - 6 || y + vr.top > br.bottom + 6)) return null; }   // 스크롤 밖
+  return { x, y };
+}
+function pingPlace() {
   const now = Date.now();
-  for (const k of Object.keys(PINGS)) if (PINGS[k].until <= now) delete PINGS[k];
-  for (const nm of el('view-lobby').querySelectorAll('.lb-nm[data-pk]')) {
-    const a = nm.closest('.seat, .lb-chip'); if (!a) continue;
-    const p = PINGS[nm.dataset.pk], sm = a.querySelector('.seat-main > small');
-    a.classList.toggle('pinged', !!p);
-    let sp = sm && sm.querySelector('.seat-ping');
-    if (!p) { if (sp) sp.remove(); continue; }
-    a.style.setProperty('--pc', (PING[p.k] || PING.look).c);
-    if (!sm) continue;
-    if (!sp) { sp = document.createElement('span'); sp.className = 'seat-ping'; sm.prepend(sp); }
-    const h = pingIco(p.k) + '<b></b>';
-    if (sp.dataset.k !== p.k + p.from) { sp.dataset.k = p.k + p.from; sp.innerHTML = h; }
-    sp.querySelector('b').textContent = pingLabel(p);
+  for (let i = PINGS.length - 1; i >= 0; i--) {
+    const p = PINGS[i];
+    if (p.until <= now) { p.el.remove(); PINGS.splice(i, 1); continue; }
+    const pt = pingPoint(p.a);
+    p.el.style.display = pt ? '' : 'none';
+    if (pt) { p.el.style.left = pt.x + 'px'; p.el.style.top = pt.y + 'px'; }
   }
 }
-function pingPop(k, pk) {   // 그 사람 얼굴 자리에서 핑 표식이 한 번(이모티콘 자리 함께 씀 · chatPlace가 자리 맞춤)
-  const cur = CHAT.pops[k];
-  if (cur) cur.el.remove();
-  const e = document.createElement('div');
-  e.className = 'lb-emj lb-pfx'; e.style.setProperty('--pc', (PING[pk] || PING.look).c);
-  e.innerHTML = '<img class="r" src="../assets/ping/ripple.png" alt=""><img class="r r2" src="../assets/ping/ripple.png" alt=""><span class="d">' + pingIco(pk) + '</span>';
-  chatLayer().appendChild(e);
-  const o = CHAT.pops[k] = { el: e }, done = () => { e.remove(); if (CHAT.pops[k] === o) delete CHAT.pops[k]; };
-  chatPlace();
-  e.animate([{ opacity: 0 }, { opacity: 1, offset: 0.06 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }], { duration: 1800, easing: 'ease-out', fill: 'forwards' });
-  setTimeout(done, 2100);
-}
 function pingShow(d) {
-  if (!d || !PING[d.k] || !d.to) return;
-  if (!chatMember(d.to)) return;   // 이 방 사람 자리가 아니면 안 띄움
-  PINGS[d.to] = { k: d.k, from: d.from, to: d.to, until: Date.now() + PING_MS };
-  pingMark(); pingPop(d.to, d.k); setTimeout(pingMark, PING_MS + 40);
+  if (!d || !PING[d.k] || !d.a || !/^[svc]$/.test(d.a.t)) return;
+  const P = PING[d.k], fm = chatMember(d.from);
+  const e = document.createElement('div');
+  e.className = 'lb-wp'; e.style.setProperty('--pc', P.c);
+  e.innerHTML = `<i class="g"></i><i class="g g2"></i><i class="s"></i><img class="ic" src="${pingImg(d.k)}" alt="" draggable="false"><b class="nm"></b>`;
+  e.querySelector('.nm').textContent = (fm ? fm.name : '') + (fm ? ' · ' : '') + P.t;
+  chatLayer().appendChild(e);
+  PINGS.push({ el: e, a: d.a, until: Date.now() + PING_MS });
+  while (PINGS.length > 12) PINGS.shift().el.remove();
+  pingPlace();
+  e.animate([{ opacity: 1 }, { opacity: 1, offset: 0.82 }, { opacity: 0 }], { duration: PING_MS, fill: 'forwards' });
+  setTimeout(pingPlace, PING_MS + 40);
 }
 if (window.api.onPing) window.api.onPing(pingShow);
-// 핑 바퀴
-const PW = { on: false, x: 0, y: 0, to: null, sel: 'look' };
+// 바퀴 — 롤처럼: 어두운 원 + 8칸 · 끄는 쪽 칸이 핑 색으로 밝아짐 · 가운데 = 기본 핑 · 아래에 고른 이름
+const PW = { on: false, x: 0, y: 0, a: null, sel: 'look' };
 function pingWheel() {
   let w = el('lb-pw');
   if (!w) {
     w = document.createElement('div'); w.id = 'lb-pw'; w.className = 'lb-pw';
-    w.innerHTML = '<svg class="pw-ln"><line x1="0" y1="0" x2="0" y2="0"/></svg><span class="pw-c" data-k="look">' + pingIco('look') + '</span>'
-      + PING_DIR.map(([k, dx, dy]) => `<span class="pw-i" data-k="${k}" style="--dx:${dx};--dy:${dy};--pc:${PING[k].c}">${pingIco(k)}<b>${PING[k].t}</b></span>`).join('')
-      + '<span class="pw-to"></span>';
+    const seg = PING_DIR.map((k, i) => `<div class="pw-s" data-k="${k}" style="--r:${i * 45}deg;--pc:${PING[k].c}"></div>`).join('');
+    const ico = PING_DIR.map((k, i) => { const an = (i * 45 - 90) * Math.PI / 180; return `<img class="pw-i" data-k="${k}" src="${pingImg(k)}" style="left:${(Math.cos(an) * PW_R).toFixed(1)}px;top:${(Math.sin(an) * PW_R).toFixed(1)}px" alt="" draggable="false">`; }).join('');
+    w.innerHTML = `<div class="pw-bg"></div>${seg}<svg class="pw-ln"><line x1="0" y1="0" x2="0" y2="0"/></svg>${ico}<img class="pw-c" data-k="look" src="${pingImg('look')}" alt="" draggable="false"><b class="pw-t"></b>`;
     el('view-lobby').appendChild(w);
   }
   return w;
@@ -1403,12 +1413,13 @@ function pingWheel() {
 function pingSel(mx, my) {
   const dx = mx - PW.x, dy = my - PW.y, d = Math.hypot(dx, dy);
   let sel = 'look';
-  if (d > 16) sel = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'omw' : 'ask') : (dy > 0 ? 'wait' : 'go');
+  if (d > 18) { const deg = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360 + 22.5) % 360; sel = PING_DIR[Math.floor(deg / 45) % 8]; }
   PW.sel = sel;
   const w = el('lb-pw');
   w.querySelectorAll('[data-k]').forEach(s => s.classList.toggle('on', s.dataset.k === sel));
   w.style.setProperty('--pc', PING[sel].c);
-  const ln = w.querySelector('line'), L = Math.min(d, 64);
+  w.querySelector('.pw-t').textContent = PING[sel].t;
+  const ln = w.querySelector('line'), L = Math.min(d, PW_R + 12);
   ln.setAttribute('x2', d ? (dx / d * L).toFixed(1) : 0); ln.setAttribute('y2', d ? (dy / d * L).toFixed(1) : 0);
 }
 function pingEnd(send) {
@@ -1417,24 +1428,23 @@ function pingEnd(send) {
   const w = el('lb-pw'); if (w) w.classList.remove('open');
   document.body.classList.remove('pw-drag');
   if (!send) return;
-  const k = PW.sel, to = PW.to;
-  window.api.pingSend(k, to).then(r => { if (r && r.ok) pingShow({ from: r.key, to: r.to, k: r.k, at: r.at }); else if (r && r.err && !r.slow) lbErr(r.err); }).catch(() => {});
+  const k = PW.sel, a = PW.a;
+  window.api.pingSend(k, a).then(r => { if (r && r.ok) pingShow({ from: r.key, k: r.k, a: r.a, at: r.at }); else if (r && r.err) lbErr(r.err); }).catch(() => {});
 }
 el('view-lobby').addEventListener('mousedown', e => {
+  if (PW.on && e.button === 2) { e.preventDefault(); pingEnd(false); return; }   // 오른쪽 클릭 = 취소(롤과 같음)
   if (!e.altKey || e.button !== 0 || !window.api.pingSend) return;
   const L = lobbyData, me = L && L.room && (L.members || []).find(m => m.me);
   if (!me) return;
   e.preventDefault(); e.stopPropagation();
-  const a = e.target.closest && e.target.closest('.seat.filled, .lb-chip'), nm = a && a.querySelector('.lb-nm[data-pk]');
-  PW.to = nm ? nm.dataset.pk : me.key;
+  PW.a = pingAnchorAt(e.clientX, e.clientY, e.target);
   const vr = el('view-lobby').getBoundingClientRect(), w = pingWheel();
-  PW.x = Math.max(vr.left + 78, Math.min(vr.right - 78, e.clientX)); PW.y = Math.max(vr.top + 70, Math.min(vr.bottom - 70, e.clientY));
+  PW.x = e.clientX; PW.y = e.clientY;   // 바퀴는 찍은 곳 가운데(롤과 같음) · 창 가장자리에서 조금 잘려도 됨
   w.style.left = (PW.x - vr.left) + 'px'; w.style.top = (PW.y - vr.top) + 'px';
-  const tm = chatMember(PW.to);
-  w.querySelector('.pw-to').textContent = tm && !tm.me ? tm.name + '님 자리에' : '';
   PW.on = true; w.classList.add('open'); document.body.classList.add('pw-drag');
   pingSel(e.clientX, e.clientY);
 }, true);
+el('view-lobby').addEventListener('contextmenu', e => { if (PW.on) e.preventDefault(); });
 window.addEventListener('mousemove', e => { if (PW.on) pingSel(e.clientX, e.clientY); });
 window.addEventListener('mouseup', e => { if (PW.on && e.button === 0) pingEnd(true); });
 window.addEventListener('keydown', e => { if (PW.on && e.key === 'Escape') pingEnd(false); if (e.key === 'Alt') e.preventDefault(); });
