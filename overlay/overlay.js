@@ -1383,12 +1383,13 @@ function pingPlace() {
   }
 }
 // 🔊 v0.1.224 핑 소리 = 롤 게임 안 핑 소리 그대로(이 PC 롤 설치 파일 hud_global_audio.bnk에서 꺼냄 · 두 겹 섞음 · assets/ping/sfx) · ⚙ 효과음 크기
-const PING_SFX = {};
+// 크기(v0.1.226 실측): 핑 파일 평균 −14.7 LUFS(라이엇 원래 비율 그대로 — 신호는 조용하고 후퇴는 큼) × 0.14 ≈ −32 LUFS = 드래프트 픽 소리(−16 LUFS × 0.2 ≈ −30)보다 살짝 작게(자주 울려서) · 예전 0.55는 픽 소리보다 13dB 컸음
+const PING_SFX = {}, PING_VOL = 0.14;
 function pingSound(k) {
   try {
     const v = VOL(); if (!v) return;
     const a = PING_SFX[k] || (PING_SFX[k] = new Audio(`../assets/ping/sfx/${k}.ogg`));
-    const c = a.cloneNode(); c.volume = Math.min(1, 0.55 * v); c.play().catch(() => {});
+    const c = a.cloneNode(); c.volume = Math.min(1, PING_VOL * v); c.play().catch(() => {});
   } catch (_) {}
 }
 function pingShow(d) {
