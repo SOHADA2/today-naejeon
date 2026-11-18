@@ -7,7 +7,7 @@
   const $ = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstChild; };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   let invEdit = false;   // 🎧 v0.1.138 초대 링크 입력 중
-  let S = { discordRpc: true, discordMove: true, discord: null, autoSeat: true, augRank: false, sfxOn: true, sfxVol: 1, dock: true, sidePanel: true, closeAsk: true, autoLaunch: true, hotkey: 'Shift+F7' }, U = { state: 'idle' }, hideStrip = false;
+  let S = { discordRpc: true, discordMove: true, discord: null, autoSeat: true, lolPing: true, augRank: false, sfxOn: true, sfxVol: 1, dock: true, sidePanel: true, closeAsk: true, autoLaunch: true, hotkey: 'Shift+F7' }, U = { state: 'idle' }, hideStrip = false;
   const applyVol = () => { window.__tnVol = S.sfxOn ? S.sfxVol : 0; };
   applyVol();
   const header = document.querySelector('#bar, #sbar'), minBtn = document.querySelector('#ov-min, #s-min');
@@ -63,6 +63,7 @@
         ${tog('autoSeat', '팀 자리로 자동 이동 <span class=\"tn-tip\" data-tip=\"팀이 정해지면 롤 사용자 설정 게임 방에서 내 자리를 1팀·2팀·관전석으로 옮겨요(롤의 「팀 참가」 버튼과 같은 동작 · 내 자리만). 한 번 옮긴 뒤 직접 바꾸면 그대로 둬요\">ⓘ</span>', '롤 대기방에서 1팀·2팀으로')}
         ${tog('lolRemake', '팀 정할 때 롤 방 자동으로 만들기 <span class=\"tn-tip\" data-tip=\"방장일 때 · 내전 팀이 정해지면 그 판 다리(드래프트 = 선픽이 아닌 팀장이 고름 · 나머지 = 무작위)로 롤 사용자 설정 방을 만들고(이미 있으면 다시 만듦) 그 판 사람 전원을 초대해요 · 큐 잡는 중이나 게임 중엔 안 건드려요\">ⓘ</span>', '방장 · 판마다 다리 바뀜')}
         ${tog('lolAutoAccept', '방장 롤 초대 자동 수락', '방장이 롤 방을 다시 만들면 바로 들어가요')}
+        ${tog('lolPing', '롤 화면에서 핑 <span class=\"tn-tip\" data-tip=\"롤 클라이언트(게임 밖)에서 Alt + 왼쪽 누른 채 끌면 롤 핑 바퀴가 떠요 · 방 사람 모두의 롤 화면 같은 자리에 보여요. 그 Alt+클릭은 롤에 안 눌러져요. 끄면 롤의 Alt+클릭이 원래대로\">ⓘ</span>', 'Alt + 끌기 = 핑 · 방 사람에게 보임')}
         <div class="tn-sec">디스코드</div>
         ${S.discord && S.discord.room ? `<div class="tn-row tn-dc"><span class="tn-row-tx"><b>이 방 디스코드 · ${esc(S.discord.room.name)}</b><small>${S.discord.room.ch ? '내전 대기실 음성 채널을 디스코드 앱으로' : '서버 초대 링크를 디스코드 앱으로'}</small></span><button class="tn-btn" data-act="dcroom" ${S.discord.room.ch || S.discord.room.code ? '' : 'disabled'}>${S.discord.room.ch ? '음성 채널 열기' : '들어가기'}</button></div>` : ''}
         <div class="tn-row tn-dc"><span class="tn-row-tx"><b>${S.discord && S.discord.on ? `연결됨 · ${esc(S.discord.name || '디스코드')}` : S.discord && S.discord.app ? '디스코드 앱이 꺼져 있어요' : '준비 중'}</b><small>${S.discord && S.discord.on ? '이 PC의 디스코드 앱과 연결' : S.discord && S.discord.app ? 'PC 디스코드 앱을 켜면 저절로 연결돼요' : '디스코드 연동 준비 중이에요'}</small></span><i class="tn-dc-dot${S.discord && S.discord.on ? ' on' : ''}"></i></div>

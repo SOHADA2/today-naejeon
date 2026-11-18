@@ -313,7 +313,8 @@ function createSlotWin() {
   slotWin.loadFile('slot/slot.html');
   slotWin.on('closed', () => { slotWin = null; _slotReady = false; });
 }
-function hideSlotMarker() { if (slotWin && !slotWin.isDestroyed() && slotWin.isVisible()) slotWin.hide(); _slotSig = ''; _slotMsg = ''; }
+function _hideSlotOnly() { if (slotWin && !slotWin.isDestroyed() && slotWin.isVisible()) slotWin.hide(); _slotSig = ''; _slotMsg = ''; }
+function hideSlotMarker() { _hideSlotOnly(); try { cpingSync(null); } catch (_) {} }   // 📍 v0.1.221 롤 클라 핑 창도 같이(조건은 cpingSync가 봄)
 function _repaintSlot() {   // 투명창이 흰 박스로 안 그려지는 Win 버그 → 1px 넛지로 강제 리페인트
   if (!slotWin || slotWin.isDestroyed()) return;
   try { const b = slotWin.getBounds(); slotWin.setBounds({ x: b.x, y: b.y, width: b.width + 1, height: b.height }); slotWin.setBounds(b); } catch (_) {}
@@ -567,7 +568,8 @@ function updateSlotMarker(p) {   // p=[L,T,R,B] 원시 px(클라 감지됨)
   //   위치 = docs/screen-layout.md 실측(1280×720 기준 · 클라가 크면 통째로 늘림): 1팀 칸 x 36~523 · 2팀 x 540~1027 · 팀 글자 y ≈ 205 · 자리 첫 줄 y 217 · 줄마다 48px · 다섯째 줄 끝 y 457
   //   창 = 기준 좌표 x 30~1034 · y 186~466 을 덮는 투명 창(클릭 통과) · 그 안은 기준 좌표로 그리고 zoom으로 키움
   const inLobby = lobbyPhase === 'Lobby' && lobbyCustom === true;
-  if (config.slot === false || inGame || !room || !clientFg || !inLobby) { hideSlotMarker(); return; }
+  try { cpingSync(p); } catch (_) {}   // 📍 v0.1.221 롤 클라 핑(게임 밖 모든 화면)
+  if (config.slot === false || inGame || !room || !clientFg || !inLobby) { _hideSlotOnly(); return; }
   if (!slotWin || slotWin.isDestroyed()) createSlotWin();
   const sf = (screen.getPrimaryDisplay().scaleFactor) || 1;
   const cx = p[0] / sf, cy = p[1] / sf, cw = (p[2] - p[0]) / sf;
@@ -1482,7 +1484,7 @@ function roomStreams() {   // 방 바뀜 → 방 스트림 다시(예전 방 데
   if (!room || !runSession) return;
   fbMirror('room', d => {
     const first = !_roomPrev, p = _roomPrev || {}, c = d || {}; _roomPrev = c;
-    if (p.lobby !== c.lobby) { lobbyRaw = c.lobby || null; broadcast('lobby', lobbyView()); if (!first) { chatDiff((p.lobby || {}).chat, (c.lobby || {}).chat); kickDiff((p.lobby || {}).kick, (c.lobby || {}).kick); pingDiff((p.lobby || {}).ping, (c.lobby || {}).ping); } }               // ⚡ 대기실(참가·방식·팀장)
+    if (p.lobby !== c.lobby) { lobbyRaw = c.lobby || null; broadcast('lobby', lobbyView()); if (!first) { chatDiff((p.lobby || {}).chat, (c.lobby || {}).chat); kickDiff((p.lobby || {}).kick, (c.lobby || {}).kick); pingDiff((p.lobby || {}).ping, (c.lobby || {}).ping); cpingDiff((p.lobby || {}).cping, (c.lobby || {}).cping); } }               // ⚡ 대기실(참가·방식·팀장)
     if (p.members !== c.members) { presenceRaw = c.members || null; broadcast('lobby', lobbyView()); broadcastRooms(); }   // 📦 v0.1.110: 방 사람(들어오고 나감)
     if (['session', 'host', 'normalLive', 'potgWait', 'potgRec'].some(k => p[k] !== c[k])) runSession();     // ⚡ 판·방장·팟지(일반 판·기다림·녹화 안내)
     if ((p.bridge && p.bridge.eogStats) !== (c.bridge && c.bridge.eogStats) && config.isHost) runHost();      // ⚡ 경기 종료 → 방장 앱이 바로 기록
@@ -1557,7 +1559,7 @@ async function roomLeave(quiet) {
     const next = roomMembers(id).filter(m => !account || m.key !== account.puuid).sort((a, b) => a.key.localeCompare(b.key))[0];
     if (next) await handHost(next.key).catch(() => {}); else await releaseHost().catch(() => {});
   }
-  if (account) { fbSet(`${T}/rooms/${id}/lobby/join/${account.puuid}`, null).catch(() => {}); fbSet(`${T}/rooms/${id}/lobby/chat/${account.puuid}`, null).catch(() => {}); fbSet(`${T}/rooms/${id}/lobby/ping/${account.puuid}`, null).catch(() => {}); }   // 💬 내 한마디·📍 핑도 같이
+  if (account) { fbSet(`${T}/rooms/${id}/lobby/join/${account.puuid}`, null).catch(() => {}); fbSet(`${T}/rooms/${id}/lobby/chat/${account.puuid}`, null).catch(() => {}); fbSet(`${T}/rooms/${id}/lobby/ping/${account.puuid}`, null).catch(() => {}); fbSet(`${T}/rooms/${id}/lobby/cping/${account.puuid}`, null).catch(() => {}); }   // 💬 내 한마디·📍 핑도 같이
   if (account) fbSet(`${T}/rooms/${id}/members/${account.puuid}`, null).catch(() => {});   // 📦 방 사람 칸
   room = null; config.lastRoom = null; saveConfig();
   roomStreams();
@@ -1860,6 +1862,149 @@ function pingAnchor(a) {
   else if (a.t !== 'v') return null;
   return o;
 }
+function pingRate(k) {   // 도배 제한 — 막히면 안내 글 · 통과하면 null(기록에 남김) · 대기실 핑·롤 클라 핑 같이 셈
+  const now = Date.now();
+  if (now < _pingLock) return `핑을 너무 많이 찍었어요 · ${Math.ceil((_pingLock - now) / 1000)}초 뒤에 다시 찍을 수 있어요`;
+  _pingLog = _pingLog.filter(p => now - p.at < 6000);
+  if (_pingLog.filter(p => p.k === k).length >= 3) return '같은 핑은 6초에 3번까지 찍을 수 있어요';
+  if (_pingLog.filter(p => now - p.at < 5000).length >= 6) { _pingLock = now + 10000; return '핑을 너무 많이 찍었어요 · 10초 뒤에 다시 찍을 수 있어요'; }
+  _pingLog.push({ k, at: now });
+  return null;
+}
+// 📍 v0.1.221 롤 클라이언트 화면 위 핑(사장님: 클라이언트 쪽도 만들어줘) — 롤 클라(게임 밖 · 홈·대기방·챔피언 선택 등)에서 Alt + 왼쪽 누른 채 끌기 → 롤 핑 바퀴 → 놓으면 방 사람 모두의 롤 화면 같은 자리에 핑
+//   ① 잡기 = 작은 PowerShell(C#)의 저수준 마우스 훅(WH_MOUSE_LL) — Alt가 눌려 있고 맨 앞 창이 롤 클라(제목 「League of Legends」)이고 커서 아래 창도 그 롤 창일 때만
+//      그 왼쪽 누름·뗌을 **롤에 안 넘김**(삼킴 · 그냥 지켜보기만 하면 Alt+클릭이 롤 버튼도 눌러서 「게임 시작」 같은 걸 잘못 누를 수 있음) · 끄는 동안 위치를 12ms마다 「M x y」 · 오른쪽 클릭 = 취소
+//      그 밖의 클릭은 전혀 안 건드림(바로 넘김) · 방 안 + 게임 밖 + 롤 클라가 있을 때만 켜 둠 · 게임 시작·방 나감·롤 끔 = 끔
+//   ② 보이기 = 롤 클라 창 전체를 덮는 클릭 통과 투명 창(slot/cping.html · 롤 기준 1280×720 · zoom) — 롤 클라(또는 우리 창)가 맨 앞일 때만
+//   ③ 보내기 = rooms/{방}/lobby/cping/{puuid} = {k, fx, fy(클라 화면 비율 0~1), ph(보낸 사람 롤 화면 단계), at} · 도배 제한은 대기실 핑과 같이 셈(pingRate)
+//      받는 쪽 = 롤 화면 단계가 같을 때만(대기방 핑은 대기방에 있는 사람에게만 · 홈 화면이면 홈끼리) · 보낸 사람 이름 + 핑 이름
+const CPING_PS = `
+$ProgressPreference = 'SilentlyContinue'
+Add-Type -TypeDefinition @'
+using System; using System.Runtime.InteropServices; using System.Text;
+public static class TnCp {
+  delegate IntPtr Proc(int n, IntPtr w, IntPtr l);
+  [StructLayout(LayoutKind.Sequential)] public struct PT { public int x; public int y; }
+  [StructLayout(LayoutKind.Sequential)] struct MS { public PT pt; public uint data; public uint flags; public uint time; public IntPtr extra; }
+  [StructLayout(LayoutKind.Sequential)] struct MSG { public IntPtr h; public uint m; public IntPtr w; public IntPtr l; public uint t; public PT p; }
+  [DllImport("user32.dll")] static extern IntPtr SetWindowsHookEx(int id, Proc f, IntPtr mod, uint tid);
+  [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr h, int n, IntPtr w, IntPtr l);
+  [DllImport("user32.dll")] static extern short GetAsyncKeyState(int k);
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(PT p);
+  [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr h, uint f);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern int GetMessage(out MSG m, IntPtr h, uint a, uint b);
+  [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+  [DllImport("kernel32.dll")] static extern IntPtr GetModuleHandle(string n);
+  static Proc proc = Hook; static IntPtr hk; static bool drag; static int lastMv;
+  static void Out(string s) { Console.Out.WriteLine(s); Console.Out.Flush(); }
+  static bool OnLol(PT p) {
+    IntPtr fg = GetForegroundWindow(); var sb = new StringBuilder(64); GetWindowText(fg, sb, 64);
+    if (sb.ToString() != "League of Legends") return false;
+    return GetAncestor(WindowFromPoint(p), 2) == fg;
+  }
+  static IntPtr Hook(int n, IntPtr w, IntPtr l) {
+    if (n >= 0) {
+      int m = (int)w; MS d = (MS)Marshal.PtrToStructure(l, typeof(MS));
+      if (!drag && m == 0x201 && (GetAsyncKeyState(0x12) & 0x8000) != 0 && OnLol(d.pt)) { drag = true; Out("D " + d.pt.x + " " + d.pt.y); return (IntPtr)1; }
+      if (drag) {
+        if (m == 0x200) { int t = Environment.TickCount; if (t - lastMv >= 12) { lastMv = t; Out("M " + d.pt.x + " " + d.pt.y); } }
+        else if (m == 0x202) { drag = false; Out("U " + d.pt.x + " " + d.pt.y); return (IntPtr)1; }
+        else if (m == 0x204) { drag = false; Out("C"); return (IntPtr)1; }
+        else if (m == 0x205) return (IntPtr)1;
+      }
+    }
+    return CallNextHookEx(hk, n, w, l);
+  }
+  public static void Run() { SetProcessDPIAware(); hk = SetWindowsHookEx(14, proc, GetModuleHandle(null), 0); Out("R " + (hk != IntPtr.Zero ? 1 : 0)); MSG msg; while (GetMessage(out msg, IntPtr.Zero, 0, 0) > 0) {} }
+}
+'@
+[TnCp]::Run()
+`;
+let _cpProc = null, cpingWin = null, _cpReady = false, _cpSig = '', _cpDrag = null;
+const PING_DIR8 = ['retreat', 'push', 'omw', 'allin', 'assist', 'vision', 'missing', 'enemy'];
+function cpingWant() { return config.lolPing !== false && process.platform === 'win32' && !!room && !!account && !inGame && !!_lastRect; }
+function cpingHookStart() {
+  if (_cpProc) return;
+  const p = _cpProc = spawn('powershell.exe', psArgs('cping', CPING_PS), { windowsHide: true });
+  let buf = '';
+  p.stdout.setEncoding('utf8');
+  p.stdout.on('data', c => { buf += c; let i; while ((i = buf.indexOf('\n')) >= 0) { const ln = buf.slice(0, i).trim(); buf = buf.slice(i + 1); cpingLine(ln); } });
+  p.on('exit', () => { if (_cpProc === p) _cpProc = null; _cpDrag = null; });
+  p.on('error', () => { if (_cpProc === p) _cpProc = null; });
+}
+function cpingHookStop() { if (_cpProc) { try { _cpProc.kill(); } catch (_) {} _cpProc = null; } _cpDrag = null; }
+function createCpingWin() {
+  cpingWin = new BrowserWindow({
+    width: 640, height: 360, show: false, frame: false, transparent: true, hasShadow: false, backgroundColor: '#00000000',
+    resizable: false, focusable: false, skipTaskbar: true, alwaysOnTop: false, roundedCorners: false, paintWhenInitiallyHidden: true,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+  });
+  cpingWin.setIgnoreMouseEvents(true, { forward: true });
+  cpingWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  _cpReady = false; _cpSig = '';
+  cpingWin.webContents.on('did-finish-load', () => { _cpReady = true; _cpSig = ''; });
+  cpingWin.loadFile('slot/cping.html');
+  cpingWin.on('closed', () => { cpingWin = null; _cpReady = false; });
+}
+function cpingHide() { if (cpingWin && !cpingWin.isDestroyed() && cpingWin.isVisible()) cpingWin.hide(); _cpSig = ''; }
+function cpingK() { const p = _lastRect, sf = screen.getPrimaryDisplay().scaleFactor || 1; return p ? Math.max(0.5, Math.min(3, (p[2] - p[0]) / sf / 1280)) : 1; }
+function cpingSync(p) {   // 클라 창 좌표가 오거나 상태가 바뀔 때마다(updateSlotMarker·hideSlotMarker에서)
+  if (!cpingWant()) { cpingHookStop(); cpingHide(); return; }
+  cpingHookStart();
+  if (!p || !clientFg || _floating) { cpingHide(); return; }
+  if (!cpingWin || cpingWin.isDestroyed()) createCpingWin();
+  const sf = screen.getPrimaryDisplay().scaleFactor || 1, k = cpingK();
+  const b = { x: Math.round(p[0] / sf), y: Math.round(p[1] / sf), width: Math.round((p[2] - p[0]) / sf), height: Math.round((p[3] - p[1]) / sf) };
+  const sig = `${b.x},${b.y},${b.width},${b.height}`;
+  if (sig !== _cpSig) { _cpSig = sig; cpingWin.setBounds(b); try { cpingWin.webContents.setZoomFactor(k); } catch (_) {} }
+  if (_cpReady && !cpingWin.isVisible()) { cpingWin.showInactive(); try { cpingWin.setAlwaysOnTop(true, 'screen-saver'); } catch (_) {} }
+}
+function cpingSend(d) { try { if (cpingWin && !cpingWin.isDestroyed() && _cpReady) cpingWin.webContents.send('cping', d); } catch (_) {} }
+function cpingLocal(x, y) {   // 실제 픽셀 → 롤 기준 좌표(1280×720)
+  const p = _lastRect; if (!p) return null;
+  const fx = (x - p[0]) / (p[2] - p[0]), fy = (y - p[1]) / (p[3] - p[1]);
+  return { fx, fy, x: fx * 1280, y: fy * 720 };
+}
+function cpingLine(ln) {
+  let m;
+  if ((m = /^D (-?\d+) (-?\d+)$/.exec(ln))) {
+    const l = cpingLocal(+m[1], +m[2]);
+    if (!l || l.fx < 0 || l.fx > 1 || l.fy < 0 || l.fy > 1) return;
+    _cpDrag = { fx: l.fx, fy: l.fy, x: l.x, y: l.y, sel: 'look' };
+    if (_lastRect && !(cpingWin && cpingWin.isVisible())) { clientFg = true; cpingSync(_lastRect); }
+    cpingSend({ type: 'wheel', x: l.x, y: l.y });
+  } else if ((m = /^M (-?\d+) (-?\d+)$/.exec(ln)) && _cpDrag) {
+    const l = cpingLocal(+m[1], +m[2]); if (!l) return;
+    const dx = l.x - _cpDrag.x, dy = l.y - _cpDrag.y, d = Math.hypot(dx, dy);
+    _cpDrag.sel = d < 20 ? 'look' : PING_DIR8[Math.floor(((Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360 + 22.5) % 360) / 45) % 8];
+    cpingSend({ type: 'move', sel: _cpDrag.sel, x: l.x, y: l.y });
+  } else if (/^U /.test(ln) && _cpDrag) {
+    const g = _cpDrag; _cpDrag = null; cpingSend({ type: 'end' });
+    cpingFire(g.sel, g.fx, g.fy, g.x, g.y).catch(() => {});
+  } else if (ln === 'C') { _cpDrag = null; cpingSend({ type: 'end' }); }
+  else if (/^R 0/.test(ln)) console.log('[cping] 마우스 훅을 못 걸었음');
+}
+async function cpingFire(k, fx, fy, x, y) {
+  if (!account || !room) return;
+  const err = pingRate(k);
+  if (err) { cpingSend({ type: 'err', x, y, text: err }); return; }
+  const at = Date.now(), ph = lobbyPhase || 'None';
+  cpingSend({ type: 'show', k, fx, fy, name: account.gameName || '' });
+  await fbSet(`${RP()}/lobby/cping/${account.puuid}`, { k, fx: +fx.toFixed(4), fy: +fy.toFixed(4), ph, at }).catch(() => {});
+}
+function cpingDiff(a, b) {
+  const me = account && account.puuid, ph = lobbyPhase || 'None';
+  for (const [k, m] of Object.entries(b || {})) {
+    if (!m || k === me || !PING_K.includes(m.k)) continue;
+    const o = a && a[k]; if (o && o.at === m.at) continue;
+    if (m.ph !== ph || !(cpingWin && cpingWin.isVisible())) continue;   // 같은 롤 화면에 있을 때만
+    const fx = Number(m.fx), fy = Number(m.fy); if (!(fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1)) continue;
+    const p = (presenceRaw || {})[k];
+    cpingSend({ type: 'show', k: m.k, fx, fy, name: p && p.name ? normName(p.name) : '' });
+  }
+}
 function pingDiff(a, b) {
   const me = account && account.puuid;
   for (const [k, m] of Object.entries(b || {})) {
@@ -1874,12 +2019,8 @@ ipcMain.handle('ping-send', async (_e, o) => {
   const k = o && PING_K.includes(o.k) ? o.k : null, a = pingAnchor(o && o.a);
   if (!k || !a) return { ok: false };
   if (!account || !room) return { ok: false, err: '방에 들어가야 핑을 찍을 수 있어요' };
-  const now = Date.now();
-  if (now < _pingLock) return { ok: false, err: `핑을 너무 많이 찍었어요 · ${Math.ceil((_pingLock - now) / 1000)}초 뒤에 다시 찍을 수 있어요` };
-  _pingLog = _pingLog.filter(p => now - p.at < 6000);
-  if (_pingLog.filter(p => p.k === k).length >= 3) return { ok: false, err: '같은 핑은 6초에 3번까지 찍을 수 있어요' };
-  if (_pingLog.filter(p => now - p.at < 5000).length >= 6) { _pingLock = now + 10000; return { ok: false, err: '핑을 너무 많이 찍었어요 · 10초 뒤에 다시 찍을 수 있어요' }; }
-  _pingLog.push({ k, at: now });
+  const now = Date.now(), rerr = pingRate(k);
+  if (rerr) return { ok: false, err: rerr };
   const w = await fbSet(`${RP()}/lobby/ping/${account.puuid}`, { k, a, at: now });
   return w && w.ok ? { ok: true, key: account.puuid, k, a, at: now } : { ok: false, err: '핑을 보내지 못했어요' };
 });
@@ -3874,7 +4015,7 @@ ipcMain.handle('discord-unlink', () => { config.discordGuild = null; saveConfig(
 const dcRoomView = () => { if (!room) return null; try { const i = dcRoomInfo(lobbyView().members); return i ? { gid: i.id, name: i.name, code: i.inv || null, ch: (_dcMember && _dcMember.g === i.id && _dcMember.lobby) || null } : null; } catch (_) { return null; } };   // ⚙ 「이 방 디스코드」(v0.1.157 · 칩을 ✕로 닫아도 여기서)
 const dcView = () => ({ room: dcRoomView(), invite: dcInvOf(), app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null, guild: dcGuildOf() ? dcGuildOf().name || '서버' : null, connecting: !!_dcConn });
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
-const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, lolRemake: config.lolRemake !== false, lolAutoAccept: config.lolAutoAccept !== false, hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
+const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, lolRemake: config.lolRemake !== false, lolAutoAccept: config.lolAutoAccept !== false, lolPing: config.lolPing !== false, hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
 ipcMain.handle('settings-get', () => settingsView());
 ipcMain.on('tutorial-open', () => {   // 📘 ⚙ 설정 「사용법 다시 보기」 → 왼쪽 창에 튜토리얼
@@ -3895,6 +4036,7 @@ ipcMain.handle('settings-set', (_e, { key, value }) => {
   else if (key === 'discordMove') config.discordMove = !!value;   // 🎧 음성 채널 자동 나누기(방장일 때)
   else if (key === 'lolRemake') config.lolRemake = !!value;   // 🎮 v0.1.188 팀 정할 때 롤 방 다시 만들기(방장)
   else if (key === 'lolAutoAccept') config.lolAutoAccept = !!value;   // 🎮 방장 롤 초대 자동 수락
+  else if (key === 'lolPing') { config.lolPing = !!value; try { if (_lastRect && !_floating && clientFg) cpingSync(_lastRect); else cpingSync(null); } catch (_) {} }   // 📍 v0.1.221 롤 화면 핑(끄면 마우스 훅도 끔)
   else if (key === 'autoSeat') { config.autoSeat = !!value; if (value) { _seatDone = null; _seatKey = null; autoSeat(); } }   // 🪑
   else if (key === 'augRank') {   // 🎯 증강 순위(베타) — 게임 위에 떠야 해서 테두리 없는 창도 같이
     config.augRank = !!value;
@@ -4183,4 +4325,4 @@ app.on('before-quit', (e) => {
   Promise.race([Promise.allSettled(jobs), new Promise(r => setTimeout(r, 3000))]).then(() => app.quit());
 });
 app.on('window-all-closed', () => { /* 트레이 상주 */ });
-app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('will-quit', () => { globalShortcut.unregisterAll(); try { cpingHookStop(); } catch (_) {} });
