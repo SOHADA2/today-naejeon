@@ -935,13 +935,26 @@ function renderLobby() {
     el('lb-mdesc').textContent = MODE_DESC[normal ? 'normal' : MODE_KO[L.mode] ? L.mode : 'random'];
   }
   { // 🎮 롤 초대 수락 = 방장 아님 · 방장 초대가 왔는데 자동 수락을 꺼 둔 사람만
+    //   🎮 v0.1.213 방장 · 내전 = 롤 아수라장 사용자 설정 방을 지금 바로 만들고 초대(사장님: 일반 방 만드는 키는 있는데 내전 아수라장 키가 사라짐 — v0.1.193에서 「팀 정해지면 자동」으로 뺐던 것)
+    //   팀을 짜기 전에 미리 롤 방에 모여 있을 때 · 팀이 정해지면 그 판 다리로 다시 만들고 다시 초대하는 건 그대로(v0.1.188)
     const box = el('lb-lol');
-    const h = G.invite && !myIsHost ? `<span class="lb-lol-t"><b>👑 ${esc(G.invite.from)}</b>님이 롤 ${normal ? '파티' : '방'}에 초대했어요</span><button class="lb-mini" data-lol="accept">수락</button>` : '';
+    const lolIdle = !G.phase || G.phase === 'None' || G.phase === 'Lobby';
+    const h = G.invite && !myIsHost ? `<span class="lb-lol-t"><b>👑 ${esc(G.invite.from)}</b>님이 롤 ${normal ? '파티' : '방'}에 초대했어요</span><button class="lb-mini" data-lol="accept">수락</button>`
+      : myIsHost && !normal && L.room && lolIdle
+        ? `<span class="lb-lol-t" title="롤에 아수라장 사용자 설정 방을 이 방 이름으로 만들고(공개 목록엔 안 뜸) 앱 켠 방 사람들을 초대해요 · 팀이 정해지면 그 판 다리로 다시 만들어 다시 초대해요"><span class="lb-lol-ic">🎮</span>${G.inCustom ? '롤 방에 있어요' : '롤 아수라장 방'}</span><button class="lb-mini" data-lol="make">${G.inCustom ? '방 사람 초대' : '만들고 초대'}</button>`
+        : '';
     box.style.display = h ? '' : 'none';
     if (box.dataset.h !== h) { box.innerHTML = h; box.dataset.h = h; }
     box.querySelectorAll('[data-lol]').forEach(b => b.onclick = async () => {
-      if (b.disabled) return; b.disabled = true;
-      try { const r = await window.api.lolAccept(); if (!r || !r.ok) tnAlert((r && r.err) || '수락하지 못했어요'); } finally { b.disabled = false; }
+      if (b.disabled) return; b.disabled = true; const t0 = b.textContent;
+      try {
+        if (b.dataset.lol === 'accept') { const r = await window.api.lolAccept(); if (!r || !r.ok) tnAlert((r && r.err) || '수락하지 못했어요'); return; }
+        b.textContent = '만드는 중…';
+        let r = await window.api.lolLobby({});
+        if (r && r.need === 'leave') { if (!(await tnConfirm('지금 롤 대기방(일반 큐)에 있어요.\n나가고 아수라장 사용자 설정 방을 만들까요?', { ok: '나가고 만들기' }))) { b.textContent = t0; return; } r = await window.api.lolLobby({ force: true }); }
+        if (!r || !r.ok) { b.textContent = t0; lbErr((r && r.err) || '롤 방을 만들지 못했어요'); return; }
+        b.textContent = r.total ? `${r.invited}명 초대함` : '초대할 사람 없음'; setTimeout(() => { b.textContent = t0; }, 2500);
+      } finally { b.disabled = false; }
     });
   }
   const capsOk = !draft || capN === 2, sideOk = !manual || (!sNone.length && sA.length && sB.length);
