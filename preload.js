@@ -76,6 +76,8 @@ contextBridge.exposeInMainWorld('api', {
   lobbySet: (key, st) => ipcRenderer.invoke('lobby-set', { key, st }),      // 👑 남의 상태
   lobbyGuest: (name) => ipcRenderer.invoke('lobby-guest', { name }),        // 👑 앱 없는 사람 추가
   lobbyGuestRm: (key) => ipcRenderer.invoke('lobby-guest-rm', { key }),
+  lobbyKick: (key) => ipcRenderer.invoke('lobby-kick', { key }),   // 🚪 v0.1.217 방장 강퇴
+  onKicked: (cb) => ipcRenderer.on('kicked', (_e, d) => cb(d)),
   lobbyMode: (mode) => ipcRenderer.invoke('lobby-mode', { mode }),         // 👑 랜덤/드래프트
   lobbyCaptain: (name, rand) => ipcRenderer.invoke('lobby-captain', { name, rand }),   // 👑 팀장 지정
   lobbyStart: () => ipcRenderer.invoke('lobby-start'),                      // 👑 시작

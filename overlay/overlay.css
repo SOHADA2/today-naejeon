@@ -790,3 +790,7 @@ header .phase, header .win-btn { flex-shrink:0; }
 .lb-gobar .lb-mchip { background:var(--bg-1); border-color:var(--line-2, var(--hair)); padding:0 9px 0 10px; }
 .lb-gobar .lb-mchip:hover { background:var(--gold-soft); border-color:var(--gold-line); }
 .lb-lol-t b { color:var(--gold-hi); }
+/* 🚪 v0.1.217 방장 강퇴 버튼 · 🎮 롤 방에 없는 사람 상태(거절·초대 중) */
+.seat-btn.kick:hover { color:var(--lose); border-color:var(--t2-line); }
+.lb-lol-st { margin-left:3px; padding:0 4px; font-size:10px; font-weight:700; color:var(--ink-soft); border:1px solid var(--hair); }
+.lb-lol-st.no { color:var(--lose); border-color:var(--t2-line); }

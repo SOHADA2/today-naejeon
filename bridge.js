@@ -613,7 +613,7 @@ const _teamOf = (gc, mine) => {
 };
 async function pollSeat() {
   if (_seatBusy) return; _seatBusy = true;
-  let phase = null, seat = null, custom = null, party = null;
+  let phase = null, seat = null, custom = null, party = null, cust = null;
   try {
     if (basePort) {
       try { phase = await lcu('/lol-gameflow/v1/gameflow-phase'); } catch (_) {}
@@ -625,12 +625,19 @@ async function pollSeat() {
           if (phase === 'Lobby' && gc && gc.isCustom && me) seat = _teamOf(gc, (m) => m && ((me.puuid && m.puuid === me.puuid) || (me.summonerId && m.summonerId === me.summonerId)));
           if (phase === 'Lobby' && gc && gc.isCustom) lobbyProbe(lb, seat);
           // 🎮 v0.1.191 일반 큐 파티 = 큐 번호·인원·내가 파티장인지·파티 사람 puuid(일반판 「파티 만들고 초대 → 큐 시작」)
+          // 🎮 v0.1.217 사용자 설정 방 = 방 사람 puuid · 내가 방장이면 초대 상태(대기실 「롤 방에 없는 사람만 초대」)
+          if (phase === 'Lobby' && gc && gc.isCustom) {
+            const ids = [...(gc.customTeam100 || []), ...(gc.customTeam200 || []), ...(gc.customSpectators || []), ...(lb.members || [])].map(m => m && m.puuid).filter(Boolean);
+            let inv = null;
+            if (me && me.isLeader) { try { const iv = await lcu('/lol-lobby/v2/lobby/invitations'); if (Array.isArray(iv)) { inv = {}; for (const x of iv) if (x && x.toPuuid) inv[x.toPuuid] = x.state || ''; } } catch (_) {} }
+            cust = { ids: [...new Set(ids)].sort(), inv };
+          }
           if (gc && !gc.isCustom) party = { q: gc.queueId || 0, n: Array.isArray(lb.members) ? lb.members.length : 1, max: gc.maxLobbySize || 5, leader: !!(me && me.isLeader), ids: (lb.members || []).map(m => m && m.puuid).filter(Boolean) };
         } catch (_) {}
       }
     }
-    const key = `${phase}|${seat}|${custom}|${party ? `${party.q}/${party.n}/${party.leader ? 1 : 0}/${party.ids.join(',')}` : ''}`;
-    if (key !== _seatKey) { _seatKey = key; log(`🪑 로비: ${phase || '-'} · 자리 ${seat == null ? '-' : seat}${custom === false ? ` (일반 큐${party ? ` ${party.q} · ${party.n}명` : ''})` : ''}`); try { _onLobbySeat({ phase, seat, custom, party }); } catch (_) {} }
+    const key = `${phase}|${seat}|${custom}|${party ? `${party.q}/${party.n}/${party.leader ? 1 : 0}/${party.ids.join(',')}` : ''}|${cust ? JSON.stringify(cust) : ''}`;
+    if (key !== _seatKey) { _seatKey = key; log(`🪑 로비: ${phase || '-'} · 자리 ${seat == null ? '-' : seat}${custom === false ? ` (일반 큐${party ? ` ${party.q} · ${party.n}명` : ''})` : ''}`); try { _onLobbySeat({ phase, seat, custom, party, cust }); } catch (_) {} }
   } finally { _seatBusy = false; }
 }
 // 🔎 실제 롤 대기방 응답 모양 기록(v0.1.51) — 필드 이름을 실기 없이 짐작해 넣었기 때문. 롤에서 사용자 설정 게임 방만 만들면 됨(게임 안 해도 됨)

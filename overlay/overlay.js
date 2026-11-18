@@ -753,6 +753,19 @@ async function lbAct(fn) {
 }
 // 🪜 v0.1.216 내전 롤 방 만들기·초대(큰 버튼 · 방 줄 공용) — 일반 큐 대기방이면 나가도 되는지 묻고 · 실패는 아래 줄에
 let _roomStepSkip = null;   // [나중에] 누른 방 번호(이 방에선 「롤 방 만들기」 단계 건너뜀)
+// 🎮 v0.1.217(사장님: 만들기를 누르면 한 번에 다 초대하니 「방 사람 초대」를 늘 띄울 필요 없음 → 롤 방에 없는 사람만)
+//   롤 내전 방에 있을 때 = 앱 켠 방 사람 중 롤 방에 없는 사람만 이름(+거절·초대 중) + [초대](그 사람들만) · 다 있으면 「모두 들어와 있어요」(버튼 없음)
+function lolMissRow(M, G) {
+  const tip = ' title="팀이 정해지면 그 판 다리로 이 방 설정만 바꿔요(아무도 안 나가짐)"';
+  if (!Array.isArray(G.ids)) return `<span class="lb-lol-t"${tip}><span class="lb-lol-ic">🎮</span>롤 내전 방에 있어요</span><button class="lb-mini" data-lol="make">방 사람 초대</button>`;
+  const miss = M.filter(m => m.online && !m.me && !m.guest && !G.ids.includes(m.key));
+  if (!miss.length) return `<span class="lb-lol-t"${tip}><span class="lb-lol-ic">🎮</span>롤 내전 방에 <b>모두</b> 들어와 있어요</span>`;
+  const inv = G.invs || {}, stK = { Declined: '거절', Pending: '초대 중' };
+  const names = miss.map(m => esc(m.name) + (stK[inv[m.key]] ? `<small class="lb-lol-st${inv[m.key] === 'Declined' ? ' no' : ''}">${stK[inv[m.key]]}</small>` : '')).join(', ');
+  const all = miss.every(m => inv[m.key]);
+  const full = miss.map(m => m.name + (stK[inv[m.key]] ? ` (${stK[inv[m.key]]})` : '')).join(', ');
+  return `<span class="lb-lol-t" title="롤 내전 방에 없는 사람: ${esc(full)} · 거절했으면 다시 초대할 수 있어요"><span class="lb-lol-ic">🎮</span>롤 방에 없음 <b>${miss.length}</b> · ${names}</span><button class="lb-mini" data-lol="make">${all ? '다시 초대' : '초대'}</button>`;
+}
 async function lolRoomGo() {
   let r = await window.api.lolLobby({});
   if (r && r.need === 'leave') { if (!(await tnConfirm('지금 롤 대기방(일반 큐)에 있어요.\n나가고 아수라장 내전 방을 만들까요?', { ok: '나가고 만들기' }))) return null; r = await window.api.lolLobby({ force: true }); }
@@ -860,7 +873,8 @@ function renderLobby() {
     const spec1 = m.me ? '<button class="seat-spec" data-mespec="1" title="이번 판은 쉬고 관전할게요(자리에서 빠짐 · 아래 「다시 참가하기」로 돌아와요)">관전</button>' : '';
     const ctl = myIsHost ? ((draft ? `<button class="seat-btn cap${cap ? ' on' : ''}" data-cap="${esc(m.name)}" title="${cap ? '팀장 해제' : '이 사람을 팀장으로'}">팀장</button>` : '')
       + (sn ? `<button class="seat-btn" data-side="${esc(m.name)}" data-t="${sn === 1 ? 'teamB' : 'teamA'}" title="${sn === 1 ? 2 : 1}팀으로 옮기기">⇄</button><button class="seat-btn" data-side="${esc(m.name)}" data-t="" title="팀에서 빼기(미정)">↩</button>` : '')
-      + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="${m.guest ? '목록에서 빼기' : '관전으로 보내기'}">${m.guest ? '✕' : '↓'}</button>` : '') + spec1) : '';
+      + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="${m.guest ? '목록에서 빼기' : '관전으로 보내기'}">${m.guest ? '✕' : '↓'}</button>` : '')
+      + (!m.me && !m.guest ? `<button class="seat-btn kick" data-kick="${esc(m.key)}" title="방에서 내보내기 · 롤 내전 방에 있으면 거기서도">✕</button>` : '') + spec1) : '';   // 🚪 v0.1.217 강퇴
     // 버튼은 이름 줄 옆이 아니라 아랫줄 자리(v0.1.194) — 올렸을 때 아랫줄 대신 보임 → 이름 폭 그대로
     return `<div class="seat filled${ctl ? ' has-ctl' : ''}${over ? ' over' : ''}${m.me ? ' me' : ''}${cap ? ' cap' + cap : ''}${sn ? ' side' + sn : ''}">`
       + `<span class="seat-no">${no}</span>${avatar(m, 'seat-av')}`
@@ -878,7 +892,8 @@ function renderLobby() {
   // ④ 자리에 없는 사람 = 팀 미정(직접) · 관전
   const chip = m => `<span class="lb-chip ${m.st || 'none'}${m.me ? ' me' : ''}">${avatar(m, 'chip-av')}<b class="lb-nm" data-pk="${esc(m.key)}">${esc(m.name)}</b>`
     + (myIsHost && !m.me ? `<button class="seat-btn in" data-in="${esc(m.key)}" title="참가로">＋</button>` : '')
-    + (myIsHost && m.guest ? `<button class="seat-btn out" data-rm="${esc(m.key)}" title="목록에서 빼기">✕</button>` : '') + '</span>';
+    + (myIsHost && m.guest ? `<button class="seat-btn out" data-rm="${esc(m.key)}" title="목록에서 빼기">✕</button>` : '')
+    + (myIsHost && !m.me && !m.guest ? `<button class="seat-btn kick" data-kick="${esc(m.key)}" title="방에서 내보내기">✕</button>` : '') + '</span>';
   const others = [];
   if (manual && sNone.length) others.push(`<div class="lb-others none"><span class="lb-ol">팀 미정 <b>${sNone.length}</b></span>${sNone.map(m => `<span class="lb-chip in${m.me ? ' me' : ''}">${avatar(m, 'chip-av')}<b class="lb-nm" data-pk="${esc(m.key)}">${esc(m.name)}</b>`
     + (myIsHost ? `<button class="seat-btn t1" data-side="${esc(m.name)}" data-t="teamA" title="1팀에 넣기">1팀</button><button class="seat-btn t2" data-side="${esc(m.name)}" data-t="teamB" title="2팀에 넣기">2팀</button>` + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="관전으로 보내기">↓</button>` : '') : '') + '</span>').join('')}</div>`);
@@ -911,6 +926,7 @@ function renderLobby() {
   root.querySelectorAll('[data-mespec]').forEach(b => b.onclick = async e => { e.stopPropagation(); if (myIsHost && !normal && !(await tnConfirm(HSPEC_ASK))) return; lbAct(() => window.api.lobbyMe('spec')); });
   root.querySelectorAll('[data-in]').forEach(b => b.onclick = () => lbAct(() => window.api.lobbySet(b.dataset.in, 'in')));
   root.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => lbAct(() => window.api.lobbyGuestRm(b.dataset.rm)));
+  root.querySelectorAll('[data-kick]').forEach(b => b.onclick = async e => { e.stopPropagation(); const m = M.find(x => x.key === b.dataset.kick); if (!m) return; if (!(await tnConfirm(`${m.name}님을 방에서 내보낼까요?\n롤 내전 방에 있으면 롤 방에서도 내보내요. 다시 들어오는 건 자유예요.`, { title: '방에서 내보내기', ok: '내보내기', danger: true }))) return; lbAct(() => window.api.lobbyKick(m.key)); });
   root.querySelectorAll('[data-addguest]').forEach(b => b.onclick = () => addGuestAsk());
   root.querySelectorAll('.lb-nm').forEach(el2 => el2.onclick = () => {
     const m = M.find(x => x.key === el2.dataset.pk); if (!m) return;
@@ -955,7 +971,7 @@ function renderLobby() {
     const h = G.invite && !myIsHost ? `<span class="lb-lol-t"><b>👑 ${esc(G.invite.from)}</b>님이 롤 ${normal ? '파티' : '방'}에 초대했어요</span><button class="lb-mini" data-lol="accept">수락</button>`
       : roomStep ? '<span class="lb-lol-t" title="롤에 아수라장 사용자 설정 방을 이 방 이름으로 만들고(공개 목록엔 안 뜸) 앱 켠 방 사람들을 초대해요"><span class="lb-lol-ic">🎮</span><b>먼저 롤 내전 방</b>을 만들어 모여요</span><button class="lb-mini plain" data-lol="skip" title="롤 방 없이 팀부터 짜기 · 팀이 정해질 때 앱이 롤 방을 만들어요">나중에</button>'
       : myIsHost && !normal && L.room && lolIdle && G.phase
-        ? (G.inCustom ? '<span class="lb-lol-t" title="팀이 정해지면 그 판 다리로 이 방 설정만 바꿔요(아무도 안 나가짐)"><span class="lb-lol-ic">🎮</span>롤 내전 방에 있어요</span><button class="lb-mini" data-lol="make">방 사람 초대</button>'
+        ? (G.inCustom ? lolMissRow(M, G)
           : '<span class="lb-lol-t"><span class="lb-lol-ic">🎮</span>롤 방은 팀이 정해질 때 만들어요</span><button class="lb-mini" data-lol="make">지금 만들기</button>')
         : '';
     box.style.display = h ? '' : 'none';
@@ -1068,6 +1084,7 @@ function hostSpecNote(box, on, names, inLobby) {
 // 👑 v0.1.151 방장이 나에게 넘어옴(자동으로 이어받음 · 넘겨받음) → 창 맨 위 금색 줄 · 이전 방장이 방에 돌아와 있으면 「돌려주기」
 let _hostNote = null;
 window.api.onHostNotice(d => { _hostNote = d || null; renderHostNote(); });
+if (window.api.onKicked) window.api.onKicked(d => { tnAlert(`${d && d.by || '방장'}님(방장)이 「${d && d.room || '방'}」 방에서 내보냈어요.\n다른 방에 들어가거나 다시 들어갈 수 있어요.`, { title: '방에서 나왔어요' }); });   // 🚪 v0.1.217
 window.api.getHostNotice().then(d => { _hostNote = d || null; renderHostNote(); }).catch(() => {});
 function renderHostNote() {
   const box = el('hn'), n = myIsHost ? _hostNote : null;
