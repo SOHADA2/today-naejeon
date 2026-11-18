@@ -6,61 +6,70 @@
   <style>
     * { margin:0; box-sizing:border-box; }
     html, body { width:100%; height:100%; background:transparent; overflow:hidden; -webkit-user-select:none; }
-    /* 📍 롤 대기방 위 「내 자리」 마커(v0.1.54 단순화) — 앉아야 할 팀 컬럼 위에 팀 색 태그 한 줄 + 아래 화살표 하나.
-       글: go=「1팀」 · move/spec=「1팀으로 이동」 · ok=「1팀 ✓」(흐리게·화살표 없음) (main updateSlotMarker → slot-team {side,state,appear})
-       창 150×58(기준 크기) — 화살표는 늘 창 가운데라 main의 위치 계산(창 오른쪽 끝=팀 칸 오른쪽 끝)과 맞물림.
-       ⚠️ 무한 애니메이션 금지 — 투명 창이라 움직이는 동안 창 전체를 매 프레임 다시 그림(v0.1.5). 등장·경고 효과는 짧게 몇 번만. */
-    #mk { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; padding-top:4px; --tc:var(--t1);
-      filter:drop-shadow(0 2px 6px rgba(0,0,0,0.6)); }
-    #mk.t2 { --tc:var(--t2); }
-    #mk.hide { visibility:hidden; }
-    .tag { height:32px; padding:0 14px; display:flex; align-items:center; background:var(--tc); color:#06101a;
-      font-family:var(--f-body); font-size:16px; font-weight:800; white-space:nowrap; letter-spacing:-0.2px;
-      clip-path:polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px); }
-    .arw { width:16px; height:10px; margin-top:4px; background:var(--tc); clip-path:polygon(0 0, 100% 0, 50% 100%); }
-
-    #mk.ok { opacity:0.7; }
-    #mk.ok .arw { visibility:hidden; }
-
-    /* 한 번만 재생되는 효과(클래스를 붙였다 떼며 다시 재생) */
-    #mk.in .tag { animation:mkIn .3s cubic-bezier(.2,.9,.3,1.2) both; }
-    #mk.in .arw { animation:mkIn .3s .1s ease-out both; }
-    #mk.warn .tag { animation:mkIn .3s cubic-bezier(.2,.9,.3,1.2) both, mkFlash .45s .3s ease-in-out 3; }
-    #mk.warn .arw { animation:mkBob .45s .3s ease-in-out 3; }
-    @keyframes mkIn { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:none; } }
-    @keyframes mkFlash { 50% { filter:brightness(1.45); } }
-    @keyframes mkBob { 50% { transform:translateY(4px); } }
+    /* 🎨 v0.1.218 롤 사용자 설정 대기방 위 팀 테두리 + 투데이 방장 줄(클릭 통과 투명 창)
+       창 = 롤 기준 좌표(1280×720) x 30~1034 · y 186~466 → 안쪽 좌표 = 기준 좌표 − (30, 186) · main이 zoom으로 키움
+       1팀 칸 x 36~523 · 2팀 x 540~1027 · 팀 글자 줄 y ≈ 197~215 · 자리 첫 줄 y 217 · 줄마다 48px · 끝 y 457 (docs/screen-layout.md)
+       main updateSlotMarker → slot-team {me:0|1|2(내 팀), host:{team,row}|null, appear}
+       ⚠️ 무한 애니메이션 금지 — 투명 창이라 움직이는 동안 창 전체를 매 프레임 다시 그림(v0.1.5). 등장 효과는 한 번만. */
+    #st { position:absolute; inset:0; }
+    #st.hide { visibility:hidden; }
+    .col { position:absolute; top:8px; width:487px; height:265px; --tc:var(--t1); --tg:rgba(74,168,255,.38);
+      border:1.5px solid color-mix(in srgb, var(--tc) 75%, transparent);
+      box-shadow:0 0 14px var(--tg), inset 0 0 18px color-mix(in srgb, var(--tc) 14%, transparent);
+      background:linear-gradient(180deg, color-mix(in srgb, var(--tc) 12%, transparent), transparent 22%); transition:opacity .25s; }
+    .col.c1 { left:6px; }
+    .col.c2 { left:510px; --tc:var(--t2); --tg:rgba(255,90,110,.38); }
+    /* 모서리 꺾쇠(굵게) */
+    .col i { position:absolute; width:16px; height:16px; border:3px solid var(--tc); }
+    .col i.a { left:-3px; top:-3px; border-right:0; border-bottom:0; }
+    .col i.b { right:-3px; top:-3px; border-left:0; border-bottom:0; }
+    .col i.c { left:-3px; bottom:-3px; border-right:0; border-top:0; }
+    .col i.d { right:-3px; bottom:-3px; border-left:0; border-top:0; }
+    /* 팀 표 = 팀 글자 줄 오른쪽(비어 있음) */
+    .tab { position:absolute; right:10px; top:4px; height:20px; padding:0 9px; display:flex; align-items:center; gap:6px;
+      background:var(--tc); color:#fff; font-family:var(--f-num, 'Barlow Condensed'), sans-serif; font-size:13px; font-weight:700; letter-spacing:.8px;
+      clip-path:polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
+    .tab b { display:none; font-family:var(--f-body); font-size:11.5px; font-weight:800; letter-spacing:0; padding-left:6px; border-left:1px solid rgba(255,255,255,.45); }
+    /* 내 팀이 정해졌으면: 내 팀 진하게 + 「내 팀」 · 다른 팀은 옅게 */
+    #st.m1 .c2, #st.m2 .c1 { opacity:.45; }
+    #st.m1 .c1 .tab b, #st.m2 .c2 .tab b { display:inline; }
+    #st.m1 .c1, #st.m2 .c2 { border-width:2px; box-shadow:0 0 20px var(--tg), 0 0 4px var(--tg), inset 0 0 22px color-mix(in srgb, var(--tc) 18%, transparent); }
+    /* 투데이 방장 줄 */
+    #hr { position:absolute; display:none; width:487px; height:48px; pointer-events:none;
+      background:linear-gradient(90deg, rgba(200,170,110,.24), rgba(200,170,110,.06) 55%, transparent 80%); border-left:3px solid var(--gold-hi, #f0e6d2); }
+    #hr.on { display:block; }
+    #hr span { position:absolute; right:74px; top:50%; transform:translateY(-50%); height:22px; padding:0 9px; display:flex; align-items:center; gap:5px;
+      color:#1a1206; background:linear-gradient(180deg, #f0d792, #c8aa6e); font-family:var(--f-body); font-size:12px; font-weight:800; white-space:nowrap;
+      box-shadow:0 0 10px rgba(200,170,110,.55);
+      clip-path:polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
+    /* 한 번만: 나타날 때 테두리가 스며 나옴 */
+    #st.in .col { animation:colIn .45s cubic-bezier(.2,.8,.3,1) both; }
+    #st.in .c2 { animation-delay:.06s; }
+    #hr.in { animation:hrIn .5s .15s ease-out both; }
+    @keyframes colIn { from { opacity:0; transform:scale(.985); } }
+    @keyframes hrIn { from { opacity:0; transform:translateX(-10px); } }
   </style>
 </head>
 <body>
-  <div id="mk" class="hide">
-    <div class="tag" id="tx">1팀</div>
-    <div class="arw"></div>
+  <div id="st" class="hide">
+    <div class="col c1"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><div class="tab">TEAM 1<b>내 팀</b></div></div>
+    <div class="col c2"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><div class="tab">TEAM 2<b>내 팀</b></div></div>
+    <div id="hr"><span>👑 투데이 방장</span></div>
   </div>
   <script>
-    const TXT = {
-      go:   (s) => `${s}팀`,
-      ok:   (s) => `${s}팀 ✓`,
-      move: (s) => `${s}팀으로 이동`,
-      spec: (s) => `${s}팀으로 이동`,
-    };
-    function setMarker(d) {
-      if (typeof d === 'number') d = { side: d, state: 'go', appear: true };
-      const mk = document.getElementById('mk');
-      const side = d.side === 2 ? 2 : 1, state = TXT[d.state] ? d.state : 'go';
-      document.getElementById('tx').textContent = TXT[state](side);
-      mk.className = '';
-      void mk.offsetWidth;   // 효과 다시 재생
-      const warn = state === 'move' || state === 'spec';
-      mk.className = (side === 2 ? 't2 ' : '') + state + ' ' + (warn ? 'warn' : d.appear ? 'in' : '');
+    function draw(d) {
+      d = d || {};
+      const st = document.getElementById('st'), hr = document.getElementById('hr');
+      const me = d.me === 1 || d.me === 2 ? d.me : 0;
+      st.className = (me ? 'm' + me : '') + (d.appear ? ' in' : '');
+      const h = d.host && (d.host.team === 1 || d.host.team === 2) && d.host.row >= 0 && d.host.row < 5 ? d.host : null;
+      hr.className = h ? 'on' + (d.appear ? ' in' : '') : '';
+      if (h) { hr.style.left = (h.team === 1 ? 6 : 510) + 'px'; hr.style.top = (217 - 186 + 48 * h.row) + 'px'; }
     }
-    if (window.api) { window.api.onSlotTeam(setMarker); }
-    else {   // 🎨 목업(브라우저 직접 열기) — ?side=2&state=move
+    if (window.api) { window.api.onSlotTeam(draw); }
+    else {   // 🎨 목업(브라우저 직접 열기) — ?me=1&team=1&row=0
       const q = new URLSearchParams(location.search);
-      const s = document.createElement('style');
-      s.textContent = "html,body{background:#0a1712;} #mk{position:relative!important;width:150px;height:58px;margin:60px auto;}";
-      document.head.appendChild(s);
-      setMarker({ side: +(q.get('side') || 1), state: q.get('state') || 'go', appear: true });
+      draw({ me: +(q.get('me') || 0), host: q.get('team') ? { team: +q.get('team'), row: +(q.get('row') || 0) } : null, appear: true });
     }
   </script>
 </body>

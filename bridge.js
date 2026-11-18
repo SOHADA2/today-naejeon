@@ -630,7 +630,8 @@ async function pollSeat() {
             const ids = [...(gc.customTeam100 || []), ...(gc.customTeam200 || []), ...(gc.customSpectators || []), ...(lb.members || [])].map(m => m && m.puuid).filter(Boolean);
             let inv = null;
             if (me && me.isLeader) { try { const iv = await lcu('/lol-lobby/v2/lobby/invitations'); if (Array.isArray(iv)) { inv = {}; for (const x of iv) if (x && x.toPuuid) inv[x.toPuuid] = x.state || ''; } } catch (_) {} }
-            cust = { ids: [...new Set(ids)].sort(), inv };
+            const ord = a => (Array.isArray(a) ? a : []).map(m => m && m.puuid || '').filter(Boolean);   // 🎨 v0.1.218 자리 순서 그대로(위에서부터) = 롤 화면 줄 · 방장 줄 표시
+            cust = { ids: [...new Set(ids)].sort(), inv, t1: ord(gc.customTeam100), t2: ord(gc.customTeam200) };
           }
           if (gc && !gc.isCustom) party = { q: gc.queueId || 0, n: Array.isArray(lb.members) ? lb.members.length : 1, max: gc.maxLobbySize || 5, leader: !!(me && me.isLeader), ids: (lb.members || []).map(m => m && m.puuid).filter(Boolean) };
         } catch (_) {}

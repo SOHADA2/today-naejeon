@@ -562,36 +562,30 @@ function onLobbySeat(d) {
   if (_door === 'closed' && !GAME_PH.has(lobbyPhase)) setTimeout(() => { if (_door === 'closed' && _floating && !inGame && !GAME_PH.has(lobbyPhase)) floatPanels(); }, 3000);
 }
 function updateSlotMarker(p) {   // p=[L,T,R,B] 원시 px(클라 감지됨)
-  const t = teamOf(sessionData, config.myName);
-  const side = t === 'teamA' ? 1 : t === 'teamB' ? 2 : 0;
-  // 로비 + 내 팀 있고 + 클라 또는 우리 창이 활성일 때만(다른 앱 위엔 안 뜨게) · 이번 팀결성으로 게임이 이미 시작됐으면 숨김(게임 후 재등장 방지 — 다음 팀결성 때만 다시)
-  const startedThisFormation = !!(lastFormed && _slotDoneFormed === lastFormed);
-  // v0.1.51: 롤 대기방(Lobby·커스텀)일 때만 — 「게임 시작」 뒤 챔피언 선택(프로필 나오는 화면)·홈 화면·일반 큐 로비엔 안 뜸
-  const inLobby = lobbyPhase === 'Lobby' && lobbyCustom !== false;
-  if (config.slot === false || inGame || !side || !clientFg || startedThisFormation || !inLobby) { hideSlotMarker(); return; }
+  // 🎨 v0.1.218(사장님: 자리는 앱이 자동으로 옮겨 주니 「1팀 ✓」 마커는 의미 없음 → 1팀·2팀 칸을 테두리로 잘 보이게 + 투데이 내전 방장을 롤 화면에서도 잘 보이게)
+  //   롤 사용자 설정 대기방 + 투데이 방 안 + 클라(또는 우리 창)가 활성일 때만 · 1팀 칸 = 파란 테두리 · 2팀 = 빨간 테두리(내 팀이 정해졌으면 내 팀을 진하게 + 「내 팀」) · 방장 줄 = 금색 띠 + 「투데이 방장」
+  //   위치 = docs/screen-layout.md 실측(1280×720 기준 · 클라가 크면 통째로 늘림): 1팀 칸 x 36~523 · 2팀 x 540~1027 · 팀 글자 y ≈ 205 · 자리 첫 줄 y 217 · 줄마다 48px · 다섯째 줄 끝 y 457
+  //   창 = 기준 좌표 x 30~1034 · y 186~466 을 덮는 투명 창(클릭 통과) · 그 안은 기준 좌표로 그리고 zoom으로 키움
+  const inLobby = lobbyPhase === 'Lobby' && lobbyCustom === true;
+  if (config.slot === false || inGame || !room || !clientFg || !inLobby) { hideSlotMarker(); return; }
   if (!slotWin || slotWin.isDestroyed()) createSlotWin();
   const sf = (screen.getPrimaryDisplay().scaleFactor) || 1;
-  const cx = p[0] / sf, cy = p[1] / sf, cw = (p[2] - p[0]) / sf, ch = (p[3] - p[1]) / sf;
-  // 상태: go=로비 자리 모름(아직 대기방 아님) · ok=맞는 쪽에 앉음 · move=반대 팀에 앉음 · spec=관전석
-  const state = lobbySeat == null ? 'go' : lobbySeat === side ? 'ok' : lobbySeat === 'spec' ? 'spec' : 'move';
-  // 마커 위치 = 롤 클라 화면 파일(rcp-fe-lol-parties 16.21 CSS, CommunityDragon)로 계산한 사용자 설정 게임 방 배치 — 클라는 1280×720 기준을 통째로 늘림
-  //   팀 칸: 1팀 x 35~523 · 2팀 x 531~1019(.parties-lower-section 좌우 35 + .custom-game-team 488 + 사이 16) · 「TEAM 1」 글자 y 197 · 자리 y 218부터 48px씩
-  //   그 위 y 151~197은 빈 칸(.empty-header-spacer 72 + .custom-root 위 10 + .custom-game-teams top 36) → 칩을 여기, 화살표가 팀 글자 줄 오른쪽(비어 있음)을 지나 첫 자리를 가리킴
-  //   친구 목록은 오른쪽 사이드바라 펼침/접힘과 무관 · 창 크기만큼 마커도 같이 커짐(zoom)
-  const k = Math.max(0.75, Math.min(1.6, cw / 1280));
-  // v0.1.54 단순화: 태그 한 줄 + 화살표(창 150×58, 화살표 = 창 가운데) → 화살표가 첫 자리 「참가」 버튼 가운데(팀 칸 오른쪽 끝 −80)를 가리킴
-  const bw = Math.round(150 * k), bh = Math.round(58 * k);
-  const colRight = cx + cw * ((side === 1 ? 523 : 1027) / 1280)   /* v0.1.84: 2팀 끝은 실측 1027(클라 CSS 계산 1019보다 8px 오른쪽) — docs/screen-layout.md */;
-  const x = Math.round(colRight - bw - 5 * k);
-  const y = Math.round(cy + ch * (154 / 720));
-  const sig = `${x},${y},${bw}`;
+  const cx = p[0] / sf, cy = p[1] / sf, cw = (p[2] - p[0]) / sf;
+  const k = Math.max(0.6, Math.min(2.4, cw / 1280));
+  const OX = 30, OY = 186, BW = 1004, BH = 280;
+  const x = Math.round(cx + OX * k), y = Math.round(cy + OY * k), bw = Math.round(BW * k), bh = Math.round(BH * k);
+  const sig = `${x},${y},${bw},${bh}`;
   if (sig !== _slotSig) { _slotSig = sig; slotWin.setBounds({ x, y, width: bw, height: bh }); try { slotWin.webContents.setZoomFactor(k); } catch (_) {} }
   if (!_slotReady) return;                               // 콘텐츠 로드 후에 표시(흰 박스 방지)
-  const msg = side + '|' + state;
-  const appear = !slotWin.isVisible();
-  if (appear || msg !== _slotMsg) {   // 처음 뜰 때·상태 바뀔 때만 보냄(그때만 짧은 등장 효과 1번 — 무한 애니메이션 없음)
-    _slotMsg = msg; _slotTeam = side;
-    try { slotWin.webContents.send('slot-team', { side, state, appear }); } catch (_) {}
+  const t = teamOf(sessionData, config.myName), me = t === 'teamA' ? 1 : t === 'teamB' ? 2 : 0;
+  let host = null;
+  const hp = hostRec && hostAlive(hostRec) && hostRec.puuid, lc = lobbyCust || {};
+  if (hp) for (const [team, arr] of [[1, lc.t1], [2, lc.t2]]) { const r = Array.isArray(arr) ? arr.indexOf(hp) : -1; if (r >= 0 && r < 5) host = { team, row: r }; }
+  const d = { me, host };
+  const msg = JSON.stringify(d), appear = !slotWin.isVisible();
+  if (appear || msg !== _slotMsg) {   // 처음 뜰 때·바뀔 때만 보냄(처음 뜰 때만 짧은 등장 효과 1번 — 무한 애니메이션 없음)
+    _slotMsg = msg; _slotTeam = me;
+    try { slotWin.webContents.send('slot-team', Object.assign({ appear }, d)); } catch (_) {}
   }
   if (appear) { slotWin.showInactive(); try { slotWin.setAlwaysOnTop(true, 'screen-saver'); } catch (_) {} _repaintSlot(); }
 }
