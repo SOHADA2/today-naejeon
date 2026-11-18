@@ -751,6 +751,14 @@ async function lbAct(fn) {
   try { const r = await fn(); if (r && r.ok === false && r.err) lbErr(r.err); } catch (_) { lbErr('실패했어요'); }
   _lbBusy = false;
 }
+// 🪜 v0.1.216 내전 롤 방 만들기·초대(큰 버튼 · 방 줄 공용) — 일반 큐 대기방이면 나가도 되는지 묻고 · 실패는 아래 줄에
+let _roomStepSkip = null;   // [나중에] 누른 방 번호(이 방에선 「롤 방 만들기」 단계 건너뜀)
+async function lolRoomGo() {
+  let r = await window.api.lolLobby({});
+  if (r && r.need === 'leave') { if (!(await tnConfirm('지금 롤 대기방(일반 큐)에 있어요.\n나가고 아수라장 내전 방을 만들까요?', { ok: '나가고 만들기' }))) return null; r = await window.api.lolLobby({ force: true }); }
+  if (!r || !r.ok) { lbErr((r && r.err) || '롤 방을 만들지 못했어요'); return r; }
+  return r;
+}
 // 🎮 v0.1.191 일반판 롤 파티 만들기·초대 — 남의 파티에 있으면 나가도 되는지 묻고 · 자리 없어 못 부른 사람은 알려 줌
 async function lolPartyGo() {
   let r = await window.api.lolParty({});
@@ -916,7 +924,8 @@ function renderLobby() {
   { // 방식 버튼(방장 · 시작 버튼 왼쪽) + 고르는 창(버튼 위로 열림)
     const chipB = el('lb-mchip'), pop = el('lb-mpop');
     if (!myIsHost) _mpop = false;
-    chipB.innerHTML = (normal ? `<i>🎮</i><span><span class="mk">일반 · </span>${nq === 450 ? '칼바람' : '아수라장'}</span>` : `<i>⚔</i><span><span class="mk">내전 · </span>${MODE_KO[L.mode] || '랜덤'}</span>`) + '<em>▾</em>';
+    // v0.1.216(사장님: 「⚔ 내전 · 드래프트」가 버튼처럼 보여 직관적이지 않음) — 설정 칸처럼: 작은 제목(내전 · 팀 짜기 / 일반 · 큐) + 고른 값 ▾
+    chipB.innerHTML = `<span class="mc"><small>${normal ? '일반 · 큐' : '내전 · 팀 짜기'}</small><b>${normal ? (nq === 450 ? '칼바람' : '아수라장') : (MODE_KO[L.mode] || '랜덤')}</b></span><em>▾</em>`;
     chipB.className = 'lb-mchip host' + (_mpop ? ' open' : '');
     chipB.title = '이번 판 방식 바꾸기 — 내전(랜덤·밸런스·드래프트·직접) / 일반(아수라장·칼바람)';
     chipB.onclick = e => { e.stopPropagation(); if (!myIsHost) return; _mpop = !_mpop; pop.style.display = _mpop ? '' : 'none'; chipB.classList.toggle('open', _mpop); };
@@ -934,14 +943,20 @@ function renderLobby() {
     pop.querySelectorAll('.lb-qb').forEach(b => { const q = Number(b.dataset.q); b.classList.toggle('on', q === nq); b.onclick = () => { if (q !== nq) window.api.lolNormalQ(q); }; });
     el('lb-mdesc').textContent = MODE_DESC[normal ? 'normal' : MODE_KO[L.mode] ? L.mode : 'random'];
   }
+  const lolIdle = !G.phase || G.phase === 'None' || G.phase === 'Lobby';
+  const roomStep = !!(myIsHost && !normal && L.room && G.phase && lolIdle && !G.inCustom && _roomStepSkip !== L.room.id);   // 🪜 v0.1.216 ① 롤 내전 방 만들기 단계(롤이 켜져 있고 사용자 설정 방에 없음)
   { // 🎮 롤 초대 수락 = 방장 아님 · 방장 초대가 왔는데 자동 수락을 꺼 둔 사람만
     //   🎮 v0.1.213 방장 · 내전 = 롤 아수라장 사용자 설정 방을 지금 바로 만들고 초대(사장님: 일반 방 만드는 키는 있는데 내전 아수라장 키가 사라짐 — v0.1.193에서 「팀 정해지면 자동」으로 뺐던 것)
     //   팀을 짜기 전에 미리 롤 방에 모여 있을 때 · 팀이 정해지면 그 판 다리로 다시 만들고 다시 초대하는 건 그대로(v0.1.188)
+    //   🪜 v0.1.216(사장님: 실제 순서 = 방장이 「내가 방 만들게」 → 모이기 → 팀 짜기인데 큰 버튼이 바로 「팀장 2명 필요」라 거꾸로 보임) — 내전 방장 = 단계대로:
+    //   ① 롤 내전 방이 없으면(롤 홈·일반 큐 대기방) 큰 버튼 = 「🎮 롤 내전 방 만들기」 · 이 줄 = 「먼저 롤 방을 만들어 모여요 [나중에]」 ② 방에 있으면 큰 버튼 = 팀 짜기 · 이 줄 = 「롤 내전 방에 있어요 [방 사람 초대]」
+    //   [나중에] = 이 방에선 ① 건너뜀(팀이 정해질 때 앱이 방을 만듦 · 이 줄은 「롤 방은 팀이 정해질 때 만들어요 [지금 만들기]」)
     const box = el('lb-lol');
-    const lolIdle = !G.phase || G.phase === 'None' || G.phase === 'Lobby';
     const h = G.invite && !myIsHost ? `<span class="lb-lol-t"><b>👑 ${esc(G.invite.from)}</b>님이 롤 ${normal ? '파티' : '방'}에 초대했어요</span><button class="lb-mini" data-lol="accept">수락</button>`
-      : myIsHost && !normal && L.room && lolIdle
-        ? `<span class="lb-lol-t" title="롤에 아수라장 사용자 설정 방을 이 방 이름으로 만들고(공개 목록엔 안 뜸) 앱 켠 방 사람들을 초대해요 · 팀이 정해지면 그 판 다리로 다시 만들어 다시 초대해요"><span class="lb-lol-ic">🎮</span>${G.inCustom ? '롤 방에 있어요' : '롤 아수라장 방'}</span><button class="lb-mini" data-lol="make">${G.inCustom ? '방 사람 초대' : '만들고 초대'}</button>`
+      : roomStep ? '<span class="lb-lol-t" title="롤에 아수라장 사용자 설정 방을 이 방 이름으로 만들고(공개 목록엔 안 뜸) 앱 켠 방 사람들을 초대해요"><span class="lb-lol-ic">🎮</span><b>먼저 롤 내전 방</b>을 만들어 모여요</span><button class="lb-mini plain" data-lol="skip" title="롤 방 없이 팀부터 짜기 · 팀이 정해질 때 앱이 롤 방을 만들어요">나중에</button>'
+      : myIsHost && !normal && L.room && lolIdle && G.phase
+        ? (G.inCustom ? '<span class="lb-lol-t" title="팀이 정해지면 그 판 다리로 이 방 설정만 바꿔요(아무도 안 나가짐)"><span class="lb-lol-ic">🎮</span>롤 내전 방에 있어요</span><button class="lb-mini" data-lol="make">방 사람 초대</button>'
+          : '<span class="lb-lol-t"><span class="lb-lol-ic">🎮</span>롤 방은 팀이 정해질 때 만들어요</span><button class="lb-mini" data-lol="make">지금 만들기</button>')
         : '';
     box.style.display = h ? '' : 'none';
     if (box.dataset.h !== h) { box.innerHTML = h; box.dataset.h = h; }
@@ -949,11 +964,10 @@ function renderLobby() {
       if (b.disabled) return; b.disabled = true; const t0 = b.textContent;
       try {
         if (b.dataset.lol === 'accept') { const r = await window.api.lolAccept(); if (!r || !r.ok) tnAlert((r && r.err) || '수락하지 못했어요'); return; }
+        if (b.dataset.lol === 'skip') { _roomStepSkip = L.room && L.room.id; render(); return; }
         b.textContent = '만드는 중…';
-        let r = await window.api.lolLobby({});
-        if (r && r.need === 'leave') { if (!(await tnConfirm('지금 롤 대기방(일반 큐)에 있어요.\n나가고 아수라장 사용자 설정 방을 만들까요?', { ok: '나가고 만들기' }))) { b.textContent = t0; return; } r = await window.api.lolLobby({ force: true }); }
-        if (!r || !r.ok) { b.textContent = t0; lbErr((r && r.err) || '롤 방을 만들지 못했어요'); return; }
-        b.textContent = r.total ? `${r.invited}명 초대함` : '초대할 사람 없음'; setTimeout(() => { b.textContent = t0; }, 2500);
+        const r = await lolRoomGo();
+        b.textContent = r && r.ok ? (r.total ? `${r.invited}명 초대함` : '초대할 사람 없음') : t0; if (r && r.ok) setTimeout(() => { b.textContent = t0; }, 2500);
       } finally { b.disabled = false; }
     });
   }
@@ -962,7 +976,7 @@ function renderLobby() {
   const qState = !normal ? null : GAME_PHASES.includes(G.phase) ? 'game' : G.phase === 'Matchmaking' && P && P.leader ? 'search' : myParty && G.phase === 'Lobby' ? 'party' : 'none';
   { // 방장 안내 한 줄 — 지금 모자란 것·알아 둘 것 하나 + 그 일을 하는 작은 버튼(없으면 줄 자체가 없음)
     const cb = el('lb-caps'); let h = '';
-    if (myIsHost) {
+    if (myIsHost && !roomStep) {
       if (normal) {
         if (qState === 'party') h = `<span class="lb-hint"><b>롤 파티 ${P.n}/${P.max || 5}명</b> · 다 들어오면 큐를 시작해요</span><button id="lb-reinv" class="lb-mini">다시 초대</button>`;
         else if (qState === 'none' && n > 5) h = '<span class="lb-hint">롤 파티는 <b>5명까지</b>예요 · 앞에 앉은 5명만 초대해요</span>';
@@ -988,15 +1002,15 @@ function renderLobby() {
   { // 방장 = [방식 ▾][시작] — 시작 버튼 글 = 누르면 일어날 일(못 누르면 모자란 것)
     el('lb-gobar').style.display = myIsHost ? '' : 'none';
     const go = el('lb-start');
-    go.dataset.q = normal && L.lol ? qState : '';   // 🎮 일반판: none 파티 만들고 초대 → party 큐 시작 → search 취소 → game
-    go.disabled = normal ? !go.dataset.q || qState === 'game' : n < 2 || !capsOk || !sideOk;
+    go.dataset.q = normal && L.lol ? qState : roomStep ? 'room' : '';   // 🎮 일반판: none 파티 만들고 초대 → party 큐 시작 → search 취소 → game · 🪜 내전 ① room = 롤 내전 방 만들기
+    go.disabled = roomStep ? false : normal ? !go.dataset.q || qState === 'game' : n < 2 || !capsOk || !sideOk;
     go.classList.toggle('normal', normal && (!go.dataset.q || qState === 'game'));
     go.classList.toggle('qcancel', qState === 'search' && !!go.dataset.q);
-    go.textContent = normal ? (!go.dataset.q ? '일반판 진행 중' : qState === 'game' ? '게임 진행 중' : qState === 'search' ? '큐 잡는 중 · 취소' : qState === 'party' ? `큐 시작 · ${P.n}/${P.max || 5}` : '파티 만들고 초대')
+    go.textContent = roomStep ? '🎮 롤 내전 방 만들기' : normal ? (!go.dataset.q ? '일반판 진행 중' : qState === 'game' ? '게임 진행 중' : qState === 'search' ? '큐 잡는 중 · 취소' : qState === 'party' ? `큐 시작 · ${P.n}/${P.max || 5}` : '파티 만들고 초대')
       : n < 2 ? '2명부터 시작' : !capsOk ? '팀장 2명 필요'
       : manual ? (sNone.length ? `팀 미정 ${sNone.length}명` : !sideOk ? '두 팀에 1명 이상' : `시작 · ${sA.length} : ${sB.length}`)
       : draft ? '드래프트 시작' : `팀 짜기 · ${ts} : ${ts}`;
-    go.title = go.disabled ? '' : normal ? '' : draft ? '동전으로 선픽을 정하고 팀장이 번갈아 뽑아요' : manual ? '이 팀으로 확정해요' : `${MODE_DESC[L.mode] || MODE_DESC.random} · 팀이 정해지면 롤 방을 만들고 모두 초대해요`;
+    go.title = roomStep ? '롤에 아수라장 사용자 설정 방을 만들고 방 사람들을 초대해요 · 모이면 팀을 짜요' : go.disabled ? '' : normal ? '' : draft ? '동전으로 선픽을 정하고 팀장이 번갈아 뽑아요' : manual ? '이 팀으로 확정해요' : `${MODE_DESC[L.mode] || MODE_DESC.random} · 팀이 정해지면 롤 방을 만들고 모두 초대해요`;
   }
   { // 팀원 = 지금 방식 · 방장 · 무엇을 기다리는지 / 방장 없음 = 방장 하기
     const st = el('lb-stat'); let h = '';
@@ -1025,6 +1039,7 @@ function renderLobby() {
 }
 el('lb-start').onclick = () => {
   const q = el('lb-start').dataset.q;   // 🎮 일반판 큰 버튼
+  if (q === 'room') return lbAct(() => lolRoomGo().then(() => null));   // 🪜 v0.1.216 내전 ① 롤 방 만들기
   if (q === 'none') return lbAct(() => lolPartyGo().then(() => null));
   if (q === 'party') return lbAct(() => window.api.lolQueue(true));
   if (q === 'search') return lbAct(() => window.api.lolQueue(false));

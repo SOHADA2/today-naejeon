@@ -783,3 +783,10 @@ header .phase, header .win-btn { flex-shrink:0; }
 @media (max-height:600px) { .lb-emo-pop .lb-emo { height:32px; } .lb-emo-pop .lb-emo img { width:30px; height:30px; } .lb-chat-row .lb-chat-dn, .lb-emo-btn { height:26px; } }
 .lb-emo-btn img { opacity:0.9; filter:none; }   /* v0.1.204 펭귄 인사 그림(작아도 알아보게) */
 .lb-cnt-v { display:inline-flex; align-items:baseline; gap:2px; }   /* v0.1.208 인원 숫자(설명은 여기와 PARTY 글자에만 · 디스코드 아이콘 설명과 안 섞이게) */
+/* 🪜 v0.1.216 방식 칸 = 설정처럼(작은 제목 + 값 ▾ · 버튼처럼 안 보이게) · 「나중에」 */
+.lb-mchip .mc { display:flex; flex-direction:column; align-items:flex-start; gap:1px; min-width:0; line-height:1.1; }
+.lb-mchip .mc small { font-size:10px; font-weight:600; color:var(--dim); white-space:nowrap; }
+.lb-mchip .mc b { font-size:13px; font-weight:800; color:var(--gold-hi); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lb-gobar .lb-mchip { background:var(--bg-1); border-color:var(--line-2, var(--hair)); padding:0 9px 0 10px; }
+.lb-gobar .lb-mchip:hover { background:var(--gold-soft); border-color:var(--gold-line); }
+.lb-lol-t b { color:var(--gold-hi); }
