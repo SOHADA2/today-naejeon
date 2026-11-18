@@ -1482,7 +1482,7 @@ function roomStreams() {   // 방 바뀜 → 방 스트림 다시(예전 방 데
   if (!room || !runSession) return;
   fbMirror('room', d => {
     const first = !_roomPrev, p = _roomPrev || {}, c = d || {}; _roomPrev = c;
-    if (p.lobby !== c.lobby) { lobbyRaw = c.lobby || null; broadcast('lobby', lobbyView()); if (!first) { chatDiff((p.lobby || {}).chat, (c.lobby || {}).chat); kickDiff((p.lobby || {}).kick, (c.lobby || {}).kick); } }               // ⚡ 대기실(참가·방식·팀장)
+    if (p.lobby !== c.lobby) { lobbyRaw = c.lobby || null; broadcast('lobby', lobbyView()); if (!first) { chatDiff((p.lobby || {}).chat, (c.lobby || {}).chat); kickDiff((p.lobby || {}).kick, (c.lobby || {}).kick); pingDiff((p.lobby || {}).ping, (c.lobby || {}).ping); } }               // ⚡ 대기실(참가·방식·팀장)
     if (p.members !== c.members) { presenceRaw = c.members || null; broadcast('lobby', lobbyView()); broadcastRooms(); }   // 📦 v0.1.110: 방 사람(들어오고 나감)
     if (['session', 'host', 'normalLive', 'potgWait', 'potgRec'].some(k => p[k] !== c[k])) runSession();     // ⚡ 판·방장·팟지(일반 판·기다림·녹화 안내)
     if ((p.bridge && p.bridge.eogStats) !== (c.bridge && c.bridge.eogStats) && config.isHost) runHost();      // ⚡ 경기 종료 → 방장 앱이 바로 기록
@@ -1557,7 +1557,7 @@ async function roomLeave(quiet) {
     const next = roomMembers(id).filter(m => !account || m.key !== account.puuid).sort((a, b) => a.key.localeCompare(b.key))[0];
     if (next) await handHost(next.key).catch(() => {}); else await releaseHost().catch(() => {});
   }
-  if (account) { fbSet(`${T}/rooms/${id}/lobby/join/${account.puuid}`, null).catch(() => {}); fbSet(`${T}/rooms/${id}/lobby/chat/${account.puuid}`, null).catch(() => {}); }   // 💬 내 한마디도 같이
+  if (account) { fbSet(`${T}/rooms/${id}/lobby/join/${account.puuid}`, null).catch(() => {}); fbSet(`${T}/rooms/${id}/lobby/chat/${account.puuid}`, null).catch(() => {}); fbSet(`${T}/rooms/${id}/lobby/ping/${account.puuid}`, null).catch(() => {}); }   // 💬 내 한마디·📍 핑도 같이
   if (account) fbSet(`${T}/rooms/${id}/members/${account.puuid}`, null).catch(() => {});   // 📦 방 사람 칸
   room = null; config.lastRoom = null; saveConfig();
   roomStreams();
@@ -1845,6 +1845,30 @@ ipcMain.handle('chat-send', async (_e, text) => {
   _chatAt = now;
   const w = await fbSet(`${RP()}/lobby/chat/${account.puuid}`, { text: t, at: now });
   return w && w.ok ? { ok: true, key: account.puuid, text: t, at: now } : { ok: false, err: '보내지 못했습니다 · 인터넷 연결을 확인해 주세요' };
+});
+// 📍 v0.1.219 대기실 핑(사장님: 롤처럼 Alt + 클릭 후 드래그 → 방향 고르기) — rooms/{방}/lobby/ping/{puuid} = {k, to, at}(사람마다 마지막 하나 · 기록 안 남김)
+//   k = look(여기 봐요 · 끌지 않고 Alt+클릭) · go(위 · 시작하자 = 롤 올인) · omw(오른쪽 · 곧 가요 = 가는 중) · wait(아래 · 잠깐만 = 대기) · ask(왼쪽 · 물음표 = 적 실종 ?) · to = 핑을 찍은 자리의 사람(빈 곳이면 나)
+//   받는 쪽 = 방 스트림에서 바뀐 것만 왼쪽 창으로('ping') · 내 것은 화면이 바로 띄움 · 서버 규칙 변경 없음(lobby 아래 자유 칸)
+const PING_K = ['look', 'go', 'omw', 'wait', 'ask'];
+let _pingAt = 0;
+function pingDiff(a, b) {
+  const me = account && account.puuid;
+  for (const [k, m] of Object.entries(b || {})) {
+    if (!m || k === me || !PING_K.includes(m.k)) continue;
+    const o = a && a[k];
+    if (o && o.at === m.at) continue;
+    try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.webContents.send('ping', { from: k, to: typeof m.to === 'string' ? m.to.slice(0, 80) : k, k: m.k, at: Number(m.at) || 0 }); } catch (_) {}
+  }
+}
+ipcMain.handle('ping-send', async (_e, o) => {
+  const k = o && PING_K.includes(o.k) ? o.k : null, to = o && typeof o.to === 'string' ? o.to.slice(0, 80) : null;
+  if (!k) return { ok: false };
+  if (!account || !room) return { ok: false, err: '방에 들어가야 핑을 찍을 수 있어요' };
+  const now = Date.now();
+  if (now - _pingAt < 450) return { ok: false, slow: true };
+  _pingAt = now;
+  const w = await fbSet(`${RP()}/lobby/ping/${account.puuid}`, { k, to: to || account.puuid, at: now });
+  return w && w.ok ? { ok: true, key: account.puuid, to: to || account.puuid, k, at: now } : { ok: false, err: '핑을 보내지 못했어요' };
 });
 let lobbyRaw = null, presenceRaw = null;
 function lobbyView() {

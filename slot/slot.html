@@ -6,57 +6,51 @@
   <style>
     * { margin:0; box-sizing:border-box; }
     html, body { width:100%; height:100%; background:transparent; overflow:hidden; -webkit-user-select:none; }
-    /* 🎨 v0.1.218 롤 사용자 설정 대기방 위 팀 테두리 + 투데이 방장 줄(클릭 통과 투명 창)
+    /* 🎨 v0.1.219 롤 사용자 설정 대기방 위 팀 표시 = 시안 C 「미니멀」(사장님 선택) + 투데이 방장 줄(클릭 통과 투명 창)
        창 = 롤 기준 좌표(1280×720) x 30~1034 · y 186~466 → 안쪽 좌표 = 기준 좌표 − (30, 186) · main이 zoom으로 키움
-       1팀 칸 x 36~523 · 2팀 x 540~1027 · 팀 글자 줄 y ≈ 197~215 · 자리 첫 줄 y 217 · 줄마다 48px · 끝 y 457 (docs/screen-layout.md)
+       1팀 칸 x 36~523 · 2팀 x 540~1027 · 팀 글자 줄 y ≈ 197~215 · 자리 첫 줄 y 217 · 줄마다 48px (docs/screen-layout.md)
+       = 팀 글자 줄 밑 팀 색 빛줄 + 자리 줄마다 왼쪽 팀 색 눈금 + 작은 팀 표(TEAM n · 내 팀) · 상자 없음(롤 화면을 가장 덜 가림)
        main updateSlotMarker → slot-team {me:0|1|2(내 팀), host:{team,row}|null, appear}
        ⚠️ 무한 애니메이션 금지 — 투명 창이라 움직이는 동안 창 전체를 매 프레임 다시 그림(v0.1.5). 등장 효과는 한 번만. */
     #st { position:absolute; inset:0; }
     #st.hide { visibility:hidden; }
-    .col { position:absolute; top:8px; width:487px; height:265px; --tc:var(--t1); --tg:rgba(74,168,255,.38);
-      border:1.5px solid color-mix(in srgb, var(--tc) 75%, transparent);
-      box-shadow:0 0 14px var(--tg), inset 0 0 18px color-mix(in srgb, var(--tc) 14%, transparent);
-      background:linear-gradient(180deg, color-mix(in srgb, var(--tc) 12%, transparent), transparent 22%); transition:opacity .25s; }
+    .col { position:absolute; top:8px; width:487px; height:265px; --tc:var(--t1); --tr:74,168,255; transition:opacity .25s; }
     .col.c1 { left:6px; }
-    .col.c2 { left:510px; --tc:var(--t2); --tg:rgba(255,90,110,.38); }
-    /* 모서리 꺾쇠(굵게) */
-    .col i { position:absolute; width:16px; height:16px; border:3px solid var(--tc); }
-    .col i.a { left:-3px; top:-3px; border-right:0; border-bottom:0; }
-    .col i.b { right:-3px; top:-3px; border-left:0; border-bottom:0; }
-    .col i.c { left:-3px; bottom:-3px; border-right:0; border-top:0; }
-    .col i.d { right:-3px; bottom:-3px; border-left:0; border-top:0; }
-    /* 팀 표 = 팀 글자 줄 오른쪽(비어 있음) */
-    .tab { position:absolute; right:10px; top:4px; height:20px; padding:0 9px; display:flex; align-items:center; gap:6px;
-      background:var(--tc); color:#fff; font-family:var(--f-num, 'Barlow Condensed'), sans-serif; font-size:13px; font-weight:700; letter-spacing:.8px;
-      clip-path:polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
-    .tab b { display:none; font-family:var(--f-body); font-size:11.5px; font-weight:800; letter-spacing:0; padding-left:6px; border-left:1px solid rgba(255,255,255,.45); }
-    /* 내 팀이 정해졌으면: 내 팀 진하게 + 「내 팀」 · 다른 팀은 옅게 */
-    #st.m1 .c2, #st.m2 .c1 { opacity:.45; }
-    #st.m1 .c1 .tab b, #st.m2 .c2 .tab b { display:inline; }
-    #st.m1 .c1, #st.m2 .c2 { border-width:2px; box-shadow:0 0 20px var(--tg), 0 0 4px var(--tg), inset 0 0 22px color-mix(in srgb, var(--tc) 18%, transparent); }
-    /* 투데이 방장 줄 */
-    #hr { position:absolute; display:none; width:487px; height:48px; pointer-events:none;
-      background:linear-gradient(90deg, rgba(200,170,110,.24), rgba(200,170,110,.06) 55%, transparent 80%); border-left:3px solid var(--gold-hi, #f0e6d2); }
+    .col.c2 { left:510px; --tc:var(--t2); --tr:255,90,110; }
+    .col .ln { position:absolute; left:0; right:0; top:22px; height:2px; background:linear-gradient(90deg, var(--tc), rgba(var(--tr),.25) 70%, transparent); box-shadow:0 0 10px rgba(var(--tr),.8); transform-origin:left; }
+    .col .tk { position:absolute; left:-1px; width:4px; height:40px; background:var(--tc); box-shadow:0 0 8px rgba(var(--tr),.8); }
+    .col .chip { position:absolute; right:6px; top:1px; height:18px; padding:0 8px; display:flex; align-items:center; gap:5px;
+      border:1px solid rgba(var(--tr),.8); color:rgb(var(--tr)); background:rgba(6,12,20,.78); font:700 12px var(--f-num); letter-spacing:1px; white-space:nowrap; }
+    .col .chip b { display:none; font:800 11px var(--f-body); color:#fff; letter-spacing:0; }
+    /* 내 팀이 정해졌으면: 내 팀 표 = 팀 색 채움 + 「· 내 팀」 · 다른 팀 옅게 */
+    #st.m1 .c2, #st.m2 .c1 { opacity:.5; }
+    #st.m1 .c1 .chip, #st.m2 .c2 .chip { background:var(--tc); border-color:var(--tc); color:#fff; }
+    #st.m1 .c1 .chip b, #st.m2 .c2 .chip b { display:inline; }
+    /* 투데이 방장 줄 = 금색 왼쪽 선 + 옅은 띠 + 「HOST | 투데이 방장」 표(줄 오른쪽 · 빈 자리 「참가」 버튼 자리와 안 겹침) */
+    #hr { position:absolute; display:none; width:487px; height:48px;
+      background:linear-gradient(90deg, rgba(200,170,110,.20), rgba(200,170,110,.05) 50%, transparent 75%); }
     #hr.on { display:block; }
-    #hr span { position:absolute; right:74px; top:50%; transform:translateY(-50%); height:22px; padding:0 9px; display:flex; align-items:center; gap:5px;
-      color:#1a1206; background:linear-gradient(180deg, #f0d792, #c8aa6e); font-family:var(--f-body); font-size:12px; font-weight:800; white-space:nowrap;
-      box-shadow:0 0 10px rgba(200,170,110,.55);
-      clip-path:polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
-    /* 한 번만: 나타날 때 테두리가 스며 나옴 */
-    #st.in .col { animation:colIn .45s cubic-bezier(.2,.8,.3,1) both; }
-    #st.in .c2 { animation-delay:.06s; }
+    #hr::before { content:''; position:absolute; left:-1px; top:4px; width:4px; height:40px; background:var(--gold-hi); box-shadow:0 0 10px rgba(240,215,154,.9); }
+    #hr span { position:absolute; right:70px; top:12px; height:24px; padding:0 10px 0 8px; display:flex; align-items:center; gap:6px; white-space:nowrap;
+      background:rgba(8,14,22,.88); border:1px solid var(--gold); color:var(--gold-hi); font:800 12px var(--f-body); box-shadow:0 0 12px rgba(200,170,110,.35); }
+    #hr span svg { width:15px; height:12px; }
+    #hr span em { font:700 11px var(--f-num); letter-spacing:1.2px; color:var(--gold); font-style:normal; padding-right:6px; border-right:1px solid rgba(200,170,110,.45); }
+    /* 한 번만: 나타날 때 빛줄이 그어지고 눈금이 차례로 */
+    #st.in .ln { animation:lnIn .45s cubic-bezier(.2,.8,.3,1) both; }
+    #st.in .c2 .ln { animation-delay:.06s; }
+    #st.in .tk, #st.in .chip { animation:fdIn .35s ease-out both; }
     #hr.in { animation:hrIn .5s .15s ease-out both; }
-    @keyframes colIn { from { opacity:0; transform:scale(.985); } }
+    @keyframes lnIn { from { transform:scaleX(0); } }
+    @keyframes fdIn { from { opacity:0; } }
     @keyframes hrIn { from { opacity:0; transform:translateX(-10px); } }
   </style>
 </head>
 <body>
-  <div id="st" class="hide">
-    <div class="col c1"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><div class="tab">TEAM 1<b>내 팀</b></div></div>
-    <div class="col c2"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><div class="tab">TEAM 2<b>내 팀</b></div></div>
-    <div id="hr"><span>👑 투데이 방장</span></div>
-  </div>
+  <div id="st" class="hide"></div>
   <script>
+    const CROWN = '<svg viewBox="0 0 15 12"><path d="M1 3l3.2 3L7.5 1l3.3 5L14 3l-1.4 8H2.4z" fill="#f0d79a"/></svg>';
+    const col = c => `<div class="col c${c}"><div class="ln"></div>${[0, 1, 2, 3, 4].map(i => `<div class="tk" style="top:${27 + 48 * i}px;animation-delay:${0.12 + i * 0.04}s"></div>`).join('')}<div class="chip">TEAM ${c}<b>· 내 팀</b></div></div>`;
+    document.getElementById('st').innerHTML = col(1) + col(2) + `<div id="hr"><span>${CROWN}<em>HOST</em>투데이 방장</span></div>`;
     function draw(d) {
       d = d || {};
       const st = document.getElementById('st'), hr = document.getElementById('hr');
@@ -69,7 +63,7 @@
     if (window.api) { window.api.onSlotTeam(draw); }
     else {   // 🎨 목업(브라우저 직접 열기) — ?me=1&team=1&row=0
       const q = new URLSearchParams(location.search);
-      draw({ me: +(q.get('me') || 0), host: q.get('team') ? { team: +q.get('team'), row: +(q.get('row') || 0) } : null, appear: true });
+      draw({ me: +(q.get('me') || 0), host: q.get('team') ? { team: +q.get('team'), row: +(q.get('row') || 0) } : null, appear: false });
     }
   </script>
 </body>
