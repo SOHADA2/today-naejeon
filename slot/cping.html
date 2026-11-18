@@ -11,24 +11,25 @@
        main → cping {type:'wheel'(x,y) | 'move'(x,y,sel) | 'end' | 'show'(k,fx,fy,name) | 'err'(x,y,text)}
        ⚠️ 무한 애니메이션 금지(투명 창) — 핑·바퀴 효과는 한 번만 */
     #root { position:absolute; inset:0; }
-    .pw { position:absolute; left:0; top:0; width:0; height:0; display:none; --pc:#3aa0ff; }
+    .pw { position:absolute; left:0; top:0; width:0; height:0; display:none; --pc:#22a7f0; --R:216px; --cr:76px; }
     .pw.open { display:block; }
-    .pw .bg { position:absolute; left:-84px; top:-84px; width:168px; height:168px; border-radius:50%;
-      background:radial-gradient(circle, rgba(4,9,15,.3) 0 17%, rgba(4,9,15,.86) 18% 58%, rgba(4,9,15,.8) 59% 70%, transparent 71%);
-      box-shadow:0 0 0 1px rgba(160,175,190,.22) inset; }
-    .pw .bg::after { content:''; position:absolute; inset:15px; border-radius:50%; border:1px solid rgba(160,175,190,.18); }
-    .pw .s { position:absolute; left:-84px; top:-84px; width:168px; height:168px; border-radius:50%; opacity:0;
-      background:conic-gradient(from calc(var(--r) - 22.5deg), color-mix(in srgb, var(--pc) 55%, transparent) 0 45deg, transparent 45deg);
-      -webkit-mask:radial-gradient(circle, transparent 0 18%, #000 19% 70%, transparent 71%); }
+    .pw .bg { position:absolute; left:calc(var(--R) * -1); top:calc(var(--R) * -1); width:calc(var(--R) * 2); height:calc(var(--R) * 2); border-radius:50%;
+      background:repeating-conic-gradient(from 22.5deg, rgba(225,205,160,.42) 0 .45deg, transparent .45deg 45deg), radial-gradient(circle, rgba(6,10,18,.45) 0 55%, rgba(6,10,18,.28) 80%, transparent 100%);
+      -webkit-mask:radial-gradient(circle, transparent 0 calc(var(--cr) - 1px), #000 var(--cr) 72%, rgba(0,0,0,.35) 90%, transparent 100%); }
+    .pw .s { position:absolute; left:calc(var(--R) * -1); top:calc(var(--R) * -1); width:calc(var(--R) * 2); height:calc(var(--R) * 2); border-radius:50%; opacity:0;
+      background:conic-gradient(from calc(var(--r) - 22.5deg), rgba(255,255,255,.10) 0 45deg, transparent 45deg), conic-gradient(from calc(var(--r) - 22.5deg), color-mix(in srgb, var(--pc) 22%, transparent) 0 45deg, transparent 45deg);
+      -webkit-mask:radial-gradient(circle, transparent 0 var(--cr), #000 calc(var(--cr) + 1px) 68%, transparent 100%); }
     .pw .s.on { opacity:1; }
-    .pw svg { position:absolute; left:0; top:0; width:1px; height:1px; overflow:visible; }
-    .pw line { stroke:var(--pc); stroke-width:2.2; stroke-linecap:round; filter:drop-shadow(0 0 3px var(--pc)); }
-    .pw .i { position:absolute; width:40px; height:40px; margin:-20px 0 0 -20px; opacity:.72; filter:drop-shadow(0 1px 2px rgba(0,0,0,.9)); transition:transform .08s, opacity .08s; }
-    .pw .i.on { opacity:1; transform:scale(1.32); filter:drop-shadow(0 0 6px var(--pc)); }
-    .pw .c { position:absolute; left:-16px; top:-16px; width:32px; height:32px; opacity:.6; }
-    .pw .c.on { opacity:1; transform:scale(1.25); filter:drop-shadow(0 0 5px var(--pc)); }
-    .pw .t { position:absolute; left:50%; top:90px; transform:translateX(-50%); padding:1px 9px; font-size:12.5px; font-weight:800; white-space:nowrap; color:#fff;
-      background:rgba(4,9,15,.85); border:1px solid color-mix(in srgb, var(--pc) 70%, transparent); text-shadow:0 1px 2px #000; }
+    .pw .i { position:absolute; width:34px; height:34px; margin:-17px 0 0 -17px; opacity:.9; filter:drop-shadow(0 1px 2px rgba(0,0,0,.9)); transition:transform .08s; }
+    .pw .i.mute { filter:grayscale(1) sepia(.5) brightness(1.35) drop-shadow(0 1px 2px rgba(0,0,0,.9)); opacity:.85; }
+    .pw .i.on { opacity:1; transform:scale(1.28); filter:drop-shadow(0 0 6px var(--pc)) drop-shadow(0 1px 2px rgba(0,0,0,.9)); }
+    .pw .ctr { position:absolute; left:calc(var(--cr) * -1); top:calc(var(--cr) * -1); width:calc(var(--cr) * 2); height:calc(var(--cr) * 2); border-radius:50%;
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+      background:radial-gradient(circle, rgba(10,22,32,.94) 0 70%, rgba(6,14,22,.96)); border:2px solid #c8aa6e; box-shadow:0 0 0 1px rgba(0,0,0,.6), inset 0 0 0 3px rgba(0,0,0,.35); }
+    .pw .ci { width:32px; height:32px; filter:drop-shadow(0 1px 2px #000); }
+    .pw .t { font-size:16px; font-weight:700; white-space:nowrap; color:var(--pc); text-shadow:0 1px 2px #000; }
+    .pw .ctr small { display:flex; align-items:center; gap:4px; font-size:12px; color:#8b8f94; }
+    .pw .ms { width:9px; height:13px; }
     .wp { position:absolute; width:0; height:0; --pc:#3aa0ff; }
     .wp .g { position:absolute; left:-32px; top:-13px; width:64px; height:26px; border-radius:50%; border:2px solid var(--pc); opacity:0;
       box-shadow:0 0 9px var(--pc), inset 0 0 7px var(--pc); animation:wpG .8s ease-out forwards; }
@@ -48,7 +49,7 @@
   <div id="root"></div>
   <script>
     const PING = {
-      look: { t: '주의', c: '#f5b400', img: 'caution' },
+      look: { t: '신호', c: '#22a7f0', img: 'ping' },
       retreat: { t: '후퇴', c: '#e8344a', img: 'retreat' },
       push: { t: '밀어붙이기', c: '#20c97a', img: 'push' },
       omw: { t: '가는 중', c: '#22a7f0', img: 'omw' },
@@ -58,7 +59,7 @@
       missing: { t: '적 실종', c: '#f5b400', img: 'missing' },
       enemy: { t: '적 시야', c: '#e8344a', img: 'enemy' },
     };
-    const DIR = ['retreat', 'push', 'omw', 'allin', 'assist', 'vision', 'missing', 'enemy'], R = 58, MS = 2600;
+    const DIR = ['retreat', 'push', 'omw', 'allin', 'assist', 'vision', 'missing', 'enemy'], R = 116, MS = 2600, MUTE = ["push","allin","vision","enemy"];
     const img = k => `../assets/ping/${(PING[k] || PING.look).img}.png`;
     const root = document.getElementById('root');
     for (const k of Object.keys(PING)) { const i = new Image(); i.src = img(k); }   // 미리 읽어 둠(첫 핑이 늦게 안 뜨게)
@@ -67,19 +68,17 @@
       if (pw) return pw;
       pw = document.createElement('div'); pw.className = 'pw';
       pw.innerHTML = '<div class="bg"></div>' + DIR.map((k, i) => `<div class="s" data-k="${k}" style="--r:${i * 45}deg;--pc:${PING[k].c}"></div>`).join('')
-        + '<svg><line x1="0" y1="0" x2="0" y2="0"/></svg>'
-        + DIR.map((k, i) => { const a = (i * 45 - 90) * Math.PI / 180; return `<img class="i" data-k="${k}" src="${img(k)}" style="left:${(Math.cos(a) * R).toFixed(1)}px;top:${(Math.sin(a) * R).toFixed(1)}px" alt="">`; }).join('')
-        + `<img class="c" data-k="look" src="${img('look')}" alt=""><b class="t"></b>`;
+        + DIR.map((k, i) => { const a = (i * 45 - 90) * Math.PI / 180; return `<img class="i${MUTE.includes(k) ? ' mute' : ''}" data-k="${k}" src="${img(k)}" style="left:${(Math.cos(a) * R).toFixed(1)}px;top:${(Math.sin(a) * R).toFixed(1)}px" alt="">`; }).join('')
+        + `<div class="ctr"><img class="ci" src="${img('look')}" alt=""><b class="t"></b><small><svg class="ms" viewBox="0 0 10 14"><rect x=".7" y=".7" width="8.6" height="12.6" rx="4.3" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M5 .7v5.2h4.3V5A4.3 4.3 0 0 0 5 .7z" fill="currentColor"/></svg>뒤로</small></div>`;
       root.appendChild(pw); return pw;
     }
     let ox = 0, oy = 0;
-    function sel(k, x, y) {
+    function sel(k) {
       const w = wheel();
       w.querySelectorAll('[data-k]').forEach(s => s.classList.toggle('on', s.dataset.k === k));
       w.style.setProperty('--pc', (PING[k] || PING.look).c);
+      w.querySelector('.ci').src = img(k);
       w.querySelector('.t').textContent = (PING[k] || PING.look).t;
-      const dx = x - ox, dy = y - oy, d = Math.hypot(dx, dy), L = Math.min(d, R + 14), ln = w.querySelector('line');
-      ln.setAttribute('x2', d ? (dx / d * L).toFixed(1) : 0); ln.setAttribute('y2', d ? (dy / d * L).toFixed(1) : 0);
     }
     function show(d) {
       const P = PING[d.k]; if (!P) return;
@@ -94,8 +93,8 @@
     }
     function onMsg(d) {
       if (!d) return;
-      if (d.type === 'wheel') { const w = wheel(); ox = d.x; oy = d.y; w.style.left = d.x + 'px'; w.style.top = d.y + 'px'; w.classList.add('open'); sel('look', d.x, d.y); }
-      else if (d.type === 'move' && pw) sel(d.sel, d.x, d.y);
+      if (d.type === 'wheel') { const w = wheel(); ox = d.x; oy = d.y; w.style.left = d.x + 'px'; w.style.top = d.y + 'px'; w.classList.add('open'); sel('look'); }
+      else if (d.type === 'move' && pw) sel(d.sel);
       else if (d.type === 'end' && pw) pw.classList.remove('open');
       else if (d.type === 'show') show(d);
       else if (d.type === 'err') { const e = document.createElement('div'); e.className = 'er'; e.textContent = d.text || ''; e.style.left = d.x + 'px'; e.style.top = d.y + 'px'; root.appendChild(e); setTimeout(() => e.remove(), 1800); }

@@ -1978,7 +1978,7 @@ function cpingLine(ln) {
   } else if ((m = /^M (-?\d+) (-?\d+)$/.exec(ln)) && _cpDrag) {
     const l = cpingLocal(+m[1], +m[2]); if (!l) return;
     const dx = l.x - _cpDrag.x, dy = l.y - _cpDrag.y, d = Math.hypot(dx, dy);
-    _cpDrag.sel = d < 20 ? 'look' : PING_DIR8[Math.floor(((Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360 + 22.5) % 360) / 45) % 8];
+    _cpDrag.sel = d < 60 ? 'look' : PING_DIR8[Math.floor(((Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360 + 22.5) % 360) / 45) % 8];
     cpingSend({ type: 'move', sel: _cpDrag.sel, x: l.x, y: l.y });
   } else if (/^U /.test(ln) && _cpDrag) {
     const g = _cpDrag; _cpDrag = null; cpingSend({ type: 'end' });

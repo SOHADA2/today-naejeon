@@ -1339,7 +1339,7 @@ if (window.api.onChat) window.api.onChat(chatShow);
 //   모양 = 찍은 곳에 핑 그림이 위에서 떨어져 박히고 바닥에 물결(타원) 두 번 + 아래 작게 보낸 사람 · 2.6초 · 여러 개 동시에 · 무한 애니메이션 없음
 //   도배 제한(롤과 비슷하게) = 같은 핑 6초에 3번 · 모든 핑 5초에 6번 넘으면 10초 못 찍음 → main ping-send가 막고 남은 초를 알려 줌
 const PING = {
-  look: { t: '주의', c: '#f5b400', img: 'caution' },
+  look: { t: '신호', c: '#22a7f0', img: 'ping' },
   retreat: { t: '후퇴', c: '#e8344a', img: 'retreat' },
   push: { t: '밀어붙이기', c: '#20c97a', img: 'push' },
   omw: { t: '가는 중', c: '#22a7f0', img: 'omw' },
@@ -1350,7 +1350,7 @@ const PING = {
   enemy: { t: '적 시야', c: '#e8344a', img: 'enemy' },
 };
 const PING_DIR = ['retreat', 'push', 'omw', 'allin', 'assist', 'vision', 'missing', 'enemy'];   // 위에서 시계 방향 45°씩
-const PING_MS = 2600, PW_R = 50;
+const PING_MS = 2600, PW_R = 68;
 const pingImg = k => `../assets/ping/${(PING[k] || PING.look).img}.png`;
 const PINGS = [];   // 떠 있는 핑 {el, a, until}
 function pingSeats() { return [...el('view-lobby').querySelectorAll('.lb-body .seat')]; }
@@ -1399,13 +1399,14 @@ function pingShow(d) {
 if (window.api.onPing) window.api.onPing(pingShow);
 // 바퀴 — 롤처럼: 어두운 원 + 8칸 · 끄는 쪽 칸이 핑 색으로 밝아짐 · 가운데 = 기본 핑 · 아래에 고른 이름
 const PW = { on: false, x: 0, y: 0, a: null, sel: 'look' };
-function pingWheel() {
+const PING_MUTE = ["push","allin","vision","enemy"], PW_CR = 38;   // 가운데 원 반지름(이 안 = 신호)
+function pingWheel() {   // 인게임 바퀴 모양(사장님 캡처): 큰 반투명 원판을 가는 선 8개가 나눔 · 가운데 금색 테두리 어두운 원 = 고른 핑 그림·이름 + 「🖱 뒤로」
   let w = el('lb-pw');
   if (!w) {
     w = document.createElement('div'); w.id = 'lb-pw'; w.className = 'lb-pw';
     const seg = PING_DIR.map((k, i) => `<div class="pw-s" data-k="${k}" style="--r:${i * 45}deg;--pc:${PING[k].c}"></div>`).join('');
-    const ico = PING_DIR.map((k, i) => { const an = (i * 45 - 90) * Math.PI / 180; return `<img class="pw-i" data-k="${k}" src="${pingImg(k)}" style="left:${(Math.cos(an) * PW_R).toFixed(1)}px;top:${(Math.sin(an) * PW_R).toFixed(1)}px" alt="" draggable="false">`; }).join('');
-    w.innerHTML = `<div class="pw-bg"></div>${seg}<svg class="pw-ln"><line x1="0" y1="0" x2="0" y2="0"/></svg>${ico}<img class="pw-c" data-k="look" src="${pingImg('look')}" alt="" draggable="false"><b class="pw-t"></b>`;
+    const ico = PING_DIR.map((k, i) => { const an = (i * 45 - 90) * Math.PI / 180; return `<img class="pw-i${PING_MUTE.includes(k) ? ' mute' : ''}" data-k="${k}" src="${pingImg(k)}" style="left:${(Math.cos(an) * PW_R).toFixed(1)}px;top:${(Math.sin(an) * PW_R).toFixed(1)}px" alt="" draggable="false">`; }).join('');
+    w.innerHTML = `<div class="pw-bg"></div>${seg}${ico}<div class="pw-ctr"><img class="pw-ci" src="${pingImg('look')}" alt="" draggable="false"><b class="pw-t"></b><small><svg class="ms" viewBox="0 0 10 14"><rect x=".7" y=".7" width="8.6" height="12.6" rx="4.3" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M5 .7v5.2h4.3V5A4.3 4.3 0 0 0 5 .7z" fill="currentColor"/></svg>뒤로</small></div>`;
     el('view-lobby').appendChild(w);
   }
   return w;
@@ -1413,14 +1414,14 @@ function pingWheel() {
 function pingSel(mx, my) {
   const dx = mx - PW.x, dy = my - PW.y, d = Math.hypot(dx, dy);
   let sel = 'look';
-  if (d > 18) { const deg = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360 + 22.5) % 360; sel = PING_DIR[Math.floor(deg / 45) % 8]; }
+  if (d > PW_CR * 0.8) { const deg = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360 + 22.5) % 360; sel = PING_DIR[Math.floor(deg / 45) % 8]; }
+  if (sel === PW.sel && el('lb-pw').dataset.sel === sel) return;
   PW.sel = sel;
-  const w = el('lb-pw');
+  const w = el('lb-pw'); w.dataset.sel = sel;
   w.querySelectorAll('[data-k]').forEach(s => s.classList.toggle('on', s.dataset.k === sel));
   w.style.setProperty('--pc', PING[sel].c);
+  w.querySelector('.pw-ci').src = pingImg(sel);
   w.querySelector('.pw-t').textContent = PING[sel].t;
-  const ln = w.querySelector('line'), L = Math.min(d, PW_R + 12);
-  ln.setAttribute('x2', d ? (dx / d * L).toFixed(1) : 0); ln.setAttribute('y2', d ? (dy / d * L).toFixed(1) : 0);
 }
 function pingEnd(send) {
   if (!PW.on) return;
