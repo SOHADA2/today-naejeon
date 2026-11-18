@@ -406,7 +406,7 @@ async function lolInvTick() {
 //   초대 대상 = 판 상태 ids(팀 결성 때 이름 → puuid)에 있는 1팀·2팀·관전 · 친구 앱은 방장 초대 자동 수락(lolInvTick) → 자리 자동 이동(autoSeat)을 새 방에서 다시
 let _lolMadeFor = null;
 // 🗺️ v0.1.214 롤 방 번호(partyId) ↔ 앱이 만든 다리 — config.lolMade {partyId, map, at} (앱을 다시 켜도 기억)
-async function lolCurLobby() { const r = await bridge.lcuRaw('GET', '/lol-lobby/v2/lobby').catch(() => null); const d = lolOk(r) && r.data; return d ? { partyId: d.partyId || null, custom: !!(d.gameConfig && d.gameConfig.isCustom), ids: (d.members || []).map(m => m && m.puuid).filter(Boolean) } : null; }
+async function lolCurLobby() { const r = await bridge.lcuRaw('GET', '/lol-lobby/v2/lobby').catch(() => null); const d = lolOk(r) && r.data; return d ? { partyId: d.partyId || null, name: d.gameConfig && d.gameConfig.customLobbyName || null, custom: !!(d.gameConfig && d.gameConfig.isCustom), ids: (d.members || []).map(m => m && m.puuid).filter(Boolean) } : null; }
 async function lolRememberMade(map) { const cur = await lolCurLobby().catch(() => null); if (cur && cur.partyId && LOL_MAPS.includes(map)) { config.lolMade = { partyId: cur.partyId, map, at: Date.now() }; saveConfig(); } }
 const lolMadeMap = cur => cur && cur.partyId && config.lolMade && config.lolMade.partyId === cur.partyId ? config.lolMade.map : null;
 async function lolRemakeTick() {
@@ -421,21 +421,33 @@ async function lolRemakeTick() {
   const ids = s.ids || {}, me = account && account.puuid;
   const want = new Set([...(s.teamA || []), ...(s.teamB || []), ...(s.spectators || [])].map(n => fbKeyOf(n)));
   const puuids = [...new Set(Object.entries(ids).filter(([k, p]) => want.has(k) && p && p !== me && /^[0-9a-f-]{30,}$/i.test(p)).map(([, p]) => p))];
-  // 🗺️ v0.1.214(사장님: 게임 시작하면 내가 나가져 버림 → 「다리가 바뀔 때만 다시」) — 롤은 방을 만든 뒤 다리를 못 바꿔서 판마다 방을 닫고 다시 만들었음(방장은 방이 사라졌다 생기고 친구들은 튕겼다 다시 들어옴)
-  //   → 지금 사용자 설정 방이 있고 ① 드래프트 후픽 팀장이 고른 다리가 없거나(랜덤·밸런스·직접·안 고름) ② 고른 다리가 지금 방 다리와 같으면 = 방 그대로 · 그 판 다리 표시도 지금 방 다리로(모르면 표시 안 함) · 방에 없는 사람만 초대
-  //   지금 방 다리 = 앱이 그 방(partyId)을 만들 때 기억해 둔 것(config.lolMade) · 롤 대기방 정보엔 다리가 안 나옴(2026-11-18 gameConfig 전부 확인)
+  // 🗺️ v0.1.215(사장님 실기 2026-11-19: 롤 화면은 대기방 안에서 뒤로가기 → 설정 수정이 됨 → 들어가 있는 방에서 다리만 바꾸면 되지 않나)
+  //   확인: 들어가 있는 사용자 설정 방에 방 만들기 요청(POST /lol-lobby/v2/lobby · 롤 화면 changeQueueToCustom과 같음)을 다시 보내면 **방 번호(partyId) 그대로 다리만 바뀜**
+  //   (고고욥 방 도살자의 다리 → 코신 다리로 보내고 사장님이 혼자 게임 시작 = 벚꽃 맵) → 방을 닫지 않음 = 아무도 안 나가짐 · 판마다 다리 바뀜(v0.1.188의 원래 뜻)
+  //   지금 방 다리를 알면(앱이 만든 방 · config.lolMade) 같을 땐 안 보냄 · 바꾼 뒤 session.lolMapAt → 모두의 앱이 팀 자리 자동 이동을 한 번 더(설정을 다시 보내면 자리가 섞이는지 아직 모름 · 섞여도 바로잡게)
+  //   v0.1.214의 「다리가 바뀔 때만 방을 다시 만듦」 대신 · 롤 방이 없거나 일반 큐 대기방이면 예전처럼 새로 만듦
   if (lobbyPhase === 'Lobby' && lobbyCustom === true) {
     const cur = await lolCurLobby();
     if (cur && cur.custom) {
-      const have = lolMadeMap(cur), chosen = s.lolMapBy && LOL_MAPS.includes(s.lolMap) ? s.lolMap : null;
-      if (!chosen || chosen === have) {
-        if ((s.lolMap || null) !== (have || null)) await fbCas(`${RP()}/session`, x => x && x.teamsFormedAt === s.teamsFormedAt ? { value: Object.assign({}, x, { lolMap: have || null }) } : { err: '판이 바뀜' }).catch(() => null);
-        const miss = puuids.filter(p => !cur.ids.includes(p));
-        const n = miss.length ? await lolInvite(miss) : 0;
-        console.log('[lol] 팀 확정 → 롤 방 그대로 ·', have ? LOL_MAP_KO[have] : '다리 모름(앱이 만든 방 아님)', '· 방에 없는 사람 초대', n, '/', miss.length);
-        return;
-      }
-      console.log('[lol] 팀 확정 → 팀장이 고른 다리', LOL_MAP_KO[chosen], '≠ 지금 방', have ? LOL_MAP_KO[have] : '(모름)', '→ 다시 만듦');
+      const have = lolMadeMap(cur), target = LOL_MAPS.includes(s.lolMap) ? s.lolMap : null;
+      let did = '그대로';
+      if (target && target !== have) {
+        const r0 = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody(String(cur.name || room.name || 'TODAY IN-HOUSE').slice(0, 24), target)).catch(() => null);
+        const after = lolOk(r0) ? await lolCurLobby() : null;
+        if (after && after.custom && after.partyId === cur.partyId) {
+          did = '다리만 바꿈';
+          config.lolMade = { partyId: cur.partyId, map: target, at: Date.now() }; saveConfig();
+          await fbCas(`${RP()}/session`, x => x && x.teamsFormedAt === s.teamsFormedAt ? { value: Object.assign({}, x, { lolMapAt: Date.now() }) } : { err: '판이 바뀜' }).catch(() => null);   // 모두 팀 자리 다시 확인
+        } else {
+          did = '다리 바꾸기 실패 → 방 그대로';
+          console.log('[lol] 방 안에서 다리 바꾸기 실패', r0 && r0.status, after && after.partyId);
+          if ((s.lolMap || null) !== (have || null)) await fbCas(`${RP()}/session`, x => x && x.teamsFormedAt === s.teamsFormedAt ? { value: Object.assign({}, x, { lolMap: have || null }) } : { err: '판이 바뀜' }).catch(() => null);
+        }
+      } else if (!target && have) await fbCas(`${RP()}/session`, x => x && x.teamsFormedAt === s.teamsFormedAt ? { value: Object.assign({}, x, { lolMap: have }) } : { err: '판이 바뀜' }).catch(() => null);
+      const miss = puuids.filter(p => !cur.ids.includes(p));
+      const n = miss.length ? await lolInvite(miss) : 0;
+      console.log('[lol] 팀 확정 → 롤 방', did, '·', target ? LOL_MAP_KO[target] : '다리 정함 없음', '(전', have ? LOL_MAP_KO[have] : '모름', ') · 방에 없는 사람 초대', n, '/', miss.length);
+      return;
     }
   }
   if (lobbyPhase === 'Lobby') await bridge.lcuRaw('DELETE', '/lol-lobby/v2/lobby').catch(() => null);
@@ -527,7 +539,7 @@ function autoSeat() {
   if (config.autoSeat === false || inGame || lobbyPhase !== 'Lobby' || lobbyCustom !== true || lobbySeat == null || !s || s.phase !== 'teams' || !lastFormed || !me) return;
   const t = teamOf(s, me), want = t === 'teamA' ? 1 : t === 'teamB' ? 2 : (s.spectators || []).some(n => norm(n) === norm(me)) ? 'spec' : null;
   if (want == null) return;
-  const key = String(lastFormed);
+  const key = String(lastFormed) + '|' + (s.lolMapAt || '');   // v0.1.215 방 안에서 다리를 바꾸면(lolMapAt) 자리를 한 번 더 확인
   if (_seatDone === key) return;
   if (lobbySeat === want) { _seatDone = key; return; }
   if (_seatKey !== key) { _seatKey = key; _seatTries = 0; }
