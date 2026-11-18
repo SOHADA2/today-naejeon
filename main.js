@@ -1991,9 +1991,10 @@ async function cpingFire(k, fx, fy, x, y) {
   const err = pingRate(k);
   if (err) { cpingSend({ type: 'err', x, y, text: err }); return; }
   const at = Date.now(), ph = lobbyPhase || 'None';
-  cpingSend({ type: 'show', k, fx, fy, name: account.gameName || '' });
+  cpingSend({ type: 'show', k, fx, fy, name: account.gameName || '', vol: sfxVolNow() });
   await fbSet(`${RP()}/lobby/cping/${account.puuid}`, { k, fx: +fx.toFixed(4), fy: +fy.toFixed(4), ph, at }).catch(() => {});
 }
+const sfxVolNow = () => config.sfxOn === false ? 0 : (typeof config.sfxVol === 'number' ? config.sfxVol : 1);   // 🔊 ⚙ 효과음 크기(롤 클라 핑 소리)
 function cpingDiff(a, b) {
   const me = account && account.puuid, ph = lobbyPhase || 'None';
   for (const [k, m] of Object.entries(b || {})) {
@@ -2002,7 +2003,7 @@ function cpingDiff(a, b) {
     if (m.ph !== ph || !(cpingWin && cpingWin.isVisible())) continue;   // 같은 롤 화면에 있을 때만
     const fx = Number(m.fx), fy = Number(m.fy); if (!(fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1)) continue;
     const p = (presenceRaw || {})[k];
-    cpingSend({ type: 'show', k: m.k, fx, fy, name: p && p.name ? normName(p.name) : '' });
+    cpingSend({ type: 'show', k: m.k, fx, fy, name: p && p.name ? normName(p.name) : '', vol: sfxVolNow() });
   }
 }
 function pingDiff(a, b) {

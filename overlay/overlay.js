@@ -1382,6 +1382,15 @@ function pingPlace() {
     if (pt) { p.el.style.left = pt.x + 'px'; p.el.style.top = pt.y + 'px'; }
   }
 }
+// 🔊 v0.1.224 핑 소리 = 롤 게임 안 핑 소리 그대로(이 PC 롤 설치 파일 hud_global_audio.bnk에서 꺼냄 · 두 겹 섞음 · assets/ping/sfx) · ⚙ 효과음 크기
+const PING_SFX = {};
+function pingSound(k) {
+  try {
+    const v = VOL(); if (!v) return;
+    const a = PING_SFX[k] || (PING_SFX[k] = new Audio(`../assets/ping/sfx/${k}.ogg`));
+    const c = a.cloneNode(); c.volume = Math.min(1, 0.55 * v); c.play().catch(() => {});
+  } catch (_) {}
+}
 function pingShow(d) {
   if (!d || !PING[d.k] || !d.a || !/^[svc]$/.test(d.a.t)) return;
   const P = PING[d.k], fm = chatMember(d.from);
@@ -1391,6 +1400,7 @@ function pingShow(d) {
   e.querySelector('.nm').textContent = (fm ? fm.name : '') + (fm ? ' · ' : '') + P.t;
   chatLayer().appendChild(e);
   PINGS.push({ el: e, a: d.a, until: Date.now() + PING_MS });
+  pingSound(d.k);
   while (PINGS.length > 12) PINGS.shift().el.remove();
   pingPlace();
   e.animate([{ opacity: 1 }, { opacity: 1, offset: 0.82 }, { opacity: 0 }], { duration: PING_MS, fill: 'forwards' });

@@ -89,6 +89,7 @@
       root.appendChild(e);
       e.animate([{ opacity: 1 }, { opacity: 1, offset: 0.82 }, { opacity: 0 }], { duration: MS, fill: 'forwards' });
       setTimeout(() => e.remove(), MS + 100);
+      if (d.vol > 0) try { const a = new Audio(`../assets/ping/sfx/${d.k}.ogg`); a.volume = Math.min(1, 0.55 * d.vol); a.play().catch(() => {}); } catch (_) {}   // 🔊 롤 핑 소리(v0.1.224)
       const all = root.querySelectorAll('.wp'); if (all.length > 14) all[0].remove();
     }
     function onMsg(d) {
