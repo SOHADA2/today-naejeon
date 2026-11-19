@@ -175,8 +175,17 @@ module.exports = function makePotg(d) {
   // v0.1.67: 점수만 넘으면 거의 매 판 나왔음(10/28~29 15판 중 14판 · 어시 3~4개 「한타 설계」가 대부분) → 사장님: 쓸만한 장면 없으면 안 넣어도 됨(평범한 장면이 더 별로)
   //   종류별 「특별함」 문턱을 넘어야 후보: 한타 설계 = 어시 6+(5개면 에이스 + 살아남음 — 칼바람은 5어시 한타가 흔함) · 광역 이니시 = 적 4명+ 동시 적중(3명이면 CC 압도) · 버티기 = 체력 100%+ 받아내고 20% 아래까지 갔다 생존(또는 받은 피해 압도)
   //   · 세이브 = 실제로 아군을 살림 + 점수 350+ · 회복만 많은 「생명줄」은 힐 압도일 때만
+  // 🛡️ v0.1.234(사장님: 숨은 영웅이 생각보다 대단하게 안 느껴짐 · 말도 확실해야 함 → A안 「확실한 것만 영상」)
+  //   점검(서버 기록 38건): 버티기 14(딜러 조이·에코·케일도) · 한타 설계 10(6건이 어시 5 · 5킬 에이스 = 평범한 한타) · 이니시·세이브는 「그 팀 CC/힐 1위가 했겠지」 추측
+  //   롤은 누가 무엇을 했는지 안 알려줌(LCU 타임라인도 킬 위치·어시스트뿐 · 2026-11-20 확인) → **장면 + 그 종류의 판 전체 압도 기록(전체 1위 · 2위의 n배)**이 둘 다 있을 때만
+  //   · 광역 CC = CC 시간 1위 · 2위의 1.5배+ · 적 3명+이 1.5초 안에 한꺼번에 맞은 이긴 한타에 관여
+  //   · 버티기 = 받아낸 피해 1위 · 2위의 1.4배+ · 그 한타에서 체력 70%+만큼 맞고 30% 아래까지 몰렸다 생존
+  //   · 세이브 = 힐·보호막 1위 · 2위의 2배+ · 아군이 25% 아래로 떨어졌다 5초 안에 20%+ 회복(살아남음) / 생명줄 = 같은 압도 + 그 한타 아군 회복 합 100%+
+  //   · 한타 설계 = 그 한타 어시스트 7+(킬 1 이하) 또는 어시 5+ · 힐·보호막이나 CC 1위 1.5배+ · 딜량 1·2위는 뺌
+  //   글 = 확실한 사실만(추측 「아군 구함」·「적 n명 적중」 대신 「적 n명이 한꺼번에 맞은 한타」·「아군 ○○ 체력 12% → 45%」) · 판 전체 기록은 아래 지표 줄에만(태그에 겹쳐 쓰지 않음)
+  const top1 = (x, r) => !!(x && x.rank === 1 && x.ratio != null && x.ratio >= r);
   const heroSpecial = c => c.kind === 'play' ? c.P.assists >= 6 || (c.P.assists >= 5 && c.ace && !c.P.dead) : c.kind === 'engage' ? c.hitWho.length >= 4 || c.dom : c.kind === 'tank' ? (c.P.taken >= 100 && c.P.minHp != null && c.P.minHp <= 20) || c.dom : c.kind === 'save' ? c.score >= 350 || c.dom : c.dom;
-  const HERO_LABEL = { engage: ['광역 이니시', 'BIG ENGAGE'], tank: ['버티기', 'UNKILLABLE'], save: ['세이브', 'CLUTCH SAVE'], heal: ['생명줄', 'LIFELINE'], play: ['한타 설계', 'PLAYMAKER'] };
+  const HERO_LABEL = { engage: ['광역 CC', 'CROWD CONTROL'], tank: ['버티기', 'UNKILLABLE'], save: ['세이브', 'CLUTCH SAVE'], heal: ['생명줄', 'LIFELINE'], play: ['한타 설계', 'PLAYMAKER'] };
   const fmt = n => Math.round(n).toLocaleString('en-US');
   function steps(series) {   // 체력 기록 → 깎임/회복 조각 [{t, d}] (부활로 차오른 건 뺌)
     const out = [];
@@ -201,6 +210,7 @@ module.exports = function makePotg(d) {
     }
     return out;
   }
+  const fightTag = (k, d) => `한타 ${k}킬 ${d}데스로 이김`;
   function pickHero(raws, s, eog, potgName, opt) {
     const only = opt && opt.only ? new Set(opt.only.map(norm)) : null;
     const list = Object.values(raws || {}).filter(Boolean);
@@ -256,24 +266,22 @@ module.exports = function makePotg(d) {
           const P = per[n], S = st[n] || {}, involved = P.kills + P.assists;
           const base = { n, start, end, teamK, P };
           // 광역 이니시 — 누가 걸었는지는 롤이 안 알려줌 → 그 팀 CC 시간 1위(정산 없으면 우리 팀에서 제일 먼저 맞은 사람)
-          if (hits >= 3 && involved >= 1 && (S.cc ? S.cc.teamRank === 1 : n === firstMate)) {
-            const dom = !!(S.cc && S.cc.ratio >= 1.5);
-            const score = 75 * hits + (hits >= 5 ? 100 : 0) + 45 * teamK + 15 * slows + (dom ? 110 : S.cc && S.cc.rank === 1 ? 50 : 20) + (P.dead ? 0 : 30);
-            const tags = [`적 ${hits}명 동시 적중`]; if (slows >= 2) tags.push(`${slows}명 둔화`);
-            if (S.cc) tags.push(`${S.cc.rank === 1 ? 'CC 1위' : '팀 CC 1위'} ${Math.round(S.cc.v)}초`);
-            tags.push(`한타 ${teamK}킬`);
+          if (hits >= 3 && involved >= 1 && top1(S.cc, 1.5)) {
+            const dom = true;
+            const score = 75 * hits + (hits >= 5 ? 100 : 0) + 45 * teamK + 15 * slows + 110 + (P.dead ? 0 : 30);
+            const tags = [`적 ${hits}명이 한꺼번에 맞은 한타`]; if (slows >= 2) tags.push(`적 ${slows}명 느려짐`);
+            tags.push(fightTag(teamK, teamD));
             cands.push(Object.assign({}, base, { kind: 'engage', score, peak: hitAt, tags, hitWho, dom }));
           }
           // 버티기 — 한타 동안 깎인 체력 합(%)이 크고 살아남음
-          if (!P.dead && P.taken >= 70 && (teamK >= 2 || (P.minHp != null && P.minHp <= 15))) {
-            const dom = !!(S.tank && S.tank.ratio >= 1.4);
-            const score = 1.3 * Math.min(P.taken, 300) + (P.minHp <= 15 ? 90 : P.minHp <= 30 ? 45 : 0) + 45 * teamK + (dom ? 100 : S.tank && S.tank.rank === 1 ? 40 : 0) + (n === firstMate ? 35 : 0) + 0.4 * Math.min(P.healed, 150);
-            const tags = [`받아낸 피해 체력의 ${Math.round(P.taken)}%`]; if (P.minHp != null && P.minHp <= 30) tags.push(`최저 체력 ${P.minHp}%`);
-            if (S.tank && S.tank.rank === 1) tags.push(`받은 피해 1위 ${fmt(S.tank.v)}`); tags.push(`한타 ${teamK}킬`);
+          if (!P.dead && P.taken >= 70 && P.minHp != null && P.minHp <= 30 && top1(S.tank, 1.4)) {
+            const dom = true;
+            const score = 1.3 * Math.min(P.taken, 300) + (P.minHp <= 15 ? 90 : 45) + 45 * teamK + 100 + (n === firstMate ? 35 : 0) + 0.4 * Math.min(P.healed, 150);
+            const tags = [`체력 ${P.minHp}%까지 몰리고 생존`, `이 한타에서 체력 ${Math.round(P.taken)}%만큼 맞음`, fightTag(teamK, teamD)];
             cands.push(Object.assign({}, base, { kind: 'tank', score, peak: P.minAt, tags, dom }));
           }
           // 세이브·생명줄 — 누가 살렸는지는 롤이 안 알려줌 → 그 팀 힐·보호막 1위(정산 없으면 어시스트 2+·킬 1 이하)를 살린 사람으로 봄
-          if (S.sup ? S.sup.teamRank === 1 : (P.assists >= 2 && P.kills <= 1)) {
+          if (top1(S.sup, 2)) {
             const saved = []; let allyHeal = 0, bestRise = null;
             for (const m of mates) {
               if (m === n) continue; const Q = per[m]; allyHeal += Q.healed;
@@ -281,20 +289,21 @@ module.exports = function makePotg(d) {
               if (low && !Q.dead) { const rs = Q.rises.filter(r => r.t > low[0] && r.t <= low[0] + 5), up = rs.reduce((a, r) => a + r.d, 0); if (up >= 20) saved.push({ n: m, low: low[1], up, t: low[0], at: rs.slice().sort((a, b) => b.d - a.d)[0].t }); }   // at = 가장 크게 차오른 순간(정지 화면)
               for (const r of Q.rises) if (!bestRise || r.d > bestRise.d) bestRise = r;
             }
-            if (saved.length || allyHeal >= 60) {
-              const dom = !!(S.sup && S.sup.ratio >= 1.5);
-              const score = 90 * saved.length + 0.9 * Math.min(allyHeal, 300) + 40 * teamK - 40 * (ks.filter(k => side(norm(k.v)) === X).length) + (dom ? 120 : S.sup && S.sup.rank === 1 ? 50 : 0) + (P.dead ? 0 : 20);
-              const tags = []; if (saved.length) tags.push(`아군 ${saved.length}명 구함`); tags.push(`아군 회복 +${Math.round(allyHeal)}%`);
-              if (S.sup) tags.push(`힐·보호막 ${S.sup.rank === 1 ? '1위' : '팀 1위'} ${fmt(S.sup.v)}`);
+            if (saved.length || allyHeal >= 100) {
+              const dom = true;
+              const score = 90 * saved.length + 0.9 * Math.min(allyHeal, 300) + 40 * teamK - 40 * teamD + 120 + (P.dead ? 0 : 20);
               const sv = saved.sort((a, b) => b.up - a.up)[0];
+              const tags = sv ? [`아군 ${String((players[sv.n] || {}).name || sv.n).split('#')[0]} 체력 ${Math.round(sv.low)}% → ${Math.min(100, Math.round(sv.low + sv.up))}%`] : [`이 한타 아군 체력 회복 합계 ${Math.round(allyHeal)}%`];
+              tags.push(fightTag(teamK, teamD));
               cands.push(Object.assign({}, base, { kind: sv ? 'save' : 'heal', score, peak: sv ? sv.at : bestRise ? bestRise.t : P.minAt, tags, ally: sv || null, dom }));
             }
           }
           // 한타 설계 — 킬은 안 먹고 어시스트로 판을 만듦 · 칼바람은 한타가 잦아 어시스트 3개가 흔함 → 점수 낮게, 그 판 딜량 1·2위(딜러)는 깎음
-          if (P.assists >= 3 && P.kills <= 1) {
-            const score = 60 * P.assists + 35 * teamK + (ace ? 70 : 0) + (P.dead ? 0 : 20) - ((dmgRank[n] || 9) <= 2 ? 120 : 0);
+          const playDom = top1(S.sup, 1.5) || top1(S.cc, 1.5);
+          if (P.kills <= 1 && (dmgRank[n] || 9) > 2 && (P.assists >= 7 || (P.assists >= 5 && playDom))) {
+            const score = 60 * P.assists + 35 * teamK + (ace ? 70 : 0) + (P.dead ? 0 : 20) + (playDom ? 80 : 0);
             const myKs = ks.filter(k => (k.a || []).some(a => norm(a) === n) || norm(k.k) === n);
-            cands.push(Object.assign({}, base, { kind: 'play', score, ace, peak: myKs[myKs.length - 1].t, tags: [`어시스트 ${P.assists}`, `한타 ${teamK}킬`].concat(ace ? ['에이스'] : []), myKs }));
+            cands.push(Object.assign({}, base, { kind: 'play', score, ace, dom: true, peak: myKs[myKs.length - 1].t, tags: [`이 한타 어시스트 ${P.assists}`, fightTag(teamK, teamD)].concat(ace ? ['에이스'] : []), myKs }));
           }
         }
       }
@@ -306,7 +315,7 @@ module.exports = function makePotg(d) {
     const avoid = opt && Array.isArray(opt.avoid) ? opt.avoid : null;
     // v0.1.66: 영상 구간만 비교하면 같은 한타의 「이니시」(바로 앞 장면)가 빠져나감(10/29 이니시 525~537 · 팟지 537~557, 한타는 527~555 하나) → 한타 전체가 팟지 구간과 겹쳐도 건너뜀
     const clash = c => { if (!avoid) return false; const [f, t] = clipOf(c); return (f < avoid[1] && t > avoid[0]) || (c.start < avoid[1] && c.end > avoid[0]); };
-    const c = cands.find(x => x.score >= (x.dom ? HERO_MIN_DOM : HERO_MIN) && heroSpecial(x) && !clash(x));
+    const c = cands.find(x => x.dom && x.score >= HERO_MIN_DOM && !clash(x));   // v0.1.234 판 전체 압도 기록이 있는 후보만(heroSpecial 대신)
     if (!c) return null;
     const p = players[c.n] || {}, S = st[c.n] || {};
     const name = (s.teamA || []).concat(s.teamB || []).find(x => norm(x) === c.n) || String(p.name || c.n).split('#')[0];

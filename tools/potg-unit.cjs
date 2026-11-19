@@ -49,7 +49,7 @@ const raw = (hp, events) => { const o = {}; for (const p of pl5) o[p.name] = { n
 let ev = [K(601,'나2','가1',['나1','나3']), K(603,'나4','가2',['나1']), K(605,'나2','가3',['나1','나5'])];
 let hp = { 가1:[[590,100],[598,80],[601,0]], 가2:[[590,100],[598.5,70],[603,0]], 가3:[[590,100],[599,75],[605,0]] };
 r = P.pickHero(raw(hp, ev), s5, eog5({ 나1:{ cc:60 } }), '나2');
-check('이니시', r && r.kind==='engage' && r.name==='나1' && r.hits.length===3 && r.tags[0]==='적 3명 동시 적중', r);
+check('이니시', r && r.kind==='engage' && r.name==='나1' && r.hits.length===3 && r.tags[0]==='적 3명이 한꺼번에 맞은 한타', r);
 check('이니시 구간', r && r.clipFrom<=598 && r.clipTo>=601 && r.clipTo-r.clipFrom<=13, r && [r.clipFrom,r.clipTo,r.peak]);
 check('판 지표', r && r.stats.some(x=>x.label==='CC 건 시간' && x.ratio===6), r && r.stats);
 // 2) 버티기: 나3이 체력 받아내고 생존(광역 없음)
@@ -64,10 +64,14 @@ check('세이브', r && r.kind==='save' && r.name==='가5' && r.ally && r.ally.n
 // 4) 지는 한타·작은 장면은 안 뽑음
 ev = [K(801,'나1','가1')];
 check('없음(작음)', P.pickHero(raw({}, ev), s5, eog5(), '나1') === null);
-// 5) 한타 설계: 어시 4는 평범(v0.1.67 안 뽑음) · 어시 6은 뽑음
+// 5) 한타 설계: 어시 4는 평범(v0.1.67 안 뽑음) · v0.1.234 어시 6도 압도 기록 없으면 안 뽑음 · 어시 7은 뽑음
 ev = [K(901,'가1','나1',['가3']), K(903,'가2','나2',['가3']), K(905,'가1','나3',['가3']), K(907,'가4','나4',['가3'])];
 check('한타 설계 어시4 = 없음', P.pickHero(raw({}, ev), s5, eog5(), '가1') === null);
 ev = ev.concat([K(909,'가2','나5',['가3']), K(911,'가4','나1',['가3'])]);
+check('한타 설계 어시6 = 없음', P.pickHero(raw({}, ev), s5, eog5(), '가1') === null);
+ev = ev.concat([K(912,'가1','나2',['가3'])]);
 r = P.pickHero(raw({}, ev), s5, eog5(), '가1');
-check('한타 설계', r && r.kind==='play' && r.name==='가3' && r.assists.length===6, r);
+check('한타 설계', r && r.kind==='play' && r.name==='가3' && r.assists.length===7 && r.tags[0]==='이 한타 어시스트 7', r);
+// 6) v0.1.234 버티기·세이브도 압도 기록이 없으면 안 뽑음(추측 금지)
+check('세이브 힐 압도 없음 = 없음', (() => { const e2 = [K(701,'가1','나1',['가5']), K(703,'가2','나2',['가5'])]; const r2 = P.pickHero(raw({ 가4:[[690,100],[699,45],[700,20],[702,65]] }, e2), s5, eog5({ 가5:{ healMates:9000 }, 나1:{ healMates:6000 } }), '가1'); return !r2 || r2.kind !== 'save'; })());
 console.log(`통과 ${pass} · 실패 ${fail}`); process.exit(fail ? 1 : 0);

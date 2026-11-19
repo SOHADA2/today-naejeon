@@ -173,7 +173,7 @@ function playHeroVideo(my) {
     const series = h.kind === 'save' && h.ally ? h.ally.hp : h.hp;
     const showMeter = (h.kind === 'tank' || h.kind === 'save') && series && series.length;
     if (showMeter) {
-      meter.innerHTML = `<div class="row"><small>${h.kind === 'tank' ? '받아낸 피해' : '살린 아군'}</small><b class="big num" id="pg-mv">${h.kind === 'tank' ? '0%' : esc(who.name)}</b></div>`
+      meter.innerHTML = `<div class="row"><small>${h.kind === 'tank' ? '이 한타 맞은 양' : '위기의 아군'}</small><b class="big num" id="pg-mv">${h.kind === 'tank' ? '0%' : esc(who.name)}</b></div>`
         + `<div class="pg-hpbar">${h.kind === 'save' ? av(who.championId, 'pg-av mini') : ''}<div class="trk"><i class="ghost"></i><i class="cur"></i></div><span class="num" id="pg-hpn"></span></div>`;
       go(meter, [{ opacity: 0, transform: 'translateX(30px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 420, delay: 400 });
     }
