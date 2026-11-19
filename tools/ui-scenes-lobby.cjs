@@ -1,6 +1,6 @@
 // 🧪 대기실·방 목록 캡처 장면 만들기(가짜 이름) — 왼쪽 창(overlay)을 고친 뒤 화면 검사에 씀(v0.1.196 · 다른 PC에서도 같은 검사를 돌리게 리포에 둠)
 // 사용(리포 루트 · 이 PC 셸은 ELECTRON_RUN_AS_NODE 끄고 = env -u ELECTRON_RUN_AS_NODE):
-//   node tools/ui-scenes-lobby.cjs <장면.json>                                  ← 장면 파일 만들기(108장면: 302·402px × 54가지 상태 · 서버·롤 연결 없음)
+//   node tools/ui-scenes-lobby.cjs <장면.json>                                  ← 장면 파일 만들기(116장면: 302·402px × 58가지 상태 · 서버·롤 연결 없음)
 //   ./node_modules/electron/dist/electron.exe tools/ui-shot.cjs <장면.json> <출력 폴더>    ← PNG + 글자 겹침·잘림 검사(「TODAY IN-HOUSE」 머리 배경 글자 겹침·잘림은 원래 그런 것)
 //   ./node_modules/electron/dist/electron.exe tools/ui-errcheck.cjs <장면.json>            ← 렌더러 실행 오류(다시 그리기·방장 여부 뒤집기까지)
 // 장면 이름: h- 방장 · m- 팀원 · x- 그 밖(롤 초대·디스코드 안내·12명·오류 줄·오늘 순위·방 목록) · 끝 숫자 = 창 폭
@@ -48,6 +48,13 @@ for (const w of [302, 402]) {
   S.push(Object.assign(sc('x-today-' + w, w, 6, 2, 'balance'), { stub: { getToday: today } }));                         // 오늘 순위
   S.push({ name: 'x-rooms-empty-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms: [], room: null, ready: true }) + ");" + wait });
   S.push({ name: 'x-rooms-list-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms, room: null, ready: true }) + ");" + wait });
+  // 🪙 선픽 동전(v0.1.229 · 동전만: 튕김 → 빙글 → 결과 면에서 딱 멈춤) — 멈춘 뒤 화면(1팀 = 3D · 2팀 = 2D 동전으로 강제) · 도는 중 한 장(2D) · 16자 이름
+  const DRAFT = first => ({ phase: 'draft', mode: 'draft', captains: { teamA: NM[0], teamB: NM[5] }, teamA: [NM[0]], teamB: [NM[5]], pool: [NM[1], NM[2], NM[3], NM[4]], order: ['teamA', 'teamB', 'teamB', 'teamA'], pickIdx: 0, teamSize: 3, firstPick: first });
+  const coin = (name, first, force2d, ms, h) => ({ name: name + '-' + w, page: 'overlay', w, h: h || 720, audit: 1, js: pre + (force2d ? "if (window.coin3d) window.coin3d.ok = false; " : "if (window.coin3d && window.coin3d.ok) await window.coin3d.preload(); ") + "{ const s = " + JSON.stringify(DRAFT(first)) + "; s.draftStartedAt = Date.now(); s.turnEndsAt = Date.now() + 33800; __emit('session', { session: s, myName: " + JSON.stringify(NM[0]) + ", isHost: true }); } await new Promise(r=>setTimeout(r," + ms + "));", wait: 60 });
+  S.push(coin('x-coin-3d-t1', 'teamA', false, 2500));
+  S.push(coin('x-coin-2d-t2', 'teamB', true, 2500));
+  S.push(coin('x-coin-2d-spin', 'teamB', true, 1000));
+  S.push(coin('x-coin-2d-short', 'teamA', true, 2500, 576));
   // 🚀 처음 켠 사람(v0.1.227) — 롤 로그인 전 카드의 「롤 클라이언트 켜기」 버튼·켜는 중 · 서버 연결 안 됨 · 방 만드는 칸 · 사용법(따라 하기 8단계 + 끝 카드 + 자세한 사용법 7쪽)
   S.push({ name: 'x-login-launch-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('start'," + JSON.stringify({ lol: 'off', launch: true, launching: false }) + ");" + wait });
   S.push({ name: 'x-login-launching-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('start'," + JSON.stringify({ lol: 'off', launch: false, launching: true }) + ");" + wait });

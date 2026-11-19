@@ -1,51 +1,47 @@
-// ── 🪙 선픽 동전 던지기 3D — 사미라 Taunt(v0.1.21) ─────────────────────────────────
-// 사미라가 동전을 위로 튕겼다 받고(0.1~0.8초) → 2.93초에 화면(카메라) 쪽으로 튕겨 날림 → 동전이 카메라 앞에 멈춰
-// 빙글 돌다 결과 면(1팀 파랑/2팀 빨강)을 보여줌. 동전 위치 = 모델의 「Coin」 뼈 그대로(Taunt에 동전 경로가 들어 있음).
-// 모델 = assets/models/samira-taunt.glb(원본 12.7MB에서 Taunt만 남기고 meshopt 압축 1.1MB · 만드는 법 CLAUDE.md)
-// ⚠️ 한 번만 재생(약 5.6초) 후 렌더러를 버림 — 투명 창에서 계속 그리면 CPU를 먹음(성능 규칙). 3D가 안 되면 overlay.js가 2D 동전으로.
+// ── 🪙 선픽 동전 던지기 3D — 동전만(v0.1.229) ─────────────────────────────────
+// 사장님: 사미라 3D 모델이 별로 → 동전만 나와서 튕긴 다음 회전하다가 딱 멈춘 순간(어차피 동전으로 확인하는 것)
+//   아래에 비스듬히 누워 있던 동전이 「틱!」 튕겨 올라 빙글빙글 돌며 화면 쪽으로 다가옴 → 꼭대기(화면 가운데)에서 결과 면(1팀 파랑/2팀 빨강)이 정면을 본 채 「착」 멈춤
+//   → 멈춘 뒤엔 살짝 커졌다 가라앉고 팀 색 빛만 은은하게(흔들림·섬광·유리 금 없음 — v0.1.23~27의 화면에 꽂히는 연출은 뺌)
+//   예전(v0.1.21~228) = 라이엇 사미라 모델(assets/models/samira-taunt.glb)의 Taunt 동작이 동전을 던짐 → 모델·GLTF 불러오기 전부 없앰(동전 그림 = 사장님이 만든 assets/coin-t1·t2.webp)
+//   시각(초): FLICK 튕김 · STOP 멈춤 — 소리 파일(assets/sfx/coin-flip.ogg = tools/coin-flip-sfx.py)·2D 동전(overlay.js playCoin)과 같은 값 · 바꾸면 세 곳 같이
+// ⚠️ 한 번만 재생 후 렌더러를 버림 — 투명 창에서 계속 그리면 CPU를 먹음(성능 규칙). 3D가 안 되면 overlay.js가 2D 동전으로.
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
-const FLICK = 2.93;        // 정면으로 튕기는 순간(초) — Coin 뼈 속도로 잰 값
-const CATCH_AT = 3.12;     // 날아오던 동전을 붙잡아 화면 쪽으로 가속
-const SHOW_AT = 3.40;      // 💥 동전이 화면(유리)에 꽂히는 순간 = 결과 면 정면 + 금 가는 효과·쨍그랑·결과 글자
-const TOSS = [0.1, 0.8];   // 처음 위로 튕겼다 받는 구간(빙글빙글)
-const INTRO = 0.4;         // 등장: 첫 자세로 서서히 나타난 뒤 Taunt 시작(바로 튕기면 누가 왜 나왔는지 볼 틈이 없었음) — 위 시각들은 Taunt 기준, 실제 = INTRO + 값
+const FLICK = 0.34;        // 튕기는 순간(초)
+const STOP = 1.62;         // 결과 면에서 딱 멈추는 순간
+const TURNS = 5.5;         // 튕김~멈춤 사이 최소 회전 수(실제 = 결과 면에 맞게 반 바퀴 안에서 더함)
+const LIE = -1.12;         // 처음 누워 있는 각도(라디안 · 위에서 비스듬히 보이는 타원)
 
-let _gltf = null, _loading = null, _tex = null;
+let _tex = null, _loading = null;
 function load() {
-  if (_gltf) return Promise.resolve(_gltf);
+  if (_tex) return Promise.resolve(_tex);
   if (_loading) return _loading;
   const tl = new THREE.TextureLoader();
   const tex = f => new Promise((ok, no) => tl.load(f, t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; ok(t); }, undefined, no));
-  _loading = Promise.all([
-    new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync('../assets/models/samira-taunt.glb'),
-    tex('../assets/coin-t1.webp'), tex('../assets/coin-t2.webp'),
-  ]).then(([g, t1, t2]) => { _gltf = g; _tex = { t1, t2 }; return g; });
+  _loading = Promise.all([tex('../assets/coin-t1.webp'), tex('../assets/coin-t2.webp')]).then(([t1, t2]) => { _tex = { t1, t2 }; return _tex; });
   _loading.catch(() => { _loading = null; });
   return _loading;
 }
 
 // 금화: 두께 있는 원기둥 — 앞면(+Z)=1팀 동전 그림, 뒷면(-Z)=2팀, 옆=금색 테
-function makeCoin() {
-  const R = 0.075, TH = 0.012;
-  const geo = new THREE.CylinderGeometry(R, R, TH, 56, 1);
+function makeCoin(R) {
+  const TH = R * 0.16;
+  const geo = new THREE.CylinderGeometry(R, R, TH, 64, 1);
   geo.rotateX(Math.PI / 2);   // 윗면(+Y) → +Z(카메라 쪽)
   const rim = new THREE.MeshStandardMaterial({ color: 0xd9a441, metalness: 0.85, roughness: 0.32, emissive: 0x3a2508 });
   const f1 = new THREE.MeshBasicMaterial({ map: _tex.t1 }), f2 = new THREE.MeshBasicMaterial({ map: _tex.t2 });
   const mesh = new THREE.Mesh(geo, [rim, f1, f2]);
-  const spin = new THREE.Group(); spin.add(mesh);   // 뒤집기 회전(X축)
-  const pos = new THREE.Group(); pos.add(spin);      // 위치
+  const spin = new THREE.Group(); spin.add(mesh);   // 뒤집기 회전(X축) + 날아가는 동안 축 흔들림(Z)
+  const pos = new THREE.Group(); pos.add(spin);      // 위치·크기
   return { pos, spin, mesh };
 }
 
-const ease = { out3: u => 1 - Math.pow(1 - u, 3), out2: u => 1 - (1 - u) * (1 - u), in: u => Math.pow(u, 2.4), outBack: u => { const c = 1.6; return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2); } };
 const clamp01 = v => Math.max(0, Math.min(1, v));
+const TAU = Math.PI * 2;
 
-// stage = 캔버스를 넣을 상자 · A = 1팀 선픽 여부 · onShow = 결과 면이 멈춘 순간(글자 띄우기) · dur = 전체 길이(ms)
-async function play({ stage, A, onShow, dur }) {
-  const g = await load();
+// stage = 캔버스를 넣을 상자 · A = 1팀 선픽 여부 · onStart = 시계가 도는 순간(소리 시작) · onShow({x,y,r}) = 결과 면이 멈춘 순간(무대 안 px) · dur = 전체 길이(ms)
+async function play({ stage, A, onStart, onShow, dur }) {
+  await load();
   const W = Math.max(200, stage.clientWidth), H = Math.max(240, stage.clientHeight);
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -56,69 +52,55 @@ async function play({ stage, A, onShow, dur }) {
   const scene = new THREE.Scene();
   scene.add(new THREE.HemisphereLight(0xfff4dc, 0x203040, 1.6));
   const key = new THREE.DirectionalLight(0xffffff, 2.4); key.position.set(1.5, 3, 4); scene.add(key);
-  const teamCol = A ? 0x4aa8ff : 0xff5a6e;
-  const glow = new THREE.PointLight(teamCol, 0, 1.6); scene.add(glow);
+  const glow = new THREE.PointLight(A ? 0x4aa8ff : 0xff5a6e, 0, 6); scene.add(glow);
 
-  const root = g.scene; root.position.set(0, 0, 0); scene.add(root);
-  const mixer = new THREE.AnimationMixer(root);
-  const act = mixer.clipAction(g.animations.find(a => a.name === 'Taunt') || g.animations[0]);
-  act.reset(); act.setLoop(THREE.LoopOnce, 1); act.clampWhenFinished = true; act.play();
-  let bone = null; root.traverse(o => { if (o.name === 'Coin') bone = o; });
-
-  // 카메라: 사미라 정면(동전이 날아오는 쪽)·살짝 위 — 위로 튕긴 동전(2.6m)까지 보이게
-  const cam = new THREE.PerspectiveCamera(35, W / H, 0.05, 50);
-  const look = new THREE.Vector3(0, 1.36, 0);
-  const camFrom = new THREE.Vector3(0.1, 1.55, 5.05), camTo = new THREE.Vector3(0.08, 1.52, 4.85);   // 발끝~위로 튕긴 동전 꼭대기(2.62m) 전부(세로 ±1.5m) · 아주 살짝만 밀고 들어감
-  cam.position.copy(camFrom); cam.lookAt(look);
-  const dir = look.clone().sub(cam.position).normalize();
-  const holdAt = () => cam.position.clone().add(dir.clone().multiplyScalar(0.95)).add(new THREE.Vector3(0, 0.03, 0));   // 결과 면이 멈출 자리(카메라 바로 앞)
-  let hold = holdAt();   // 결과 면이 멈출 자리(카메라 바로 앞)
-
-  const coin = makeCoin(); scene.add(coin.pos);
-  coin.pos.quaternion.copy(cam.quaternion);   // 면이 카메라를 보게(결과 면 = spin 각도로)
-  const wp = new THREE.Vector3(), from = new THREE.Vector3();
-  let ang = 0, last = -INTRO, caught = false, shown = false, angFrom = 0, angTo = 0;
+  // 카메라는 고정(정면) · 보이는 크기에서 동전 크기·자리를 정함 → 창 폭(300~430)·높이가 달라도 같은 비율
+  const FOV = 30, CZ = 6;
+  const cam = new THREE.PerspectiveCamera(FOV, W / H, 0.1, 40);
+  cam.position.set(0, 0, CZ); cam.lookAt(0, 0, 0);
+  const visH = 2 * CZ * Math.tan(FOV * Math.PI / 360), visW = visH * W / H;
+  const R = Math.min(visW * 0.27, visH * 0.2);                 // 멈췄을 때 지름 = 창 폭의 54%쯤(낮은 창이면 높이의 40%)
+  const p0 = new THREE.Vector3(0, -visH * 0.36, -5.5);         // 처음: 아래쪽 · 멀리(작게)
+  const p1 = new THREE.Vector3(0, visH * 0.07, 0);             // 멈출 자리: 가운데보다 살짝 위(아래에 결과 글자)
+  const drift = (Math.random() < 0.5 ? -1 : 1) * visW * (0.05 + Math.random() * 0.04);   // 날아가는 동안 옆으로 살짝 휘었다 돌아옴(매번 조금씩 다르게)
+  const coin = makeCoin(R); scene.add(coin.pos);
   const finalAng = A ? 0 : Math.PI;
+  const ang0 = LIE + (Math.random() < 0.5 ? Math.PI : 0);      // 처음 보이는 면은 무작위(결과와 상관없음)
+  const angEnd = finalAng + TAU * Math.ceil((ang0 + TAU * TURNS - finalAng) / TAU);   // 같은 빠르기로 돌다가 멈추는 순간 정확히 결과 면
+  let shown = false, started = false;
 
   const t0 = performance.now();
   await new Promise(done => {
     renderer.setAnimationLoop(() => {
-      // 🎥 녹화용: window.__coinClock()(초)가 있으면 그 시각으로 그림(프레임 단위로 정확히 캡처) — 평소엔 없음
-      const now = window.__coinClock ? t0 + window.__coinClock() * 1000 : performance.now(), t = (now - t0) / 1000 - INTRO, dt = Math.max(0, Math.min(0.05, t - last)); last = t;
-      mixer.setTime(Math.max(0, Math.min(t, act.getClip().duration))); root.updateMatrixWorld(true);
-      if (t <= CATCH_AT) { cam.position.lerpVectors(camFrom, camTo, ease.out3(clamp01(Math.max(0, t) / FLICK))); cam.lookAt(look); dir.copy(look).sub(cam.position).normalize(); coin.pos.quaternion.copy(cam.quaternion); hold = holdAt(); }
-      if (t < CATCH_AT) {
-        if (bone) bone.getWorldPosition(wp); coin.pos.position.copy(wp);
-        const w = (t > TOSS[0] && t < TOSS[1]) ? 26 : t >= FLICK ? 34 : 0;   // 튕긴 동안만 빙글
-        ang += w * dt;
-        if (t >= TOSS[1] && t < FLICK) ang += (Math.round(ang / Math.PI) * Math.PI - ang) * 0.2;   // 손에 쥐면 면이 보이게 정리
-      } else {
-        if (!caught) { caught = true; from.copy(coin.pos.position); angFrom = ang; angTo = ang + Math.PI * 6 + ((finalAng - ang) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2); }
-        const u = clamp01((t - CATCH_AT) / (SHOW_AT - CATCH_AT));
-        coin.pos.position.lerpVectors(from, hold, ease.in(u));               // 점점 빨라지며 화면으로 돌진
-        ang = angFrom + (angTo - angFrom) * ease.out2(u);                    // 돌며 날아와 꽂히는 순간 결과 면이 정면
-        if (u >= 1) {
-          const k = t - SHOW_AT;
-          coin.pos.position.copy(hold);                                        // 유리에 박힘(떠다니지 않음)
-          const sq = 1 - 0.07 * Math.exp(-k * 14) * Math.cos(k * 40);          // 꽂힐 때 「턱」 움찔
-          coin.pos.scale.setScalar(sq);
-          coin.spin.rotation.y = Math.sin(k * 22) * 0.1 * Math.exp(-k * 5);    // 박힌 채 바르르 떨다 멈춤
-          glow.intensity = 2.2 * Math.exp(-k * 1.8) + 0.35;                    // 「쾅」 빛 → 은은하게
-          if (!shown) { shown = true;
-            // 화면 좌표(무대 안 px)로 넘겨줌 → overlay가 그 자리에 금·연기·파편
-            const p = hold.clone().project(cam), e = hold.clone().add(new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion).multiplyScalar(0.075)).project(cam);
-            const x = (p.x + 1) / 2 * W, y = (1 - p.y) / 2 * H, r = Math.abs((e.x - p.x) / 2 * W);
-            try { onShow && onShow({ x, y, r }); } catch (_) {} }
-        }
-        glow.position.copy(coin.pos.position).add(dir.clone().multiplyScalar(-0.25));
+      // 🎥 녹화·캡처용: window.__coinClock()(초)가 있으면 그 시각으로 그림(프레임 단위로 정확히) — 평소엔 없음
+      const now = window.__coinClock ? t0 + window.__coinClock() * 1000 : performance.now(), t = (now - t0) / 1000;
+      if (!started) { started = true; try { onStart && onStart(); } catch (_) {} }
+      if (t < FLICK) {   // 누워서 기다림 → 튕기기 직전 살짝 눌림
+        const d = clamp01((t - (FLICK - 0.13)) / 0.13);
+        coin.pos.position.copy(p0); coin.pos.position.y -= visH * 0.012 * d * d;
+        coin.pos.scale.setScalar(1);
+        coin.spin.rotation.set(ang0 + 0.06 * d, 0, 0);
+      } else if (t < STOP) {   // 튕겨 올라 빙글 — 포물선 꼭대기(= 멈출 자리)까지 점점 느리게 올라옴 · 회전은 같은 빠르기
+        const u = (t - FLICK) / (STOP - FLICK), k = 2 * u - u * u;
+        coin.pos.position.lerpVectors(p0, p1, k); coin.pos.position.x += drift * Math.sin(Math.PI * u);
+        coin.pos.scale.setScalar(1);
+        coin.spin.rotation.set(ang0 + (angEnd - ang0) * u, 0, 0.2 * Math.sin(u * 10) * (1 - u));   // 축이 살짝 흔들리다 멈출 때 반듯해짐
+      } else {   // 딱 멈춤 — 결과 면 정면 · 살짝 커졌다 가라앉음(흔들림 없음) · 팀 색 빛
+        const k = t - STOP;
+        coin.pos.position.copy(p1);
+        coin.pos.scale.setScalar(1 + 0.085 * Math.exp(-k * 13));
+        coin.spin.rotation.set(finalAng, 0, 0);
+        glow.position.set(p1.x, p1.y + R * 0.4, 1.4);
+        glow.intensity = 5 * Math.exp(-k * 2.2) + 1.2;
+        if (!shown) { shown = true;
+          const p = p1.clone().project(cam), e = p1.clone().add(new THREE.Vector3(R, 0, 0)).project(cam);
+          try { onShow && onShow({ x: (p.x + 1) / 2 * W, y: (1 - p.y) / 2 * H, r: Math.abs((e.x - p.x) / 2 * W) }); } catch (_) {} }
       }
-      coin.spin.rotation.x = ang;
       renderer.render(scene, cam);
       if (now - t0 >= dur) done();
     });
   });
   renderer.setAnimationLoop(null);
-  scene.remove(root); mixer.stopAllAction(); mixer.uncacheRoot(root);
   coin.mesh.geometry.dispose(); [].concat(coin.mesh.material).forEach(m => m.dispose());
   renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
 }
@@ -128,10 +110,10 @@ function canWebGL() { try { const c = document.createElement('canvas'); return !
 
 window.coin3d = {
   ok: canWebGL(),
-  ready: () => !!_gltf,
+  ready: () => !!_tex,
   preload: () => load().then(() => true, () => false),
   play,
-  INTRO, FLICK, CATCH_AT, SHOW_AT,
+  FLICK, STOP,
 };
-// 드래프트 시작 순간 바로 재생할 수 있게 미리 받아둠(앱 켠 뒤 잠깐 쉬었다가 — 첫 화면 그리기 방해 안 하게)
+// 드래프트 시작 순간 바로 재생할 수 있게 동전 그림을 미리 받아둠(앱 켠 뒤 잠깐 쉬었다가 — 첫 화면 그리기 방해 안 하게)
 if (window.coin3d.ok) setTimeout(() => window.coin3d.preload(), 2500);

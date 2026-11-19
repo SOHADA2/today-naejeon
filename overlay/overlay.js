@@ -343,88 +343,17 @@ function updateDraftTimer() {
 setInterval(updateDraftTimer, 250);
 
 // ── 🪙 선픽 동전 던지기 — 드래프트가 막 시작됐으면 모두에게 한 번 재생(main COIN_MS 동안 픽 잠김) ──────────
-// 동전이 「띵!」 튀어 오름 → 빙글빙글 돌다 떨어짐 → 착지(짤랑) → 결과 면 확대 → 「1팀 선픽!」. 면 = assets/coin-t1·t2.webp. 결과 면은 서버의 firstPick 그대로.
-const COIN_MS = 6000;   // main.js COIN_MS와 같게(이 시간 동안 픽 잠김) — 3D 사미라 Taunt(약 5초)에 맞춤
-let _coinShown = null, _ac = null;
-// 🔊 동전 효과음 전체(WebAudio 합성·에셋 없음) — 연출 시작 시각 t0 기준으로 한 번에 예약(setTimeout보다 정확)
-// 튕김(엄지 딱+묵직한 금속 울림) → 회전 바람 소리(돌수록 느려짐) → 착지 쿵·쨍·통통 → 누운 채 다르륵(점점 빨라지다 멈춤) → 결과 쾅+팀 화음
-// 타이밍 = playCoin과 같은 값(FLY·LAND·ZOOM). 미리보기는 같은 함수를 OfflineAudioContext로 그려 파일로 만듦
-const COIN_SFX_T = { FLY: 0.44, LAND: 1.84, ZOOM: 2.79 };
-// 🔊 효과음 부품(마스터·압축·리미터·잔향 + 소리 조각) — 동전·드래프트 픽이 같이 씀
-function sfxKit(ac) {
-  const sr = ac.sampleRate;
-  const master = ac.createGain(); master.gain.value = 0.42 * (ac instanceof OfflineAudioContext ? 1 : VOL());
-  const comp = ac.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.2;
-  const lim = ac.createDynamicsCompressor(); lim.threshold.value = -4; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.1;   // 찢어지는 소리 방지
-  master.connect(comp); comp.connect(lim); lim.connect(ac.destination);
-  // 공간감(짧은 홀 잔향) — 감쇠하는 잡음으로 만든 임펄스
-  const rv = ac.createConvolver(), irLen = Math.floor(sr * 1.6), ir = ac.createBuffer(2, irLen, sr);
-  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < irLen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / irLen, 3.2); }
-  rv.buffer = ir; const wet = ac.createGain(); wet.gain.value = 0.32; rv.connect(wet); wet.connect(master);
-  const bus = (send) => { const g = ac.createGain(); g.connect(master); if (send) { const s = ac.createGain(); s.gain.value = send; g.connect(s); s.connect(rv); } return g; };
-  const noiseBuf = (sec) => { const n = Math.floor(sr * sec), b = ac.createBuffer(1, n, sr), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; return b; };
-  const env = (g, at, peak, atk, dur) => { g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(peak, at + atk); g.gain.exponentialRampToValueAtTime(0.0001, at + atk + dur); };
-  const tone = (out, f, at, peak, dur, type, f2) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = type || 'sine'; o.frequency.setValueAtTime(f, at); if (f2) o.frequency.exponentialRampToValueAtTime(f2, at + dur * 0.6);
-    env(g, at, peak, 0.003, dur); o.connect(g); g.connect(out); o.start(at); o.stop(at + dur + 0.1); };
-  const noise = (out, at, peak, dur, ftype, f, q, f2) => { const s = ac.createBufferSource(), fl = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noiseBuf(dur + 0.05);
-    fl.type = ftype; fl.frequency.setValueAtTime(f, at); if (f2) fl.frequency.exponentialRampToValueAtTime(f2, at + dur); fl.Q.value = q || 0.8;
-    env(g, at, peak, 0.002, dur); s.connect(fl); fl.connect(g); g.connect(out); s.start(at); s.stop(at + dur + 0.05); };
-  // 두꺼운 금화 울림 = 비정수 배음 + 살짝 어긋난 쌍(맥놀이로 「우웅~」)
-  const ring = (out, f0, at, k, len) => [[1, 0.5, 1], [2.32, 0.34, 0.75], [4.25, 0.2, 0.5], [6.63, 0.1, 0.32]].forEach(([r, g, d]) => {
-    tone(out, f0 * r, at, g * k, len * d); tone(out, f0 * r + 2.5 + r, at, g * k * 0.6, len * d * 0.9); });
-  const thud = (out, at, k, f) => { tone(out, f || 130, at, 0.9 * k, 0.22, 'sine', (f || 130) * 0.38); noise(out, at, 0.5 * k, 0.08, 'lowpass', 700); };
-  return { fx: bus(0.45), dry: bus(0), tone, noise, ring, thud, noiseBuf };
-}
-function coinScore(ac, t0, A) {
-  const T = COIN_SFX_T, { fx, dry, tone, noise, ring, thud, noiseBuf } = sfxKit(ac);
-  // ① 튕김: 엄지 「딱」 + 묵직한 「쨍~」
-  const f = t0 + T.FLY;
-  noise(dry, f, 0.7, 0.018, 'bandpass', 3200, 1.4); thud(dry, f, 0.35, 180);
-  ring(fx, 1180, f + 0.004, 1, 2.6);
-  // ② 회전 바람: 동전이 공기를 가르는 「우웅웅」 — 돌수록 느려짐(LFO 14→5Hz)·올라갈 땐 높게 내려올 땐 낮게
-  { const s = ac.createBufferSource(), bp = ac.createBiquadFilter(), g = ac.createGain(), am = ac.createGain(), lfo = ac.createOscillator(), dep = ac.createGain();
-    const a = f + 0.05, e = t0 + T.LAND, mid = a + (e - a) * 0.5;
-    s.buffer = noiseBuf(e - a + 0.1); bp.type = 'bandpass'; bp.Q.value = 2.2;
-    bp.frequency.setValueAtTime(650, a); bp.frequency.exponentialRampToValueAtTime(1500, mid); bp.frequency.exponentialRampToValueAtTime(560, e);
-    lfo.frequency.setValueAtTime(14, a); lfo.frequency.exponentialRampToValueAtTime(5, e); dep.gain.value = 0.5; am.gain.value = 0.5;
-    lfo.connect(dep); dep.connect(am.gain);
-    g.gain.setValueAtTime(0.0001, a); g.gain.exponentialRampToValueAtTime(0.32, a + 0.18); g.gain.setValueAtTime(0.32, e - 0.25); g.gain.exponentialRampToValueAtTime(0.0001, e);
-    s.connect(bp); bp.connect(am); am.connect(g); g.connect(dry); s.start(a); s.stop(e + 0.05); lfo.start(a); lfo.stop(e + 0.05); }
-  // ③ 착지: 「쿵·쨍」 + 낮게 두 번 통통
-  const l = t0 + T.LAND;
-  [[0, 1], [0.12, 0.5], [0.21, 0.26]].forEach(([dt, k]) => { thud(dry, l + dt, k, 120); ring(fx, 1020 * (1 - dt * 0.12), l + dt, 0.75 * k, 0.9); noise(dry, l + dt, 0.35 * k, 0.03, 'highpass', 3000); });
-  // ④ 누운 채 흔들림: 바닥에서 도는 동전 「다르르륵」 — 간격이 점점 짧아지다 멈춤
-  { let t = l + 0.3, gap = 0.11, k = 0.55; while (t < l + 0.92 && gap > 0.012) { noise(dry, t, 0.3 * k, 0.012, 'bandpass', 2600, 2); tone(fx, 2900 + Math.random() * 400, t, 0.05 * k, 0.05); t += gap; gap *= 0.8; k *= 0.93; }
-    tone(fx, 1020, t, 0.12, 0.5); }
-  coinReveal(ac, { fx, dry, tone, noise, noiseBuf }, t0 + T.ZOOM, A);
-}
-// ⑤ 결과: 빨려 드는 바람 → 「쾅」 + 팀 화음(1팀 밝게·2팀 단단하게) + 반짝이 — 2D·3D 동전이 같이 씀
-function coinReveal(ac, K, z, A) {
-  const { fx, dry, tone, noise, noiseBuf } = K;
-  { const s = ac.createBufferSource(), hp = ac.createBiquadFilter(), g = ac.createGain(), a = z - 0.35;
-    s.buffer = noiseBuf(0.45); hp.type = 'highpass'; hp.frequency.setValueAtTime(400, a); hp.frequency.exponentialRampToValueAtTime(5000, z);
-    g.gain.setValueAtTime(0.0001, a); g.gain.exponentialRampToValueAtTime(0.35, z - 0.01); g.gain.exponentialRampToValueAtTime(0.0001, z + 0.03);
-    s.connect(hp); hp.connect(g); g.connect(dry); s.start(a); s.stop(z + 0.1); }
-  tone(dry, 78, z, 1, 1.1, 'sine', 34); noise(dry, z, 0.6, 0.35, 'lowpass', 260);
-  const chord = A ? [440, 554.37, 659.25, 880, 1318.5] : [392, 493.88, 587.33, 783.99, 1174.66];
-  chord.forEach((fr, i) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = i < 2 ? 'triangle' : 'sine'; o.frequency.value = fr;
-    g.gain.setValueAtTime(0.0001, z); g.gain.exponentialRampToValueAtTime(0.16 - i * 0.02, z + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, z + 1.9);
-    o.connect(g); g.connect(fx); o.start(z); o.stop(z + 2); });
-  for (let i = 0; i < 7; i++) tone(fx, 3200 + Math.random() * 3200, z + 0.06 + i * 0.045, 0.06, 0.25);
-}
-// 🔊 3D 사미라 장면 소리 = 실제 녹음을 미리 섞은 파일 하나(assets/sfx/coin-samira.ogg · 합성음 아님 — 사장님: 합성음 안 어울림)
-// v0.1.26: 모델의 실제 움직임(뼈 속도·동전-손 거리, 60fps)에 맞춰 배치 — 시각은 Taunt 기준(+INTRO 0.4): 0.03 몸 비틀 때 옷자락 · 0.16 튕김 「틱」+맑은 「띵~」(v0.1.32: 동전 부딪힘+3.9kHz 울림 하나, 받는 순간 0.64에 끊김) · 0.64 장갑 손에 받는 「탁」
-// · 0.76 리볼버 돌리는 「휙」 · 1.16/2.33 몸 돌릴 때 옷자락 · 2.91 정면 튕김 「팅·휙」 · 3.38 꽂힘 「쿵+와장창」 · 4.08 총 뽑는 「철컥」 · 4.43 「찰칵」 (전엔 받는 소리가 0.15초 늦고 움직임에 소리가 없었음)
-// 시각 = coin3d INTRO(0.4)+Taunt 시각과 맞춤 · 재료·섞는 법 = assets/sfx/CREDITS.txt
-const _coinSfx = (() => { try { const a = new Audio('../assets/sfx/coin-samira.ogg'); a.preload = 'auto'; return a; } catch (_) { return null; } })();
-function coinSamiraSound() { try { if (!_coinSfx) return; _coinSfx.pause(); _coinSfx.currentTime = 0; _coinSfx.volume = 0.3 * VOL(); _coinSfx.play().catch(() => {}); } catch (_) {} }
-function coinSound(A) {   // 앱에서 재생 = 지금 시각 기준으로 전체 예약
-  try {
-    _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
-    if (_ac.state === 'suspended') _ac.resume();
-    coinScore(_ac, _ac.currentTime + 0.02, A);
-  } catch (_) {}
-}
+// v0.1.229(사장님: 사미라 3D 모델이 별로 → 동전만 나와서 튕긴 다음 회전하다가 딱 멈춘 순간): 아래에 누워 있던 동전이 「틱!」 튕겨 올라 빙글빙글
+//   → 가운데에서 결과 면이 정면을 본 채 「착」 멈춤 → 팀 색 빛 + 「N팀 선픽!」 · 면 = assets/coin-t1·t2.webp(사장님이 만든 그림) · 결과 면은 서버의 firstPick 그대로
+//   3D = overlay/coin3d.js(three.js · 동전만) · 3D가 안 되는 PC = 같은 흐름의 2D 동전(아래 playCoin의 else)
+//   예전(v0.1.21~228) = 사미라 모델이 던지고 동전이 화면에 꽂히며 유리에 금 → 모델·유리 금·섬광·파편·흔들림·합성 효과음(coinScore·sfxKit) 전부 없앰
+const COIN_MS = 3800;   // main.js COIN_MS와 같게(이 시간 동안 픽 잠김) — 멈춤 1.62초 + 결과를 읽을 시간
+const COIN_T = { FLICK: 340, STOP: 1620 };   // 튕김·멈춤(ms) — coin3d.js FLICK·STOP · 소리 파일(tools/coin-flip-sfx.py)과 같은 값(바꾸면 세 곳 같이)
+let _coinShown = null;
+// 🔊 동전 소리 = 실제 녹음을 미리 섞은 파일 하나(assets/sfx/coin-flip.ogg · 합성음 아님 — 사장님: 합성음 싫음): 0.34초 「틱 + 띵~」 → 1.62초 울림이 끊기며 「착」
+//   재료·섞는 법 = assets/sfx/CREDITS.txt · tools/coin-flip-sfx.py · 크기 = ⚙ 효과음 설정
+const _coinSfx = (() => { try { const a = new Audio('../assets/sfx/coin-flip.ogg'); a.preload = 'auto'; return a; } catch (_) { return null; } })();
+function coinFlipSound() { try { if (!_coinSfx) return; _coinSfx.pause(); _coinSfx.currentTime = 0; _coinSfx.volume = 0.3 * VOL(); if (!_coinSfx.volume) return; _coinSfx.play().catch(() => {}); } catch (_) {} }
 function maybeCoin(s) {
   if (!s || s.phase !== 'draft' || !s.draftStartedAt || !s.firstPick || s.pickIdx) return;
   const key = s.draftStartedAt; if (_coinShown === key) return;
@@ -441,134 +370,44 @@ function playCoin(s) {
   res.innerHTML = `<b>${A ? '1팀' : '2팀'} 선픽!</b><span>${esc((A ? caps.teamA : caps.teamB) || '')}</span><small>팀장이 먼저 골라요</small>`;
   res.style.opacity = 0;
   layer.style.display = 'flex';
-  if (window.coin3d && window.coin3d.ok && window.coin3d.ready()) return playCoin3d(layer, res, A);   // 🎯 사미라 3D(모델이 준비됐을 때) · 아니면 아래 2D 동전
-  const UP = 720, DOWN = 680, H = 140, SPINS = 7;
-  const endRot = SPINS * 360 + (A ? 0 : 180);
-  const dx = (Math.random() < 0.5 ? -1 : 1) * (14 + Math.random() * 12);   // 매번 조금씩 다른 방향으로 흘러감
-  const tiltY = (Math.random() < 0.5 ? -1 : 1) * (12 + Math.random() * 10);
-  const LIE = 58;   // 착지 때 뒤로 누운 각도(면이 비스듬히 보이게)
-  const pos = el('cn-pos'), spin = el('cn-spin'), shadow = el('cn-shadow'), glow = el('cn-glow'), wob = el('cn-wob');
-  const anims = [];
+  const stage = layer.querySelector('.cn-stage'), anims = [];
   const go = (node, kf, opt) => { const a = node.animate(kf, Object.assign({ fill: 'forwards' }, opt)); anims.push(a); return a; };
+  const showRes = d => go(res, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: d, easing: 'ease-out' });
+  stage.querySelectorAll('.cn-fx').forEach(n => n.remove());   // 혹시 남은 지난 연출 조각 먼저 치움
   go(layer, [{ opacity: 0 }, { opacity: 1 }], { duration: 220 });
-  // 바닥에 누운 동전이 살짝 들썩 → 「띵!」 하고 튀어 오름
-  go(wob, [{ transform: `rotateX(${LIE}deg)` }, { transform: `rotateX(${LIE}deg)` }], { duration: 1 });
-  go(pos, [{ transform: 'translate(0,0)' }, { transform: 'translate(0,3px)' }], { duration: 160, delay: 260, easing: 'ease-in' });
-  const fly = 440, mid = UP / (UP + DOWN);
-  coinSound(A);   // 효과음 전체(COIN_SFX_T = fly·land·zoom과 같은 시각)
-  go(pos, [
-    { transform: 'translate(0,0)', easing: 'cubic-bezier(.15,.7,.35,1)' },
-    { transform: `translate(${dx * 0.55}px,-${H}px)`, offset: mid, easing: 'cubic-bezier(.6,0,.85,.4)' },
-    { transform: `translate(${dx}px,0)` },
-  ], { duration: UP + DOWN, delay: fly });
-  go(spin, [{ transform: 'rotateX(0deg)' }, { transform: `rotateX(${endRot}deg)` }], { duration: UP + DOWN, delay: fly, easing: 'cubic-bezier(.2,.55,.35,1)' });   // 처음엔 빠르게 · 떨어질수록 느려짐
-  // 회전축이 비스듬히 흔들리며 날아감 → 떨어지면서 뒤로 눕기 시작
-  go(wob, [
-    { transform: `rotateX(${LIE}deg) rotateY(0deg) rotateZ(0deg)` },
-    { transform: `rotateX(8deg) rotateY(${tiltY * 0.4}deg) rotateZ(${-tiltY * 0.3}deg)`, offset: 0.18 },
-    { transform: `rotateX(-6deg) rotateY(${tiltY}deg) rotateZ(${-tiltY * 0.5}deg)`, offset: mid },
-    { transform: `rotateX(${LIE * 0.6}deg) rotateY(${-tiltY * 0.5}deg) rotateZ(${tiltY * 0.3}deg)`, offset: 0.85 },
-    { transform: `rotateX(${LIE}deg) rotateY(${-tiltY * 0.3}deg) rotateZ(${tiltY * 0.2}deg)` },
-  ], { duration: UP + DOWN, delay: fly, easing: 'ease-in-out' });
-  go(shadow, [
-    { transform: 'translateX(0) scale(1.15,1.2)', opacity: 1 },
-    { transform: `translateX(${dx * 0.55}px) scale(0.4)`, opacity: 0.3, offset: mid },
-    { transform: `translateX(${dx}px) scale(1.15,1.2)`, opacity: 1 },
-  ], { duration: UP + DOWN, delay: fly });
-  const land = fly + UP + DOWN;
-  // 착지 = 낮게 통통 → 누운 채로 빙글 흔들리다(바닥에서 도는 동전처럼) 멈춤
-  go(pos, [{ transform: `translate(${dx}px,0)` }, { transform: `translate(${dx}px,-9px)`, offset: 0.3 }, { transform: `translate(${dx}px,0)`, offset: 0.6 }, { transform: `translate(${dx}px,-2px)`, offset: 0.8 }, { transform: `translate(${dx}px,0)` }], { duration: 380, delay: land, easing: 'ease-out' });
-  const wy = -tiltY * 0.3, wz = tiltY * 0.2;
-  go(wob, [
-    { transform: `rotateX(${LIE}deg) rotateY(${wy}deg) rotateZ(${wz}deg)` },
-    { transform: `rotateX(${LIE - 13}deg) rotateY(${-wy * 1.6}deg) rotateZ(${-wz}deg)`, offset: 0.2 },
-    { transform: `rotateX(${LIE + 5}deg) rotateY(${wy * 1.1}deg) rotateZ(${wz * 0.6}deg)`, offset: 0.42 },
-    { transform: `rotateX(${LIE - 5}deg) rotateY(${-wy * 0.6}deg) rotateZ(0deg)`, offset: 0.64 },
-    { transform: `rotateX(${LIE + 2}deg) rotateY(${wy * 0.25}deg) rotateZ(0deg)`, offset: 0.84 },
-    { transform: `rotateX(${LIE}deg) rotateY(0deg) rotateZ(0deg)` },
-  ], { duration: 900, delay: land, easing: 'ease-out' });
-  // 결과 = 누운 동전이 일어나며 커지고 팀 색으로 빛남
-  const zoom = land + 950;
-  go(wob, [{ transform: `rotateX(${LIE}deg) rotateY(0deg) rotateZ(0deg)` }, { transform: 'rotateX(10deg) rotateY(0deg) rotateZ(0deg)' }], { duration: 650, delay: zoom, easing: 'cubic-bezier(.2,.8,.3,1)' });
-  go(glow, [
-    { filter: 'brightness(1) drop-shadow(0 0 0 rgba(0,0,0,0))', scale: '1', translate: '0 0' },
-    { filter: `brightness(1.6) drop-shadow(0 0 22px ${A ? 'rgba(74,168,255,0.9)' : 'rgba(255,90,110,0.9)'})`, scale: '1.75', translate: `${-dx}px -34px`, offset: 0.5 },
-    { filter: `brightness(1.05) drop-shadow(0 0 14px ${A ? 'rgba(74,168,255,0.6)' : 'rgba(255,90,110,0.6)'})`, scale: '1.6', translate: `${-dx}px -30px` },
-  ], { duration: 750, delay: zoom, easing: 'cubic-bezier(.2,.8,.3,1)' });   // 회전과 따로(같은 transform에 섞으면 면이 뒤집혀 보임)
-  go(shadow, [{ opacity: 1 }, { opacity: 0 }], { duration: 300, delay: zoom });
-  go(res, [{ opacity: 0, transform: 'scale(0.7)' }, { opacity: 1, transform: 'scale(1.08)', offset: 0.6 }, { opacity: 1, transform: 'scale(1)' }], { duration: 380, delay: zoom + 300, easing: 'ease-out' });
-  go(layer, [{ opacity: 1 }, { opacity: 0 }], { duration: 350, delay: COIN_MS - 350 });
-  setTimeout(() => { layer.style.display = 'none'; anims.forEach(a => { try { a.cancel(); } catch (_) {} }); }, COIN_MS + 30);
-}
-
-// 🪙 3D: 사미라가 Taunt로 동전을 튕겨 화면 쪽으로 날림 → 카메라 앞에 멈춰 결과 면 → 「N팀 선픽!」
-function playCoin3d(layer, res, A) {
-  layer.classList.add('cn3d');
-  const stage = layer.querySelector('.cn-stage');
-  const anims = [];
-  const go = (node, kf, opt) => { const a = node.animate(kf, Object.assign({ fill: 'forwards' }, opt)); anims.push(a); return a; };
-  go(layer, [{ opacity: 0 }, { opacity: 1 }], { duration: 220 });
-  stage.querySelectorAll('.cn-fx').forEach(n => n.remove());   // 혹시 남은 지난 연출 조각(금·파편·연기) 먼저 치움
-  coinSamiraSound();
-  window.coin3d.play({ stage, A, dur: COIN_MS - 250,
-    onShow: (at) => {
-      if (at) coinImpactFx(stage, at.x, at.y, at.r, go);   // 💥 꽂힌 자리에 금·섬광·파편·연기·흔들림
-      go(res, [{ opacity: 0, transform: 'scale(0.7)' }, { opacity: 1, transform: 'scale(1.08)', offset: 0.6 }, { opacity: 1, transform: 'scale(1)' }], { duration: 380, delay: 220, easing: 'ease-out' });
-    },
-  }).catch(() => {});
   go(layer, [{ opacity: 1 }, { opacity: 0 }], { duration: 350, delay: COIN_MS - 350 });
   setTimeout(() => { layer.style.display = 'none'; layer.classList.remove('cn3d'); anims.forEach(a => { try { a.cancel(); } catch (_) {} }); stage.querySelectorAll('.cn-fx').forEach(n => n.remove()); }, COIN_MS + 30);
+  if (window.coin3d && window.coin3d.ok && window.coin3d.ready()) {   // 🎯 3D 동전(그림이 준비됐을 때) · 아니면 아래 2D 동전
+    layer.classList.add('cn3d');
+    window.coin3d.play({ stage, A, dur: COIN_MS - 250, onStart: coinFlipSound,
+      onShow: at => { if (at) coinStopFx(stage, at.x, at.y, at.r, A, go); showRes(90); } }).catch(() => {});
+    return;
+  }
+  // 2D(3D가 안 되는 PC) — 같은 흐름: 누워 있다 튕겨 올라 같은 빠르기로 빙글 → 결과 면에서 딱 멈춤 → 살짝 커졌다 가라앉으며 팀 색 빛
+  layer.classList.remove('cn3d');
+  const pos = el('cn-pos'), spin = el('cn-spin'), shadow = el('cn-shadow'), glow = el('cn-glow'), wob = el('cn-wob');
+  const D = COIN_T.STOP - COIN_T.FLICK, lie = -64 + (Math.random() < 0.5 ? 180 : 0), col = A ? '74,168,255' : '255,90,110';
+  let endRot = A ? 0 : 180; while (endRot < lie + 360 * 5.5) endRot += 360;
+  const P0 = 'translateY(8px) scale(0.6)', P1 = 'translateY(-74px) scale(1.5)';
+  coinFlipSound();
+  go(wob, [{ transform: 'none' }, { transform: 'none' }], { duration: 1 });
+  go(glow, [{ filter: 'none', scale: '1' }, { filter: 'none', scale: '1' }], { duration: 1 });
+  go(pos, [{ transform: P0 }, { transform: P0 }], { duration: 1 });
+  go(spin, [{ transform: `rotateX(${lie}deg)` }, { transform: `rotateX(${lie}deg)` }], { duration: 1 });
+  go(shadow, [{ opacity: 1, transform: 'scale(0.7)' }, { opacity: 1, transform: 'scale(0.7)' }], { duration: 1 });
+  go(pos, [{ transform: P0 }, { transform: 'translateY(11px) scale(0.6)' }], { duration: 130, delay: COIN_T.FLICK - 130, easing: 'ease-in' });   // 튕기기 직전 살짝 눌림
+  go(pos, [{ transform: 'translateY(11px) scale(0.6)' }, { transform: P1 }], { duration: D, delay: COIN_T.FLICK, easing: 'cubic-bezier(0.5, 1, 0.89, 1)' });   // 꼭대기까지 점점 느리게
+  go(spin, [{ transform: `rotateX(${lie}deg)` }, { transform: `rotateX(${endRot}deg)` }], { duration: D, delay: COIN_T.FLICK, easing: 'linear' });   // 같은 빠르기로 돌다 딱 멈춤
+  go(shadow, [{ opacity: 1, transform: 'scale(0.7)' }, { opacity: 0, transform: 'scale(0.3)' }], { duration: D * 0.5, delay: COIN_T.FLICK, easing: 'ease-out' });
+  go(glow, [{ filter: `brightness(1.25) drop-shadow(0 0 0 rgba(${col},0))`, scale: '1.085' }, { filter: `brightness(1.05) drop-shadow(0 0 14px rgba(${col},0.6))`, scale: '1' }], { duration: 420, delay: COIN_T.STOP, easing: 'ease-out' });   // 회전과 따로(같은 transform에 섞으면 면이 뒤집혀 보임)
+  showRes(COIN_T.STOP + 90);
 }
-// 💥 동전이 화면에 꽂히는 순간 — 짧은 섬광 + 투명한 유리 금(가늘고 반투명·빛 번짐 없음) + 유리 면(조각마다 빛이 살짝 다르게 꺾임) + 투명 파편 + 화면 흔들림
-// v0.1.25: 굵고 하얗게 빛나는 금·푸른 번짐·연기가 「얼음/서리」처럼 보였음(사장님) → 투명 유리로. 전부 한 번만 재생 · 연출 끝날 때 레이어와 함께 사라짐
-function coinImpactFx(stage, x, y, r, go) {
-  const W = stage.clientWidth, H = stage.clientHeight, rnd = (a, b) => a + Math.random() * (b - a);
-  const fx = document.createElement('div'); fx.className = 'cn-fx'; stage.appendChild(fx);
-  const at = (node, px, py) => { node.style.left = px + 'px'; node.style.top = py + 'px'; fx.appendChild(node); return node; };
-  // 섬광
-  const fl = at(document.createElement('i'), x, y); fl.className = 'cn-flash';
-  go(fl, [{ opacity: 0.6, transform: 'translate(-50%,-50%) scale(0.35)' }, { opacity: 0, transform: 'translate(-50%,-50%) scale(1.6)' }], { duration: 200, easing: 'ease-out' });
-  // 유리 금 — 바퀴살(울퉁불퉁하게 꺾이며 뻗음, 가끔 갈라짐) + 바퀴살 사이를 잇는 둥근 금
-  const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('class', 'cn-crack'); svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-  const maxR = Math.hypot(Math.max(x, W - x), Math.max(y, H - y));
-  const n = 11 + Math.floor(Math.random() * 5), spokes = [], paths = [];
-  const walk = (px, py, a, from, len) => { const pts = [[px, py]]; let d = from; while (d < len) { const st = rnd(12, 30); a += rnd(-0.24, 0.24); d += st; px += Math.cos(a) * st; py += Math.sin(a) * st; pts.push([px, py]);
-    if (Math.random() < 0.09 && d < len * 0.75) paths.push({ pts: walk(px, py, a + (Math.random() < 0.5 ? -1 : 1) * rnd(0.4, 0.8), d, d + rnd(25, 70)), w: 0.6, delay: 70 }); } return pts; };
-  for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2 + rnd(-0.17, 0.17), len = rnd(0.42, 0.95) * maxR;
-    const pts = walk(x + Math.cos(a) * r * 0.9, y + Math.sin(a) * r * 0.9, a, r * 0.9, len); spokes.push(pts); paths.push({ pts, w: 0.9, delay: 0 }); }
-  const near = (pts, d) => pts.reduce((b, p) => Math.abs(Math.hypot(p[0] - x, p[1] - y) - d) < Math.abs(Math.hypot(b[0] - x, b[1] - y) - d) ? p : b, pts[0]);
-  for (const k of [1.55, 2.5, 3.6]) for (let i = 0; i < n; i++) { if (Math.random() < 0.38) continue;
-    const p = near(spokes[i], r * k * rnd(0.9, 1.1)), q = near(spokes[(i + 1) % n], r * k * rnd(0.9, 1.1));
-    if (Math.hypot(p[0] - x, p[1] - y) < r * k * 0.7 || Math.hypot(q[0] - x, q[1] - y) < r * k * 0.7) continue;
-    const m = [(p[0] + q[0]) / 2 + rnd(-6, 6), (p[1] + q[1]) / 2 + rnd(-6, 6)];
-    paths.push({ pts: [p, m, q], w: 0.7, delay: 90 }); }
-  for (let i = 0; i < n; i++) {
-    const A = spokes[i], B = spokes[(i + 1) % n], R1 = r * rnd(1.4, 2.0), R2 = r * rnd(2.3, 3.4);
-    const inner = [A[0], near(A, R1), near(B, R1), B[0]], outer = [near(A, R1), near(A, R2), near(B, R2), near(B, R1)];
-    for (const [poly, k] of [[inner, 1], [outer, 0.6]]) {
-      const el = document.createElementNS(NS, 'polygon'); el.setAttribute('points', poly.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' '));
-      const lit = Math.random() < 0.55; el.setAttribute('class', 'facet');
-      el.setAttribute('fill', lit ? `rgba(255,255,255,${(rnd(0.015, 0.045) * k).toFixed(3)})` : `rgba(0,0,0,${(rnd(0.02, 0.06) * k).toFixed(3)})`);
-      svg.appendChild(el); go(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 160, delay: 40 });
-    }
-  }
-  for (const pa of paths) for (const [cls, w] of [['dk', pa.w + 1.2], ['lt', pa.w]]) {
-    const el = document.createElementNS(NS, 'path'); el.setAttribute('d', 'M' + pa.pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L'));
-    el.setAttribute('class', cls); el.setAttribute('stroke-width', w); el.setAttribute('pathLength', '1'); svg.appendChild(el);
-    go(el, [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: 170, delay: pa.delay, easing: 'cubic-bezier(.2,.8,.3,1)' });
-  }
-  for (let i = 0; i < 4; i++) { const sp = spokes[Math.floor(Math.random() * n)], p = sp[Math.min(sp.length - 1, 1 + Math.floor(Math.random() * Math.min(6, sp.length - 1)))];
-    const g = at(document.createElement('i'), p[0], p[1]); g.className = 'cn-glint';
-    go(g, [{ opacity: 0, transform: 'translate(-50%,-50%) scale(0.3)' }, { opacity: 1, transform: 'translate(-50%,-50%) scale(1)', offset: 0.3 }, { opacity: 0, transform: 'translate(-50%,-50%) scale(0.6)' }], { duration: rnd(380, 620), delay: rnd(60, 260) }); }
-  fx.appendChild(svg);
-  // 파편: 동전 가장자리에서 튀어 나갔다 떨어짐
-  for (let i = 0; i < 10; i++) { const a = rnd(0, Math.PI * 2), sp = rnd(50, 130), s = rnd(0.6, 1.4);
-    const el = at(document.createElement('i'), x + Math.cos(a) * r, y + Math.sin(a) * r); el.className = 'cn-shard';
-    const dx = Math.cos(a) * sp, dy = Math.sin(a) * sp, rot = rnd(-540, 540);
-    go(el, [{ opacity: 1, transform: `translate(-50%,-50%) scale(${s}) rotate(0deg)` }, { opacity: 0, transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy + 120}px)) scale(${s}) rotate(${rot}deg)` }], { duration: rnd(650, 950), easing: 'cubic-bezier(.25,.6,.6,1)' }); }
-  // 화면 흔들림
-  go(stage, [{ transform: 'translate(0,0)' }, { transform: 'translate(-7px,4px)', offset: 0.12 }, { transform: 'translate(6px,-5px)', offset: 0.28 }, { transform: 'translate(-4px,2px)', offset: 0.46 }, { transform: 'translate(2px,-1px)', offset: 0.66 }, { transform: 'translate(0,0)' }], { duration: 340, easing: 'ease-out' });
+// 🪙 멈춘 순간(3D) — 동전 뒤에 팀 색 빛이 은은하게 남고 가는 테가 한 번 퍼짐(한 번만 · 섬광·흔들림 없음 — 사장님: 연출은 은은하게)
+function coinStopFx(stage, x, y, r, A, go) {
+  const fx = document.createElement('div'); fx.className = 'cn-fx ' + (A ? 't1' : 't2'); stage.appendChild(fx);
+  const put = (cls, size) => { const n = document.createElement('i'); n.className = cls; n.style.left = x + 'px'; n.style.top = y + 'px'; n.style.width = n.style.height = size + 'px'; fx.appendChild(n); return n; };
+  go(put('cn-halo', r * 5.2), [{ opacity: 0 }, { opacity: 1, offset: 0.35 }, { opacity: 0.6 }], { duration: 700, easing: 'ease-out' });
+  go(put('cn-ring', r * 2), [{ opacity: 0.75, transform: 'translate(-50%,-50%) scale(1.02)' }, { opacity: 0, transform: 'translate(-50%,-50%) scale(1.5)' }], { duration: 480, easing: 'cubic-bezier(.2,.8,.3,1)' });
 }
 
 // ── 📼 기록 저장 중 — 게임 끝나고 결과가 오늘 기록에 들어갈 때까지 단계별로 ─────────────
