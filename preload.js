@@ -61,6 +61,9 @@ contextBridge.exposeInMainWorld('api', {
   lolAccept: () => ipcRenderer.invoke('lol-accept'),        // 🎮 방장 롤 초대 수락
   onSettings: (cb) => ipcRenderer.on('settings', (_e, d) => cb(d)),
   quitApp: () => ipcRenderer.send('app-quit'),
+  chatMute: (key, on) => ipcRenderer.invoke('chat-mute', { key, on }),   // 💬 v0.1.236 이 사람 말 숨기기
+  privacyWipe: () => ipcRenderer.invoke('privacy-wipe'),   // 🔐 v0.1.236 내 정보 지우기
+  openPrivacy: () => ipcRenderer.send('open-privacy'),
   quitConfirm: (yes, noAsk) => ipcRenderer.send('quit-confirm', yes, !!noAsk),
   // 👤 입장(라이엇 계정 자동)
   getPlayers: () => ipcRenderer.invoke('get-players'),

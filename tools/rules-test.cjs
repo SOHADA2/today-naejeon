@@ -75,6 +75,14 @@ const SV = { '.sv': 'timestamp' }, D = 'today/days/2000-01-01';
   await t('한마디 지우기', 'ok', 'DELETE', 'today/rooms/rt_r/lobby/chat/rt_p');
   // 📦 v0.1.110 방 단위 데이터
   await t('방 사람 칸', 'ok', 'PUT', 'today/rooms/rt_r/members/rt_p', { name: '시험', tag: 'KR1', icon: 29, at: Date.now(), host: false, app: '0.1.110', room: 'rt_r' });
+  // 🔐 v0.1.236 방에 들어온 기기 · 디스코드 사본(같은 방 사람용)
+  const UID = TOK ? JSON.parse(Buffer.from(TOK.split(".")[1], "base64url").toString()).user_id : "noauth";
+  await t("방 기기 칸 — 내 기기", "ok", "PUT", `today/rooms/rt_r/uids/${UID}`, "rt_p");
+  await t("방 기기 칸 — 남의 기기 번호", "deny", "PUT", "today/rooms/rt_r/uids/someone_else", "rt_p");
+  await t("방 기기 칸 — 숫자", "deny", "PUT", `today/rooms/rt_r/uids/${UID}`, 123);
+  await t("방 디스코드 사본", "ok", "PUT", "today/rooms/rt_r/dc/rt_p", { id: "123456789012345678", name: "시험", at: 1, on: true });
+  await t("방 디스코드 사본 — 번호 형식 아님", "deny", "PUT", "today/rooms/rt_r/dc/rt_p", { id: "abc", at: 1 });
+  await t("방 디스코드 사본 — 모르는 칸", "deny", "PUT", "today/rooms/rt_r/dc/rt_p", { id: "123456789012345678", at: 1, junk: 1 });
   await t('방 사람 칸 — 모르는 칸', 'deny', 'PUT', 'today/rooms/rt_r/members/rt_p', { name: '시험', at: 1, junk: 'x' });
   await t('방 목록 인원·이름', 'ok', 'PATCH', 'today/roomList/rt_r', { n: 2, mem: '시험\n시험2' });
   await t('방 목록 이름 줄 너무 김', 'deny', 'PATCH', 'today/roomList/rt_r', { mem: 'x'.repeat(401) });
@@ -111,6 +119,12 @@ const SV = { '.sv': 'timestamp' }, D = 'today/days/2000-01-01';
   await t('계정 갱신(PATCH)', 'ok', 'PATCH', 'today/accounts/rt_acc', { name: '시험', tag: 'KR1', icon: 1, lastSeen: 1 });
   await t('계정 — 모르는 칸', 'deny', 'PATCH', 'today/accounts/rt_acc', { junk: 'x' });
   await t('계정 지우기', 'deny', 'DELETE', 'today/accounts/rt_acc');
+  // 🔐 v0.1.236 기기 ↔ 롤 계정 · 등록된 기기는 「내 정보 지우기」로 계정 칸을 지울 수 있음
+  await t("기기 등록 — 내 기기", "ok", "PUT", `today/owners/rt_acc/${UID}`, Date.now());
+  await t("기기 등록 — 남의 기기 번호", "deny", "PUT", "today/owners/rt_acc/someone_else", Date.now());
+  await t("기기 등록 — 숫자 아님", "deny", "PUT", `today/owners/rt_acc/${UID}`, "x");
+  await t("기기 등록 통째 지우기", "deny", "DELETE", "today/owners");
+  await t("등록된 기기가 계정 칸 지우기", "ok", "DELETE", "today/accounts/rt_acc");
   await t('계정 통째 지우기', 'deny', 'DELETE', 'today/accounts');
   // 🧭 증강
   await t('증강 챔피언 등급(앱)', 'ok', 'PUT', 'today/augGuide/champs/rt_x', { a: 1 });
@@ -120,6 +134,6 @@ const SV = { '.sv': 'timestamp' }, D = 'today/days/2000-01-01';
   for (const k of ['session', 'lobby', 'host', 'normalLive', 'potgWait', 'potgRec']) await t(`옛 칸 today/${k} 쓰기`, 'deny', 'PUT', `today/${k}`, { a: 1 });
   await t('설정 바꾸기', 'deny', 'PUT', 'today/config/clipProxy', 'https://evil.example');
   console.log(`\n통과 ${pass} · 실패 ${fail}`);
-  for (const p of [D, 'today/ratings/rt_acc', 'today/accounts/rt_acc', 'today/augGuide/champs/rt_x', 'today/presence/rt_p', 'today/bridge/junk', 'today/days/hack']) admin('DELETE', p);
+  for (const p of [D, 'today/owners/rt_acc', 'today/ratings/rt_acc', 'today/accounts/rt_acc', 'today/augGuide/champs/rt_x', 'today/presence/rt_p', 'today/bridge/junk', 'today/days/hack']) admin('DELETE', p);
   console.log('정리 끝');
 })();

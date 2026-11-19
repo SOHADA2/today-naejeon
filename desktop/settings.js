@@ -60,6 +60,8 @@
         ${tog('sfxOn', '효과음', '선픽·픽·팟지 소리')}
         <div class="tn-row tn-vol${S.sfxOn ? '' : ' off'}"><span class="tn-row-tx"><b>크기</b></span><input type="range" min="0" max="100" step="5" value="${Math.round(S.sfxVol * 100)}" class="tn-range" ${S.sfxOn ? '' : 'disabled'}><span class="tn-vol-n num">${Math.round(S.sfxVol * 100)}</span></div>
         <div class="tn-sec">대기방</div>
+        ${tog('chatFilter', '채팅 욕설 가리기', '욕설을 ●로 가려 보여요 · 내 화면만')}
+        ${(S.chatMute || []).length ? `<div class="tn-row"><span class="tn-row-tx"><b>말을 숨긴 사람 ${S.chatMute.length}명</b><small>채팅 줄의 「숨기기」로 숨긴 사람</small></span><button class="tn-btn" data-act="unmute">모두 다시 보기</button></div>` : ''}
         ${tog('autoSeat', '팀 자리로 자동 이동 <span class=\"tn-tip\" data-tip=\"팀이 정해지면 롤 사용자 설정 게임 방에서 내 자리를 1팀·2팀·관전석으로 옮겨요(롤의 「팀 참가」 버튼과 같은 동작 · 내 자리만). 한 번 옮긴 뒤 직접 바꾸면 그대로 둬요\">ⓘ</span>', '롤 대기방에서 1팀·2팀으로')}
         ${tog('lolRemake', '팀 정할 때 롤 방 자동으로 만들기 <span class=\"tn-tip\" data-tip=\"방장일 때 · 내전 팀이 정해지면 그 판 다리(드래프트 = 선픽이 아닌 팀장이 고름 · 나머지 = 무작위)로 롤 사용자 설정 방을 만들고(이미 있으면 다시 만듦) 그 판 사람 전원을 초대해요 · 큐 잡는 중이나 게임 중엔 안 건드려요\">ⓘ</span>', '방장 · 판마다 다리 바뀜')}
         ${tog('lolAutoAccept', '방장 롤 초대 자동 수락', '방장이 롤 방을 다시 만들면 바로 들어가요')}
@@ -81,6 +83,9 @@
         ${tog('autoLaunch', '윈도우 시작할 때 자동 실행', '트레이에만 켜 두고 롤을 켜면 나타나요')}
         <div class="tn-sec">단축키</div>
         <div class="tn-row"><span class="tn-row-tx"><b>왼쪽 창 켜기/끄기</b></span><span class="tn-key num">${esc(S.hotkey)}</span></div>
+        <div class="tn-sec">개인정보</div>
+        <div class="tn-row"><span class="tn-row-tx"><b>개인정보 처리방침</b><small>무엇을 저장하고 얼마나 두는지 · 지우는 방법</small></span><button class="tn-btn" data-act="privacy">보기</button></div>
+        <div class="tn-row"><span class="tn-row-tx"><b>내 정보 지우기</b><small>서버의 내 계정·디스코드·전적 점수</small></span><button class="tn-btn tn-danger" data-act="wipe">지우기</button></div>
         <div class="tn-sec">도움말</div>
         <button class="tn-btn tn-tut" data-act="tut">📘 사용법 다시 보기</button>
         <button class="tn-quit" data-act="quit">투데이 내전 완전히 종료</button>
@@ -98,6 +103,9 @@
       else if (b.dataset.act === 'dcinvsave' && api.discordInvite) { const i = panel.querySelector('.tn-inv-in'); api.discordInvite(i ? i.value : '').then(r => { if (r && !r.ok) tnAlert('초대 링크 · ' + r.err); else { invEdit = false; renderPanel(); } }).catch(() => {}); }
       else if (b.dataset.act === 'dcroom' && api.discordJoin && S.discord && S.discord.room) { const R = S.discord.room; api.discordJoin(R.ch ? { gid: R.gid, ch: R.ch } : { gid: R.gid, code: R.code }); }   // v0.1.157 「이 방 디스코드」
       else if (b.dataset.act === 'dcgo' && api.discordConnect) api.discordConnect().then(r => { if (r && !r.ok && r.err) tnAlert('디스코드 서버 연결 · ' + r.err); else if (r && r.ok && r.lack && r.lack.length) tnAlert(`연결됐어요 · 서버에 음성 채널 ${r.lack.join('·')}을 만들어 주세요`); }).catch(() => {});
+      else if (b.dataset.act === 'unmute' && api.chatMute) api.chatMute(null, false).then(v => { if (v) { S = v; renderPanel(); } });
+      else if (b.dataset.act === 'privacy' && api.openPrivacy) api.openPrivacy();
+      else if (b.dataset.act === 'wipe' && api.privacyWipe) tnConfirm('서버에 있는 내 정보를 지우고 앱을 끕니다.\n\n지우는 것: 디스코드 연결 · 계정(이름#태그·아이콘) · 전적 점수 · 접속 표시 · 지금 방의 내 칸\n남는 것: 같이 한 경기 기록(다른 사람 기록이기도 해서 · 이름 지우기는 처리방침의 방법으로 요청)\n\n앱을 다시 켜고 롤에 로그인하면 계정·접속 표시는 다시 생겨요. 완전히 그만두려면 지운 뒤 앱을 삭제해 주세요.', { title: '내 정보 지우기', ok: '지우고 끄기', danger: true }).then(y => { if (!y) return; api.privacyWipe().then(r => { if (r && r.ok) tnAlert('지웠어요. 잠시 뒤 앱이 꺼집니다.'); else tnAlert((r && r.err) || '지우지 못했어요'); }); });
       else if (b.dataset.act === 'quit') tnConfirm('투데이 내전을 완전히 종료할까요?', { ok: '종료', danger: true }).then(y => { if (y) api.quitApp(); });
     });
   }

@@ -890,6 +890,8 @@ async function fbToken() {
   })().catch(() => null).finally(() => { _fbTokP = null; });
   return (await _fbTokP) || (_fbTok && Date.now() - _fbTokAt < 55 * 60 * 1000 ? _fbTok : NOAUTH);   // 실패하면 아직 안 끝난 옛 표식, 그것도 없으면 표식 없이(규칙이 공개인 동안 앱이 멈추지 않게 · 만료 표식은 공개 규칙에서도 401)
 }
+// 🔐 v0.1.236 이 기기의 익명 로그인 번호(uid) — 표식(JWT) 안의 user_id · 서버 규칙이 「이 기기가 누구인지」 보는 값
+function fbUid() { try { return _fbTok ? JSON.parse(Buffer.from(_fbTok.split('.')[1], 'base64url').toString()).user_id || null : null; } catch (_) { return null; } }
 // session 등 노드 전체 교체(set) — 홈페이지 set(ref(db,'session'), ...)과 동일 시맨틱
 async function fbSet(pathStr, value) {
   const tok = await fbToken();
@@ -1662,6 +1664,7 @@ async function roomLeave(quiet) {
   }
   if (account) { fbSet(`${T}/rooms/${id}/lobby/join/${account.puuid}`, null).catch(() => {}); fbSet(`${T}/rooms/${id}/lobby/chat/${account.puuid}`, null).catch(() => {}); fbSet(`${T}/rooms/${id}/lobby/ping/${account.puuid}`, null).catch(() => {}); fbSet(`${T}/rooms/${id}/lobby/cping/${account.puuid}`, null).catch(() => {}); }   // 💬 내 한마디·📍 핑도 같이
   if (account) fbSet(`${T}/rooms/${id}/members/${account.puuid}`, null).catch(() => {});   // 📦 방 사람 칸
+  { const uid = fbUid(); if (uid) fbSet(`${T}/rooms/${id}/uids/${uid}`, null).catch(() => {}); if (account) fbSet(`${T}/rooms/${id}/dc/${account.puuid}`, null).catch(() => {}); _roomUidKey = null; _dcRoomKey = null; }   // 🔐 v0.1.236
   room = null; config.lastRoom = null; saveConfig();
   roomStreams();
   await beatPresence();
@@ -1733,6 +1736,25 @@ function sameGroup(m) {   // 이 방 기록인가(방 밖이면 전부 · 방 �
 let account = null;   // { puuid, gameName, tagLine }
 const PRESENCE_MS = 20000, ONLINE_MS = 60000;
 let _presenceTimer = null;
+// 🔐 v0.1.236 보안 1단계(사장님: 모르는 사람에게 베타로 보여 주려면 보안·개인정보부터) — 무료 요금제라 서버 코드가 없고 라이엇 로그인 인증도 없어서
+//   서버가 「이 사람이 정말 그 롤 계정 주인인지」 확인할 수 없음 → 기기(익명 로그인 uid)를 계정에 등록해 두고(2단계에서 등록된 기기만 자기 칸을 쓰게 잠금)
+//   ① today/owners/{puuid}/{uid} = 등록 시각 — 지금은 자기 기기만 추가(친구들이 쓰는 PC가 다 등록되게 · 잠그기 전) ② 방에 들어온 기기 rooms/{방}/uids/{uid} = puuid(2단계 = 그 방 기기만 방 안에 쓰기)
+//   ③ 디스코드 번호 사본 rooms/{방}/dc/{puuid} — 방장 봇이 음성 채널로 옮길 때 필요한 건 같은 방 사람뿐 → 2단계에서 전체 today/discord 읽기를 막아도 됨
+let _ownKey = null, _roomUidKey = null, _dcMine = null, _dcRoomKey = null;
+function privacyTick() {
+  const uid = fbUid(); if (!uid || !account) return;
+  const ok = account.puuid + '|' + uid;
+  if (_ownKey !== ok) { _ownKey = ok; fbSet(`${T}/owners/${account.puuid}/${uid}`, Date.now()).then(w => { if (!w || !w.ok) _ownKey = null; }).catch(() => { _ownKey = null; }); }
+  if (!room) return;
+  const rk = room.id + '|' + ok;
+  if (_roomUidKey !== rk) { _roomUidKey = rk; fbSet(`${RP()}/uids/${uid}`, account.puuid).then(w => { if (!w || !w.ok) _roomUidKey = null; }).catch(() => { _roomUidKey = null; }); }
+  dcRoomCopy();
+}
+function dcRoomCopy() {
+  if (!room || !account || !_dcMine) return;
+  const k = room.id + '|' + JSON.stringify(_dcMine); if (k === _dcRoomKey) return; _dcRoomKey = k;
+  fbSet(`${RP()}/dc/${account.puuid}`, _dcMine).then(w => { if (!w || !w.ok) _dcRoomKey = null; }).catch(() => { _dcRoomKey = null; });
+}
 async function beatPresence() {
   if (!account) {   // 클라 잠깐 꺼짐 — 방장 자리만 살아있게(2분)
     if (_away && config.isHost && room) fbCas(`${RP()}/host`, cur => cur && cur.puuid === _away.puuid ? { value: { puuid: cur.puuid, name: cur.name, at: Date.now() } } : { err: 'not mine' }).catch(() => {});
@@ -1740,8 +1762,9 @@ async function beatPresence() {
   }
   const pres = { name: account.gameName, tag: account.tagLine || null, icon: account.iconId || null, at: Date.now(), host: !!config.isHost, app: app.getVersion(), room: room ? room.id : null };
   await fbSet(`${T}/presence/${account.puuid}`, pres).catch(() => {});   // 전역(아무도 실시간으로 안 받음 · 옛 앱 호환·관리용)
-  if (!room) return;
+  if (!room) { privacyTick(); return; }
   fbSet(`${RP()}/members/${account.puuid}`, pres).catch(() => {});   // 📦 v0.1.110: 방 사람 = 방 스트림 안(그 방 사람만 받음)
+  privacyTick();   // 🔐 v0.1.236 기기 등록 · 방 기기 칸 · 디스코드 방 사본
   if (config.isHost || !hostRec || Date.now() - (hostRec.at || 0) > 40000) {   // 🚪 방 살아있음 + 인원·이름(방 목록에 보임) — 방장 한 명만(방장이 조용하면 남은 사람이)
     const mem = roomMembers(room.id).map(m => m.name); if (!mem.includes(normName(account.gameName))) mem.unshift(normName(account.gameName));
     fbUpdate(`${T}/roomList/${room.id}`, Object.assign({ name: room.name, priv: !!room.priv, pw: room.priv ? room.h : null, seen: Date.now(), n: mem.length, mem: mem.slice(0, 10).join('\n').slice(0, 400) }, config.isHost ? { host: account.gameName } : {})).catch(() => {});
@@ -3969,18 +3992,21 @@ function dcLink() {   // 내 디스코드 번호·켜짐·연결한 서버 → t
   const u = discord.user, G = dcGuildOf();
   if (!u) {   // 디스코드 꺼짐 → 켜짐 표시만 내림(번호는 그대로)
     const k = `${account.puuid}:off`;
-    if (_dcLinked && _dcLinked !== k && _dcLinked.startsWith(account.puuid + ':')) { _dcLinked = k; fbUpdate(`${T}/discord/${account.puuid}`, { on: false, at: Date.now() }).catch(() => {}); }
+    if (_dcLinked && _dcLinked !== k && _dcLinked.startsWith(account.puuid + ':')) { _dcLinked = k; fbUpdate(`${T}/discord/${account.puuid}`, { on: false, at: Date.now() }).catch(() => {}); if (_dcMine) { _dcMine = Object.assign({}, _dcMine, { on: false, at: Date.now() }); dcRoomCopy(); } }
     return;
   }
   const inv = dcInvOf();
   const k = `${account.puuid}:${u.id}:${u.name}:${G ? G.id + G.name : ''}:${inv || ''}:${dayKey(Date.now())}`;
   if (k === _dcLinked) return; _dcLinked = k;
   const v = Object.assign({ id: u.id, name: u.name || null, at: Date.now(), on: true }, G ? { g: G.id, gn: String(G.name || '').slice(0, 60) || null } : {}, inv ? { inv } : {});
+  _dcMine = v; dcRoomCopy();   // 🔐 v0.1.236 같은 방 사람용 사본
   fbSet(`${T}/discord/${account.puuid}`, v).then(w => { if (!w || !w.ok) _dcLinked = null; else { _dcMap = Object.assign({}, _dcMap, { [account.puuid]: v }); broadcast('lobby', lobbyView()); } }).catch(() => { _dcLinked = null; });
 }
 async function dcMapGet(fresh) {   // today/discord 전체(작음 · 1분 보관)
   if (!fresh && _dcMap && Date.now() - _dcMapAt < 60000) return _dcMap;
-  const m = await getJson(`${FIREBASE_DB}/${T}/discord.json`).catch(() => undefined);
+  let m = await getJson(`${FIREBASE_DB}/${T}/discord.json`).catch(() => undefined);
+  const rdc = room ? await roomPart('dc', () => roomGet('dc')).catch(() => null) : null;   // 🔐 v0.1.236 같은 방 사람 사본
+  if (rdc && typeof rdc === 'object') m = Object.assign({}, m || {}, rdc);
   if (m !== undefined) { const ch = JSON.stringify(m) !== JSON.stringify(_dcMap); _dcMap = m || {}; _dcMapAt = Date.now(); if (ch) broadcast('lobby', lobbyView()); }
   return _dcMap || {};
 }
@@ -4222,7 +4248,7 @@ ipcMain.handle('discord-unlink', () => { config.discordGuild = null; saveConfig(
 const dcRoomView = () => { if (!room) return null; try { const i = dcRoomInfo(lobbyView().members); return i ? { gid: i.id, name: i.name, code: i.inv || null, ch: (_dcMember && _dcMember.g === i.id && _dcMember.lobby) || null } : null; } catch (_) { return null; } };   // ⚙ 「이 방 디스코드」(v0.1.157 · 칩을 ✕로 닫아도 여기서)
 const dcView = () => ({ room: dcRoomView(), invite: dcInvOf(), app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null, guild: dcGuildOf() ? dcGuildOf().name || '서버' : null, connecting: !!_dcConn });
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
-const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, lolRemake: config.lolRemake !== false, lolAutoAccept: config.lolAutoAccept !== false, lolPing: config.lolPing !== false, hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
+const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, lolRemake: config.lolRemake !== false, lolAutoAccept: config.lolAutoAccept !== false, lolPing: config.lolPing !== false, chatFilter: config.chatFilter !== false, chatMute: Array.isArray(config.chatMute) ? config.chatMute : [], hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
 ipcMain.handle('settings-get', () => settingsView());
 // 🧭 v0.1.228 홈 화면(롤 없이 켬)에서도 사용법을 볼 수 있게 — 홈 「사용법 둘러보기」 = 숨겨 둔 왼쪽 창만 홈 가운데 위에 띄움(_tutHome) · 닫으면(tutorial-done · 창 ✕/–) 다시 숨기고 합친 자리로
@@ -4253,6 +4279,7 @@ ipcMain.handle('settings-set', (_e, { key, value }) => {
   else if (key === 'dcNudgeOff') config.dcNudgeOff = !!value;   // 🎧 대기실 「서버 연결」 안내 닫음
   else if (key === 'tutorialSeen') config.tutorialSeen = !!value;   // 📘 사용법 튜토리얼 다 봄(v0.1.83)
   else if (key === 'sfxOn') config.sfxOn = !!value;
+  else if (key === 'chatFilter') config.chatFilter = !!value;   // 💬 v0.1.236 채팅 욕설 가리기(내 화면만)
   else if (key === 'sfxVol') config.sfxVol = Math.max(0, Math.min(1, +value || 0));
   else if (key === 'dock') { if ((config.dock !== false) !== !!value) toggleDock(); }
   else if (key === 'sidePanel') { if ((config.sidePanel !== false) !== !!value) toggleSidePanel(); }
@@ -4274,6 +4301,33 @@ ipcMain.handle('settings-set', (_e, { key, value }) => {
   return settingsView();
 });
 ipcMain.on('app-quit', () => { app._quitting = true; app.quit(); });
+// 💬 v0.1.236 「이 사람 말 숨기기」(내 화면만 · 롤 고유 번호로 · ⚙에서 모두 다시 보기 = key null)
+ipcMain.handle('chat-mute', (_e, { key, on }) => {
+  let L = Array.isArray(config.chatMute) ? config.chatMute.slice() : [];
+  if (key == null) L = [];
+  else if (typeof key === 'string' && key.length <= 80) { L = L.filter(x => x !== key); if (on) L.push(key); }
+  config.chatMute = L.slice(-200); saveConfig(); broadcastSettings();
+  return settingsView();
+});
+// 🔐 v0.1.236 「내 정보 지우기」 — 서버의 내 칸(디스코드 연결·계정·전적 점수·접속 표시·방 안 내 칸)을 지우고 앱을 끔
+//   경기 기록(같이 한 사람들의 기록)은 남음 = 개인정보 처리방침에 적은 대로 요청하면 이름을 지움 · 앱을 다시 켜고 롤에 로그인하면 계정·접속 칸은 다시 생김(안내 글에 적음)
+ipcMain.handle('privacy-wipe', async () => {
+  if (!account) return { ok: false, err: '롤에 로그인한 뒤에 지울 수 있어요(어느 계정인지 알아야 해서)' };
+  const p = account.puuid;
+  try {
+    privacyTick();   // 이 기기를 계정에 등록해 둬야 계정 칸을 지울 수 있음(서버 규칙)
+    const uid = fbUid(); if (uid) await fbSet(`${T}/owners/${p}/${uid}`, Date.now()).catch(() => {});
+    if (room) await roomLeave(true).catch(() => {});
+    const jobs = [`${T}/discord/${p}`, `${T}/ratings/${p}`, `${T}/presence/${p}`, `${T}/accounts/${p}`].map(x => fbSet(x, null).then(w => ({ x, ok: !!(w && w.ok) })).catch(() => ({ x, ok: false })));
+    const res = await Promise.all(jobs), bad = res.filter(r => !r.ok).map(r => r.x.split('/')[1]);
+    console.log('[privacy] 내 정보 지우기', bad.length ? '일부 실패 ' + bad.join(',') : '완료');
+    if (bad.length) return { ok: false, err: '일부를 지우지 못했어요(' + bad.join(', ') + ') · 잠시 뒤 다시 해 주세요' };
+    _dcLinked = null; _dcMine = null; _ownKey = null;
+    setTimeout(() => { app._quitting = true; app.quit(); }, 1500);
+    return { ok: true };
+  } catch (e) { return { ok: false, err: e && e.message || '지우지 못했어요' }; }
+});
+ipcMain.on('open-privacy', () => { shell.openExternal('https://sohada2.github.io/today-naejeon/privacy.html').catch(() => {}); });
 ipcMain.on('open-web', () => shell.openExternal(WEB_URL));
 ipcMain.handle('set-host', (_e, v) => v ? claimHost() : releaseHost());   // 👑 방장 하기/그만하기(한 명만)
 ipcMain.handle('hand-host', (_e, { puuid }) => handHost(puuid));            // 👑 방장 넘겨주기

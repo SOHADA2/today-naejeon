@@ -1193,6 +1193,11 @@ function chatLayer() {
   if (!l) { l = document.createElement('div'); l.id = 'lb-bub'; l.className = 'lb-bub'; el('view-lobby').appendChild(l); }
   return l;
 }
+// 💬 v0.1.236 채팅 욕설 가리기(내 화면만 · ⚙ 「채팅 욕설 가리기」 · 기본 켬) + 「이 사람 말 숨기기」(⚙에서 모두 다시 보기)
+//   가리기 = 흔한 욕설·초성·띄어 쓴 변형을 ●로 · 서버엔 원문 그대로(가리는 건 보는 쪽)
+const CHAT_BAD = /(씨|시|ㅆ|ㅅ)\s*[0-9]*\s*(발|빨|바|팔|ㅂ)|병\s*신|븅\s*신|ㅂ\s*ㅅ|좆|ㅈ\s*같|개\s*(새|색|섀|세)\s*(끼|기|키)|(새|섀)\s*끼|느\s*금|니\s*(애미|엄마|애비)|애\s*미|엠\s*창|지\s*랄|ㅈ\s*ㄹ|미\s*친\s*(놈|년|새)|ㅁ\s*ㅊ|f+u+c+k|s+h+i+t|b+i+t+c+h/gi;
+const chatClean = t => (_set && _set.chatFilter === false) ? t : String(t).replace(CHAT_BAD, w => '●'.repeat(Math.min(4, Math.max(2, w.replace(/\s/g, '').length))));
+const chatMuted = k => !!(_set && Array.isArray(_set.chatMute) && _set.chatMute.includes(k));
 function chatShow(d) {
   if (window.tnDemo && window.tnDemo.on) return;   // 사용법 예시 화면 위에는 실제 채팅을 안 띄움
   if (!d || !d.key || typeof d.text !== 'string' || !d.text) return;
@@ -1201,16 +1206,19 @@ function chatShow(d) {
   CHAT.seen[d.key] = { at: d.at, text };
   const m = chatMember(d.key);
   if (!m) return;   // 이 방 사람이 아니면 안 띄움
+  if (!m.me && chatMuted(d.key)) return;   // 💬 숨긴 사람
   CHAT.talk[d.key] = Date.now() + CHAT_TALK_MS; chatMark(); setTimeout(chatMark, CHAT_TALK_MS + 40);
   if (EMO_SET.has(text)) chatPop(d.key, text); else chatSay(m, text);
 }
 function chatSay(m, text) {   // 최근 말 줄에 한 줄
   const row = document.createElement('div');
   row.className = 'lb-say' + (m.me ? ' me' : '');
-  row.innerHTML = avatar(m, 'chip-av') + '<p><b></b><span></span></p>';
-  row.querySelector('p b').textContent = m.name; row.querySelector('p span').textContent = text;   // ⚠️ 'span'만 쓰면 얼굴 칸(chip-av)이 먼저 잡힘
+  row.innerHTML = avatar(m, 'chip-av') + '<p><b></b><span></span></p>' + (m.me ? '' : '<button class="lb-say-mute" title="이 사람 말·이모티콘 숨기기(내 화면만 · ⚙ 설정에서 다시 볼 수 있어요)">숨기기</button>');
+  row.querySelector('p b').textContent = m.name; row.querySelector('p span').textContent = chatClean(text);
+  const mb = row.querySelector('.lb-say-mute');
+  if (mb) mb.onclick = async e => { e.stopPropagation(); if (!(await tnConfirm(`${m.name}님의 말과 이모티콘을 숨길까요?\n내 화면에서만 안 보이고, ⚙ 설정에서 다시 볼 수 있어요.`, { title: '말 숨기기', ok: '숨기기' }))) return; await window.api.chatMute(m.key, true); for (const r of CHAT.rows.filter(x => x.key === m.key)) chatDrop(r, true); };   // ⚠️ 'span'만 쓰면 얼굴 칸(chip-av)이 먼저 잡힘
   el('lb-chat-feed').appendChild(row);
-  const o = { el: row, name: m.name, text };
+  const o = { el: row, name: m.name, text: chatClean(text), key: m.key };
   CHAT.rows.push(o);
   while (CHAT.rows.length > CHAT_ROWS) chatDrop(CHAT.rows[0], true);
   o.tm = setTimeout(() => chatDrop(o), CHAT_ROW_MS);

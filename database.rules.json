@@ -129,6 +129,40 @@
               }
             }
           },
+          "uids": {
+            "$uid": {
+              ".validate": "auth.uid === $uid && newData.isString() && newData.val().length <= 80"
+            }
+          },
+          "dc": {
+            "$puuid": {
+              ".validate": "$puuid.length <= 80 && newData.hasChildren([\"id\", \"at\"])",
+              "id": {
+                ".validate": "newData.isString() && newData.val().matches(/^[0-9]{15,21}$/)"
+              },
+              "name": {
+                ".validate": "newData.isString() && newData.val().length <= 40"
+              },
+              "at": {
+                ".validate": "newData.isNumber()"
+              },
+              "on": {
+                ".validate": "newData.isBoolean()"
+              },
+              "g": {
+                ".validate": "newData.isString() && newData.val().matches(/^[0-9]{15,21}$/)"
+              },
+              "gn": {
+                ".validate": "newData.isString() && newData.val().length <= 60"
+              },
+              "inv": {
+                ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9-]{2,32}$/)"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
           "$other": {
             ".validate": false
           }
@@ -190,7 +224,7 @@
       },
       "accounts": {
         "$puuid": {
-          ".write": "auth != null && (newData.exists())",
+          ".write": "auth != null && (newData.exists() || root.child('today/owners/' + $puuid + '/' + auth.uid).exists())",
           ".validate": "$puuid.length <= 80",
           "name": {
             ".validate": "newData.isString() && newData.val().length <= 40"
@@ -429,6 +463,15 @@
           },
           "$other": {
             ".validate": false
+          }
+        }
+      },
+      "owners": {
+        "$puuid": {
+          ".validate": "$puuid.length <= 80",
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.isNumber()"
           }
         }
       }
