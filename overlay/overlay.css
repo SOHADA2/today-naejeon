@@ -481,7 +481,7 @@ header .phase, header .win-btn { flex-shrink:0; }
 .tut { position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center; padding:14px; background:rgba(1,6,12,0.82); -webkit-app-region:no-drag; }
 .tut-card { width:100%; max-width:380px; display:flex; flex-direction:column; gap:10px; padding:16px 16px 14px; background:linear-gradient(160deg, var(--bg-2), var(--bg-1)); border:1px solid var(--gold-line); clip-path:var(--cut); animation:tutIn .22s ease-out both; }
 .tut-hd { display:flex; align-items:center; gap:8px; }
-.tut-ic { font-size:20px; line-height:1; }
+.tut-n { flex:none; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; font-style:normal; color:#1a1206; background:linear-gradient(180deg, var(--gold-hi), var(--gold)); clip-path:var(--cut-sm); }   /* v0.1.227 빠른 시작 단계 번호(그림 글자 대신) */
 .tut-en { flex:1; }
 .tut-no { font-size:13px; color:var(--dim); }
 .tut-t { font-size:17px; font-weight:800; color:var(--gold-hi); }
@@ -493,6 +493,8 @@ header .phase, header .win-btn { flex-shrink:0; }
 .tut-dots i { width:6px; height:6px; background:var(--hair); } .tut-dots i.on { background:var(--gold-hi); }
 .tut-btns { display:flex; gap:6px; align-items:center; }
 .tut-act { -webkit-app-region:no-drag; display:block; width:100%; margin:2px 0 10px; padding:8px 10px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--gold-hi); background:var(--gold-soft); border:1px solid var(--gold-line); clip-path:var(--cut-sm); }   /* 🎧 튜토리얼 단계 안 버튼(설정 열기) */
+.tut-more { -webkit-app-region:no-drag; display:block; width:100%; margin:2px 0 4px; padding:8px 10px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--ink-soft); background:var(--bg-3); border:1px solid var(--hair); clip-path:var(--cut-sm); }   /* 빠른 시작 마지막 쪽 → 자세한 사용법 */
+.tut-more:hover { color:var(--gold-hi); border-color:var(--gold-line); }
 .tut-btns button { padding:8px 12px; font-size:12.5px; font-weight:700; cursor:pointer; }
 .tut-skip { margin-right:auto; color:var(--dim); background:transparent; border:none; }
 .tut-prev { color:var(--ink-soft); background:var(--bg-3); border:1px solid var(--hair); clip-path:var(--cut-sm); }
@@ -664,6 +666,8 @@ header .phase, header .win-btn { flex-shrink:0; }
 .lb-lg-steps li b { font-size:13.5px; font-weight:700; }
 .lb-lg-steps li small { font-size:11.5px; color:var(--dim); line-height:1.45; }
 .lb-login .lb-wait { padding-top:10px; border-top:1px solid var(--hair); font-size:12px; }
+.lb-lg-go { -webkit-app-region:no-drag; width:100%; margin-top:2px; padding:11px; font-size:14px; }   /* v0.1.227 「롤 클라이언트 켜기」 */
+body.rm-forming #rm-new2 { display:none; }   /* 방 만드는 칸이 열려 있으면 빈 화면의 같은 버튼 숨김 */
 /* 자리: 팀장 고르는 중(방장·드래프트·팀장 2명 전) = 「팀장」 버튼이 늘 보임 · 빈 자리 = 앱 없는 사람 추가(방장) */
 .lb-seats.pick .seat.has-ctl .seat-ctl { display:flex; }
 .lb-seats.pick .seat.has-ctl .seat-main small { display:none; }

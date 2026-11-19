@@ -725,4 +725,4 @@ function stop() {
 }
 
 module.exports = { _summarizeTimeline: summarizeTimeline, start, stop, setRoot: (r) => { BRIDGE_ROOT = r || 'today/bridge'; }, getGameId: () => activeGameId || lastSavedGameId || null,   // 🎬 팟지 수집이 어느 게임인지
-  lcuRaw: (m, p, b) => basePort ? lcuRaw(m, p, b) : Promise.resolve({ status: 0, data: null }), lolDir: () => _lolDir };   // 🎬 팟지 리플레이 녹화(replayrec.js)   // 🎬 팟지 수집이 어느 게임인지
+  lcuRaw: (m, p, b) => basePort ? lcuRaw(m, p, b) : Promise.resolve({ status: 0, data: null }), lolDir: () => _lolDir, lcuUp: () => !!basePort };   // 🎬 팟지 리플레이 녹화(replayrec.js)   // 🎬 팟지 수집이 어느 게임인지

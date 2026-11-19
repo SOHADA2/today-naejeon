@@ -942,13 +942,60 @@ function onlineList() {   // 앱 켠 사람 전체(사장님 선택) = 전역 �
   out.sort((a, b) => b.me - a.me || a.guest - b.guest || String(a.name).localeCompare(String(b.name), 'ko'));
   return out.slice(0, 80);
 }
+// 🚀 v0.1.227 처음 켠 사람(사장님: 처음 들어와도 바로 쓸 수 있게) — 롤 로그인 전 화면에 「롤 클라이언트 켜기」 버튼 + 지금 상태
+//   lol: 'ok'(로그인됨) · 'login'(롤 클라는 켜짐 · 계정 확인 중) · 'off'(롤 클라 없음) · launch = 버튼을 보일지(라이엇 클라이언트를 찾았고 롤이 꺼져 있을 때만) · launching = 방금 눌러서 켜는 중
+//   라이엇 클라이언트 위치 = %ProgramData%\Riot Games\RiotClientInstalls.json(rc_live → rc_default → rc_beta → associated_client) · 없으면 기본 설치 폴더 · 못 찾으면 버튼 없음(글만)
+//   켜기 = 롤 바탕화면 바로가기와 같은 명령(RiotClientServices.exe --launch-product=league_of_legends --launch-patchline=live)
+let _riotExe = null, _riotExeAt = 0, _lolLaunchUntil = 0, _startSig = '';
+function riotClientPath() {
+  if (Date.now() - _riotExeAt < 30000) return _riotExe;
+  _riotExeAt = Date.now(); _riotExe = null;
+  const cands = [];
+  try {
+    const f = (!app.isPackaged && process.env.TN_RIOT_INSTALLS) || path.join(process.env.ProgramData || 'C:\\ProgramData', 'Riot Games', 'RiotClientInstalls.json');
+    const j = JSON.parse(fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, ''));
+    for (const k of ['rc_live', 'rc_default', 'rc_beta']) if (typeof j[k] === 'string') cands.push(j[k]);
+    for (const v of Object.values(j.associated_client || {})) if (typeof v === 'string') cands.push(v);
+  } catch (_) {}
+  cands.push('C:\\Riot Games\\Riot Client\\RiotClientServices.exe', 'D:\\Riot Games\\Riot Client\\RiotClientServices.exe');
+  for (const c of cands) { try { const p = path.normalize(c); if (/\.exe$/i.test(p) && fs.existsSync(p)) { _riotExe = p; break; } } catch (_) {} }
+  return _riotExe;
+}
+function startView() {
+  const up = !!(bridge.lcuUp && bridge.lcuUp());
+  const lol = account ? 'ok' : up ? 'login' : 'off';
+  const launching = lol === 'off' && Date.now() < _lolLaunchUntil;
+  return { lol, launch: lol === 'off' && !_clientPresent && process.platform === 'win32' && !!riotClientPath(), launching };
+}
+function pushStart() {   // 바뀌었을 때만(5초마다 확인 · 계정이 바뀌면 바로)
+  const v = startView(), sig = JSON.stringify(v);
+  if (sig === _startSig) return;
+  _startSig = sig; broadcast('start', v); sendHome();
+}
+function lolLaunch() {
+  const exe = riotClientPath();
+  if (!exe) return { ok: false, err: '라이엇 클라이언트를 찾지 못했습니다' };
+  if (account || (bridge.lcuUp && bridge.lcuUp())) return { ok: true };
+  if (Date.now() < _lolLaunchUntil) return { ok: true };   // 연달아 눌러도 한 번만
+  try {
+    const c = spawn(exe, ['--launch-product=league_of_legends', '--launch-patchline=live'], { detached: true, stdio: 'ignore' });
+    c.on('error', () => { _lolLaunchUntil = 0; pushStart(); });
+    c.unref();
+  } catch (e) { return { ok: false, err: '롤 클라이언트를 켜지 못했습니다' }; }
+  _lolLaunchUntil = Date.now() + 40000;   // 라이엇 클라이언트가 뜨고 로그인할 때까지 「켜는 중」(그 뒤에도 꺼져 있으면 버튼이 돌아옴)
+  setTimeout(pushStart, 40500);
+  pushStart();
+  return { ok: true };
+}
+ipcMain.handle('start-state', () => startView());
+ipcMain.handle('lol-launch', () => lolLaunch());
 let _todayGames = null;   // 오늘 이 방에서 끝난 내전 판 수(getToday가 채움 · 모르면 null → 「GAME START」만)
 function homeView() {
   const rv = roomsView();
   // 🎬 v0.1.177 게임 시작 화면에 이번 판 두 팀(내전 · 팀이 짜인 판만) + 오늘 몇 번째 판인지
   const sd = sessionData, match = _homeMode === 'logo' && sd && sd.phase === 'teams' && sd.mode !== 'normal' && Array.isArray(sd.teamA) && Array.isArray(sd.teamB) && sd.teamA.length && sd.teamB.length
     ? { n: _todayGames != null ? _todayGames + 1 : 0 } : null;
-  return { mode: _homeMode, match, day: dayKey(), me: account ? { name: account.gameName, tag: account.tagLine || '' } : null, rooms: rv.rooms, room: rv.room, online: onlineList(), full: rv.full, ready: rv.ready || !!room, ver: app.getVersion() };
+  return { mode: _homeMode, match, day: dayKey(), me: account ? { name: account.gameName, tag: account.tagLine || '' } : null, rooms: rv.rooms, room: rv.room, online: onlineList(), full: rv.full, ready: rv.ready || !!room, slow: rv.slow, start: startView(), ver: app.getVersion() };
 }
 function sendHome() { if (homeWin && !homeWin.isDestroyed() && _homeLoaded) try { homeWin.webContents.send('home', homeView()); } catch (_) {} }
 async function homeRefresh() {   // 홈이 떠 있을 때만 10초마다(접속 표시는 실시간으로 안 받아서 직접 읽음)
@@ -1438,8 +1485,11 @@ function connBeat() {
   if (++_connN % 15) return;   // 5분마다 오래된 기기 정리(앱이 갑자기 꺼진 것)
   getJson(`${FIREBASE_DB}/${T}/conns.json`).then(c => { for (const [k, v] of Object.entries(c || {})) if (!(Date.now() - v < CONN_STALE_MS)) fbSet(`${T}/conns/${k}`, null).catch(() => {}); }).catch(() => {});
 }
+let _liveAt = 0;   // 🚀 v0.1.227 실시간 연결을 시작한 때 — SLOW_MS 넘게 방 목록을 못 받으면 「서버에 연결하지 못했습니다」(roomsView.slow)
+const SLOW_MS = 12000;
 function startLive() {   // v0.1.110: 실시간 연결 1개 = 방 밖이면 방 목록 · 방 안이면 그 방(roomStreams가 바꿔 끼움)
-  _live = true;
+  _live = true; _liveAt = Date.now();
+  setTimeout(() => { try { broadcastRooms(); sendHome(); } catch (_) {} }, SLOW_MS + 300);
   roomStreams();
   connBeat(); setInterval(connBeat, CONN_MS);
   guestBeat(); setInterval(guestBeat, PRESENCE_MS);   // 👤 v0.1.127 롤 로그인 전 = 게스트 접속 표시
@@ -1465,7 +1515,7 @@ function roomsView() {
     rooms.push({ id, name: r.name, priv: !!r.priv, host: r.host || null, n: mine ? mem.length : (Number(r.n) || mem.length), members: mem.slice(0, 10), at: r.at || 0, mine });
   }
   rooms.sort((a, b) => b.mine - a.mine || b.n - a.n || b.at - a.at);
-  return { rooms, room: room ? { id: room.id, name: room.name, priv: room.priv } : null, me: config.myName || '', ready: !!(MIR.roomList && MIR.roomList.ready), full: seatFull };
+  return { rooms, room: room ? { id: room.id, name: room.name, priv: room.priv } : null, me: config.myName || '', ready: !!(MIR.roomList && MIR.roomList.ready), slow: !room && _live && !(MIR.roomList && MIR.roomList.ready) && now - _liveAt > SLOW_MS, full: seatFull };
 }
 const broadcastRooms = () => broadcast('rooms', roomsView());
 // ⚡ v0.1.95: 방 노드 스트림 7개(session·lobby·host·normalLive·potgWait·potgRec·eogStats) → **방 하나에 스트림 1개**(rooms/{방})
@@ -1672,7 +1722,7 @@ function setAccount(acc) {
   }
   account = acc;
   config.myName = acc ? acc.gameName : '';
-  try { guestBeat(); sendHome(); } catch (_) {}   // 👤 로그인하면 게스트 표시 지움 · 홈의 「나」 갱신
+  try { guestBeat(); sendHome(); pushStart(); } catch (_) {}   // 👤 로그인하면 게스트 표시 지움 · 홈의 「나」 갱신 · 시작 상태(v0.1.227)
   if (acc) {
     beatPresence();
     fbUpdate(`${T}/accounts/${acc.puuid}`, { name: acc.gameName, tag: acc.tagLine || null, icon: acc.iconId || null, lastSeen: Date.now() }).catch(() => {});
@@ -3761,11 +3811,16 @@ ipcMain.on('overlay-min', () => {
 ipcMain.handle('home-get', () => homeView());
 ipcMain.on('home-min', () => { if (homeWin && !homeWin.isDestroyed()) { try { homeWin.setSkipTaskbar(false); homeWin.minimize(); } catch (_) {} } });
 ipcMain.on('home-close', () => { if (homeWin && !homeWin.isDestroyed()) homeWin.hide(); if (config.closeAsk !== false && !app._quitting) { closeQuitConfirm(); openQuitConfirm('close'); } });
-ipcMain.on('home-panels', () => {
-  if (!account) return;
+function homeOpenPanels() {
   _homePanels = true; hideHome(150);
   for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) if (win && !win.isDestroyed()) { win.setBounds(standaloneBounds(side)); win.showInactive(); }
   setMerged(config.sidePanel !== false && !leftUserHid);
+}
+ipcMain.on('home-panels', () => { if (account) homeOpenPanels(); });
+ipcMain.on('home-join', (_e, id) => {   // 🚀 v0.1.227 홈의 방 목록에서 「들어가기」
+  if (!account || typeof id !== 'string') return;
+  homeOpenPanels();
+  if (!room || room.id !== id) setTimeout(() => { try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.webContents.send('room-pick', id); } catch (_) {} }, 250);
 });
 ipcMain.on('side-min', () => {
   if (leftWin && !leftWin.isDestroyed()) { leftMinimized = true; try { leftWin.setSkipTaskbar(false); leftWin.minimize(); } catch (_) {} }
@@ -4220,6 +4275,7 @@ else {
     setInterval(runSession, 3000);                       // 화면·방장 일 3초마다(📡 v0.1.63: 데이터는 스트림 사본 — 끊긴 노드만 서버에서 읽음)
     discord = makeDiscord({ pipe: !app.isPackaged && process.env.TN_DISCORD_PIPE ? (i => `\\\\?\\pipe\\${process.env.TN_DISCORD_PIPE}-${i}`) : undefined, log: m => { try { console.log(m); } catch (_) {} }, onUser: (u) => { if (u) _dcLinked = null; dcLink(); broadcastSettings(); dcPresence(); } });   // 🎧 v0.1.130
     setInterval(dcPresence, 3000); setTimeout(dcPresence, 4000);
+    setInterval(pushStart, 5000);                        // 🚀 v0.1.227 롤 켜짐/꺼짐 → 「롤 클라이언트 켜기」 버튼
     seatGate();                                          // 🚦 자리 있으면 실시간 연결(접속 표시·방 목록·방) · 꽉 찼으면 안내하고 30초마다 다시
     setupAutoUpdate();
     replayRec = makeReplayRec(Object.assign(makeReplayRec.defaults(), {   // 🎬 방장 PC가 팟지 장면을 리플레이로 녹화

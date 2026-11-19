@@ -1,6 +1,6 @@
 // 🧪 대기실·방 목록 캡처 장면 만들기(가짜 이름) — 왼쪽 창(overlay)을 고친 뒤 화면 검사에 씀(v0.1.196 · 다른 PC에서도 같은 검사를 돌리게 리포에 둠)
 // 사용(리포 루트 · 이 PC 셸은 ELECTRON_RUN_AS_NODE 끄고 = env -u ELECTRON_RUN_AS_NODE):
-//   node tools/ui-scenes-lobby.cjs <장면.json>                                  ← 장면 파일 만들기(58장면: 302·402px × 29가지 상태 · 서버·롤 연결 없음)
+//   node tools/ui-scenes-lobby.cjs <장면.json>                                  ← 장면 파일 만들기(86장면: 302·402px × 43가지 상태 · 서버·롤 연결 없음)
 //   ./node_modules/electron/dist/electron.exe tools/ui-shot.cjs <장면.json> <출력 폴더>    ← PNG + 글자 겹침·잘림 검사(「TODAY IN-HOUSE」 머리 배경 글자 겹침·잘림은 원래 그런 것)
 //   ./node_modules/electron/dist/electron.exe tools/ui-errcheck.cjs <장면.json>            ← 렌더러 실행 오류(다시 그리기·방장 여부 뒤집기까지)
 // 장면 이름: h- 방장 · m- 팀원 · x- 그 밖(롤 초대·디스코드 안내·12명·오류 줄·오늘 순위·방 목록) · 끝 숫자 = 창 폭
@@ -48,6 +48,13 @@ for (const w of [302, 402]) {
   S.push(Object.assign(sc('x-today-' + w, w, 6, 2, 'balance'), { stub: { getToday: today } }));                         // 오늘 순위
   S.push({ name: 'x-rooms-empty-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms: [], room: null, ready: true }) + ");" + wait });
   S.push({ name: 'x-rooms-list-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms, room: null, ready: true }) + ");" + wait });
+  // 🚀 처음 켠 사람(v0.1.227) — 롤 로그인 전 카드의 「롤 클라이언트 켜기」 버튼·켜는 중 · 서버 연결 안 됨 · 방 만드는 칸 · 사용법 카드(빠른 시작 3쪽 + 자세한 사용법 7쪽)
+  S.push({ name: 'x-login-launch-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('start'," + JSON.stringify({ lol: 'off', launch: true, launching: false }) + ");" + wait });
+  S.push({ name: 'x-login-launching-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('start'," + JSON.stringify({ lol: 'off', launch: false, launching: true }) + ");" + wait });
+  S.push({ name: 'x-rooms-slow-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms: [], room: null, ready: false, slow: true }) + ");" + wait });
+  S.push({ name: 'x-rooms-form-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms: [], room: null, ready: true }) + ");" + wait + "document.getElementById('rm-new2').click();" + wait });
+  for (let k = 0; k < 3; k++) S.push({ name: 'x-tut-quick' + (k + 1) + '-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms, room: null, ready: true }) + ");" + wait + "window.tnTutorial(" + k + ");" + wait });
+  for (let k = 0; k < 7; k++) S.push({ name: 'x-tut-more' + (k + 1) + '-' + w, page: 'overlay', w, h: k === 2 ? 576 : 720, audit: 1, js: pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms, room: null, ready: true }) + ");" + wait + "window.tnTutorial(" + k + ", 'more');" + wait });   // 가장 긴 쪽(MODE)은 낮은 창(576)으로
   S.push(sc('x-short-' + w, w, 10, 0, 'draft', '', { captains: { teamA: NM[0], teamB: NM[2] } }, false, 576));          // 낮은 창(576 = 롤 클라 최소 크기 1024×576 옆)에서 10명 드래프트 = 한 화면
   // 💬 채팅(v0.1.202) — 글 = 입력 칸 위 「최근 말」 줄 · 이모티콘 = 그 사람 얼굴 자리에서 뜸(⚠️ 얼굴 글자와 겹치는 게 정상 → 겹침 검사에 걸림) · 접기
   const SAY = "__emit('chat',{key:'p0',text:'다들 준비됐어?',at:1}); __emit('chat',{key:'p3',text:'잠깐만 물 좀 떠 올게 금방 옴 ㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋ',at:2}); __emit('chat',{key:'p2',text:'ㄱㄱ',at:3});";

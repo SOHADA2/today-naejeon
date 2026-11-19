@@ -6,7 +6,7 @@ const fbKeyOf = name => nn(name).replace(/\s+/g, '_').replace(/[.#$\[\]\/]/g, '_
 const el = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-let sessionData = null, myName = '', roster = [], inGame = false, myIsHost = false, lobbyData = null;
+let sessionData = null, myName = '', roster = [], inGame = false, myIsHost = false, lobbyData = null, _start = null;
 let _gamePlayed = false, _lastFormedSeen = 0;   // 이번 팀 결성으로 게임을 이미 했는지(게임 후엔 '팀 배정' 대신 '결과 대기')
 
 el('close').addEventListener('click', () => window.api.hideOverlay());
@@ -88,6 +88,7 @@ async function rmAct(fn) {
 }
 function rmForm(open) {
   el('rm-form').style.display = open ? '' : 'none';
+  document.body.classList.toggle('rm-forming', !!open);   // v0.1.227 만드는 칸이 열려 있는 동안 빈 화면의 같은 버튼은 숨김
   if (open) { el('rm-name').value = ''; el('rm-name').placeholder = myName ? `${myName}의 방` : '방 이름'; el('rm-pw').value = ''; setPriv(false); setTimeout(() => el('rm-name').focus(), 0); }
 }
 function setPriv(p) { _rmPriv = !!p; document.querySelectorAll('.rm-seg').forEach(b => b.classList.toggle('on', (b.dataset.priv === '1') === _rmPriv)); el('rm-pw').style.display = _rmPriv ? '' : 'none'; }
@@ -111,6 +112,7 @@ async function rmJoin(id, pw) {
     setTimeout(() => { const i = el('rm-pw-in'); if (i) i.focus(); }, 0);
   }
 }
+if (window.api.onRoomPick) window.api.onRoomPick(id => { if (id === '+new') { if (myName && roomData && !roomData.room) rmForm(true); } else if (id) rmJoin(id); });
 function renderFull() {   // 🚦 v0.1.96: 자리 꽉 참(무료 서버 동시 연결 한도) — 실시간 연결 안 열고 기다림 · 자리 나면 앱이 알아서 들어감
   const F = roomData.full;
   el('rm-new').style.display = 'none'; rmForm(false); rmErr('');
@@ -122,13 +124,13 @@ function renderFull() {   // 🚦 v0.1.96: 자리 꽉 참(무료 서버 동시 �
 function renderRooms() {
   const D = roomData || { rooms: [] }, R = D.rooms || [];
   el('rm-new').style.display = myName && R.length ? '' : 'none';
-  const sig = JSON.stringify([myName, R, _pwFor, D.ready]);
+  const sig = JSON.stringify([myName, R, _pwFor, D.ready, D.slow]);
   if (sig === _rmSig) return;   // 같은 내용이면 다시 안 그림(입력 중인 비밀번호가 지워지지 않게)
   _rmSig = sig;
   const list = el('rm-list');
   if (!myName) { list.innerHTML = '<div class="rm-empty"><span class="lb-wait">롤 클라이언트에 로그인하면 방에 들어갈 수 있어요</span></div>'; return; }
   if (!R.length) {
-    list.innerHTML = D.ready === false ? '<div class="rm-empty">방 목록을 불러오는 중이에요</div>'
+    list.innerHTML = D.ready === false ? (D.slow ? '<div class="rm-empty"><b class="rm-empty-t">서버에 연결하지 못했습니다</b><span>인터넷 연결을 확인해 주세요<br>연결되면 자동으로 이어집니다</span></div>' : '<div class="rm-empty">방 목록을 불러오는 중입니다</div>')
       : '<div class="rm-empty"><b class="rm-empty-t">아직 만들어진 방이 없어요</b><span>방을 만들면 친구들 앱의 방 목록에 떠요<br>만든 사람이 방장이에요</span><button id="rm-new2" class="ui-btn-gold">＋ 방 만들기</button></div>';   // v0.1.196 처음 온 사람: 방을 만들면 어떻게 되는지 한 줄
     const b = el('rm-new2'); if (b) b.onclick = () => rmForm(true);
     return;
@@ -852,13 +854,19 @@ function renderLobby() {
   // ② 롤 로그인 전 = 빈 자리 대신 시작하는 법 3단계(처음 온 사람)
   const lg = el('lb-login');
   lg.style.display = login ? 'none' : '';
-  if (!login && !lg.dataset.h) {
-    lg.dataset.h = '1';
-    lg.innerHTML = '<span class="lb-en">START</span><b class="lb-lg-t">이렇게 시작해요</b>'
-      + '<ol class="lb-lg-steps"><li class="now"><i>1</i><span><b>롤 클라이언트에 로그인</b><small>그 계정으로 자동 입장해요</small></span></li>'
-      + '<li><i>2</i><span><b>방을 만들거나 들어가기</b><small>만든 사람이 방장이에요</small></span></li>'
-      + '<li><i>3</i><span><b>방장이 팀을 짜면 게임 시작</b><small>결과 기록·투표·하이라이트는 자동이에요</small></span></li></ol>'
-      + '<span class="lb-wait"><span class="lobby-pulse"></span>롤 로그인을 기다리는 중</span>';
+  const stSig = login ? '' : JSON.stringify(_start || 0);
+  if (!login && lg.dataset.h !== stSig) {   // v0.1.227 롤이 꺼져 있고 라이엇 클라이언트를 찾았으면 「롤 클라이언트 켜기」 버튼(main startView)
+    lg.dataset.h = stSig;
+    const st = _start || {};
+    lg.innerHTML = '<span class="lb-en">START</span><b class="lb-lg-t">이렇게 시작합니다</b>'
+      + '<ol class="lb-lg-steps"><li class="now"><i>1</i><span><b>롤 클라이언트에 로그인</b><small>그 계정으로 자동 입장합니다</small></span></li>'
+      + '<li><i>2</i><span><b>방을 만들거나 들어가기</b><small>만든 사람이 방장입니다</small></span></li>'
+      + '<li><i>3</i><span><b>방장이 팀을 짜면 게임 시작</b><small>결과 기록·투표·하이라이트는 자동입니다</small></span></li></ol>'
+      + (st.launching ? '<button class="ui-btn-gold lb-lg-go" disabled>롤 클라이언트를 켜는 중</button>'
+        : st.launch ? '<button class="ui-btn-gold lb-lg-go" id="lb-lg-go">롤 클라이언트 켜기</button>'
+        : `<span class="lb-wait"><span class="lobby-pulse"></span>${st.lol === 'login' ? '롤 계정을 확인하는 중' : '롤 로그인을 기다리는 중'}</span>`);
+    const go = el('lb-lg-go');
+    if (go) go.onclick = () => { go.disabled = true; window.api.lolLaunch().then(r => { if (r && !r.ok) { go.disabled = false; if (r.err) lbErr(r.err); } }).catch(() => { go.disabled = false; }); };
   }
 
   // ③ 자리 — 참가한 사람 순서대로 · 빈 자리는 한 줄까지만(v0.1.195) · 드래프트 팀장 고르는 중(pick)엔 「팀장」 버튼이 늘 보임
@@ -1179,6 +1187,10 @@ window.api.getPlayers().then(d => { if (d) applySession({ session: d.session, my
 window.api.getLobby().then(d => { if (d) { lobbyData = d; myIsHost = !!d.isHost; render(); } }).catch(() => {});
 window.api.getRooms().then(d => { if (d) applyRooms(d); }).catch(() => {});
 render();
+
+// 🚀 v0.1.227 롤 로그인 전 상태({lol, launch, launching}) — 「시작하기」 카드의 「롤 클라이언트 켜기」 버튼
+if (window.api.getStart) window.api.getStart().then(d => { _start = d; if (!myName) render(); }).catch(() => {});
+if (window.api.onStart) window.api.onStart(d => { _start = d; if (!myName) render(); });
 
 // 🔄 업데이트 상태(내 안내 줄 「새 버전 받기 / 받는 중 n% / 지금 업데이트」)
 let _upd = null;

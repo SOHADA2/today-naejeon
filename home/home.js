@@ -19,18 +19,31 @@ function render(d) {
   // 나
   const me = $('me');
   me.classList.toggle('guest', !d.me);
+  // 🚀 v0.1.227 롤 로그인 전(처음 켠 사람이 가장 먼저 보는 화면) = 「게스트」 한 줄 대신 시작하는 법 3단계 + 「롤 클라이언트 켜기」
+  //   예전엔 맨 아래 작은 회색 글(「롤 클라이언트를 켜고 로그인하면…」)이 유일한 안내라 무엇을 해야 하는지 안 보였음
+  const st = d.start || {};
+  me.classList.toggle('start', !d.me);
   me.innerHTML = d.me
     ? `<i class="dot"></i><span><b>${esc(d.me.name)}</b> <span class="tag">#${esc(d.me.tag)}</span></span><span class="st">${d.room ? `「${esc(d.room.name)}」에 들어가 있음` : '롤 클라이언트가 내려가 있습니다'}</span>`
-    : `<i class="dot"></i><span><b>게스트</b></span><span class="st">롤에 로그인하면 그 계정으로 바뀝니다</span>`;
-  // 방 목록
-  const rooms = d.rooms || [];
+    : `<div class="st-tx"><span class="col-en">START</span><b>롤 클라이언트에 로그인하면 시작됩니다</b>
+        <ol class="st-steps"><li class="now"><i>1</i><span><b>롤 로그인</b><small>그 계정으로 자동 입장</small></span></li>
+          <li><i>2</i><span><b>방 들어가기 · 만들기</b><small>만든 사람이 방장</small></span></li>
+          <li><i>3</i><span><b>방장이 게임 시작</b><small>기록 · 투표 · 하이라이트 자동</small></span></li></ol></div>
+       <div class="st-act">${st.launching ? '<button class="ui-btn-gold" disabled>롤 클라이언트를 켜는 중</button>'
+        : st.launch ? '<button class="ui-btn-gold" id="st-go">롤 클라이언트 켜기</button>'
+        : `<span class="st-wait"><i></i>${st.lol === 'login' ? '롤 계정을 확인하는 중' : '롤 로그인을 기다리는 중'}</span>`}</div>`;
+  const sg = $('st-go'); if (sg) sg.onclick = () => { sg.disabled = true; window.api.lolLaunch().then(r => { if (r && !r.ok && r.err) { sg.disabled = false; sg.textContent = r.err; } }).catch(() => { sg.disabled = false; }); };
+  // 방 목록 — 롤 로그인한 사람이 방 밖이면 여기서 바로 들어가거나 만듦(대기실 창이 열림 · v0.1.227)
+  const rooms = d.rooms || [], canJoin = !!d.me && !d.room;
   $('rooms-n').textContent = rooms.length ? rooms.length : '';
-  $('rooms').innerHTML = !d.ready ? `<div class="empty">방 목록을 불러오는 중입니다</div>`
-    : rooms.length ? rooms.map(r => `<div class="rm${r.mine ? ' mine' : ''}">
-        <div class="rm-top"><span class="rm-nm">${esc(r.name)}</span>${r.mine ? '<span class="rm-tag me">내 방</span>' : ''}${r.priv ? '<span class="rm-tag">비공개</span>' : ''}<span class="rm-n"><b>${r.n}</b>/10</span></div>
+  $('rooms').innerHTML = !d.ready ? `<div class="empty">${d.slow ? '서버에 연결하지 못했습니다<small>인터넷 연결을 확인해 주세요 · 연결되면 자동으로 이어집니다</small>' : '방 목록을 불러오는 중입니다'}</div>`
+    : rooms.length ? rooms.map(r => `<div class="rm${r.mine ? ' mine' : ''}${canJoin ? ' go' : ''}"${canJoin ? ` data-rid="${esc(r.id)}"` : ''}>
+        <div class="rm-top"><span class="rm-nm">${esc(r.name)}</span>${r.mine ? '<span class="rm-tag me">내 방</span>' : ''}${r.priv ? '<span class="rm-tag">비공개</span>' : ''}<span class="rm-n"><b>${r.n}</b>/10</span>${canJoin ? '<button class="rm-join">들어가기</button>' : ''}</div>
         <div class="rm-mem">${(r.members || []).length ? (r.members || []).map(m => `<span>${esc(m)}</span>`).join(' · ') : '아직 아무도 없습니다'}</div>
       </div>`).join('')
-    : `<div class="empty">아직 만들어진 방이 없습니다</div>`;
+    : `<div class="empty">아직 만들어진 방이 없습니다${canJoin ? '<button class="ui-btn-gold" id="rm-make">방 만들기</button>' : ''}</div>`;
+  $('rooms').querySelectorAll('.rm.go').forEach(el => el.onclick = () => window.api.homeJoin(el.dataset.rid));
+  const mk = $('rm-make'); if (mk) mk.onclick = () => window.api.homeJoin('+new');
   // 접속 중(앱 켠 사람 전체)
   const on = d.online || [];
   $('online-n').textContent = on.length;
@@ -41,7 +54,7 @@ function render(d) {
   // 아래 줄
   $('foot').innerHTML = d.me
     ? `<span>롤 클라이언트를 켜면 창이 좌우로 붙습니다.</span><button class="ui-btn-ghost" id="f-panels">대기실 창 열기</button>`
-    : `<span>게스트는 보기만 할 수 있습니다. 롤 클라이언트를 켜고 로그인하면 방에 들어갈 수 있습니다.</span>`;
+    : `<span>지금은 게스트입니다. 방 목록과 접속 중인 사람만 보입니다.</span>`;
   const fp = $('f-panels'); if (fp) fp.onclick = () => window.api.homePanels();
 }
 
