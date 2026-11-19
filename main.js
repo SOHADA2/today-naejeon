@@ -3936,8 +3936,60 @@ ipcMain.handle('discord-invite', (_e, link) => {   // ⚙ 「초대 링크」 �
 // v0.1.157(사장님: 들어가기가 디스코드 앱이 아니라 인터넷 창으로 열림) — 디스코드 앱이 깔려 있으면(discord:// 등록) 앱으로 바로 · 없으면 예전처럼 브라우저
 function dcOpen(appUrl, webUrl) {
   let hasApp = false; try { hasApp = !!app.getApplicationNameForProtocol('discord://'); } catch (_) {}
-  if (hasApp) shell.openExternal(appUrl).catch(() => shell.openExternal(webUrl).catch(() => {}));
+  if (hasApp) { shell.openExternal(appUrl).catch(() => shell.openExternal(webUrl).catch(() => {})); dcFront(); }
   else shell.openExternal(webUrl).catch(() => {});
+}
+// 🪟 v0.1.231 디스코드 창을 앞으로(사장님: 디코 아이콘을 눌러도 디스코드가 안 튀어나오고 뒤에서 「내전 대기실」로만 바뀌어 있음)
+//   discord:// 주소는 이미 켜진 디스코드에 「이 채널로」만 전함 → 창이 트레이(숨김)·최소화·다른 창 뒤에 있으면 그대로 묻힘
+//   → 주소를 연 직후 작은 PowerShell이 디스코드 창(프로세스 Discord · Chrome_WidgetWin_1 · 제목 있음)을 찾아 보이게(숨김 = SW_SHOW · 최소화 = SW_RESTORE) + 맨 앞으로
+//   우리 창을 방금 누른 사람이 띄운 프로세스라 맨 앞으로 가져올 수 있음(윈도우 규칙) · 안 되면 입력 스레드를 잠깐 붙여서 · 디스코드가 채널을 바꾸는 시간만큼 조금 기다렸다(0.6초) 한 번 더
+const DCFRONT_PS = `
+$ProgressPreference = 'SilentlyContinue'
+Add-Type -TypeDefinition @'
+using System; using System.Diagnostics; using System.Runtime.InteropServices; using System.Text; using System.Collections.Generic;
+public static class TnDcFront {
+  delegate bool EnumProc(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr l);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int c);
+  [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool f);
+  [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+  public static string Front(bool dry) {
+    var pids = new HashSet<uint>(); foreach (var p in Process.GetProcessesByName("Discord")) pids.Add((uint)p.Id);
+    if (pids.Count == 0) return "no-process";
+    IntPtr vis = IntPtr.Zero, hid = IntPtr.Zero; string title = "";
+    EnumWindows((h, l) => {
+      uint pid; GetWindowThreadProcessId(h, out pid); if (!pids.Contains(pid)) return true;
+      var c = new StringBuilder(64); GetClassName(h, c, 64); if (c.ToString() != "Chrome_WidgetWin_1") return true;
+      var t = new StringBuilder(256); GetWindowText(h, t, 256); string s = t.ToString(); if (s.Length == 0 || s.IndexOf("Discord", StringComparison.OrdinalIgnoreCase) < 0) return true;
+      if (IsWindowVisible(h)) { if (vis == IntPtr.Zero) { vis = h; title = s; } } else if (hid == IntPtr.Zero) { hid = h; if (title == "") title = s; }
+      return true; }, IntPtr.Zero);
+    IntPtr w = vis != IntPtr.Zero ? vis : hid;
+    if (w == IntPtr.Zero) return "no-window";
+    if (dry) return "found " + (vis != IntPtr.Zero ? "visible" : "hidden") + " " + (IsIconic(w) ? "min " : "") + title;
+    if (!IsWindowVisible(w)) ShowWindow(w, 5);
+    if (IsIconic(w)) ShowWindow(w, 9);
+    bool ok = SetForegroundWindow(w);
+    if (!ok) { uint fp; uint ft = GetWindowThreadProcessId(GetForegroundWindow(), out fp); uint me = GetCurrentThreadId(); AttachThreadInput(me, ft, true); BringWindowToTop(w); ok = SetForegroundWindow(w); AttachThreadInput(me, ft, false); }
+    return (ok ? "ok " : "fail ") + title;
+  }
+}
+'@
+$dry = $args.Count -gt 0 -and $args[0] -eq 'dry'
+if (-not $dry) { Start-Sleep -Milliseconds 350 }
+$r = [TnDcFront]::Front($dry); [Console]::Out.WriteLine($r)
+if (-not $dry) { Start-Sleep -Milliseconds 600; $r2 = [TnDcFront]::Front($false); [Console]::Out.WriteLine($r2) }
+`;
+function dcFront() {
+  if (process.platform !== 'win32') return;
+  try { require('child_process').execFile('powershell.exe', psArgs('dcfront', DCFRONT_PS), { windowsHide: true, timeout: 15000 }, (e, out) => console.log('[discord] 창 앞으로', String(out || e && e.message || '').trim().replace(/\s+/g, ' ').slice(0, 120))); } catch (_) {}
 }
 ipcMain.handle('discord-join', (_e, { code, gid, off, ch }) => {   // 대기실 「들어가기」/「음성 채널 들어가기」 · ✕
   const ID = /^\d{15,21}$/;
