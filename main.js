@@ -1028,6 +1028,7 @@ function showHome(rect, mode, fadeMs, intro) {   // intro = 'plain'(v0.1.165 합
 }
 function hideHome(fadeMs) {
   if (!_homeOn) return;
+  _tutHome = false;   // 홈 위에 띄운 사용법 창(v0.1.228)은 홈이 사라지면 평소 왼쪽 창으로 돌아감
   _homeOn = false; clearInterval(_homeTimer); _homeTimer = null;
   if (!homeWin || homeWin.isDestroyed() || !homeWin.isVisible()) return;
   if (fadeMs) fadeWin(homeWin, 1, 0, fadeMs, () => { if (!_homeOn && homeWin && !homeWin.isDestroyed()) homeWin.hide(); });
@@ -3803,14 +3804,15 @@ function makeTray() {
 }
 
 // ── IPC ──────────────────────────────────────────────────────────────────
-ipcMain.on('overlay-hide', () => { hideOverlay(); userHid = true; });
+ipcMain.on('overlay-hide', () => { if (tutHomeEnd(true)) return; hideOverlay(); userHid = true; });   // 홈 위에 띄운 사용법 창의 ✕ = 사용법만 닫음(「내가 숨김」으로 치지 않음)
 ipcMain.on('overlay-min', () => {
+  if (tutHomeEnd(true)) return;
   if (overlayWin && !overlayWin.isDestroyed()) { overlayMinimized = true; try { overlayWin.setSkipTaskbar(false); overlayWin.minimize(); } catch (_) {} }
 });
 // 🏠 홈 화면 버튼 — 최소화 · ✕(숨기기/종료 묻기 = 오른쪽 창 ✕와 같음) · 「대기실 창 열기」(로그인했는데 클라가 내려가 있을 때 = 예전 두 창)
 ipcMain.handle('home-get', () => homeView());
-ipcMain.on('home-min', () => { if (homeWin && !homeWin.isDestroyed()) { try { homeWin.setSkipTaskbar(false); homeWin.minimize(); } catch (_) {} } });
-ipcMain.on('home-close', () => { if (homeWin && !homeWin.isDestroyed()) homeWin.hide(); if (config.closeAsk !== false && !app._quitting) { closeQuitConfirm(); openQuitConfirm('close'); } });
+ipcMain.on('home-min', () => { tutHomeEnd(true); if (homeWin && !homeWin.isDestroyed()) { try { homeWin.setSkipTaskbar(false); homeWin.minimize(); } catch (_) {} } });
+ipcMain.on('home-close', () => { tutHomeEnd(true); if (homeWin && !homeWin.isDestroyed()) homeWin.hide(); if (config.closeAsk !== false && !app._quitting) { closeQuitConfirm(); openQuitConfirm('close'); } });
 function homeOpenPanels() {
   _homePanels = true; hideHome(150);
   for (const [win, side] of [[overlayWin, 'left'], [leftWin, 'right']]) if (win && !win.isDestroyed()) { win.setBounds(standaloneBounds(side)); win.showInactive(); }
@@ -4074,9 +4076,28 @@ const dcView = () => ({ room: dcRoomView(), invite: dcInvOf(), app: !!(discord &
 const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, lolRemake: config.lolRemake !== false, lolAutoAccept: config.lolAutoAccept !== false, lolPing: config.lolPing !== false, hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
 ipcMain.handle('settings-get', () => settingsView());
+// 🧭 v0.1.228 홈 화면(롤 없이 켬)에서도 사용법을 볼 수 있게 — 홈 「사용법 둘러보기」 = 숨겨 둔 왼쪽 창만 홈 가운데 위에 띄움(_tutHome) · 닫으면(tutorial-done · 창 ✕/–) 다시 숨기고 합친 자리로
+//   그사이 롤 클라가 켜지면 평소대로 좌우로 붙음(홈이 사라지므로 _tutHome만 지움)
+let _tutHome = false;
+function tutHomeEnd(tell) {
+  if (!_tutHome) return false;
+  _tutHome = false;
+  if (tell) try { overlayWin.webContents.send('tutorial', { end: true }); } catch (_) {}
+  try { overlayWin.setAlwaysOnTop(false, 'normal'); } catch (_) {}
+  if (_homeOn && overlayWin && !overlayWin.isDestroyed()) { overlayWin.hide(); overlayWin.setBounds(standaloneBounds('left')); setDockedFlag(true); }
+  return true;
+}
+ipcMain.on('tutorial-done', () => { tutHomeEnd(false); });
 ipcMain.on('tutorial-open', () => {   // 📘 ⚙ 설정 「사용법 다시 보기」 → 왼쪽 창에 튜토리얼
   if (!overlayWin || overlayWin.isDestroyed()) return;
-  userHid = false; showOverlay(); try { overlayWin.webContents.send('tutorial', { step: 0 }); } catch (_) {}
+  if (_homeOn && _homeMode === 'home' && (_tutHome || !overlayWin.isVisible())) {
+    const h = homeRect(), b = standaloneBounds('left');
+    overlayWin.setBounds({ x: Math.round(h.x + (h.width - b.width) / 2), y: b.y, width: b.width, height: b.height });
+    _tutHome = true; setDockedFlag(false);
+    try { overlayWin.setOpacity(1); } catch (_) {}
+    overlayWin.show(); try { overlayWin.setAlwaysOnTop(true, 'floating'); overlayWin.moveTop(); } catch (_) {}   // 홈 창을 눌러도 뒤로 숨지 않게(닫으면 되돌림)
+  } else { userHid = false; showOverlay(); }
+  try { overlayWin.webContents.send('tutorial', { step: 0 }); } catch (_) {}
 });
 ipcMain.handle('settings-set', (_e, { key, value }) => {
   if (key === 'tutorialDc') config.tutorialDc = !!value;   // 🎧 v0.1.134 튜토리얼 디스코드 단계 봄(업데이트한 사람에게 그 단계만 한 번)

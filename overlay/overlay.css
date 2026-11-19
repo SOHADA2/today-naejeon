@@ -501,6 +501,32 @@ header .phase, header .win-btn { flex-shrink:0; }
 .tut-next { flex:none; min-width:84px; margin-left:auto; }
 .tut-skip + .tut-next { margin-left:0; }
 @keyframes tutIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+/* 🧭 따라 하기(v0.1.228 · overlay/tutorial.js GUIDE) — 예시 화면 위에서 지금 설명하는 곳만 밝게 남기고(구멍) 그 위·아래에 말풍선 · 움직임은 단계가 바뀔 때 한 번씩만(무한 애니메이션 없음) */
+.tg { position:fixed; inset:0; z-index:9000; pointer-events:none; -webkit-app-region:no-drag; }
+.tg.nohole { background:rgba(1,6,12,0.74); }
+.tg-hole { position:fixed; display:block; pointer-events:none; border:1px solid var(--gold-hi); box-shadow:0 0 0 3000px rgba(1,6,12,0.56), 0 0 14px rgba(240,215,154,0.35); transition:left .22s ease, top .22s ease, width .22s ease, height .22s ease; }
+.tg-hole.hit::after { content:'눌러 보세요'; position:absolute; right:-1px; top:-19px; padding:2px 7px; font-size:11px; font-weight:800; line-height:15px; color:#1a1206; background:var(--gold-hi); white-space:nowrap; }
+.tg-tip { position:fixed; box-sizing:border-box; pointer-events:auto; display:flex; flex-direction:column; gap:6px; padding:12px 14px 12px; background:linear-gradient(160deg, var(--bg-2), var(--bg-1)); border:1px solid var(--gold-line); clip-path:none; box-shadow:0 8px 26px rgba(0,0,0,0.55); }
+.tg-tip.in { animation:tutIn .2s ease-out both; }
+.tg-tip.nudge { animation:tgNudge .5s ease-out both; }
+@keyframes tgNudge { 0% { border-color:var(--gold-hi); box-shadow:0 0 0 2px rgba(240,215,154,0.55), 0 8px 26px rgba(0,0,0,0.55); } 100% { border-color:var(--gold-line); box-shadow:0 8px 26px rgba(0,0,0,0.55); } }
+.tg-tip::before { content:''; position:absolute; left:var(--ax, 50%); width:10px; height:10px; margin-left:-5px; background:var(--bg-2); border:1px solid var(--gold-line); transform:rotate(45deg); display:none; }
+.tg-tip[data-side=up]::before { display:block; top:-6px; border-right:none; border-bottom:none; }
+.tg-tip[data-side=down]::before { display:none; bottom:-6px; border-left:none; border-top:none; background:var(--bg-1); }
+.tg-hd { display:flex; align-items:center; gap:8px; }
+.tg-en { flex:1; }
+.tg-no { font-size:13px; color:var(--dim); }
+.tg-t { font-size:16px; font-weight:800; color:var(--gold-hi); letter-spacing:-0.02em; word-break:keep-all; }
+.tg-d { margin:0; font-size:13px; line-height:1.55; color:var(--ink); word-break:keep-all; }
+.tg-d b { color:var(--gold-hi); font-weight:700; }
+.tg-sub { font-size:11.5px; line-height:1.5; color:var(--dim); word-break:keep-all; }
+.tg-btns { display:flex; gap:6px; align-items:center; margin-top:4px; }
+.tg-btns button { padding:7px 12px; font-size:12.5px; font-weight:700; cursor:pointer; }
+.tg-skip { margin-right:auto; padding-left:0 !important; color:var(--dim); background:transparent; border:none; }
+.tg-skip:hover { color:var(--ink-soft); }
+.tg-prev, .tg-next:not(.ui-btn-gold) { color:var(--ink-soft); background:var(--bg-3); border:1px solid var(--hair); clip-path:var(--cut-sm); }
+.tg-next.ui-btn-gold { min-width:76px; }
+body.tg-on .ui-scroll { overflow:hidden !important; }   /* 예시 화면은 스크롤 안 함(구멍 자리가 어긋나지 않게) */
 
 /* ═══ 🚪 방 목록(v0.1.94) ═══ */
 .rm-form { display:flex; flex-direction:column; gap:8px; padding:12px; margin:-4px 0 12px; background:var(--bg-1); border:1px solid var(--gold-line); clip-path:var(--cut); }

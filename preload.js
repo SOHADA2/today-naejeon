@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('api', {
   updateNow: () => ipcRenderer.send('update-now'),
   // ⚙️ 설정 {sfxOn, sfxVol, dock, sidePanel, closeAsk, hotkey}
   getSettings: () => ipcRenderer.invoke('settings-get'),
+  tutorialDone: () => ipcRenderer.send('tutorial-done'),                   // 🧭 v0.1.228 사용법을 닫음(홈 화면 위에 띄운 왼쪽 창을 다시 숨김)
   openTutorial: () => ipcRenderer.send('tutorial-open'),                   // 📘 사용법 다시 보기
   onTutorial: (cb) => ipcRenderer.on('tutorial', (_e, d) => cb(d)),
   onTierReveal: (cb) => ipcRenderer.on('tier-reveal', (_e, d) => cb(d)),   // 🏅 아수라장 티어 공개(v0.1.113)

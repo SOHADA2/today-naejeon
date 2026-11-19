@@ -1165,6 +1165,7 @@ function renderRoster() {
 }
 
 function render() {
+  if (window.tnDemo && window.tnDemo.on && !window.tnDemo.rendering) { window.tnDemo.blocked(); return; }   // 🧭 v0.1.228 사용법 예시 화면이 떠 있는 동안은 실제 상태로 다시 안 그림(끝나면 실제 상태를 다시 받아 그림 · overlay/tutorial.js)
   try { renderHostNote(); } catch (_) {}   // 👑 방장 넘어옴 줄(이전 방장 돌아오면 「돌려주기」)
   if (roomData && roomData.full) { renderFull(); showView('rooms'); el('phase').textContent = '자리 없음'; return; }   // 🚦 서버 자리 꽉 참
   const s = sessionData, ph = s && s.phase;
@@ -1218,6 +1219,7 @@ function chatLayer() {
   return l;
 }
 function chatShow(d) {
+  if (window.tnDemo && window.tnDemo.on) return;   // 사용법 예시 화면 위에는 실제 채팅을 안 띄움
   if (!d || !d.key || typeof d.text !== 'string' || !d.text) return;
   const text = d.text.slice(0, 50), cur = CHAT.seen[d.key];
   if (cur && cur.at === d.at && cur.text === text) return;   // 내가 보낸 것 = 이미 띄움
@@ -1405,6 +1407,7 @@ function pingSound(k) {
   } catch (_) {}
 }
 function pingShow(d) {
+  if (window.tnDemo && window.tnDemo.on) return;   // 사용법 예시 화면 위에는 실제 핑을 안 띄움
   if (!d || !PING[d.k] || !d.a || !/^[svc]$/.test(d.a.t)) return;
   const P = PING[d.k], fm = chatMember(d.from);
   const e = document.createElement('div');

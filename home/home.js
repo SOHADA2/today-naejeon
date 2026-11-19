@@ -54,7 +54,8 @@ function render(d) {
   // 아래 줄
   $('foot').innerHTML = d.me
     ? `<span>롤 클라이언트를 켜면 창이 좌우로 붙습니다.</span><button class="ui-btn-ghost" id="f-panels">대기실 창 열기</button>`
-    : `<span>지금은 게스트입니다. 방 목록과 접속 중인 사람만 보입니다.</span>`;
+    : `<span>지금은 게스트입니다. 방 목록과 접속 중인 사람만 보입니다.</span><button class="ui-btn-ghost" id="f-tut">사용법 둘러보기</button>`;   // 🧭 v0.1.228 롤을 켜기 전에도 예시 화면으로 따라 해 봄(왼쪽 창이 이 창 위에 뜸)
+  const ft = $('f-tut'); if (ft) ft.onclick = () => window.api.openTutorial();
   const fp = $('f-panels'); if (fp) fp.onclick = () => window.api.homePanels();
 }
 
