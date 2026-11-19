@@ -120,8 +120,10 @@
         <!-- 방식 고르는 창(방장) — 방식 버튼 바로 위로 열림 -->
         <div id="lb-mpop" class="lb-mpop" style="display:none;">
           <div class="lb-mp-row"><span class="lb-mode-l">이번 판</span><button class="lb-kind" data-kind="inhouse" title="우리끼리 1팀 vs 2팀(롤 사용자 설정 게임)">내전</button><button class="lb-kind" data-kind="normal" title="내전 말고 같은 팀으로 일반 게임(아수라장 등)을 할 때 · 판 기록·하이라이트 자동">일반</button></div>
+          <div class="lb-mp-row" id="lb-game"><span class="lb-mode-l">게임</span><span class="lb-mp-grid g2"><button class="lb-gm" data-game="mayhem" title="칼바람 맵 아수라장 사용자 설정 게임 · 다리(맵)는 판마다">아수라장</button><button class="lb-gm" data-game="sr" title="소환사의 협곡 5 : 5 사용자 설정 게임">소환사의 협곡</button></span></div>
+          <div class="lb-mp-row" id="lb-srp"><span class="lb-mode-l">픽</span><span class="lb-mp-grid"><button class="lb-sp" data-pick="3130" title="토너먼트 교차 선택 · 금지 5 + 번갈아 고르기(내전에서 가장 많이 씀)">토너먼트</button><button class="lb-sp" data-pick="3110" title="교차 선택 · 금지 + 번갈아 고르기">교차</button><button class="lb-sp" data-pick="3100" title="비공개 선택 · 금지 없이 각자 고름(상대가 안 보임)">비공개</button><button class="lb-sp" data-pick="3120" title="모두 무작위 · 챔피언이 무작위">무작위</button></span></div>
           <div class="lb-mp-row" id="lb-sub"><span class="lb-mode-l">팀 짜기</span><span class="lb-mp-grid"><button class="lb-seg" data-mode="random">랜덤</button><button class="lb-seg" data-mode="balance">밸런스</button><button class="lb-seg" data-mode="draft">드래프트</button><button class="lb-seg" data-mode="manual">직접</button></span></div>
-          <div class="lb-mp-row" id="lb-nq"><span class="lb-mode-l">큐</span><span class="lb-mp-grid"><button class="lb-qb" data-q="2400">아수라장</button><button class="lb-qb" data-q="450">칼바람 나락</button></span></div>
+          <div class="lb-mp-row" id="lb-nq"><span class="lb-mode-l">큐</span><span class="lb-mp-grid"><button class="lb-qb" data-q="2400">아수라장</button><button class="lb-qb" data-q="450">칼바람 나락</button><button class="lb-qb" data-q="400" title="소환사의 협곡 일반 · 교차 선택(포지션을 골라야 큐 시작)">협곡 교차</button><button class="lb-qb" data-q="480" title="소환사의 협곡 신속 대전(포지션을 골라야 큐 시작)">신속 대전</button><button class="lb-qb" data-q="440" title="소환사의 협곡 자유 랭크 · 1·2·3·5명 파티만(롤 규칙)">자유 랭크</button></span></div>
           <div id="lb-mdesc" class="lb-mp-desc"></div>
         </div>
         <div id="lb-lol" class="lb-lol" style="display:none;"></div>   <!-- 🎮 방장 롤 초대 수락(자동 수락을 끈 사람) -->

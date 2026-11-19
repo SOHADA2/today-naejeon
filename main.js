@@ -330,6 +330,19 @@ function autoLobbyMode() {
   const want = lobbyCustom ? (cur === 'normal' ? (config.lastTeamMode || 'random') : null) : (cur !== 'normal' ? 'normal' : null);
   if (want) { console.log('[lobby] 롤 대기방이', key === 'custom' ? '사용자 설정 방' : '일반 큐', '→ 방식', want); lobbySetMode(want, true).catch(() => {}); }
 }
+// 🗺️ v0.1.232 방장 롤 사용자 설정 방이 협곡(맵 11)/아수라장(맵 12)으로 바뀐 순간 대기실 게임도 따라감(롤 화면에서 직접 만든 방 포함) · 그 뒤 방장이 바꾸면 그대로
+let _autoGameKey = null;
+function autoLobbyGame() {
+  const c = lobbyCust;
+  if (!config.isHost || lobbyPhase !== 'Lobby' || lobbyCustom !== true || !c || c.map == null) { if (lobbyPhase !== 'Lobby') _autoGameKey = null; return; }
+  const key = c.map + '|' + (c.q || ''); if (key === _autoGameKey) return; _autoGameKey = key;
+  const sr = Number(c.map) === 11;
+  if (!sr && Number(c.map) !== 12) return;
+  const cur = lobbyGame();
+  if (sr ? (cur.game === 'sr' && (!SR_PICKS[c.q] || cur.pick === Number(c.q))) : cur.game !== 'sr') return;
+  console.log('[lobby] 롤 사용자 설정 방이', sr ? '협곡' : '아수라장', '→ 대기실 게임도');
+  lobbySetGame(sr ? 'sr' : null, sr ? c.q : null, true).catch(() => {});
+}
 // 🎮 v0.1.185 롤 사용자 설정 방 만들기 + 방 사람 초대(사장님) — 실기(2026-11-12 사장님 롤): 롤이 허용하는 사용자 설정 = CLASSIC(11)·KIWI(아수라장 12)·JADE(453)
 //   (일반 칼바람 ARAM은 목록에 없어 INVALID_LOBBY) · 형식 = 롤 클라 화면 코드(rcp-fe-lol-parties _generateCustomGamePayload) 그대로 = isCustom 대신 queueId + mutators.id(둘 다 3270 = 우리 내전 판과 같은 방식)
 //   공개 목록에 안 뜨게(hidePublicly) · 초대 = POST /lol-lobby/v2/lobby/invitations [{toPuuid}] · 받는 쪽 = 방장이 보낸 초대만 대기실에 「수락」(POST received-invitations/{id}/accept)
@@ -342,7 +355,19 @@ const LOL_Q = 3270;
 const LOL_MAPS = ['NONE', 'MapSkin_Map12_Bloom', 'MapSkin_HA_Bilgewater'];   // 칼바람 나락 · 코신 다리 · 도살자의 다리
 const lolRandMap = () => LOL_MAPS[Math.floor(Math.random() * LOL_MAPS.length)];
 //   v0.1.188 map = 판 상태 lolMap(팀 정할 때 정한 다리 · 드래프트 = 선픽 아닌 팀장이 고름) · 없으면 무작위
-const lolLobbyBody = (name, map) => ({ customGameLobby: { configuration: { gameMode: 'KIWI', gameMutator: '', gameServerRegion: '', mapId: 12, mutators: { id: LOL_Q }, spectatorPolicy: 'AllAllowed', spectatorDelayEnabled: false, teamSize: 5, hidePublicly: true, aramMapMutator: LOL_MAPS.includes(map) ? map : lolRandMap() }, lobbyName: name, hidePublicly: true, lobbyPassword: null }, queueId: LOL_Q });
+// 🗺️ v0.1.232 소환사의 협곡 내전(사장님: 칼바람·아수라장 중심인데 일반 협곡 게임도) — 롤이 허용하는 사용자 설정 협곡 = CLASSIC · 맵 11 · 픽 방식(mutators.id = queueId)
+//   실측(2026-11-19 /lol-game-queues/v1/custom · queues): 3130 토너먼트 교차 선택 · 3110 교차 선택 · 3100 비공개 선택 · 3120 모두 무작위 · 형식은 아수라장과 같음(롤 화면 _generateCustomGamePayload · aramMapMutator 기본값 NONE)
+//   대기실 lobby.game = 'sr'(협곡) | 없음(아수라장) · lobby.srPick = 픽 방식 번호 → 판 상태 session.lolGame·srPick(팀이 정해질 때 그대로 적음)
+const SR_PICKS = { 3130: '토너먼트 교차 선택', 3110: '교차 선택', 3100: '비공개 선택', 3120: '모두 무작위' }, SR_PICK_DEF = 3130;
+const srPickOf = p => SR_PICKS[p] ? Number(p) : SR_PICK_DEF;
+const lobbyGame = () => ({ game: lobbyRaw && lobbyRaw.game === 'sr' ? 'sr' : 'mayhem', pick: srPickOf(lobbyRaw && lobbyRaw.srPick) });   // 지금 대기실에서 고른 내전 게임
+const sessGame = s => ({ game: s && s.lolGame === 'sr' ? 'sr' : 'mayhem', pick: srPickOf(s && s.srPick) });   // 이 판(팀이 정해질 때 적은 것)
+const gameFields = () => { const g = lobbyGame(); return g.game === 'sr' ? { lolGame: 'sr', srPick: g.pick, lolMap: null } : { lolGame: null, srPick: null }; };
+const lolLobbyBody = (name, map, sg) => sg && sg.game === 'sr'
+  ? { customGameLobby: { configuration: { gameMode: 'CLASSIC', gameMutator: '', gameServerRegion: '', mapId: 11, mutators: { id: srPickOf(sg.pick) }, spectatorPolicy: 'AllAllowed', spectatorDelayEnabled: false, teamSize: 5, hidePublicly: true, aramMapMutator: 'NONE' }, lobbyName: name, hidePublicly: true, lobbyPassword: null }, queueId: srPickOf(sg.pick) }
+  : { customGameLobby: { configuration: { gameMode: 'KIWI', gameMutator: '', gameServerRegion: '', mapId: 12, mutators: { id: LOL_Q }, spectatorPolicy: 'AllAllowed', spectatorDelayEnabled: false, teamSize: 5, hidePublicly: true, aramMapMutator: LOL_MAPS.includes(map) ? map : lolRandMap() }, lobbyName: name, hidePublicly: true, lobbyPassword: null }, queueId: LOL_Q };
+// 지금 롤 사용자 설정 방이 원하는 게임과 같은지(맵 11/12 · 협곡이면 픽 방식까지) — 모르면(값 없음) 같다고 봄
+const lolGameMatch = (cur, sg) => { if (!cur || cur.mapId == null) return true; if (sg.game === 'sr') return cur.mapId === 11 && (cur.queueId == null || Number(cur.queueId) === sg.pick); return cur.mapId === 12; };
 const lolOk = r => r && r.status >= 200 && r.status < 300;
 // 🎮 v0.1.189 초대 = 롤 화면 코드(rcp-fe-lol-parties invitePlayers)처럼 소환사 번호로 [{toSummonerId}] — v0.1.185~188은 [{toPuuid}]만 보내
 //   롤이 200을 돌려줘도 친구에게 초대가 안 갔음(2026-11-12 사장님 실기) · 번호 = /lol-summoner/v2/summoners/puuid/{puuid} · 못 찾으면 예전처럼 toPuuid만
@@ -372,13 +397,20 @@ ipcMain.handle('lol-lobby', async (_e, o) => {
   if (phase !== 'None' && phase !== 'Lobby') return { ok: false, err: `지금은 못 만들어요(롤: ${phase})` };
   if (phase === 'Lobby' && !inCustom && !(o && o.force)) return { ok: false, need: 'leave' };   // 일반 큐 대기방에 있음 → 나가도 되는지 먼저 물음
   let made = false;
+  const sg = lobbyGame();
+  let curL = inCustom ? await lolCurLobby().catch(() => null) : null;
+  if (curL && curL.custom && !lolGameMatch(curL, sg)) {   // 🗺️ v0.1.232 들어가 있는 롤 방이 다른 게임(아수라장 ↔ 협곡)이면 방 안에서 바꿈
+    const map0 = lolRandMap(), r0 = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody(String(curL.name || room.name || 'TODAY IN-HOUSE').slice(0, 24), map0, sg)).catch(() => null);
+    console.log('[lol] 롤 방 게임 바꾸기', sg.game === 'sr' ? '협곡 ' + SR_PICKS[sg.pick] : '아수라장', lolOk(r0) ? '됨' : '실패 ' + (r0 && r0.status));
+    if (lolOk(r0) && sg.game !== 'sr') await lolRememberMade(map0);
+  }
   if (!inCustom) {
     const name = String(room.name || '투데이 내전').slice(0, 24), map0 = lolRandMap();
-    let r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody(name, map0)).catch(() => null);
-    if (!lolOk(r)) r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody('TODAY IN-HOUSE', map0)).catch(() => null);   // 이름 때문에 거절되면 영문 이름으로
-    if (!lolOk(r)) { console.log('[lol] 방 만들기 실패', r && r.status, r && JSON.stringify(r.data).slice(0, 200)); return { ok: false, err: '롤 방을 만들지 못했어요' + (r && r.data && r.data.message ? ` (${r.data.message})` : '') }; }
+    let r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody(name, map0, sg)).catch(() => null);
+    if (!lolOk(r)) r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody('TODAY IN-HOUSE', map0, sg)).catch(() => null);   // 이름 때문에 거절되면 영문 이름으로
+    if (!lolOk(r)) { console.log('[lol] 방 만들기 실패', sg.game, r && r.status, r && JSON.stringify(r.data).slice(0, 200)); return { ok: false, err: '롤 방을 만들지 못했어요' + (r && r.data && r.data.message ? ` (${r.data.message})` : '') }; }
     made = true; lobbyPhase = 'Lobby'; lobbyCustom = true;
-    await lolRememberMade(map0);   // v0.1.214 이 롤 방 = 이 다리(팀 정할 때 다리가 같으면 그대로 씀)
+    if (sg.game !== 'sr') await lolRememberMade(map0);   // v0.1.214 이 롤 방 = 이 다리(팀 정할 때 다리가 같으면 그대로 씀)
   }
   let who = (lobbyView().members || []).filter(m => m.online && !m.me && !m.guest && /^[0-9a-f-]{30,}$/i.test(m.key));
   if (!made) { const cur = await lolCurLobby().catch(() => null); if (cur && cur.custom) who = who.filter(m => !cur.ids.includes(m.key)); }   // 🎮 v0.1.217 이미 롤 방에 있는 사람은 다시 안 부름
@@ -408,7 +440,7 @@ async function lolInvTick() {
 //   초대 대상 = 판 상태 ids(팀 결성 때 이름 → puuid)에 있는 1팀·2팀·관전 · 친구 앱은 방장 초대 자동 수락(lolInvTick) → 자리 자동 이동(autoSeat)을 새 방에서 다시
 let _lolMadeFor = null;
 // 🗺️ v0.1.214 롤 방 번호(partyId) ↔ 앱이 만든 다리 — config.lolMade {partyId, map, at} (앱을 다시 켜도 기억)
-async function lolCurLobby() { const r = await bridge.lcuRaw('GET', '/lol-lobby/v2/lobby').catch(() => null); const d = lolOk(r) && r.data; return d ? { partyId: d.partyId || null, name: d.gameConfig && d.gameConfig.customLobbyName || null, custom: !!(d.gameConfig && d.gameConfig.isCustom), ids: (d.members || []).map(m => m && m.puuid).filter(Boolean) } : null; }
+async function lolCurLobby() { const r = await bridge.lcuRaw('GET', '/lol-lobby/v2/lobby').catch(() => null); const d = lolOk(r) && r.data; return d ? { partyId: d.partyId || null, name: d.gameConfig && d.gameConfig.customLobbyName || null, custom: !!(d.gameConfig && d.gameConfig.isCustom), mapId: d.gameConfig && d.gameConfig.mapId != null ? Number(d.gameConfig.mapId) : null, queueId: d.gameConfig && d.gameConfig.queueId != null ? Number(d.gameConfig.queueId) : null, ids: (d.members || []).map(m => m && m.puuid).filter(Boolean) } : null; }
 async function lolRememberMade(map) { const cur = await lolCurLobby().catch(() => null); if (cur && cur.partyId && LOL_MAPS.includes(map)) { config.lolMade = { partyId: cur.partyId, map, at: Date.now() }; saveConfig(); } }
 const lolMadeMap = cur => cur && cur.partyId && config.lolMade && config.lolMade.partyId === cur.partyId ? config.lolMade.map : null;
 async function lolRemakeTick() {
@@ -430,8 +462,22 @@ async function lolRemakeTick() {
   //   v0.1.214의 「다리가 바뀔 때만 방을 다시 만듦」 대신 · 롤 방이 없거나 일반 큐 대기방이면 예전처럼 새로 만듦
   if (lobbyPhase === 'Lobby' && lobbyCustom === true) {
     const cur = await lolCurLobby();
+    const sg = sessGame(s);
+    if (cur && cur.custom && sg.game === 'sr') {   // 🗺️ v0.1.232 협곡 = 다리 없음 · 지금 방이 협곡(같은 픽 방식)이 아니면 방 안에서 바꿈
+      let did = '그대로';
+      if (!lolGameMatch(cur, sg)) {
+        const r0 = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody(String(cur.name || room.name || 'TODAY IN-HOUSE').slice(0, 24), null, sg)).catch(() => null);
+        const after = lolOk(r0) ? await lolCurLobby() : null;
+        did = after && after.custom && after.partyId === cur.partyId ? '협곡으로 바꿈' : '협곡으로 바꾸기 실패 → 방 그대로';
+        if (after && after.partyId === cur.partyId) await fbCas(`${RP()}/session`, x => x && x.teamsFormedAt === s.teamsFormedAt ? { value: Object.assign({}, x, { lolMapAt: Date.now() }) } : { err: '판이 바뀜' }).catch(() => null);   // 모두 팀 자리 다시 확인
+      }
+      const miss = puuids.filter(p => !cur.ids.includes(p));
+      const n = miss.length ? await lolInvite(miss) : 0;
+      console.log('[lol] 팀 확정 → 롤 방', did, '· 협곡', SR_PICKS[sg.pick], '· 방에 없는 사람 초대', n, '/', miss.length);
+      return;
+    }
     if (cur && cur.custom) {
-      const have = lolMadeMap(cur), target = LOL_MAPS.includes(s.lolMap) ? s.lolMap : null;
+      const have = lolMadeMap(cur) || (cur.mapId === 11 ? '협곡' : null), target = LOL_MAPS.includes(s.lolMap) ? s.lolMap : null;
       let did = '그대로';
       if (target && target !== have) {
         const r0 = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody(String(cur.name || room.name || 'TODAY IN-HOUSE').slice(0, 24), target)).catch(() => null);
@@ -445,22 +491,22 @@ async function lolRemakeTick() {
           console.log('[lol] 방 안에서 다리 바꾸기 실패', r0 && r0.status, after && after.partyId);
           if ((s.lolMap || null) !== (have || null)) await fbCas(`${RP()}/session`, x => x && x.teamsFormedAt === s.teamsFormedAt ? { value: Object.assign({}, x, { lolMap: have || null }) } : { err: '판이 바뀜' }).catch(() => null);
         }
-      } else if (!target && have) await fbCas(`${RP()}/session`, x => x && x.teamsFormedAt === s.teamsFormedAt ? { value: Object.assign({}, x, { lolMap: have }) } : { err: '판이 바뀜' }).catch(() => null);
+      } else if (!target && have && LOL_MAPS.includes(have)) await fbCas(`${RP()}/session`, x => x && x.teamsFormedAt === s.teamsFormedAt ? { value: Object.assign({}, x, { lolMap: have }) } : { err: '판이 바뀜' }).catch(() => null);
       const miss = puuids.filter(p => !cur.ids.includes(p));
       const n = miss.length ? await lolInvite(miss) : 0;
-      console.log('[lol] 팀 확정 → 롤 방', did, '·', target ? LOL_MAP_KO[target] : '다리 정함 없음', '(전', have ? LOL_MAP_KO[have] : '모름', ') · 방에 없는 사람 초대', n, '/', miss.length);
+      console.log('[lol] 팀 확정 → 롤 방', did, '·', target ? LOL_MAP_KO[target] : '다리 정함 없음', '(전', have ? LOL_MAP_KO[have] || have : '모름', ') · 방에 없는 사람 초대', n, '/', miss.length);
       return;
     }
   }
   if (lobbyPhase === 'Lobby') await bridge.lcuRaw('DELETE', '/lol-lobby/v2/lobby').catch(() => null);
-  const map = LOL_MAPS.includes(s.lolMap) ? s.lolMap : lolRandMap(), name = String(room.name || '투데이 내전').slice(0, 24);
-  let r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody(name, map)).catch(() => null);
-  if (!lolOk(r)) r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody('TODAY IN-HOUSE', map)).catch(() => null);
-  if (!lolOk(r)) { console.log('[lol] 팀 확정 뒤 롤 방 다시 만들기 실패', r && r.status); return; }
+  const sg = sessGame(s), map = LOL_MAPS.includes(s.lolMap) ? s.lolMap : lolRandMap(), name = String(room.name || '투데이 내전').slice(0, 24);
+  let r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody(name, map, sg)).catch(() => null);
+  if (!lolOk(r)) r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody('TODAY IN-HOUSE', map, sg)).catch(() => null);
+  if (!lolOk(r)) { console.log('[lol] 팀 확정 뒤 롤 방 다시 만들기 실패', sg.game, r && r.status); return; }
   lobbyPhase = 'Lobby'; lobbyCustom = true; _seatDone = null; _seatTries = 0; _seatKey = null;
-  await lolRememberMade(map);
+  if (sg.game !== 'sr') await lolRememberMade(map);
   const n = puuids.length ? await lolInvite(puuids) : 0;
-  console.log('[lol] 팀 확정 → 롤 방 다시 만듦 ·', LOL_MAP_KO[map], '· 초대', n, '/', puuids.length);
+  console.log('[lol] 팀 확정 → 롤 방 다시 만듦 ·', sg.game === 'sr' ? '협곡 ' + SR_PICKS[sg.pick] : LOL_MAP_KO[map], '· 초대', n, '/', puuids.length);
 }
 const LOL_MAP_KO = { NONE: '칼바람 나락', MapSkin_Map12_Bloom: '코신 다리', MapSkin_HA_Bilgewater: '도살자의 다리' };
 // 드래프트 = 선픽이 아닌 팀장(session.mapBy)이 다리를 고름(사장님) · 방장도 대신 고를 수 있음 · 다 뽑을 때까지 안 고르면 무작위(draftPick)
@@ -469,6 +515,7 @@ async function draftMap(map) {
   const me = normName(config.myName || '');
   const r = await fbCas(`${RP()}/session`, s => {
     if (!s || s.phase !== 'draft') return { err: '드래프트 중이 아니에요' };
+    if (s.lolGame === 'sr') return { err: '협곡 내전은 다리를 고르지 않아요' };
     const by = (s.captains || {})[s.mapBy];
     if (!config.isHost && normName(by || '') !== me) return { err: '맵은 선픽이 아닌 팀장이 골라요' };
     return { value: Object.assign({}, s, { lolMap: map, lolMapBy: normName(by || '') !== me ? config.myName || null : by }) };
@@ -480,7 +527,8 @@ ipcMain.handle('draft-map', (_e, { map }) => draftMap(map));
 //   큐 = 아수라장(2400 · 우리 일반 판 기록 전부 이 큐) / 칼바람 나락(450) · ⚙ 대신 대기실 한 줄에서 고름(config.lolNormalQ)
 //   초대 = 대기실에 참가(관전 X)로 앉은 앱 켠 사람 · 방장 포함 5명까지 앉은 순서대로 · 이미 파티에 있는 사람은 건너뜀 · 넘치는 사람은 이름을 돌려줌(관전으로 돌려 맞추게)
 //   받는 쪽 = 예전 그대로(lolInvTick 방장 초대 자동 수락) · 큐 시작/취소 = 파티장만(롤 규칙) · 방장이 남의 파티에 있으면 나가고 새로 만들지 먼저 물음
-const LOL_NQ = [2400, 450], LOL_NQ_KO = { 2400: '아수라장', 450: '칼바람 나락' };
+// 🗺️ v0.1.232 협곡 일반 큐도(사장님) — 교차 선택(400) · 신속 대전(480) · 자유 랭크(440 · 1·2·3·5명만 = 롤 규칙) · 협곡 큐는 큐 시작 전에 각자 롤에서 포지션을 골라야 함(롤 규칙)
+const LOL_NQ = [2400, 450, 400, 480, 440], LOL_NQ_KO = { 2400: '아수라장', 450: '칼바람 나락', 400: '협곡 교차 선택', 480: '협곡 신속 대전', 440: '협곡 자유 랭크' }, LOL_NQ_SR = [400, 480, 440];
 function normalInvitees(partyIds) {
   const inParty = new Set(partyIds || []);
   const others = (lobbyView().members || []).filter(m => m.st !== 'spec' && !m.guest && !m.me && m.online && /^[0-9a-f-]{30,}$/i.test(m.key) && !inParty.has(m.key));
@@ -521,7 +569,8 @@ ipcMain.handle('lol-queue', async (_e, o) => {   // 큐 시작(on) / 취소
   if (lolOk(r)) { console.log('[lol] 큐', o && o.on ? '시작' : '취소'); return { ok: true }; }
   console.log('[lol] 큐', o && o.on ? '시작' : '취소', '실패', r && r.status, r && JSON.stringify(r.data).slice(0, 200));
   const m = r && r.data && (r.data.message || r.data.errorCode) || '';
-  return { ok: false, err: (o && o.on ? '큐를 시작하지 못했어요' : '큐를 취소하지 못했어요') + (m ? ` (${m})` : '') + (o && o.on ? ' — 롤에서 파티장인지·모두 준비됐는지 확인해 주세요' : '') };
+  const srQ = LOL_NQ_SR.includes(lobbyParty && lobbyParty.q);
+  return { ok: false, err: (o && o.on ? '큐를 시작하지 못했어요' : '큐를 취소하지 못했어요') + (m ? ` (${m})` : '') + (o && o.on ? (srQ ? ' — 협곡 큐는 모두 롤에서 포지션을 골라야 해요 · 파티장인지도 확인해 주세요' : ' — 롤에서 파티장인지·모두 준비됐는지 확인해 주세요') : '') };
 });
 ipcMain.on('lol-normal-q', (_e, q) => { if (LOL_NQ.includes(q) && config.lolNormalQ !== q) { config.lolNormalQ = q; saveConfig(); broadcast('lobby', lobbyView()); } });
 ipcMain.handle('lol-accept', async () => {
@@ -553,7 +602,7 @@ function autoSeat() {
 function onLobbySeat(d) {
   const prevPhase = lobbyPhase;
   lobbyPhase = d && d.phase || null; lobbySeat = d ? d.seat : null; lobbyCustom = d ? d.custom : null;
-  { const pp = JSON.stringify(lobbyParty) + JSON.stringify(lobbyCust); lobbyParty = d && d.party || null; lobbyCust = d && d.cust || null; if (room && (pp !== JSON.stringify(lobbyParty) + JSON.stringify(lobbyCust) || prevPhase !== lobbyPhase)) broadcast('lobby', lobbyView()); }   // 🎮 v0.1.217 사용자 설정 방 사람·초대 상태도   // 🎮 v0.1.191 일반 파티 인원·큐 상태를 대기실 버튼에
+  { const pp = JSON.stringify(lobbyParty) + JSON.stringify(lobbyCust); lobbyParty = d && d.party || null; lobbyCust = d && d.cust || null; try { autoLobbyGame(); } catch (_) {} if (room && (pp !== JSON.stringify(lobbyParty) + JSON.stringify(lobbyCust) || prevPhase !== lobbyPhase)) broadcast('lobby', lobbyView()); }   // 🎮 v0.1.217 사용자 설정 방 사람·초대 상태도   // 🎮 v0.1.191 일반 파티 인원·큐 상태를 대기실 버튼에
   autoLobbyMode(); autoSeat();
   if ((prevPhase === 'ChampSelect') !== (lobbyPhase === 'ChampSelect')) { if (lobbyPhase !== 'ChampSelect') { champSel = null; _champSelSig = ''; } pushAugGuide().catch(() => {}); }   // 🧭 증강 가이드 켜고 끄기
   if (lobbyPhase === 'ChampSelect' && prevPhase !== 'ChampSelect') borderlessOn();   // 🎯 증강 순위 켠 사람 = 게임 뜨기 전에 테두리 없는 창으로
@@ -2093,7 +2142,7 @@ function lobbyView() {
   const sd = L.sides || {}, sides = {};
   for (const n of inNames) { const t = sd[fbKeyOf(n)]; if (t === 'teamA' || t === 'teamB') sides[n] = t; }
   return { members, sides, mode: ['draft', 'manual', 'normal', 'balance'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
-    dcGuild: dcRoomGuild(members), dcInv: !!((dcRoomInfo(members) || {}).inv), dcJoin: dcJoinView(members), hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members), room: room ? { id: room.id, name: room.name, priv: room.priv } : null, lol: room ? { inCustom: lobbyPhase === 'Lobby' && lobbyCustom === true, phase: lobbyPhase || null, invite: _lolInv, party: lobbyCustom === false ? lobbyParty : null, ids: lobbyCustom === true && lobbyCust ? lobbyCust.ids : null, invs: lobbyCustom === true && lobbyCust ? lobbyCust.inv : null, nq: LOL_NQ.includes(config.lolNormalQ) ? config.lolNormalQ : 2400 } : null };   // 🎮 v0.1.185 롤 방
+    dcGuild: dcRoomGuild(members), dcInv: !!((dcRoomInfo(members) || {}).inv), dcJoin: dcJoinView(members), hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members), room: room ? { id: room.id, name: room.name, priv: room.priv } : null, lol: room ? { inCustom: lobbyPhase === 'Lobby' && lobbyCustom === true, phase: lobbyPhase || null, invite: _lolInv, party: lobbyCustom === false ? lobbyParty : null, ids: lobbyCustom === true && lobbyCust ? lobbyCust.ids : null, invs: lobbyCustom === true && lobbyCust ? lobbyCust.inv : null, cmap: lobbyCustom === true && lobbyCust ? lobbyCust.map : null, cq: lobbyCustom === true && lobbyCust ? lobbyCust.q : null, nq: LOL_NQ.includes(config.lolNormalQ) ? config.lolNormalQ : 2400 } : null, game: lobbyGame().game, srPick: lobbyGame().pick };   // 🎮 v0.1.185 롤 방
 }
 // 🔄 버전 비교(v0.1.56) — 대기실 내 자리 「업데이트 필요」·내 안내 줄
 const verCmp = (a, b) => { const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return 0; };
@@ -2151,6 +2200,14 @@ async function lobbySetMode(mode, auto) {
   if (!auto && m !== 'normal' && config.lastTeamMode !== m) { config.lastTeamMode = m; saveConfig(); }   // 일반판에서 내전으로 돌아올 때 쓸 방식
   lobbyLocal(L => { L.mode = m; });
   return lobbyWrite(fbUpdate(`${RP()}/lobby`, { mode: m }));
+}
+async function lobbySetGame(game, pick, auto) {   // 🗺️ v0.1.232 내전 게임 = 아수라장 | 협곡(+ 픽 방식)
+  if (!config.isHost) return { ok: false, err: '방장만 게임을 정할 수 있어요' };
+  const g = game === 'sr' ? 'sr' : null, p = g ? srPickOf(pick != null ? pick : lobbyRaw && lobbyRaw.srPick) : null;
+  if ((lobbyRaw && lobbyRaw.game || null) === g && (!g || srPickOf(lobbyRaw && lobbyRaw.srPick) === p)) return { ok: true };
+  if (!auto) console.log('[lobby] 내전 게임', g ? '협곡 · ' + SR_PICKS[p] : '아수라장');
+  lobbyLocal(L => { L.game = g; L.srPick = p; });
+  return lobbyWrite(fbUpdate(`${RP()}/lobby`, { game: g, srPick: p }));
 }
 async function lobbyCaptain(name, rand) {   // 🎯 팀장 지정/해제(누르면 빈 자리에, 다시 누르면 해제) · rand=무작위 2명
   if (!config.isHost) return { ok: false, err: '방장만 팀장을 정할 수 있어요' };
@@ -2510,7 +2567,7 @@ async function hostPotg(s) {
 //   기록 = today/days/{day}/normals/{gameId}(내전 순위와 따로 · 조건부 PUT으로 1번만) · 저장에 성공한 앱이 팟지·숨은 영웅을 맡음(우리 팀만 주인공 후보)
 //   보기 = today/normalLive(가장 최근 일반 판 팟지 카드) → 그 판에 있던 사람 앱만 가운데 창을 띄움 · 「오늘」 탭에서 다시 보기
 const NORMAL_MIN = 2;
-const QUEUE_NAME = { 400: '일반', 430: '일반', 490: '빠른 대전', 420: '솔로 랭크', 440: '자유 랭크', 450: '칼바람', 2400: '칼바람 대혼란', 900: 'URF', 1900: 'URF', 1700: '아레나', 1710: '아레나' };
+const QUEUE_NAME = { 400: '협곡 교차 선택', 430: '일반', 480: '신속 대전', 490: '빠른 대전', 3100: '협곡 내전', 3110: '협곡 내전', 3120: '협곡 내전', 3130: '협곡 내전', 420: '솔로 랭크', 440: '자유 랭크', 450: '칼바람', 2400: '칼바람 대혼란', 900: 'URF', 1900: 'URF', 1700: '아레나', 1710: '아레나' };
 const MODE_NAME = { ARAM: '칼바람', CLASSIC: '소환사의 협곡', CHERRY: '아레나', URF: 'URF', KIWI: '칼바람 대혼란' };
 const queueName = (id, mode) => QUEUE_NAME[id] || MODE_NAME[String(mode || '').toUpperCase()] || '일반 게임';
 const _normDone = new Set();
@@ -2747,8 +2804,10 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   const champs = await getChamps().catch(() => ({})), alias = id => (champs[id] && champs[id].alias) || '';
   const victims = (card.kills || []).map(k => ({ name: k.victim, alias: alias(k.championId), t: k.t })).filter(v => v.name && Number.isFinite(v.t));
   const kts = (card.kills && card.kills.length ? card.kills.map(k => k.t) : [card.obj ? card.obj.t : card.t1]).filter(Number.isFinite);   // potg/potg.js killsAt과 같은 킬 시각
-  const parts = [{ from: Math.max(0, card.clipFrom - 2), to: card.clipTo, focus: card.name, champ: alias(card.championId), fov: await fov(card.championId), direct: { victims }, speed: slowKeys(potgSlow(kts), kts.flatMap(m => [m - 0.7, m - 0.45, m + 0.3, m + FREEZE_AFTER])) }]
-    .concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: alias(H.championId), fov: await fov(H.championId), direct: { victims: [] }, speed: slowKeys(heroSlow(H.peak), [H.peak - 0.6, H.peak + 0.35]) }] : []);
+  // 🗺️ v0.1.232 연출 카메라는 칼바람 다리 지도(replayrec LANE12) 기준 → 협곡(내전 lolGame 'sr' · 일반 CLASSIC 등) 판은 연출 없이 주인공 따라가기
+  const aramMap = card.normal ? ['ARAM', 'KIWI'].includes(card.normal.gameMode) || [450, 2400].includes(Number(card.normal.queueId)) : !(sessionData && sessionData.lolGame === 'sr');
+  const parts = [{ from: Math.max(0, card.clipFrom - 2), to: card.clipTo, focus: card.name, champ: alias(card.championId), fov: await fov(card.championId), direct: aramMap ? { victims } : null, speed: slowKeys(potgSlow(kts), kts.flatMap(m => [m - 0.7, m - 0.45, m + 0.3, m + FREEZE_AFTER])) }]
+    .concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: alias(H.championId), fov: await fov(H.championId), direct: aramMap ? { victims: [] } : null, speed: slowKeys(heroSlow(H.peak), [H.peak - 0.6, H.peak + 0.35]) }] : []);
   recProgStart(parts);
   // 🚫 v0.1.206(사장님: 건너뛰기를 바로 눌렀는데 정상으로 돌아가며 녹화가 다시 시작됨) — 녹화 모듈은 record()를 부를 때 건너뛰기 표시(_cancel)를 지움
   //   → 위 준비(챔피언 정보·시야 계산 · 2~3초) 사이에 누른 건너뛰기가 사라져 리플레이를 열었음(11/14 00:38 판: 누름 00:38:17 → 녹화 시작 00:38:20)
@@ -2970,6 +3029,7 @@ async function recordGame(winner, eog) {
   const rec = {
     gameId: gid, ts: Date.now(), day, source: eog ? 'auto' : 'manual', by: config.myName || null,
     teamA: s.teamA, teamB: s.teamB, spectators: s.spectators || null, mode: s.mode || null,
+    game: s.lolGame === 'sr' ? 'sr' : null, srPick: s.lolGame === 'sr' ? s.srPick || null : null,   // 🗺️ v0.1.232 협곡 내전(없으면 아수라장)
     winner, winSide: (eog && eog.winSide) || null, gameTime: (eog && eog.gameTime) || 0,
     stats: (eog && eog.players) || null, teamsFormedAt: s.teamsFormedAt || null,
     ids: s.ids || null,   // 👤 이름→puuid(프로필이 닉변해도 같은 사람으로 묶음)
@@ -3027,10 +3087,10 @@ async function startTeamBuild(names, mode) {
   try {
     const prev = await fetchSession();
     if (mode === 'balance') {   // ⚖️ v0.1.174: 아수라장 티어 점수(내전 + 일반)로 두 팀 합이 비슷하게 · 자료 없는 사람 = 50점
-      const sc = await balanceScores(names);
+      const sc = await balanceScores(names, lobbyGame().game);
       const b = balanceTeams({ names, scores: sc.scores, prevA: (prev && prev.teamA) || [], prevB: (prev && prev.teamB) || [] });
       const avg = (t, sum) => t.length ? Math.round(sum / t.length * 10) / 10 : 0;
-      const bal = { a: avg(b.teamA, b.sumA), b: avg(b.teamB, b.sumB), known: sc.known, n: b.teamA.length + b.teamB.length, miss: [...b.teamA, ...b.teamB].filter(x => !sc.has[x]).slice(0, 10) };
+      const bal = { a: avg(b.teamA, b.sumA), b: avg(b.teamB, b.sumB), sr: lobbyGame().game === 'sr' || null, known: sc.known, n: b.teamA.length + b.teamB.length, miss: [...b.teamA, ...b.teamB].filter(x => !sc.has[x]).slice(0, 10) };
       console.log('[balance] ' + b.teamA.length + ':' + b.teamB.length + ' 합 ' + b.sumA + '/' + b.sumB + ' (차이 ' + b.diff + ' · 최소 ' + b.min + ' · 후보 ' + b.cands + ') 점수 있는 사람 ' + sc.known + '/' + names.length);
       const res = await writeTeams(b.teamA, b.teamB, b.spectators, 'balance', bal);
       if (!res.ok) { sendTb({ state: 'error', err: '팀 저장 실패 — ' + res.err }); return res; }
@@ -3107,6 +3167,7 @@ async function startDraft(names, captains) {
     pool: names.filter(n => !caps.includes(n)), order: draftOrder(first, (teamSize - 1) * 2), pickIdx: 0,
     teamSize, firstPick: first, draftStartedAt: now, turnEndsAt: now + FP_MS + DRAFT_TURN_MS,   // 첫 차례 = 선픽 연출이 끝난 뒤부터 30초
     mapBy: first === 'teamA' ? 'teamB' : 'teamA', lolMap: null,   // 🎮 v0.1.188 다리 = 선픽이 아닌 팀장이 고름(사장님) · 안 고르면 무작위
+    ...gameFields(), ...(lobbyGame().game === 'sr' ? { mapBy: null } : {}),   // 🗺️ v0.1.232 협곡 = 다리 고르기 없음
   });
   if (w.ok) fbSet(`${RP()}/lobby/captains`, null).catch(() => {});
   return w;
@@ -3128,7 +3189,7 @@ async function draftPick(name, auto) {
     const next = Object.assign({}, s, { pool: pool.filter((_, i) => i !== idx), [team]: [...(s[team] || []), picked], pickIdx: (s.pickIdx || 0) + 1,
       lastPick: { name: picked, team, at: now, auto: !!auto, byHost: !auto && config.isHost && normName((s.captains || {})[team] || '') !== me } });
     if (next.pickIdx >= next.order.length || !next.pool.length) {   // 🏁 다 뽑음 → 팀 확정(남은 사람=관전)
-      Object.assign(next, { phase: 'teams', teamsFormedAt: now, spectators: next.pool.length ? next.pool : null, teamSize: Math.max(next.teamA.length, next.teamB.length), lolMap: next.lolMap || lolRandMap(),
+      Object.assign(next, { phase: 'teams', teamsFormedAt: now, spectators: next.pool.length ? next.pool : null, teamSize: Math.max(next.teamA.length, next.teamB.length), lolMap: next.lolGame === 'sr' ? null : next.lolMap || lolRandMap(),
         pool: null, order: null, pickIdx: null, turnEndsAt: null });
     } else next.turnEndsAt = now + DRAFT_TURN_MS;
     return { value: next };
@@ -3138,15 +3199,34 @@ async function draftPick(name, auto) {
 
 // ⚖️ 밸런스용 점수 — 이름마다 아수라장 내전(서버 경기 기록) + 아수라장 일반(today/ratings · 각자 앱이 올린 요약)을 판 수로 가중 평균(balance.js playerScore)
 //   사람 찾기 = 지금 방 접속 표시(puuid) → 없으면 계정 목록 이름 → 그래도 없으면(손님) 이름으로 내전 기록만
-async function balanceScores(names) {
+// 🗺️ v0.1.232 협곡 밸런스 — 아수라장 점수는 협곡 실력과 달라서 롤 공식 랭크 티어(방장 롤 클라에서 그 사람 puuid로 · 솔로 → 없으면 자유)를 같은 0~100 눈금으로
+//   눈금 = rating.js SCORE_TIERS(브론즈 30 · 실버 38 · 골드 46 · 플래 54 · 에메 62 · 다이아 70 · 마스터 78 · 그마 84 · 챌 90 · 한 티어 8점 · 단계마다 2점) · 아이언 = 22
+//   + 협곡 내전 기록(우리 서버 · 판 수만큼 무게) · 랭크 = 10판 무게 · 둘 다 없으면 50점
+const RANK_LO = { IRON: 22, BRONZE: 30, SILVER: 38, GOLD: 46, PLATINUM: 54, EMERALD: 62, DIAMOND: 70, MASTER: 78, GRANDMASTER: 84, CHALLENGER: 90 };
+const DIV_N = { IV: 4, III: 3, II: 2, I: 1 };
+async function srRankScore(puuid) {
+  if (!bridge || !bridge.lcuRaw || !puuid) return null;
+  const r = await bridge.lcuRaw('GET', `/lol-ranked/v1/ranked-stats/${puuid}`).catch(() => null);
+  const q = lolOk(r) && r.data && r.data.queueMap || {};
+  for (const k of ['RANKED_SOLO_5x5', 'RANKED_FLEX_SR']) {
+    const e = q[k], t = e && String(e.tier || '').toUpperCase();
+    if (!e || !RANK_LO[t]) continue;
+    const d = DIV_N[String(e.division || '').toUpperCase()] || 0;
+    const s = d ? RANK_LO[t] + (4 - d) * 2 + 1 : Math.min(RANK_LO[t] + 5, RANK_LO[t] + Math.floor((e.leaguePoints || 0) / 200));
+    return { s, n: 10, tier: t, div: e.division || null, q: k };
+  }
+  return null;
+}
+async function balanceScores(names, game) {
   const [idx, pres] = await Promise.all([profileIndex().catch(() => null), fetchPresence().catch(() => null)]);
   const byName = {};
   for (const [puuid, p] of Object.entries(pres || {})) if (p && p.name && !String(puuid).startsWith('g_')) byName[normName(p.name)] = puuid;
   const scores = {}, has = {}; let known = 0;
   await Promise.all(names.map(async n => {
     const puuid = byName[n] || (idx && (idx.nameToPuuid[n] || idx.statPuuid[n])) || null, key = puuid ? 'p:' + puuid : 'n:' + n;
-    const inh = idx ? inhouseOf(idx, key) : null;
-    const rt = puuid ? await mayhemFor(idx, puuid).catch(() => null) : null;   // v0.1.175: 앱 안 켠 친구도 같이 한 일반 판에서
+    const inh = idx ? inhouseOf(idx, key, game) : null;
+    const rt = game === 'sr' ? { mayhem: puuid ? await srRankScore(puuid).catch(() => null) : null }   // 🗺️ 협곡 = 롤 랭크 티어
+      : puuid ? await mayhemFor(idx, puuid).catch(() => null) : null;   // v0.1.175: 앱 안 켠 친구도 같이 한 일반 판에서
     const x = playerScore(inh, rt && rt.mayhem);
     scores[n] = x.s; has[n] = x.known; if (x.known) known++;
   }));
@@ -3161,6 +3241,7 @@ async function writeTeams(teamA, teamB, spectators, mode, bal) {
     teamSize: Math.max(teamA.length, teamB.length), mode: mode || 'balance',
     teamsFormedAt: now, day: dayKey(now), by: config.myName || null, bal: bal || null,
     lolMap: lolRandMap(),   // 🎮 v0.1.188 이번 판 롤 다리(랜덤·밸런스·직접 = 무작위)
+    ...gameFields(),   // 🗺️ v0.1.232 협곡이면 lolGame 'sr' · 픽 방식 · 다리 없음
   });
   if (w.ok) fbSet(`${RP()}/lobby/captains`, null).catch(() => {});
   return w;
@@ -3633,9 +3714,10 @@ function statOf(m, name, key) {
   return (key.startsWith('p:') && list.find(p => p.puuid === key.slice(2))) || list.find(p => norm(p.summonerName) === norm(name)) || null;
 }
 // 🏠 v0.1.115: 아수라장 내전 점수 = 서버 경기 기록 전부(이 앱으로 진행·기록한 판만 · 사장님) — 프로필과 같은 사람 찾기(matchKeyOf·statOf)로 그 사람 판을 모아 rating.inhouseScore
-function inhouseOf(idx, key) {
+function inhouseOf(idx, key, game) {   // game = 'sr'이면 협곡 내전만 · 아니면 아수라장 내전만(v0.1.232 · 예전 기록 = 아수라장)
   const recs = [];
   for (const m of idx.matches) {
+    if ((m.game === 'sr') !== (game === 'sr')) continue;
     const me = [...m.teamA, ...m.teamB].find(n => matchKeyOf(idx, m, n) === key); if (!me) continue;
     const st = statOf(m, me, key); if (!st) continue;   // 수동 기록(선수 기록 없음)은 못 셈
     const team = m.teamA.some(x => normName(x) === normName(me)) ? 'teamA' : 'teamB';
@@ -4191,6 +4273,7 @@ ipcMain.handle('lobby-guest', (_e, { name }) => lobbyAddGuest(name));
 ipcMain.handle('lobby-guest-rm', (_e, { key }) => lobbyRemoveGuest(key));
 ipcMain.handle('lobby-kick', (_e, { key }) => lobbyKick(key));   // 🚪 v0.1.217 방장 강퇴
 ipcMain.handle('lobby-mode', (_e, { mode }) => lobbySetMode(mode));
+ipcMain.handle('lobby-game', (_e, { game, pick }) => lobbySetGame(game, pick));
 ipcMain.handle('lobby-captain', (_e, { name, rand }) => lobbyCaptain(name, rand));
 ipcMain.handle('lobby-start', () => lobbyStart());
 ipcMain.handle('lobby-side', (_e, { name, team }) => lobbySide(name, team));

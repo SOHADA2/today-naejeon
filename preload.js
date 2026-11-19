@@ -87,7 +87,8 @@ contextBridge.exposeInMainWorld('api', {
   lobbyGuestRm: (key) => ipcRenderer.invoke('lobby-guest-rm', { key }),
   lobbyKick: (key) => ipcRenderer.invoke('lobby-kick', { key }),   // 🚪 v0.1.217 방장 강퇴
   onKicked: (cb) => ipcRenderer.on('kicked', (_e, d) => cb(d)),
-  lobbyMode: (mode) => ipcRenderer.invoke('lobby-mode', { mode }),         // 👑 랜덤/드래프트
+  lobbyMode: (mode) => ipcRenderer.invoke('lobby-mode', { mode }),
+  lobbyGame: (game, pick) => ipcRenderer.invoke('lobby-game', { game, pick }),   // 🗺️ v0.1.232 내전 게임 = 아수라장 | 협곡(sr)         // 👑 랜덤/드래프트
   lobbyCaptain: (name, rand) => ipcRenderer.invoke('lobby-captain', { name, rand }),   // 👑 팀장 지정
   lobbyStart: () => ipcRenderer.invoke('lobby-start'),                      // 👑 시작
   lobbySide: (name, team) => ipcRenderer.invoke('lobby-side', { name, team }),   // 🧩 직접: 1팀/2팀/빼기(null)

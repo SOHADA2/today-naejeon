@@ -635,7 +635,11 @@ body.tg-on .ui-scroll { overflow:hidden !important; }   /* 예시 화면은 스�
 .lb-mp-row + .lb-mp-row { margin-top:8px; }
 .lb-mpop .lb-mode-l { display:block; flex:none; width:44px; margin:0; }
 .lb-mp-grid { flex:1; min-width:0; display:grid; grid-template-columns:repeat(4, 1fr); gap:4px; }
-#lb-nq .lb-mp-grid { grid-template-columns:repeat(2, 1fr); }
+#lb-nq .lb-mp-grid { grid-template-columns:repeat(3, 1fr); }   /* 🗺️ v0.1.232 아수라장·칼바람 + 협곡 3개 */
+.lb-mp-grid.g2 { grid-template-columns:repeat(2, 1fr); }
+.lb-mpop .lb-gm, .lb-mpop .lb-sp { -webkit-app-region:no-drag; padding:6px 2px; font:700 12px var(--f-body); color:var(--ink-soft); background:rgba(255,255,255,0.04); border:1px solid var(--hair); clip-path:var(--cut-sm); cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lb-mpop .lb-gm:hover, .lb-mpop .lb-sp:hover { color:var(--ink); }
+.lb-mpop .lb-gm.on, .lb-mpop .lb-sp.on { color:var(--gold-hi); background:var(--gold-soft); border-color:var(--gold); cursor:default; }
 .lb-mpop .lb-seg { padding:6px 2px; font-size:12px; }
 .lb-mpop .lb-seg.on, .lb-mpop .lb-qb.on { color:var(--gold-hi); background:var(--gold-soft); border-color:var(--gold); }
 .lb-mpop .lb-qb { padding:6px 4px; font-size:12px; }

@@ -179,9 +179,10 @@ function renderTeam() {
   el('t1-players').innerHTML = A.map(playerRow).join('');
   el('t2-players').innerHTML = B.map(playerRow).join('');
   { // 🎮 v0.1.188 이번 판 다리(팀 정할 때 정함 · 드래프트 = 후픽 팀장이 고름) — 방장이 롤 사용자 설정 방에 있으면 이 다리로 방을 다시 만들어 초대
-    const m = s.lolMap && LOL_MAP_KO[s.lolMap], b = el('tv-map');
+    const srG = s.lolGame === 'sr', m = srG ? '소환사의 협곡' : s.lolMap && LOL_MAP_KO[s.lolMap], b = el('tv-map');   // 🗺️ v0.1.232 협곡 = 맵 + 픽 방식
     b.style.display = m && s.mode !== 'normal' ? '' : 'none';
-    if (m) b.innerHTML = `<span class="tv-map-h">🗺 이번 판 다리</span><b>${m}</b><small>${s.lolMapBy ? esc(s.lolMapBy) + ' 팀장이 고름' : '무작위'}</small>`;
+    if (m && srG) b.innerHTML = `<span class="tv-map-h">🗺 이번 판 맵</span><b>${m}</b><small>${SR_PICK_KO[s.srPick] || SR_PICK_KO[3130]}</small>`;
+    else if (m) b.innerHTML = `<span class="tv-map-h">🗺 이번 판 다리</span><b>${m}</b><small>${s.lolMapBy ? esc(s.lolMapBy) + ' 팀장이 고름' : '무작위'}</small>`;
   }
   { // 🎧 v0.1.131 디스코드 음성 채널 나누기 결과(방장 앱이 session.dcMove에 남김) — 못 옮긴 사람과 이유
     const D = s.dcMove, b = el('tv-dc'), on = D && D.at >= (s.teamsFormedAt || 0);
@@ -193,7 +194,7 @@ function renderTeam() {
     const Q = s.mode === 'balance' ? s.bal : null, b = el('tv-bal');
     b.style.display = Q ? '' : 'none';
     if (Q) b.innerHTML = `<span class="tv-bal-h">밸런스</span><span class="tv-bal-s"><em class="t1">1팀 평균 <b class="num">${Number(Q.a).toFixed(1)}</b></em><em class="t2">2팀 평균 <b class="num">${Number(Q.b).toFixed(1)}</b></em></span>`
-      + (Q.n - Q.known > 0 ? `<small data-tip="${esc((Q.miss || []).join(', '))}">티어 점수 없는 ${Q.n - Q.known}명은 50점으로 계산</small>` : '');
+      + (Q.n - Q.known > 0 ? `<small data-tip="${esc((Q.miss || []).join(', '))}">${Q.sr ? '랭크 티어·협곡 기록 없는' : '티어 점수 없는'} ${Q.n - Q.known}명은 50점으로 계산</small>` : '');
   }
   hostSpecNote(el('tv-hspec'), myIsHost && !mt, [...A, ...B], false);
   const pend = el('tv-pending');
@@ -238,7 +239,7 @@ function renderDraft() {
   };
   el('dr-order').innerHTML = orderBar(s.order || [], s.pickIdx || 0);
   { // 🎮 v0.1.188 다리 = 선픽이 아닌 팀장이 고름(사장님) · 방장도 대신 · 다 뽑을 때까지 안 고르면 무작위 · 팀이 정해지면 방장 앱이 이 다리로 롤 방을 다시 만듦
-    const box = el('dr-map'), by = s.mapBy ? caps[s.mapBy] : null;
+    const box = el('dr-map'), by = s.mapBy && s.lolGame !== 'sr' ? caps[s.mapBy] : null;   // 🗺️ v0.1.232 협곡 = 다리 없음
     if (!by) box.style.display = 'none';
     else {
       const can = nn(by) === nn(myName) || myIsHost, cur = s.lolMap;
@@ -704,7 +705,7 @@ function lolMissRow(M, G) {
 }
 async function lolRoomGo() {
   let r = await window.api.lolLobby({});
-  if (r && r.need === 'leave') { if (!(await tnConfirm('지금 롤 대기방(일반 큐)에 있어요.\n나가고 아수라장 내전 방을 만들까요?', { ok: '나가고 만들기' }))) return null; r = await window.api.lolLobby({ force: true }); }
+  if (r && r.need === 'leave') { if (!(await tnConfirm(`지금 롤 대기방(일반 큐)에 있어요.\n나가고 ${lobbyData && lobbyData.game === 'sr' ? '소환사의 협곡' : '아수라장'} 내전 방을 만들까요?`, { ok: '나가고 만들기' }))) return null; r = await window.api.lolLobby({ force: true }); }
   if (!r || !r.ok) { lbErr((r && r.err) || '롤 방을 만들지 못했어요'); return r; }
   return r;
 }
@@ -732,9 +733,13 @@ const verLt = (a, b) => { const x = String(a || '0').split('.').map(Number), y =
 //     방장 없음 = 「👑 방장 하기」(예전엔 맨 위 lb-hostcta)
 //   처음 온 사람이 막히던 곳: 드래프트 팀장 = 마우스를 올려야 보이던 「팀장」 버튼을 팀장이 다 정해질 때까지 늘 보이게(lb-seats.pick) · 빈 자리를 누르면 앱 없는 사람 추가(방장) · 롤 로그인 전 = 빈 자리 대신 시작하는 법 3단계
 const MODE_KO = { random: '랜덤', balance: '밸런스', draft: '드래프트', manual: '직접' };
+// 🗺️ v0.1.232 소환사의 협곡 — 내전 게임(아수라장 | 협곡 + 픽 방식) · 일반 큐(협곡 교차 선택·신속 대전·자유 랭크) · main SR_PICKS·LOL_NQ_KO와 같게
+const SR_PICK_KO = { 3130: '토너먼트 교차 선택', 3110: '교차 선택', 3100: '비공개 선택', 3120: '모두 무작위' };
+const NQ_KO = { 2400: '아수라장', 450: '칼바람 나락', 400: '협곡 교차 선택', 480: '협곡 신속 대전', 440: '협곡 자유 랭크' }, NQ_SHORT = { 2400: '아수라장', 450: '칼바람', 400: '협곡 교차', 480: '신속 대전', 440: '자유 랭크' };
 const MODE_DESC = {   // 방식 고르는 창 맨 아래 한 줄(방장)
   random: '무작위로 두 팀을 나눠요',
   balance: '아수라장 티어 점수로 두 팀을 비슷하게 나눠요',
+  balanceSr: '롤 랭크 티어(솔로 · 없으면 자유)와 협곡 내전 기록으로 두 팀을 비슷하게 나눠요',
   draft: '팀장 둘이 번갈아 한 명씩 뽑아요 · 선픽은 줄다리기로 정해요',
   manual: '방장이 1팀·2팀을 직접 정해요',
   normal: '같은 팀으로 일반 게임을 해요 · 롤 파티는 5명까지',
@@ -752,7 +757,8 @@ function renderLobby() {
   const ins = M.filter(m => m.st === 'in'), specs = M.filter(m => m.st === 'spec');
   const sA = ins.filter(m => sides[m.name] === 'teamA'), sB = ins.filter(m => sides[m.name] === 'teamB'), sNone = ins.filter(m => !sides[m.name]);   // 🧩 직접
   const me = M.find(m => m.me), login = !!myName;
-  const G = L.lol || {}, nq = G.nq || 2400, P = G.party, QN = nq === 450 ? '칼바람 나락' : '아수라장';
+  const G = L.lol || {}, nq = G.nq || 2400, P = G.party, QN = NQ_KO[nq] || '아수라장';
+  const sr = L.game === 'sr', GN = sr ? '소환사의 협곡' : '아수라장', srPick = L.srPick || 3130;   // 🗺️ v0.1.232 내전 게임
   const n = ins.length, capN = (caps.teamA ? 1 : 0) + (caps.teamB ? 1 : 0), seatCap = normal ? 5 : SEATS;
   const ts = Math.min(5, Math.floor(n / 2)), left = n - ts * 2;   // 팀 크기 · 남는 사람(관전)
 
@@ -883,9 +889,9 @@ function renderLobby() {
     const chipB = el('lb-mchip'), pop = el('lb-mpop');
     if (!myIsHost) _mpop = false;
     // v0.1.216(사장님: 「⚔ 내전 · 드래프트」가 버튼처럼 보여 직관적이지 않음) — 설정 칸처럼: 작은 제목(내전 · 팀 짜기 / 일반 · 큐) + 고른 값 ▾
-    chipB.innerHTML = `<span class="mc"><small>${normal ? '일반 · 큐' : '내전 · 팀 짜기'}</small><b>${normal ? (nq === 450 ? '칼바람' : '아수라장') : (MODE_KO[L.mode] || '랜덤')}</b></span><em>▾</em>`;
+    chipB.innerHTML = `<span class="mc"><small>${normal ? '일반 · 큐' : sr ? '협곡 내전 · 팀 짜기' : '내전 · 팀 짜기'}</small><b>${normal ? (NQ_SHORT[nq] || '아수라장') : (MODE_KO[L.mode] || '랜덤')}</b></span><em>▾</em>`;
     chipB.className = 'lb-mchip host' + (_mpop ? ' open' : '');
-    chipB.title = '이번 판 방식 바꾸기 — 내전(랜덤·밸런스·드래프트·직접) / 일반(아수라장·칼바람)';
+    chipB.title = '이번 판 방식 바꾸기 — 내전(아수라장·소환사의 협곡 · 랜덤·밸런스·드래프트·직접) / 일반(아수라장·칼바람·협곡 큐)';
     chipB.onclick = e => { e.stopPropagation(); if (!myIsHost) return; _mpop = !_mpop; pop.style.display = _mpop ? '' : 'none'; chipB.classList.toggle('open', _mpop); };
     pop.style.display = _mpop ? '' : 'none';
     pop.querySelectorAll('.lb-kind').forEach(b => {
@@ -893,13 +899,17 @@ function renderLobby() {
       b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyMode(b.dataset.kind)); };   // 내전 = main이 마지막에 고른 방식으로 · 창은 열어 둠(이어서 팀 짜기·큐 고르게)
     });
     el('lb-sub').style.display = normal ? 'none' : '';
+    el('lb-game').style.display = normal ? 'none' : '';
+    el('lb-srp').style.display = normal || !sr ? 'none' : '';
+    pop.querySelectorAll('.lb-gm').forEach(b => { const on = (b.dataset.game === 'sr') === sr; b.classList.toggle('on', on); b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyGame(b.dataset.game === 'sr' ? 'sr' : null, srPick)); }; });
+    pop.querySelectorAll('.lb-sp').forEach(b => { const q = Number(b.dataset.pick), on = q === srPick; b.classList.toggle('on', on); b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyGame('sr', q)); }; });
     el('lb-nq').style.display = normal ? '' : 'none';
     pop.querySelectorAll('.lb-seg').forEach(b => {
       b.classList.toggle('on', b.dataset.mode === L.mode);
       b.onclick = () => { if (!myIsHost) return; _mpop = false; pop.style.display = 'none'; chipB.classList.remove('open'); if (b.dataset.mode !== L.mode) lbAct(() => window.api.lobbyMode(b.dataset.mode)); };
     });
     pop.querySelectorAll('.lb-qb').forEach(b => { const q = Number(b.dataset.q); b.classList.toggle('on', q === nq); b.onclick = () => { if (q !== nq) window.api.lolNormalQ(q); }; });
-    el('lb-mdesc').textContent = MODE_DESC[normal ? 'normal' : MODE_KO[L.mode] ? L.mode : 'random'];
+    el('lb-mdesc').textContent = normal ? MODE_DESC.normal + (nq === 400 || nq === 480 || nq === 440 ? ' · 협곡 큐는 각자 롤에서 포지션을 골라야 시작돼요' : '') : sr && L.mode === 'balance' ? MODE_DESC.balanceSr : MODE_DESC[MODE_KO[L.mode] ? L.mode : 'random'];
   }
   const lolIdle = !G.phase || G.phase === 'None' || G.phase === 'Lobby';
   const roomStep = !!(myIsHost && !normal && L.room && G.phase && lolIdle && !G.inCustom && _roomStepSkip !== L.room.id);   // 🪜 v0.1.216 ① 롤 내전 방 만들기 단계(롤이 켜져 있고 사용자 설정 방에 없음)
@@ -911,9 +921,11 @@ function renderLobby() {
     //   [나중에] = 이 방에선 ① 건너뜀(팀이 정해질 때 앱이 방을 만듦 · 이 줄은 「롤 방은 팀이 정해질 때 만들어요 [지금 만들기]」)
     const box = el('lb-lol');
     const h = G.invite && !myIsHost ? `<span class="lb-lol-t"><b>👑 ${esc(G.invite.from)}</b>님이 롤 ${normal ? '파티' : '방'}에 초대했어요</span><button class="lb-mini" data-lol="accept">수락</button>`
-      : roomStep ? '<span class="lb-lol-t" title="롤에 아수라장 사용자 설정 방을 이 방 이름으로 만들고(공개 목록엔 안 뜸) 앱 켠 방 사람들을 초대해요"><span class="lb-lol-ic">🎮</span><b>먼저 롤 내전 방</b>을 만들어 모여요</span><button class="lb-mini plain" data-lol="skip" title="롤 방 없이 팀부터 짜기 · 팀이 정해질 때 앱이 롤 방을 만들어요">나중에</button>'
+      : roomStep ? '<span class="lb-lol-t" title="롤에 ' + GN + ' 사용자 설정 방을 이 방 이름으로 만들고(공개 목록엔 안 뜸) 앱 켠 방 사람들을 초대해요"><span class="lb-lol-ic">🎮</span><b>먼저 롤 내전 방</b>을 만들어 모여요</span><button class="lb-mini plain" data-lol="skip" title="롤 방 없이 팀부터 짜기 · 팀이 정해질 때 앱이 롤 방을 만들어요">나중에</button>'
       : myIsHost && !normal && L.room && lolIdle && G.phase
-        ? (G.inCustom ? lolMissRow(M, G)
+        ? (G.inCustom ? (G.cmap === 11 || G.cmap === 12) && (G.cmap === 11) !== sr || (sr && G.cmap === 11 && G.cq && SR_PICK_KO[G.cq] && G.cq !== srPick)
+            ? `<span class="lb-lol-t" title="롤 내전 방은 그대로(나가지 않음) · 게임 설정만 바꿔요"><span class="lb-lol-ic">🎮</span>롤 방이 <b>${G.cmap === 11 ? '협곡' + (SR_PICK_KO[G.cq] ? ' · ' + SR_PICK_KO[G.cq] : '') : '아수라장'}</b>이에요</span><button class="lb-mini" data-lol="make">${sr ? (G.cmap === 11 ? '픽 방식 바꾸기' : '협곡으로 바꾸기') : '아수라장으로 바꾸기'}</button>`
+            : lolMissRow(M, G)
           : '<span class="lb-lol-t"><span class="lb-lol-ic">🎮</span>롤 방은 팀이 정해질 때 만들어요</span><button class="lb-mini" data-lol="make">지금 만들기</button>')
         : '';
     box.style.display = h ? '' : 'none';
@@ -968,7 +980,7 @@ function renderLobby() {
       : n < 2 ? '2명부터 시작' : !capsOk ? '팀장 2명 필요'
       : manual ? (sNone.length ? `팀 미정 ${sNone.length}명` : !sideOk ? '두 팀에 1명 이상' : `시작 · ${sA.length} : ${sB.length}`)
       : draft ? '드래프트 시작' : `팀 짜기 · ${ts} : ${ts}`;
-    go.title = roomStep ? '롤에 아수라장 사용자 설정 방을 만들고 방 사람들을 초대해요 · 모이면 팀을 짜요' : go.disabled ? '' : normal ? '' : draft ? '줄다리기로 선픽을 정하고 팀장이 번갈아 뽑아요' : manual ? '이 팀으로 확정해요' : `${MODE_DESC[L.mode] || MODE_DESC.random} · 팀이 정해지면 롤 방을 만들고 모두 초대해요`;
+    go.title = roomStep ? `롤에 ${GN} 사용자 설정 방을 만들고 방 사람들을 초대해요 · 모이면 팀을 짜요` : go.disabled ? '' : normal ? '' : draft ? '줄다리기로 선픽을 정하고 팀장이 번갈아 뽑아요' : manual ? '이 팀으로 확정해요' : `${MODE_DESC[L.mode] || MODE_DESC.random} · 팀이 정해지면 롤 방을 만들고 모두 초대해요`;
   }
   { // 팀원 = 지금 방식 · 방장 · 무엇을 기다리는지 / 방장 없음 = 방장 하기
     const st = el('lb-stat'); let h = '';
@@ -979,7 +991,7 @@ function renderLobby() {
         : normal ? (qState === 'game' ? '게임 진행 중이에요' : G.phase === 'Matchmaking' ? '큐를 잡는 중이에요' : P ? `롤 파티 ${P.n}/${P.max || 5}명 · 방장이 큐를 시작해요` : '방장이 초대하면 자동으로 롤 파티에 들어가요')
         : manual ? '방장이 1팀·2팀을 직접 정하고 있어요'
         : `방장이 시작하면 ${MODE_WAIT[L.mode] || MODE_WAIT.random}`;
-      h = `<div class="lb-stat-tx"><span class="lb-stat-top"><b class="lb-stat-m">${normal ? `<i>🎮</i>일반 · ${QN}` : `<i>⚔</i>내전 · ${MODE_KO[L.mode] || '랜덤'}`}</b><span class="lb-stat-h" title="방장">👑 ${esc(hostNm)}</span></span><small>${sub}</small></div>`;
+      h = `<div class="lb-stat-tx"><span class="lb-stat-top"><b class="lb-stat-m">${normal ? `<i>🎮</i>일반 · ${QN}` : `<i>⚔</i>${sr ? '협곡 내전' : '내전'} · ${MODE_KO[L.mode] || '랜덤'}`}</b><span class="lb-stat-h" title="방장">👑 ${esc(hostNm)}</span></span><small>${sub}</small></div>`;
     }
     st.style.display = h ? '' : 'none';
     st.className = 'lb-stat' + (noHost ? ' cta' : '');

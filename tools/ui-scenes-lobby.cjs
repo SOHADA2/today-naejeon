@@ -34,6 +34,12 @@ for (const w of [302, 402]) {
   S.push(sc('h-normal-party-' + w, w, 4, 0, 'normal', '', { lol: partyLead }));                                         // 롤 파티 3/5 · 다시 초대 · 「큐 시작」
   S.push(sc('h-normal-pop-' + w, w, 7, 0, 'normal', "document.getElementById('lb-mchip').click();"));                   // 7명(6번째부터 파티 자리 없음) + 고르는 창(일반)
   S.push(sc('h-menu-' + w, w, 4, 0, 'random', "document.getElementById('lb-rbtn').click();"));                          // 방 메뉴
+  // 🗺️ v0.1.232 소환사의 협곡
+  S.push(sc('h-sr-pop-' + w, w, 6, 0, 'draft', "document.getElementById('lb-mchip').click();", { game: 'sr', srPick: 3130 }));                       // 고르는 창(게임 = 협곡 · 픽 방식 줄)
+  S.push(sc('h-sr-pop-short-' + w, w, 10, 0, 'balance', "document.getElementById('lb-mchip').click();", { game: 'sr', srPick: 3100 }, false, 576));  // 낮은 창 + 10명
+  S.push(sc('h-sr-switch-' + w, w, 6, 0, 'random', '', { game: 'sr', srPick: 3130, lol: { phase: 'Lobby', inCustom: true, cmap: 12, cq: 3270, ids: [], invs: {}, party: null, nq: 2400 } }));   // 롤 방이 아수라장 → 「협곡으로 바꾸기」
+  S.push(sc('h-sr-nq-pop-' + w, w, 4, 0, 'normal', "document.getElementById('lb-mchip').click();", { lol: { phase: 'None', party: null, nq: 480 } }));  // 일반 = 협곡 신속 대전
+  S.push(sc('m-sr-' + w, w, 6, 2, 'draft', '', { game: 'sr', srPick: 3130 }));                                                                       // 팀원 상태 카드 「협곡 내전 · 드래프트」
   // 팀원
   S.push(sc('m-draft-' + w, w, 6, 2, 'draft'));                                                                         // 상태 카드
   S.push(sc('m-spec-' + w, w, 4, 2, 'random', '', null, true));                                                         // 관전 중 = 「다시 참가하기」

@@ -631,7 +631,7 @@ async function pollSeat() {
             let inv = null;
             if (me && me.isLeader) { try { const iv = await lcu('/lol-lobby/v2/lobby/invitations'); if (Array.isArray(iv)) { inv = {}; for (const x of iv) if (x && x.toPuuid) inv[x.toPuuid] = x.state || ''; } } catch (_) {} }
             const ord = a => (Array.isArray(a) ? a : []).map(m => m && m.puuid || '').filter(Boolean);   // 🎨 v0.1.218 자리 순서 그대로(위에서부터) = 롤 화면 줄 · 방장 줄 표시
-            cust = { ids: [...new Set(ids)].sort(), inv, t1: ord(gc.customTeam100), t2: ord(gc.customTeam200) };
+            cust = { ids: [...new Set(ids)].sort(), inv, t1: ord(gc.customTeam100), t2: ord(gc.customTeam200), map: gc.mapId != null ? Number(gc.mapId) : null, q: gc.queueId != null ? Number(gc.queueId) : null };   // 🗺️ v0.1.232 맵(11 협곡 · 12 아수라장)·큐(픽 방식)
           }
           if (gc && !gc.isCustom) party = { q: gc.queueId || 0, n: Array.isArray(lb.members) ? lb.members.length : 1, max: gc.maxLobbySize || 5, leader: !!(me && me.isLeader), ids: (lb.members || []).map(m => m && m.puuid).filter(Boolean) };
         } catch (_) {}
