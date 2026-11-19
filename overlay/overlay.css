@@ -630,13 +630,18 @@ body.tg-on .ui-scroll { overflow:hidden !important; }   /* 예시 화면은 스�
 .lb-mchip.host { cursor:pointer; color:var(--gold-hi); background:var(--gold-soft); border-color:var(--gold-line); }
 .lb-mchip.host:hover { filter:brightness(1.12); }
 .lb-mchip.open em { transform:rotate(180deg); }
-.lb-mpop { margin:-2px 0 10px; padding:10px; background:linear-gradient(180deg, #0e1a24, var(--bg-1)); border:1px solid var(--gold-line); clip-path:var(--cut-sm); animation:wrIn .14s ease-out both; }
+.lb-mpop { margin:-2px 0 10px; padding:10px; background:linear-gradient(180deg, #0e1a24, var(--bg-1)); border:1px solid var(--gold-line); clip-path:var(--cut-sm); }   /* 🎞️ v0.1.235 여닫는 움직임 = overlay.js popAnim */
 .lb-mp-row { display:flex; align-items:center; gap:6px; }
 .lb-mp-row + .lb-mp-row { margin-top:8px; }
 .lb-mpop .lb-mode-l { display:block; flex:none; width:44px; margin:0; }
 .lb-mp-grid { flex:1; min-width:0; display:grid; grid-template-columns:repeat(4, 1fr); gap:4px; }
-#lb-nq .lb-mp-grid { grid-template-columns:repeat(3, 1fr); }   /* 🗺️ v0.1.232 아수라장·칼바람 + 협곡 3개 */
+#lb-nq .lb-mp-grid { grid-template-columns:repeat(3, 1fr); }   /* v0.1.235 아수라장·칼바람 나락·자유 랭크 한 줄 */
 .lb-mp-grid.g2 { grid-template-columns:repeat(2, 1fr); }
+.lb-mp-col { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }   /* 🗺️ v0.1.235 협곡 「챔피언」 = 밴픽 · 블라인드 두 줄(이름 + 무엇인지) */
+.lb-mpop .lb-sp { display:flex; align-items:baseline; gap:8px; padding:6px 10px; text-align:left; }
+.lb-mpop .lb-sp b { flex:none; font-size:12.5px; font-weight:800; }
+.lb-mpop .lb-sp small { min-width:0; overflow:hidden; text-overflow:ellipsis; font-size:11px; font-weight:600; color:var(--dim); }
+.lb-mpop .lb-sp.on small { color:var(--gold); }
 .lb-mpop .lb-gm, .lb-mpop .lb-sp { -webkit-app-region:no-drag; padding:6px 2px; font:700 12px var(--f-body); color:var(--ink-soft); background:rgba(255,255,255,0.04); border:1px solid var(--hair); clip-path:var(--cut-sm); cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .lb-mpop .lb-gm:hover, .lb-mpop .lb-sp:hover { color:var(--ink); }
 .lb-mpop .lb-gm.on, .lb-mpop .lb-sp.on { color:var(--gold-hi); background:var(--gold-soft); border-color:var(--gold); cursor:default; }
@@ -828,7 +833,7 @@ body.rm-forming #rm-new2 { display:none; }   /* 방 만드는 칸이 열려 있�
 .lb-emj img { display:block; width:100%; height:100%; }
 /* 😊 v0.1.204 이모티콘 = 입력 줄 버튼 → 위로 고르는 창(4×2) · 접기 ▾는 입력 줄 끝 · 디스코드 마크 = 인원 칸 안(숫자 왼쪽) */
 .lb-chat-box { position:relative; }
-.lb-emo-pop { position:absolute; left:0; right:0; bottom:34px; z-index:6; padding:6px; background:linear-gradient(180deg, #0e1a24, var(--bg-1)); border:1px solid var(--gold-line); clip-path:var(--cut-sm); box-shadow:0 -6px 18px rgba(0,0,0,0.45); animation:wrIn .14s ease-out both; }
+.lb-emo-pop { position:absolute; left:0; right:0; bottom:34px; z-index:6; padding:6px; background:linear-gradient(180deg, #0e1a24, var(--bg-1)); border:1px solid var(--gold-line); clip-path:var(--cut-sm); box-shadow:0 -6px 18px rgba(0,0,0,0.45); transform-origin:50% 100%; }
 .lb-emo-pop .lb-chat-emos { display:grid; grid-template-columns:repeat(4, 1fr); gap:4px; }
 .lb-emo-pop .lb-emo { flex:none; width:auto; height:40px; }
 .lb-emo-pop .lb-emo img { width:38px; height:38px; }

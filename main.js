@@ -528,7 +528,8 @@ ipcMain.handle('draft-map', (_e, { map }) => draftMap(map));
 //   초대 = 대기실에 참가(관전 X)로 앉은 앱 켠 사람 · 방장 포함 5명까지 앉은 순서대로 · 이미 파티에 있는 사람은 건너뜀 · 넘치는 사람은 이름을 돌려줌(관전으로 돌려 맞추게)
 //   받는 쪽 = 예전 그대로(lolInvTick 방장 초대 자동 수락) · 큐 시작/취소 = 파티장만(롤 규칙) · 방장이 남의 파티에 있으면 나가고 새로 만들지 먼저 물음
 // 🗺️ v0.1.232 협곡 일반 큐도(사장님) — 교차 선택(400) · 신속 대전(480) · 자유 랭크(440 · 1·2·3·5명만 = 롤 규칙) · 협곡 큐는 큐 시작 전에 각자 롤에서 포지션을 골라야 함(롤 규칙)
-const LOL_NQ = [2400, 450, 400, 480, 440], LOL_NQ_KO = { 2400: '아수라장', 450: '칼바람 나락', 400: '협곡 교차 선택', 480: '협곡 신속 대전', 440: '협곡 자유 랭크' }, LOL_NQ_SR = [400, 480, 440];
+//   v0.1.235(사장님: 많이 하는 것만) = 아수라장 · 칼바람 나락 · 자유 랭크(교차 선택·신속 대전 뺌 · 예전에 고른 값이면 아수라장으로)
+const LOL_NQ = [2400, 450, 440], LOL_NQ_KO = { 2400: '아수라장', 450: '칼바람 나락', 440: '자유 랭크' }, LOL_NQ_SR = [440];
 function normalInvitees(partyIds) {
   const inParty = new Set(partyIds || []);
   const others = (lobbyView().members || []).filter(m => m.st !== 'spec' && !m.guest && !m.me && m.online && /^[0-9a-f-]{30,}$/i.test(m.key) && !inParty.has(m.key));
@@ -570,7 +571,7 @@ ipcMain.handle('lol-queue', async (_e, o) => {   // 큐 시작(on) / 취소
   console.log('[lol] 큐', o && o.on ? '시작' : '취소', '실패', r && r.status, r && JSON.stringify(r.data).slice(0, 200));
   const m = r && r.data && (r.data.message || r.data.errorCode) || '';
   const srQ = LOL_NQ_SR.includes(lobbyParty && lobbyParty.q);
-  return { ok: false, err: (o && o.on ? '큐를 시작하지 못했어요' : '큐를 취소하지 못했어요') + (m ? ` (${m})` : '') + (o && o.on ? (srQ ? ' — 협곡 큐는 모두 롤에서 포지션을 골라야 해요 · 파티장인지도 확인해 주세요' : ' — 롤에서 파티장인지·모두 준비됐는지 확인해 주세요') : '') };
+  return { ok: false, err: (o && o.on ? '큐를 시작하지 못했어요' : '큐를 취소하지 못했어요') + (m ? ` (${m})` : '') + (o && o.on ? (srQ ? ' — 자유 랭크는 모두 롤에서 포지션을 골라야 하고 1·2·3·5명 파티만 돼요 · 파티장인지도 확인해 주세요' : ' — 롤에서 파티장인지·모두 준비됐는지 확인해 주세요') : '') };
 });
 ipcMain.on('lol-normal-q', (_e, q) => { if (LOL_NQ.includes(q) && config.lolNormalQ !== q) { config.lolNormalQ = q; saveConfig(); broadcast('lobby', lobbyView()); } });
 ipcMain.handle('lol-accept', async () => {

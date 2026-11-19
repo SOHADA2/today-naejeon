@@ -676,10 +676,39 @@ async function loadToday() {
 }
 // ── 🚪 대기실 ─────────────────────────────────────────────────────────────
 // 접속한 사람 전원이 같은 목록을 봄 · 각자 참가/관전 · 방장이 방식(랜덤/드래프트)·팀장 정하고 시작
+// 🎞️ v0.1.235 창이 열리고 닫힐 때 움직임(사장님: 큐를 누르면 그냥 뚝 나와서 없어 보임) — 방식 고르는 창·방 메뉴·이모티콘 창
+//   열기 = 높이가 0에서 펼쳐지며 살짝 올라오고(0.22초) 안의 줄이 차례로 나타남 · 닫기 = 접히며 사라짐(0.15초) · 다시 그려도 같은 상태면 아무것도 안 함
+//   float = 다른 것을 밀지 않고 떠 있는 창(이모티콘) → 높이 대신 아래에서 떠오름
+function popAnim(p, on, float) {
+  if (!p) return;
+  on = !!on;
+  if ((p.dataset.on === '1') === on) { if (on) p.style.display = ''; else if (!p._closing) p.style.display = 'none'; return; }
+  p.dataset.on = on ? '1' : '';
+  p.getAnimations().forEach(a => a.cancel()); p.querySelectorAll(':scope > *').forEach(c => c.getAnimations().forEach(a => a.cancel()));
+  const cs = () => getComputedStyle(p), ease = 'cubic-bezier(.2,.9,.3,1)';
+  if (on) {
+    p._closing = false; p.style.display = '';
+    if (float) p.animate([{ opacity: 0, transform: 'translateY(10px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: 200, easing: ease });
+    else {
+      const c = cs(), h = p.offsetHeight;
+      p.animate([{ height: '0px', paddingTop: '0px', paddingBottom: '0px', opacity: 0, overflow: 'hidden', transform: 'translateY(6px)' },
+        { height: h + 'px', paddingTop: c.paddingTop, paddingBottom: c.paddingBottom, opacity: 1, overflow: 'hidden', transform: 'none' }], { duration: 220, easing: ease });
+    }
+    p.querySelectorAll(':scope > *').forEach((k, i) => { if (k.style.display !== 'none') k.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 200, delay: 50 + i * 35, easing: 'ease-out', fill: 'backwards' }); });
+  } else {
+    if (p.style.display === 'none') return;
+    p._closing = true;
+    const c = cs(), h = p.offsetHeight;
+    const a = float ? p.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(8px) scale(.97)' }], { duration: 140, easing: 'ease-in' })
+      : p.animate([{ height: h + 'px', paddingTop: c.paddingTop, paddingBottom: c.paddingBottom, opacity: 1, overflow: 'hidden' }, { height: '0px', paddingTop: '0px', paddingBottom: '0px', opacity: 0, overflow: 'hidden', transform: 'translateY(6px)' }], { duration: 150, easing: 'ease-in' });
+    const end = () => { p._closing = false; if (p.dataset.on !== '1') p.style.display = 'none'; };
+    a.onfinish = end; a.oncancel = () => { p._closing = false; };
+  }
+}
 let _lbBusy = false, _mpop = false;   // _mpop = ⚔ v0.1.193 방식 고르는 창 열림(대기실이 다시 그려져도 유지)
 document.addEventListener('click', e => {   // 고르는 창 밖을 누르면 닫음
   if (!_mpop || (e.target.closest && e.target.closest('#lb-mpop, #lb-mchip'))) return;
-  _mpop = false; const p = document.getElementById('lb-mpop'), c = document.getElementById('lb-mchip'); if (p) p.style.display = 'none'; if (c) c.classList.remove('open');
+  _mpop = false; const p = document.getElementById('lb-mpop'), c = document.getElementById('lb-mchip'); popAnim(p, false); if (c) c.classList.remove('open');
 });
 function lbErr(msg) { const e = el('lb-err'); e.textContent = '⚠️ ' + msg; e.style.display = ''; clearTimeout(lbErr._t); lbErr._t = setTimeout(() => { e.style.display = 'none'; }, 2600); }
 async function lbAct(fn) {
@@ -735,7 +764,7 @@ const verLt = (a, b) => { const x = String(a || '0').split('.').map(Number), y =
 const MODE_KO = { random: '랜덤', balance: '밸런스', draft: '드래프트', manual: '직접' };
 // 🗺️ v0.1.232 소환사의 협곡 — 내전 게임(아수라장 | 협곡 + 픽 방식) · 일반 큐(협곡 교차 선택·신속 대전·자유 랭크) · main SR_PICKS·LOL_NQ_KO와 같게
 const SR_PICK_KO = { 3130: '토너먼트 교차 선택', 3110: '교차 선택', 3100: '비공개 선택', 3120: '모두 무작위' };
-const NQ_KO = { 2400: '아수라장', 450: '칼바람 나락', 400: '협곡 교차 선택', 480: '협곡 신속 대전', 440: '협곡 자유 랭크' }, NQ_SHORT = { 2400: '아수라장', 450: '칼바람', 400: '협곡 교차', 480: '신속 대전', 440: '자유 랭크' };
+const NQ_KO = { 2400: '아수라장', 450: '칼바람 나락', 440: '자유 랭크' }, NQ_SHORT = { 2400: '아수라장', 450: '칼바람', 440: '자유 랭크' };   // v0.1.235 많이 하는 큐만(사장님)
 const MODE_DESC = {   // 방식 고르는 창 맨 아래 한 줄(방장)
   random: '무작위로 두 팀을 나눠요',
   balance: '아수라장 티어 점수로 두 팀을 비슷하게 나눠요',
@@ -892,8 +921,7 @@ function renderLobby() {
     chipB.innerHTML = `<span class="mc"><small>${normal ? '일반 · 큐' : sr ? '협곡 내전 · 팀 짜기' : '내전 · 팀 짜기'}</small><b>${normal ? (NQ_SHORT[nq] || '아수라장') : (MODE_KO[L.mode] || '랜덤')}</b></span><em>▾</em>`;
     chipB.className = 'lb-mchip host' + (_mpop ? ' open' : '');
     chipB.title = '이번 판 방식 바꾸기 — 내전(아수라장·소환사의 협곡 · 랜덤·밸런스·드래프트·직접) / 일반(아수라장·칼바람·협곡 큐)';
-    chipB.onclick = e => { e.stopPropagation(); if (!myIsHost) return; _mpop = !_mpop; pop.style.display = _mpop ? '' : 'none'; chipB.classList.toggle('open', _mpop); };
-    pop.style.display = _mpop ? '' : 'none';
+    chipB.onclick = e => { e.stopPropagation(); if (!myIsHost) return; _mpop = !_mpop; popAnim(pop, _mpop); chipB.classList.toggle('open', _mpop); };
     pop.querySelectorAll('.lb-kind').forEach(b => {
       const on = (b.dataset.kind === 'normal') === normal; b.classList.toggle('on', on);
       b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyMode(b.dataset.kind)); };   // 내전 = main이 마지막에 고른 방식으로 · 창은 열어 둠(이어서 팀 짜기·큐 고르게)
@@ -906,10 +934,11 @@ function renderLobby() {
     el('lb-nq').style.display = normal ? '' : 'none';
     pop.querySelectorAll('.lb-seg').forEach(b => {
       b.classList.toggle('on', b.dataset.mode === L.mode);
-      b.onclick = () => { if (!myIsHost) return; _mpop = false; pop.style.display = 'none'; chipB.classList.remove('open'); if (b.dataset.mode !== L.mode) lbAct(() => window.api.lobbyMode(b.dataset.mode)); };
+      b.onclick = () => { if (!myIsHost) return; _mpop = false; popAnim(pop, false); chipB.classList.remove('open'); if (b.dataset.mode !== L.mode) lbAct(() => window.api.lobbyMode(b.dataset.mode)); };
     });
     pop.querySelectorAll('.lb-qb').forEach(b => { const q = Number(b.dataset.q); b.classList.toggle('on', q === nq); b.onclick = () => { if (q !== nq) window.api.lolNormalQ(q); }; });
-    el('lb-mdesc').textContent = normal ? MODE_DESC.normal + (nq === 400 || nq === 480 || nq === 440 ? ' · 협곡 큐는 각자 롤에서 포지션을 골라야 시작돼요' : '') : sr && L.mode === 'balance' ? MODE_DESC.balanceSr : MODE_DESC[MODE_KO[L.mode] ? L.mode : 'random'];
+    popAnim(pop, _mpop);   // 🎞️ 상태가 바뀌었을 때만 움직임
+    el('lb-mdesc').textContent = normal ? MODE_DESC.normal + (nq === 440 ? ' · 자유 랭크는 1·2·3·5명 파티만 · 각자 롤에서 포지션을 골라야 시작돼요' : '') : sr && L.mode === 'balance' ? MODE_DESC.balanceSr : MODE_DESC[MODE_KO[L.mode] ? L.mode : 'random'];
   }
   const lolIdle = !G.phase || G.phase === 'None' || G.phase === 'Lobby';
   const roomStep = !!(myIsHost && !normal && L.room && G.phase && lolIdle && !G.inCustom && _roomStepSkip !== L.room.id);   // 🪜 v0.1.216 ① 롤 내전 방 만들기 단계(롤이 켜져 있고 사용자 설정 방에 없음)
@@ -1059,7 +1088,7 @@ function renderHostNote() {
 }
 // 🧱 v0.1.195 방 메뉴(방 이름 ▾) — 방장: 넘겨주기(접속 중인 사람)·그만하기·앱 없는 사람 추가 · 모두: 나가기 (예전 「👑 내가 방장 ▾」 메뉴 + 「나가기」 버튼 + 손님 추가 입력칸을 한곳에)
 let _rmenu = false;
-function closeRoomMenu() { _rmenu = false; const m = el('lb-hostmenu'); if (m) m.style.display = 'none'; const b = el('lb-rbtn'); if (b) b.classList.remove('open'); }
+function closeRoomMenu() { _rmenu = false; const m = el('lb-hostmenu'); popAnim(m, false); const b = el('lb-rbtn'); if (b) b.classList.remove('open'); }
 function toggleRoomMenu(L) { if (_rmenu) { closeRoomMenu(); return; } _rmenu = true; const b = el('lb-rbtn'); if (b) b.classList.add('open'); fillRoomMenu(L); }
 function fillRoomMenu(L) {
   const m = el('lb-hostmenu');
@@ -1072,7 +1101,7 @@ function fillRoomMenu(L) {
       + '<button class="lb-hm-item stop" id="lb-hm-stop"><span>방장 그만하기</span></button>'
     : `<div class="lb-hm-hd">${hn ? `👑 방장 <b>${esc(hn)}</b>` : '방장 없음'}</div>`)
     + (L.room ? '<button class="lb-hm-item leave" id="lb-hm-leave"><span>방에서 나가기</span></button>' : '');
-  m.style.display = '';
+  popAnim(m, true);   // 🎞️ v0.1.235 열 때 펼쳐짐(이미 열려 있으면 그대로)
   m.querySelectorAll('[data-p]').forEach(b => b.onclick = async () => {
     const o = others.find(x => x.key === b.dataset.p); if (!o) return;
     closeRoomMenu();
@@ -1260,9 +1289,9 @@ async function chatSend(emo) {
 el('lb-chat-emo').innerHTML = EMO.map(e => '<button class="lb-emo" data-emo="' + e[0] + '" title="' + esc(e[1]) + '"><img src="' + EMO_IMG[e[0]] + '" alt="' + e[0] + '" draggable="false"></button>').join('');
 el('lb-chat-emo').addEventListener('click', e => { const b = e.target.closest('[data-emo]'); if (b) { b.blur(); emoPop(false); chatSend(b.dataset.emo); } });
 // 😊 v0.1.204 이모티콘 고르는 창 — 입력 줄 버튼으로 열고 닫음 · 고르면 보내고 닫힘 · 밖을 누르거나 Esc = 닫힘
-function emoPop(on) { const p = el('lb-emo-pop'), b = el('lb-emo-btn'); if (!p) return; const v = on === undefined ? p.style.display === 'none' : !!on; p.style.display = v ? '' : 'none'; if (b) b.classList.toggle('on', v); }
+function emoPop(on) { const p = el('lb-emo-pop'), b = el('lb-emo-btn'); if (!p) return; const v = on === undefined ? p.dataset.on !== '1' : !!on; popAnim(p, v, true); if (b) b.classList.toggle('on', v); }
 el('lb-emo-btn').onclick = e => { e.stopPropagation(); emoPop(); };
-document.addEventListener('mousedown', e => { const p = el('lb-emo-pop'); if (p && p.style.display !== 'none' && !(e.target.closest && e.target.closest('#lb-emo-pop, #lb-emo-btn'))) emoPop(false); });
+document.addEventListener('mousedown', e => { const p = el('lb-emo-pop'); if (p && p.dataset.on === '1' && !(e.target.closest && e.target.closest('#lb-emo-pop, #lb-emo-btn'))) emoPop(false); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') emoPop(false); });
 el('lb-chat-dn').onclick = () => { emoPop(false); chatFold(true); };
 el('lb-chat-fold').onclick = () => { chatFold(false); el('lb-chat-in').focus(); };
