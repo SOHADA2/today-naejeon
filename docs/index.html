@@ -188,10 +188,9 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 .mk-chip em { margin-left:auto; font-style:normal; font-size:10px; font-weight:600; color:var(--ink-3); }
 .mk-chip.ta::before { background:var(--t1); } .mk-chip.tb::before { background:var(--t2); }
 .mk-chip.next { border-color:var(--ink-2); background:#151d25; }
-.mk-coin { position:absolute; width:38px; height:38px; perspective:400px; opacity:0; }
-.mk-coin .spin { position:absolute; inset:0; transform-style:preserve-3d; }
-.mk-coin img { position:absolute; inset:0; width:100%; height:100%; backface-visibility:hidden; -webkit-backface-visibility:hidden; }
-.mk-coin img.b { transform:rotateX(180deg); }
+.mk-tug { position:absolute; width:150px; height:8px; opacity:0; overflow:hidden; background:var(--t2); }   /* 선픽 줄다리기(앱 v0.1.230) — 파랑·빨강이 밀고 당기다 한쪽이 다 차지 */
+.mk-tug i { position:absolute; inset:0; background:var(--t1); transform-origin:0 50%; transform:scaleX(0.5); }
+.mk-tug b { position:absolute; left:0; top:0; bottom:0; width:2px; margin-left:-1px; background:#F0D79A; transform:translateX(75px); }
 .mk-msg { position:absolute; left:0; right:0; text-align:center; font-weight:800; font-size:13.5px; opacity:0; }
 .mk-pl { position:absolute; left:0; right:0; text-align:center; }
 /* 투표 */
@@ -421,10 +420,10 @@ footer p + p { margin-top:6px; }
       </div>
 
       <div class="feat" data-rv>
-        <div class="shot"><div class="mock" data-mock="draft" role="img" aria-label="드래프트: 팀장 두 명, 선픽 동전, 차례대로 팀원 뽑기"><div class="mk-top"><span>TODAY IN-HOUSE</span><em><b>드래프트</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div></div>
+        <div class="shot"><div class="mock" data-mock="draft" role="img" aria-label="드래프트: 팀장 두 명, 선픽 줄다리기, 차례대로 팀원 뽑기"><div class="mk-top"><span>TODAY IN-HOUSE</span><em><b>드래프트</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div></div>
         <div>
           <h3>팀장 드래프트</h3>
-          <p>팀장 두 명을 정하고, 동전으로 선픽을 정한 뒤, 번갈아 한 명씩 데려갑니다. 한 차례에 30초씩입니다.</p>
+          <p>팀장 두 명을 정하고, 줄다리기로 선픽을 정한 뒤, 번갈아 한 명씩 데려갑니다. 한 차례에 30초씩입니다.</p>
           <ul>
             <li><b>랜덤</b>: 버튼 한 번으로 팀이 나뉩니다.</li>
             <li><b>밸런스</b>: 아수라장 티어 점수로 두 팀 실력이 비슷하게 나뉩니다.</li>
@@ -771,14 +770,14 @@ MOCK.rooms = (b, at) => {
   at(3900, () => { const me = lob.querySelector('.me'); me.style.opacity = ''; fadeIn(me, 0, 6); });
 };
 
-// 드래프트 — 팀장 → 선픽 동전(동전은 선픽만) → 스네이크로 한 명씩
+// 드래프트 — 팀장 → 선픽 줄다리기(선픽만 정함) → 스네이크로 한 명씩
 MOCK.draft = (b, at, step) => {
   const W = b.clientWidth, pad = 12, gap = 8, cw = (W - 2 * pad - gap) / 2, ch = 28, rh = 33;
   const col = [pad, pad + cw + gap], slotY = r => 34 + r * rh, coinY = 200, msgY = 242, poolY = 284;
   const poolPos = i => [col[i % 2], poolY + Math.floor(i / 2) * rh];
   b.innerHTML = `<div class="mk-head a" style="left:${col[0]}px;top:8px">1팀 <span></span></div><div class="mk-head b" style="left:${col[1]}px;top:8px">2팀 <span></span></div>`
     + [0, 1].map(c => [0, 1, 2, 3, 4].map(r => `<div class="mk-slot" style="left:${col[c]}px;top:${slotY(r)}px;width:${cw}px;height:${ch}px"></div>`).join('')).join('')
-    + `<div class="mk-coin" style="left:${W / 2 - 19}px;top:${coinY}px"><div class="spin"><img class="a" src="img/coin-t1.webp" alt=""><img class="b" src="img/coin-t2.webp" alt=""></div></div><div class="mk-msg" style="top:${msgY}px"></div><p class="mk-cap mk-pl" style="top:${poolY - 20}px">대기 중</p>`;
+    + `<div class="mk-tug" style="left:${W / 2 - 75}px;top:${coinY + 15}px"><i></i><b></b></div><div class="mk-msg" style="top:${msgY}px"></div><p class="mk-cap mk-pl" style="top:${poolY - 20}px">대기 중</p>`;
   const head = { a: b.querySelector('.mk-head.a'), b: b.querySelector('.mk-head.b') };
   const chip = ([n, c], x, y) => { const el = document.createElement('div'); el.className = 'mk-chip'; el.style.cssText = `width:${cw}px;height:${ch}px;transform:translate(${x}px,${y}px)`; el.innerHTML = `${img(c, '')}<span>${n}</span><em></em>`; el._x = x; el._y = y; b.appendChild(el); return el; };
   const move = (el, x, y, dur) => { anim(el, [{ transform: `translate(${el._x}px,${el._y}px)` }, { transform: `translate(${x}px,${y}px)` }], { duration: dur }); el._x = x; el._y = y; };
@@ -788,14 +787,15 @@ MOCK.draft = (b, at, step) => {
   const pool = P.filter((_, i) => i !== 0 && i !== 8).map((p, i) => chip(p, ...poolPos(i)));
   b.querySelectorAll('.mk-head, .mk-slot, .mk-pl').forEach((el, i) => fadeIn(el, 60 + i * 25, 4));
   b.querySelectorAll('.mk-chip').forEach((el, i) => anim(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 320, delay: 200 + i * 45 }));
-  const coin = b.querySelector('.mk-coin'), spin = coin.querySelector('.spin'), msg = b.querySelector('.mk-msg');
+  const coin = b.querySelector('.mk-tug'), fill = coin.querySelector('i'), mark = coin.querySelector('b'), msg = b.querySelector('.mk-msg');
   const first = Math.random() < 0.5 ? 'a' : 'b', other = first === 'a' ? 'b' : 'a';
   step('<b>팀장</b>');
   at(700, () => {
-    step('<b>선픽 동전</b>');
+    step('<b>선픽 줄다리기</b>');
     anim(coin, [{ opacity: 0 }, { opacity: 1 }], { duration: 150 });
-    anim(coin, [{ transform: 'translateY(0)' }, { transform: 'translateY(-46px)', offset: 0.45, easing: 'cubic-bezier(.3,0,.7,1)' }, { transform: 'translateY(0)', offset: 0.9 }, { transform: 'translateY(-3px)', offset: 0.95 }, { transform: 'translateY(0)' }], { duration: 1050 });
-    anim(spin, [{ transform: 'rotateX(0)' }, { transform: `rotateX(${1080 + (first === 'b' ? 180 : 0)}deg)` }], { duration: 950, easing: 'cubic-bezier(.25,.6,.3,1)' });
+    const pos = [0.5, 0.6, 0.44, 0.63, 0.4, first === 'a' ? 0.34 : 0.66, first === 'a' ? 1 : 0], off = [0, 0.18, 0.36, 0.54, 0.72, 0.86, 1];   // 밀고 당기다 선픽 팀이 다 차지
+    anim(fill, pos.map((p, i) => ({ transform: `scaleX(${p})`, offset: off[i], easing: 'cubic-bezier(.3,.7,.3,1)' })), { duration: 1050 });
+    anim(mark, pos.map((p, i) => ({ transform: `translateX(${p * 150}px)`, offset: off[i], easing: 'cubic-bezier(.3,.7,.3,1)' })), { duration: 1050 });
   });
   at(1800, () => { msg.innerHTML = `<span class="${first === 'a' ? 't1' : 't2'}">${first === 'a' ? 1 : 2}팀 선픽</span>`; fadeIn(msg, 0, 4); });
   at(2600, () => { [coin, msg].forEach(el => anim(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards' })); head[first].querySelector('span').textContent = '선픽'; });

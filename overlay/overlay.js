@@ -342,72 +342,167 @@ function updateDraftTimer() {
 }
 setInterval(updateDraftTimer, 250);
 
-// ── 🪙 선픽 동전 던지기 — 드래프트가 막 시작됐으면 모두에게 한 번 재생(main COIN_MS 동안 픽 잠김) ──────────
-// v0.1.229(사장님: 사미라 3D 모델이 별로 → 동전만 나와서 튕긴 다음 회전하다가 딱 멈춘 순간): 아래에 누워 있던 동전이 「틱!」 튕겨 올라 빙글빙글
-//   → 가운데에서 결과 면이 정면을 본 채 「착」 멈춤 → 팀 색 빛 + 「N팀 선픽!」 · 면 = assets/coin-t1·t2.webp(사장님이 만든 그림) · 결과 면은 서버의 firstPick 그대로
-//   3D = overlay/coin3d.js(three.js · 동전만) · 3D가 안 되는 PC = 같은 흐름의 2D 동전(아래 playCoin의 else)
-//   예전(v0.1.21~228) = 사미라 모델이 던지고 동전이 화면에 꽂히며 유리에 금 → 모델·유리 금·섬광·파편·흔들림·합성 효과음(coinScore·sfxKit) 전부 없앰
-const COIN_MS = 3800;   // main.js COIN_MS와 같게(이 시간 동안 픽 잠김) — 멈춤 1.62초 + 결과를 읽을 시간
-const COIN_T = { FLICK: 340, STOP: 1620 };   // 튕김·멈춤(ms) — coin3d.js FLICK·STOP · 소리 파일(tools/coin-flip-sfx.py)과 같은 값(바꾸면 세 곳 같이)
-let _coinShown = null;
-// 🔊 동전 소리 = 실제 녹음을 미리 섞은 파일 하나(assets/sfx/coin-flip.ogg · 합성음 아님 — 사장님: 합성음 싫음): 0.34초 「틱 + 띵~」 → 1.62초 울림이 끊기며 「착」
-//   재료·섞는 법 = assets/sfx/CREDITS.txt · tools/coin-flip-sfx.py · 크기 = ⚙ 효과음 설정
-const _coinSfx = (() => { try { const a = new Audio('../assets/sfx/coin-flip.ogg'); a.preload = 'auto'; return a; } catch (_) { return null; } })();
-function coinFlipSound() { try { if (!_coinSfx) return; _coinSfx.pause(); _coinSfx.currentTime = 0; _coinSfx.volume = 0.3 * VOL(); if (!_coinSfx.volume) return; _coinSfx.play().catch(() => {}); } catch (_) {} }
-function maybeCoin(s) {
+// ── ⚔ 선픽 줄다리기 — 드래프트가 막 시작됐으면 모두에게 한 번 재생(main FP_MS 동안 픽 잠김) ──────────
+// v0.1.230(사장님: 동전 모양이 톤앤매너에 안 맞음 → 동전 말고 다른 방식 → 「대각선 VS에서 서로 줄다리기하듯 밀고 당기다 선공자가 차지하는 느낌」 · 시안 5번째에서 정함)
+//   화면이 대각선으로 갈려 왼쪽 = 1팀 팀장(파랑) · 오른쪽 = 2팀 팀장(빨강)이 양옆에서 들어와 맞붙음
+//   → 서로 당기고(살짝 물러섰다 → 당김 → 버팀) · 미는 쪽 경계가 팀 색으로 달아오르고 빛줄기가 경계로 몰림 · 경계선이 미는 쪽으로 살짝 기욺 · 위 막대(퍼센트)가 밀고 당김
+//   → 버틸수록 화면이 다가오고 가장자리가 어두워짐 → 선픽 팀이 단번에 밀어내 화면을 차지 → 화면 정가운데 제목 카드(금색 선 사이 FIRST PICK)
+//   모양: 판 = 깊은 팀 색 + 가는 결 + 큰 팀 숫자 · 경계 = 밝은 심 + 번짐 + 가는 겹선 · VS = 마름모 문장 · 팀장 = 겹테 얼굴 + 이름 + 팀 색 줄 · 위쪽 어두운 띠에 제목·막대
+//   사장님이 싫다 한 것(다시 넣지 말 것): 떨리며 바뀌는 점수 숫자 · 불꽃 · 팀장 칸 기울기 · 잦은 흔들림(「경박스럽다」) · 북소리(오케스트라)·카드/클릭 소리(「안 어울림」)
+//   움직임 = 시계(ms) 하나로 모든 것을 계산해 그림(paint) — transform·opacity만 바꿈(합성만 · 다시 그리기 없음 · 한 번만 재생)
+//   흐름 = 서버의 firstPick + draftStartedAt(seed)로만 정해짐 → 모든 PC가 같은 그림 · 시각(ms)은 소리 파일(tools/firstpick-sfx.py)과 같은 값(바꾸면 두 곳 같이)
+//   예전: 동전(v0.1.14~229 · 사미라 3D → 동전만) — coin3d.js·three.js·동전 그림은 v0.1.230에서 지움
+const FP_MS = 4700;   // main.js FP_MS와 같게(이 시간 동안 픽 잠김) — 차지 2.7초 + 결과를 읽을 시간
+let _fpShown = null;
+// 🔊 소리 = 실제 녹음을 미리 섞은 파일 하나(assets/sfx/firstpick.ogg · 합성음 아님): 맞붙을 때 깊은 「쿵」(작게) → 당길 때 바람 「휙」 → 버틸 때 차오름 → 밀어낼 때 깊은 「쿵」 + 맑은 「띵」
+//   재료 = 팟지 타격음(사장님 Suno) + 거꾸로 튼 심벌 + ding · 섞는 법 = assets/sfx/CREDITS.txt · tools/firstpick-sfx.py · 크기 = ⚙ 효과음 설정
+const _fpSfx = (() => { try { const a = new Audio('../assets/sfx/firstpick.ogg'); a.preload = 'auto'; return a; } catch (_) { return null; } })();
+function firstPickSound() { try { if (!_fpSfx) return; _fpSfx.pause(); _fpSfx.currentTime = 0; _fpSfx.volume = 0.3 * VOL(); if (!_fpSfx.volume) return; _fpSfx.play().catch(() => {}); } catch (_) {} }
+function maybeFirstPick(s) {
   if (!s || s.phase !== 'draft' || !s.draftStartedAt || !s.firstPick || s.pickIdx) return;
-  const key = s.draftStartedAt; if (_coinShown === key) return;
+  const key = s.draftStartedAt; if (_fpShown === key) return;
   const age = Date.now() - key;
-  _coinShown = key;
+  _fpShown = key;
   if (age > 1800 || age < -3000) return;   // 늦게 켰으면(이미 지난 연출) 건너뜀
-  playCoin(s);
+  playFirstPick(s);
 }
-function playCoin(s) {
-  const layer = el('coin'), A = s.firstPick === 'teamA', caps = s.captains || {};
+function playFirstPick(s) {
+  const layer = el('fp'), box = el('fp-box'), anims = [];
   layer.style.setProperty('--bar-h', (el('bar') ? el('bar').offsetHeight : 80) + 'px');
-  el('cn-vs').innerHTML = `<span class="cv t1"><em>1팀 팀장</em><b>${esc(caps.teamA || '')}</b></span><span class="cn-x">VS</span><span class="cv t2"><em>2팀 팀장</em><b>${esc(caps.teamB || '')}</b></span>`;
-  const res = el('cn-res'); res.className = 'cn-res ' + (A ? 't1' : 't2');
-  res.innerHTML = `<b>${A ? '1팀' : '2팀'} 선픽!</b><span>${esc((A ? caps.teamA : caps.teamB) || '')}</span><small>팀장이 먼저 골라요</small>`;
-  res.style.opacity = 0;
-  layer.style.display = 'flex';
-  const stage = layer.querySelector('.cn-stage'), anims = [];
-  const go = (node, kf, opt) => { const a = node.animate(kf, Object.assign({ fill: 'forwards' }, opt)); anims.push(a); return a; };
-  const showRes = d => go(res, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: d, easing: 'ease-out' });
-  stage.querySelectorAll('.cn-fx').forEach(n => n.remove());   // 혹시 남은 지난 연출 조각 먼저 치움
-  go(layer, [{ opacity: 0 }, { opacity: 1 }], { duration: 220 });
-  go(layer, [{ opacity: 1 }, { opacity: 0 }], { duration: 350, delay: COIN_MS - 350 });
-  setTimeout(() => { layer.style.display = 'none'; layer.classList.remove('cn3d'); anims.forEach(a => { try { a.cancel(); } catch (_) {} }); stage.querySelectorAll('.cn-fx').forEach(n => n.remove()); }, COIN_MS + 30);
-  if (window.coin3d && window.coin3d.ok && window.coin3d.ready()) {   // 🎯 3D 동전(그림이 준비됐을 때) · 아니면 아래 2D 동전
-    layer.classList.add('cn3d');
-    window.coin3d.play({ stage, A, dur: COIN_MS - 250, onStart: coinFlipSound,
-      onShow: at => { if (at) coinStopFx(stage, at.x, at.y, at.r, A, go); showRes(90); } }).catch(() => {});
-    return;
-  }
-  // 2D(3D가 안 되는 PC) — 같은 흐름: 누워 있다 튕겨 올라 같은 빠르기로 빙글 → 결과 면에서 딱 멈춤 → 살짝 커졌다 가라앉으며 팀 색 빛
-  layer.classList.remove('cn3d');
-  const pos = el('cn-pos'), spin = el('cn-spin'), shadow = el('cn-shadow'), glow = el('cn-glow'), wob = el('cn-wob');
-  const D = COIN_T.STOP - COIN_T.FLICK, lie = -64 + (Math.random() < 0.5 ? 180 : 0), col = A ? '74,168,255' : '255,90,110';
-  let endRot = A ? 0 : 180; while (endRot < lie + 360 * 5.5) endRot += 360;
-  const P0 = 'translateY(8px) scale(0.6)', P1 = 'translateY(-74px) scale(1.5)';
-  coinFlipSound();
-  go(wob, [{ transform: 'none' }, { transform: 'none' }], { duration: 1 });
-  go(glow, [{ filter: 'none', scale: '1' }, { filter: 'none', scale: '1' }], { duration: 1 });
-  go(pos, [{ transform: P0 }, { transform: P0 }], { duration: 1 });
-  go(spin, [{ transform: `rotateX(${lie}deg)` }, { transform: `rotateX(${lie}deg)` }], { duration: 1 });
-  go(shadow, [{ opacity: 1, transform: 'scale(0.7)' }, { opacity: 1, transform: 'scale(0.7)' }], { duration: 1 });
-  go(pos, [{ transform: P0 }, { transform: 'translateY(11px) scale(0.6)' }], { duration: 130, delay: COIN_T.FLICK - 130, easing: 'ease-in' });   // 튕기기 직전 살짝 눌림
-  go(pos, [{ transform: 'translateY(11px) scale(0.6)' }, { transform: P1 }], { duration: D, delay: COIN_T.FLICK, easing: 'cubic-bezier(0.5, 1, 0.89, 1)' });   // 꼭대기까지 점점 느리게
-  go(spin, [{ transform: `rotateX(${lie}deg)` }, { transform: `rotateX(${endRot}deg)` }], { duration: D, delay: COIN_T.FLICK, easing: 'linear' });   // 같은 빠르기로 돌다 딱 멈춤
-  go(shadow, [{ opacity: 1, transform: 'scale(0.7)' }, { opacity: 0, transform: 'scale(0.3)' }], { duration: D * 0.5, delay: COIN_T.FLICK, easing: 'ease-out' });
-  go(glow, [{ filter: `brightness(1.25) drop-shadow(0 0 0 rgba(${col},0))`, scale: '1.085' }, { filter: `brightness(1.05) drop-shadow(0 0 14px rgba(${col},0.6))`, scale: '1' }], { duration: 420, delay: COIN_T.STOP, easing: 'ease-out' });   // 회전과 따로(같은 transform에 섞으면 면이 뒤집혀 보임)
-  showRes(COIN_T.STOP + 90);
+  layer.style.display = 'block';
+  const go = (kf, opt) => { const a = layer.animate(kf, Object.assign({ fill: 'forwards' }, opt)); anims.push(a); };
+  go([{ opacity: 0 }, { opacity: 1 }], { duration: 220 });
+  go([{ opacity: 1 }, { opacity: 0 }], { duration: 350, delay: FP_MS - 350 });
+  let stop = null;
+  try { stop = playTug(layer, box, s, s.firstPick === 'teamA' ? 1 : 2); } catch (e) { console.error('firstpick', e); }
+  setTimeout(() => { layer.style.display = 'none'; anims.forEach(a => { try { a.cancel(); } catch (_) {} }); if (stop) stop(); box.innerHTML = ''; }, FP_MS + 30);
 }
-// 🪙 멈춘 순간(3D) — 동전 뒤에 팀 색 빛이 은은하게 남고 가는 테가 한 번 퍼짐(한 번만 · 섬광·흔들림 없음 — 사장님: 연출은 은은하게)
-function coinStopFx(stage, x, y, r, A, go) {
-  const fx = document.createElement('div'); fx.className = 'cn-fx ' + (A ? 't1' : 't2'); stage.appendChild(fx);
-  const put = (cls, size) => { const n = document.createElement('i'); n.className = cls; n.style.left = x + 'px'; n.style.top = y + 'px'; n.style.width = n.style.height = size + 'px'; fx.appendChild(n); return n; };
-  go(put('cn-halo', r * 5.2), [{ opacity: 0 }, { opacity: 1, offset: 0.35 }, { opacity: 0.6 }], { duration: 700, easing: 'ease-out' });
-  go(put('cn-ring', r * 2), [{ opacity: 0.75, transform: 'translate(-50%,-50%) scale(1.02)' }, { opacity: 0, transform: 'translate(-50%,-50%) scale(1.5)' }], { duration: 480, easing: 'cubic-bezier(.2,.8,.3,1)' });
+const TW = { ENTER: 320, TUG: 460, STRAIN: 1760, SHOVE: 2300, COVER: 2700, RES: 2700 };
+// 주고받기 = [시각, 경계 위치(폭의 %, + = 선픽 팀 쪽)] · 마지막 점부터 SHOVE까지 = 버팀(선픽 팀이 조금씩 되찾음)
+//   flip(뒤집기) = 마지막 큰 당김이 상대 쪽 → 버티다 선픽 팀이 뒤집음 · hold(밀어붙이기) = 마지막 큰 당김이 선픽 팀 쪽 → 버티다 그대로
+const TW_PULLS = {
+  flip: [[460, 0], [720, 8], [980, -6], [1240, 12], [1500, -9], [1760, -16]],
+  hold: [[460, 0], [720, -8], [980, 6], [1240, -11], [1500, 9], [1760, 15]],
+};
+const TW_SEG = { PRE: 0.2, SNAP: 0.56 };   // 한 번 당기기 = 앞 20% 살짝 물러섬 · 20~56% 당김(아주 조금 넘침) · 나머지 버팀
+function playTug(layer, box, s, W) {   // → 멈추는 함수
+  const caps = s.captains || {}, names = [caps.teamA || '', caps.teamB || ''];
+  const seed = Number(window.__fpSeed != null ? window.__fpSeed : s.draftStartedAt || 0);
+  const mem = n => ((lobbyData && lobbyData.members) || []).find(x => nn(x.name) === nn(n)) || { name: n };
+  const blk = t => `<div class="tw-in t${t}"><span class="tw-en">TEAM ${t} · ${t === 1 ? 'BLUE' : 'RED'}</span>${avatar(mem(names[t - 1]), 'tw-av')}<b class="tw-nm" title="${esc(names[t - 1])}">${esc(names[t - 1])}</b><i class="tw-ul"></i><small class="tw-ko">${t}팀 팀장</small></div>`;
+  const slab = t => `<div class="tw-s t${t}"><i class="tw-stk"></i><i class="tw-stk"></i><i class="tw-stk"></i></div>`;   // 큰 팀 숫자 = CSS(::before)
+  const pulls = TW_PULLS[seed % 2 ? 'hold' : 'flip'].map(([t, d]) => [t, d * (W === 1 ? 1 : -1)]);   // + = 1팀 쪽(경계가 오른쪽으로)
+  const surges = [];   // 당길 때마다 = 미는 쪽 빛이 번지고 빛줄기가 경계로 몰림
+  for (let i = 1; i < pulls.length; i++) { const [t0, d0] = pulls[i - 1], [t1, d1] = pulls[i]; surges.push({ at: t0 + (t1 - t0) * TW_SEG.PRE, dir: d1 > d0 ? 1 : -1, big: Math.min(1, Math.abs(d1 - d0) / 16) }); }
+  box.innerHTML = `<div class="tw"><div class="tw-cam">${slab(1)}${slab(2)}`
+    + `<i class="tw-glow t1"></i><i class="tw-glow t2"></i><i class="tw-line"></i><i class="tw-flash"></i>`
+    + `${blk(1)}${blk(2)}<span class="tw-vs"><b>VS</b></span></div>`
+    + `<i class="tw-vig"></i><i class="tw-top"></i>`
+    + `<div class="tw-meter"><span class="tw-pc t1">50%</span><span class="tw-bar"><i class="t1"></i><i class="t2"></i><b></b></span><span class="tw-pc t2">50%</span></div>`
+    + `<div class="tw-res t${W}" data-n="${W}"><i class="tw-rl"></i><span class="tw-ren">TEAM ${W} · ${W === 1 ? 'BLUE' : 'RED'}</span>${avatar(mem(names[W - 1]), 'tw-av')}<b class="tw-nm">${esc(names[W - 1])}</b><b class="tw-fp">FIRST PICK</b><small class="tw-sub">${W}팀 선픽 · 팀장이 먼저 골라요</small><i class="tw-rl"></i></div></div>`;
+  const tw = box.firstChild, $ = c => tw.querySelector(c), $$ = c => [...tw.querySelectorAll(c)];
+  const cam = $('.tw-cam'), S = [$('.tw-s.t1'), $('.tw-s.t2')], STK = S.map(e => [...e.querySelectorAll('.tw-stk')]), IN = [$('.tw-in.t1'), $('.tw-in.t2')], GL = [$('.tw-glow.t1'), $('.tw-glow.t2')];
+  const line = $('.tw-line'), flash = $('.tw-flash'), vs = $('.tw-vs'), vig = $('.tw-vig'), meter = $('.tw-meter'), PC = $$('.tw-pc'), BF = $$('.tw-bar i'), BK = $('.tw-bar b'), res = $('.tw-res'), head = layer.querySelector('.fp-head');
+  const RL = $$('.tw-rl'), R_EN = $('.tw-ren'), R_AV = res.querySelector('.tw-av'), R_NM = res.querySelector('.tw-nm'), R_FP = $('.tw-fp'), R_SUB = $('.tw-sub');
+  const ease3 = u => 1 - Math.pow(1 - u, 3), ease5 = u => 1 - Math.pow(1 - u, 5), clamp = v => Math.max(0, Math.min(1, v)), lerp = (a, b, u) => a + (b - a) * u;
+  const backOut = u => { const c = 1.15; return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2); };   // 당김 — 아주 조금 넘쳤다 돌아옴
+  const jit = ms => Math.sin(ms * 0.107) * 0.5 + Math.sin(ms * 0.161 + 1.3) * 0.32 + Math.sin(ms * 0.229 + 2.1) * 0.18;   // 버틸 때 떨림(시계로만 정해짐)
+  let Wd = 0, Ht = 0, A = 0, slabW = 0, inW = [0, 0], inH = [0, 0], barW = 0;
+  const measure = () => {
+    Wd = tw.clientWidth || 1; Ht = tw.clientHeight || 1; A = Math.atan2(2 * Wd * 0.09, Ht); slabW = Wd * 1.8;
+    S.forEach(e => { e.style.width = slabW + 'px'; });
+    inW = IN.map(e => e.offsetWidth); inH = IN.map(e => e.offsetHeight); barW = $('.tw-bar').offsetWidth;
+  };
+  const tension = ms => clamp((ms - TW.TUG) / (TW.SHOVE - TW.TUG));
+  const base = ms => {   // 떨림 빼고 경계 위치(%)
+    if (ms <= TW.TUG) return 0;
+    if (ms < TW.STRAIN) {
+      let i = 0; while (i + 1 < pulls.length && pulls[i + 1][0] <= ms) i++;
+      const [t0, d0] = pulls[i], [t1, d1] = pulls[Math.min(i + 1, pulls.length - 1)];
+      if (t1 === t0) return d1;
+      const u = (ms - t0) / (t1 - t0), dd = d1 - d0;
+      if (u < TW_SEG.PRE) return d0 - dd * 0.12 * Math.sin(Math.PI / 2 * u / TW_SEG.PRE);                            // 살짝 물러섬(힘 모으기)
+      if (u < TW_SEG.SNAP) return lerp(d0 - dd * 0.12, d1, backOut((u - TW_SEG.PRE) / (TW_SEG.SNAP - TW_SEG.PRE)));      // 당김
+      return d1;                                                                                                       // 버팀
+    }
+    const dS = pulls[pulls.length - 1][1], sg = W === 1 ? 1 : -1;
+    if (ms < TW.SHOVE) return dS + sg * 4 * ease3((ms - TW.STRAIN) / (TW.SHOVE - TW.STRAIN));   // 버티며 선픽 팀이 조금씩 되찾음
+    const u = clamp((ms - TW.SHOVE) / (TW.COVER - TW.SHOVE)), from = dS + sg * 4, back = from - sg * 3, target = sg * (50 + 9 + 52);   // 판의 큰 숫자까지 화면 밖으로
+    return u < 0.22 ? lerp(from, back, Math.sin(Math.PI / 2 * u / 0.22)) : lerp(back, target, Math.pow(clamp((u - 0.22) / 0.78), 0.45));   // 한 번 더 모았다 단번에(처음이 가장 빠르게)
+  };
+  const BLAST = TW.SHOVE + (TW.COVER - TW.SHOVE) * 0.22;
+  const paint = ms => {
+    if (!Wd) measure();
+    const e = ease5(clamp(ms / TW.ENTER)), ten = tension(ms), cov = clamp((ms - TW.SHOVE) / (TW.COVER - TW.SHOVE));
+    const trem = ms > TW.STRAIN - 200 && ms < TW.SHOVE + 40 ? jit(ms) * 0.55 * clamp((ms - TW.STRAIN + 200) / 300) : 0;   // 떨림 = 마지막 버틸 때만 · 작게
+    const bx = Wd / 2 + (base(ms) + trem) / 100 * Wd;
+    const push = Math.max(-1, Math.min(1, (base(ms + 12) - base(ms - 12)) / 24 * 1000 / 60));   // 경계가 움직이는 빠르기(+ = 1팀이 미는 중)
+    const ang = A + 0.05 * push * (1 - cov);   // 경계선이 미는 쪽으로 살짝 기욺
+    const xL = ms < TW.ENTER ? lerp(-Wd * 0.2, bx, e) : bx, xR = ms < TW.ENTER ? lerp(Wd * 1.2, bx, e) : bx;
+    // 화면: 버틸수록 다가옴 · 맞붙음·밀어냄 때만 아주 작게 흔들림
+    let shake = 0; const kick = (t, amp, dur) => { const k = ms - t; if (k > 0 && k < dur) shake += amp * Math.exp(-k / (dur / 4)); };
+    kick(TW.ENTER, 3, 260); kick(BLAST, 4, 320);
+    cam.style.transform = `translate3d(${(Math.sin(ms / 7.3) * shake).toFixed(2)}px,${(Math.cos(ms / 9.1) * shake * 0.6).toFixed(2)}px,0) scale(${(1 + 0.035 * ease3(ten) * (1 - cov)).toFixed(4)})`;
+    vig.style.opacity = (0.3 + 0.55 * ten * (1 - cov)).toFixed(3);
+    S[0].style.transform = `translate3d(${(xL - slabW).toFixed(2)}px,0,0) skewX(${-ang}rad)`;
+    S[1].style.transform = `translate3d(${xR.toFixed(2)}px,0,0) skewX(${-ang}rad)`;
+    // 경계선: 밝은 심 + 번짐 · 밀어낼 때 굵어짐
+    const lo = clamp((ms - TW.ENTER + 30) / 90) * (1 - clamp((ms - TW.COVER + 120) / 120)), kb = ms - BLAST, sweep = kb > 0 && kb < 400 ? Math.exp(-kb / 130) : 0;
+    const rot = `rotate(${ang}rad)`;
+    line.style.opacity = lo.toFixed(3); line.style.transform = `translate3d(${bx.toFixed(2)}px,0,0) translate(-50%,-50%) ${rot} scaleX(${(1 + 2.2 * sweep).toFixed(3)})`;
+    // 미는 쪽 경계가 팀 색으로 달아오름 + 당길 때 상대 쪽으로 번짐
+    const su = [0, 0];
+    for (const g of surges) { const k = ms - g.at; if (k > 0 && k < 900) su[g.dir > 0 ? 0 : 1] += g.big * Math.exp(-k / 260); }
+    const holdG = 0.2 + 0.4 * ten;
+    for (const t of [0, 1]) {
+      const p = t === 0 ? Math.max(0, push) : Math.max(0, -push);
+      GL[t].style.opacity = (lo * Math.min(1, holdG + p * 0.5 + su[t] * 0.5)).toFixed(3);
+      GL[t].style.transform = `translate3d(${(t === 0 ? bx - 220 : bx).toFixed(2)}px,-50%,0) ${rot} scaleX(${(1 + 1.1 * Math.min(1, su[t])).toFixed(3)})`;
+    }
+    // 빛줄기: 당기는 쪽 판 안에서 경계로 몰려듦(판과 같이 비스듬함)
+    for (const t of [0, 1]) for (let i = 0; i < 3; i++) {
+      let o = 0, x = 0;
+      for (const g of surges) { if ((g.dir > 0 ? 0 : 1) !== t) continue; const u = (ms - g.at - i * 28) / 300; if (u > 0 && u < 1) { o = Math.sin(Math.PI * u) * (0.35 + 0.5 * g.big) * (1 - i * 0.22); x = lerp(150 + i * 46, 10 + i * 30, ease3(u)); } }
+      const el = STK[t][i]; el.style.opacity = o.toFixed(3); if (o) el.style.transform = `translate3d(${(t === 0 ? -x : x).toFixed(1)}px,0,0)`;
+    }
+    const kc = ms - TW.ENTER, clash = kc > 0 && kc < 300 ? Math.exp(-kc / 80) : 0;
+    flash.style.opacity = Math.min(1, 0.75 * clash + 0.7 * sweep).toFixed(3); flash.style.transform = `translate3d(${bx.toFixed(2)}px,0,0) translate(-50%,-50%) ${rot} scaleX(${(1 + 1.5 * sweep).toFixed(3)})`;
+    // VS 문장(마름모) — 경계 위 · 맞붙을 때 튀어나와 자리 잡고 · 밀어내기 직전 사라짐
+    const vp = clamp((ms - TW.ENTER + 40) / 220), vx = bx - (0.54 * Ht - 20 - Ht / 2) * Math.tan(ang);   // 얼굴 높이(이름 줄보다 위)
+    vs.style.opacity = (vp * (1 - clamp((ms - TW.SHOVE) / 110))).toFixed(3);
+    vs.style.transform = `translate3d(${vx.toFixed(2)}px,0,0) translate(-50%,-50%) rotate(45deg) scale(${(1 + 0.7 * (1 - ease3(vp))).toFixed(3)})`;
+    // 팀장 — 보이는 쪽의 가운데 · 미는 쪽만 살짝 앞으로 나오며 커짐 · 밀려나면 사라짐
+    const lx = Math.max(0, Math.min(Wd, bx)), cx = [ms < TW.ENTER ? xL / 2 : lx / 2, ms < TW.ENTER ? (xR + Wd) / 2 : (lx + Wd) / 2];
+    for (const t of [0, 1]) {
+      const sg = t === 0 ? 1 : -1, p = Math.max(-1, Math.min(1, push * sg)), win = t === W - 1;
+      const off = sg * 5 * p + (!win ? -sg * 50 * cov * cov : 0), fade = win ? 1 - clamp((ms - TW.COVER + 140) / 140) : 1 - clamp(cov * 1.5);
+      IN[t].style.opacity = (Math.max(0, fade) * clamp((ms - 60) / 200)).toFixed(3);
+      const fit = Math.max(0.74, Math.min(1, ((t === 0 ? lx : Wd - lx) - 30) / inW[t]));   // 밀려서 자리가 좁아지면 그만큼 작아짐(이름이 경계를 넘지 않게)
+      IN[t].style.transform = `translate3d(${(cx[t] - inW[t] / 2 + off).toFixed(2)}px,${(-inH[t] / 2).toFixed(2)}px,0) scale(${(fit * (1 + 0.035 * Math.max(0, p) - 0.02 * Math.max(0, -p))).toFixed(3)})`;
+    }
+    // 퍼센트 막대 = 경계 위치(떨림 뺀 값 · 왼쪽 = 1팀 몫)
+    const f1 = Math.max(0, Math.min(1, 0.5 + (ms < TW.ENTER ? 0 : base(ms)) / 100));
+    BF[0].style.transform = `scaleX(${f1.toFixed(4)})`; BF[1].style.transform = `scaleX(${(1 - f1).toFixed(4)})`; BK.style.transform = `translate3d(${(f1 * barW).toFixed(2)}px,0,0) rotate(45deg)`;
+    const pct = Math.round(f1 * 100);
+    if (PC[0].textContent !== pct + '%') { PC[0].textContent = pct + '%'; PC[1].textContent = (100 - pct) + '%'; }
+    meter.style.opacity = (clamp((ms - TW.ENTER) / 240) * (1 - clamp((ms - TW.COVER + 100) / 160))).toFixed(3);
+    if (head) head.style.opacity = (1 - clamp((ms - TW.COVER + 100) / 160)).toFixed(3);
+    // 결과 = 화면 정가운데 제목 카드: 금색 선이 가운데서 벌어짐 → 팀 표 → 얼굴 → 이름 → FIRST PICK → 한 줄
+    const k = ms - TW.RES, on = (a, d) => clamp((k - a) / d);
+    res.style.opacity = on(0, 120).toFixed(3);
+    RL[0].style.transform = RL[1].style.transform = `scaleX(${ease5(on(0, 420)).toFixed(4)})`;
+    const pop = (el, a, d, dy, sc) => { const u = on(a, d), q = ease3(u); el.style.opacity = u.toFixed(3); el.style.transform = `translate3d(0,${(dy * (1 - q)).toFixed(2)}px,0) scale(${(sc + (1 - sc) * q).toFixed(4)})`; };
+    pop(R_EN, 60, 240, 6, 1); pop(R_AV, 90, 300, 0, 0.82); pop(R_NM, 150, 260, 8, 1); pop(R_FP, 190, 360, 0, 1.16); pop(R_SUB, 330, 260, 6, 1);
+  };
+  window.__fpPaint = paint;   // 🎥 캡처·녹화용(시각을 정해 한 장씩 그림 · tools/fp-rec.cjs)
+  measure(); paint(0);
+  firstPickSound();
+  const t0 = performance.now();
+  let raf = 0;
+  const loop = () => { const ms = window.__fpClock ? window.__fpClock() * 1000 : performance.now() - t0; paint(ms); if (ms < TW.RES + 800) raf = requestAnimationFrame(loop); };
+  raf = requestAnimationFrame(loop);
+  window.addEventListener('resize', measure);
+  return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', measure); if (head) head.style.opacity = ''; if (window.__fpPaint === paint) window.__fpPaint = null; };
 }
 
 // ── 📼 기록 저장 중 — 게임 끝나고 결과가 오늘 기록에 들어갈 때까지 단계별로 ─────────────
@@ -640,7 +735,7 @@ const MODE_KO = { random: '랜덤', balance: '밸런스', draft: '드래프트',
 const MODE_DESC = {   // 방식 고르는 창 맨 아래 한 줄(방장)
   random: '무작위로 두 팀을 나눠요',
   balance: '아수라장 티어 점수로 두 팀을 비슷하게 나눠요',
-  draft: '팀장 둘이 번갈아 한 명씩 뽑아요 · 선픽은 동전으로 정해요',
+  draft: '팀장 둘이 번갈아 한 명씩 뽑아요 · 선픽은 줄다리기로 정해요',
   manual: '방장이 1팀·2팀을 직접 정해요',
   normal: '같은 팀으로 일반 게임을 해요 · 롤 파티는 5명까지',
 };
@@ -848,7 +943,7 @@ function renderLobby() {
         const picks = Math.max(0, (ts - 1) * 2), ord = [];
         for (let i = 0; i < picks; i++) ord.push(((i + 1) >> 1) % 2 === 0 ? 'teamA' : 'teamB');   // main draftOrder와 같은 스네이크
         h = (capN < 2 ? `<span class="lb-hint"><b>팀장 ${capN}/2</b> · 자리의 「팀장」을 눌러 정해요</span>`
-          : '<span class="lb-cap ok"><em>팀장</em><b class="num">2/2</b></span>' + (picks ? `<span class="lb-ordmini" title="뽑는 순서 · 선 = 동전으로 정해지는 선픽 팀 · 후 = 다른 팀">${orderBar(ord, 0, true)}</span>` : '<span class="lb-hint"></span>'))
+          : '<span class="lb-cap ok"><em>팀장</em><b class="num">2/2</b></span>' + (picks ? `<span class="lb-ordmini" title="뽑는 순서 · 선 = 줄다리기로 정해지는 선픽 팀 · 후 = 다른 팀">${orderBar(ord, 0, true)}</span>` : '<span class="lb-hint"></span>'))
           + '<button id="lb-caprand" class="lb-mini" title="참가한 사람 중 무작위로 팀장 둘">랜덤 팀장</button>';
       } else if (manual) h = `<span class="lb-cap t1"><em>1팀</em><b class="num">${sA.length}</b></span><span class="lb-cap t2"><em>2팀</em><b class="num">${sB.length}</b></span>`
         + (sNone.length ? `<span class="lb-cap"><em>미정</em><b class="num">${sNone.length}</b></span>` : '') + '<span class="lb-hint"></span>'
@@ -873,7 +968,7 @@ function renderLobby() {
       : n < 2 ? '2명부터 시작' : !capsOk ? '팀장 2명 필요'
       : manual ? (sNone.length ? `팀 미정 ${sNone.length}명` : !sideOk ? '두 팀에 1명 이상' : `시작 · ${sA.length} : ${sB.length}`)
       : draft ? '드래프트 시작' : `팀 짜기 · ${ts} : ${ts}`;
-    go.title = roomStep ? '롤에 아수라장 사용자 설정 방을 만들고 방 사람들을 초대해요 · 모이면 팀을 짜요' : go.disabled ? '' : normal ? '' : draft ? '동전으로 선픽을 정하고 팀장이 번갈아 뽑아요' : manual ? '이 팀으로 확정해요' : `${MODE_DESC[L.mode] || MODE_DESC.random} · 팀이 정해지면 롤 방을 만들고 모두 초대해요`;
+    go.title = roomStep ? '롤에 아수라장 사용자 설정 방을 만들고 방 사람들을 초대해요 · 모이면 팀을 짜요' : go.disabled ? '' : normal ? '' : draft ? '줄다리기로 선픽을 정하고 팀장이 번갈아 뽑아요' : manual ? '이 팀으로 확정해요' : `${MODE_DESC[L.mode] || MODE_DESC.random} · 팀이 정해지면 롤 방을 만들고 모두 초대해요`;
   }
   { // 팀원 = 지금 방식 · 방장 · 무엇을 기다리는지 / 방장 없음 = 방장 하기
     const st = el('lb-stat'); let h = '';
@@ -1008,7 +1103,7 @@ function render() {
   try { renderHostNote(); } catch (_) {}   // 👑 방장 넘어옴 줄(이전 방장 돌아오면 「돌려주기」)
   if (roomData && roomData.full) { renderFull(); showView('rooms'); el('phase').textContent = '자리 없음'; return; }   // 🚦 서버 자리 꽉 참
   const s = sessionData, ph = s && s.phase;
-  if (ph === 'draft' && !inGame) { maybePick(s); loadToday(); renderDraft(); updateDraftTimer(); showView('draft'); el('phase').textContent = '드래프트'; maybeCoin(s); return; }   // 픽 먼저(뽑힌 칸을 연출 끝까지 비워둠)
+  if (ph === 'draft' && !inGame) { maybePick(s); loadToday(); renderDraft(); updateDraftTimer(); showView('draft'); el('phase').textContent = '드래프트'; maybeFirstPick(s); return; }   // 픽 먼저(뽑힌 칸을 연출 끝까지 비워둠)
   if (ph === 'vote' && hasTeams() && s.game) {
     const sig = s.game.id;
     if (sig !== _voteSig) { _voteSig = sig; _pendMvp = _pendManner = null; }

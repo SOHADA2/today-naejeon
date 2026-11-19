@@ -278,37 +278,90 @@ footer { padding:7px 12px; font-size:10px; color:var(--mute); border-top:1px sol
 .dr-team li.empty { color:var(--mute); }
 .dr-cap { flex-shrink:0; font-size:9.5px; font-weight:800; padding:0 5px; line-height:15px; color:#fff; }
 .dr-team.blue .dr-cap { background:var(--t1); } .dr-team.red .dr-cap { background:var(--t2); }
-/* 🪙 선픽 동전 던지기 — 한 번만 재생(약 4초) 후 사라짐(무한 애니메이션 아님) */
+/* ⚔ 선픽 줄다리기(v0.1.230 · overlay.js playTug) — 대각선으로 갈린 두 팀 · 경계가 당기고 버티다 선픽 팀이 화면을 차지 · 결과 = 화면 정가운데 제목 카드
+   움직이는 것은 전부 transform·opacity(합성만 · 다시 그리기 없음) · 한 번만 재생(약 4.7초) 후 사라짐(무한 애니메이션 아님) */
 #panel { position:relative; }
-.coin-layer { position:absolute; left:0; right:0; bottom:0; top:var(--bar-h, 80px); z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:16px 14px;
-  background:radial-gradient(90% 55% at 50% 45%, rgba(200,170,110,0.10), transparent 70%), rgba(6,11,16,0.97); }
-.cn-head { display:flex; flex-direction:column; align-items:center; gap:2px; }
-.cn-en { font-family:var(--f-num); font-weight:700; font-size:12px; letter-spacing:3px; color:var(--gold); }
-.cn-ttl { font-size:17px; font-weight:800; color:var(--gold-hi); }
-.cn-vs { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; font-size:13px; font-weight:700; }
-.cn-vs .cv { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; padding:6px 8px; background:var(--bg-2); border:1px solid var(--line); clip-path:var(--cut-sm); }
-.cn-vs .cv em { font-style:normal; font-size:10.5px; font-weight:800; }
-.cn-vs .cv b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink); }
-.cn-vs .cv.t1 { box-shadow:inset 3px 0 0 var(--t1); } .cn-vs .cv.t1 em { color:var(--t1); }
-.cn-vs .cv.t2 { box-shadow:inset -3px 0 0 var(--t2); text-align:right; } .cn-vs .cv.t2 em { color:var(--t2); }
-.cn-vs .cn-x { flex-shrink:0; font-family:var(--f-num); font-weight:700; color:var(--dim); }
-.cn-stage { position:relative; width:220px; height:270px; perspective:800px; }
-.cn-shadow { position:absolute; left:50%; bottom:44px; width:84px; height:12px; margin-left:-42px; border-radius:50%; background:radial-gradient(closest-side, rgba(0,0,0,0.65), transparent); }
-.cn-pos { position:absolute; left:50%; bottom:34px; width:96px; height:96px; margin-left:-48px; }
-.cn-glow { width:100%; height:100%; perspective:420px; }
-.cn-wob { width:100%; height:100%; transform-style:preserve-3d; }   /* 기울기·흔들림(회전축) — 회전(cn-spin)과 따로 */
-.cn-spin { width:100%; height:100%; position:relative; transform-style:preserve-3d; }
-/* 동전 = 앞면(1팀)·뒷면(2팀) 이미지 + 두께(금색 원판 5장) */
-.cn-face { position:absolute; inset:0; width:100%; height:100%; border-radius:50%; backface-visibility:hidden; }
-.cn-face.f1 { transform:translateZ(4px); }
-.cn-face.f2 { transform:rotateX(180deg) translateZ(4px); }
-.cn-edge { position:absolute; inset:1px; border-radius:50%; background:#8a6420; transform:translateZ(var(--z)); }
-.cn-edge:nth-child(odd) { background:#b8862c; }
-.cn-res { min-height:66px; display:flex; flex-direction:column; align-items:center; gap:2px; text-align:center; opacity:0; }
-.cn-res b { font-size:24px; font-weight:800; }
-.cn-res.t1 b { color:var(--t1); } .cn-res.t2 b { color:var(--t2); }
-.cn-res span { display:block; font-size:13px; font-weight:700; color:var(--ink); max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.cn-res small { font-size:11.5px; color:var(--ink-soft); }
+.fp-layer { position:absolute; left:0; right:0; bottom:0; top:var(--bar-h, 80px); z-index:20; overflow:hidden; background:#04080c; }
+.fp-head { position:absolute; left:0; right:0; top:14px; z-index:5; display:flex; flex-direction:column; align-items:center; gap:2px; text-shadow:0 2px 10px rgba(0,0,0,0.85); pointer-events:none; }
+.fp-en { font-family:var(--f-num); font-weight:700; font-size:12px; letter-spacing:3px; color:var(--gold); }
+.fp-ttl { font-size:17px; font-weight:800; color:var(--gold-hi); }
+.fp-box { position:absolute; inset:0; z-index:1; }
+.tw { position:absolute; inset:0; overflow:hidden; background:#04080c; }
+.tw-cam { position:absolute; inset:0; will-change:transform; }
+/* 판 = 깊은 팀 색 + 경계와 나란한 가는 결 + 경계 쪽으로 밝아짐 + 큰 팀 숫자 */
+.tw-s { position:absolute; left:0; top:-14%; height:128%; overflow:hidden; will-change:transform; backface-visibility:hidden; }
+.tw-s.t1 { transform-origin:100% 50%; background:
+  linear-gradient(90deg, transparent 78%, rgba(140,205,255,0.17) 100%),
+  repeating-linear-gradient(90deg, rgba(255,255,255,0.038) 0 1px, transparent 1px 18px),
+  linear-gradient(90deg, #040b12 0%, #0a1a2b 52%, #123152 84%, #1b4f82 100%); }
+.tw-s.t2 { transform-origin:0% 50%; background:
+  linear-gradient(270deg, transparent 78%, rgba(255,160,172,0.15) 100%),
+  repeating-linear-gradient(90deg, rgba(255,255,255,0.034) 0 1px, transparent 1px 18px),
+  linear-gradient(270deg, #10060a 0%, #230f18 52%, #4a1a2b 84%, #74263c 100%); }
+.tw-s::before { position:absolute; top:50%; font-family:var(--f-num); font-weight:700; font-size:340px; line-height:1; transform:translateY(-52%); pointer-events:none; }   /* 큰 팀 숫자(글자 검사에 안 걸리게 CSS로) */
+.tw-s.t1::before { content:'1'; right:30px; color:rgba(74,168,255,0.07); -webkit-text-stroke:1px rgba(130,200,255,0.2); }
+.tw-s.t2::before { content:'2'; left:30px; color:rgba(255,90,110,0.065); -webkit-text-stroke:1px rgba(255,150,165,0.18); }
+/* 빛줄기 = 당길 때 경계로 몰려듦 */
+.tw-stk { position:absolute; top:0; bottom:0; width:46px; opacity:0; will-change:transform, opacity; }
+.tw-s.t1 .tw-stk { right:0; background:linear-gradient(90deg, transparent, rgba(150,210,255,0.22) 55%, rgba(225,242,255,0.5)); }
+.tw-s.t2 .tw-stk { left:0; background:linear-gradient(270deg, transparent, rgba(255,150,165,0.2) 55%, rgba(255,228,232,0.46)); }
+/* 경계 = 밝은 심 + 금빛 번짐 + 가는 겹선 · 양쪽 팀 색 달아오름 · 맞붙음·밀어냄 때 번쩍 */
+.tw-line, .tw-glow, .tw-flash { position:absolute; left:0; top:50%; height:150%; pointer-events:none; will-change:transform, opacity; }
+.tw-line { width:3px; z-index:3; opacity:0; background:linear-gradient(180deg, transparent 6%, #ffe9b8 22%, #fffaf0 50%, #ffe9b8 78%, transparent 94%);
+  box-shadow:0 0 6px rgba(255,236,190,0.95), 0 0 16px rgba(240,215,154,0.65), 0 0 40px rgba(240,215,154,0.28); }
+.tw-line::before, .tw-line::after { content:''; position:absolute; top:0; bottom:0; width:1px; background:linear-gradient(180deg, transparent 12%, rgba(240,215,154,0.36) 30%, rgba(240,215,154,0.36) 70%, transparent 88%); }
+.tw-line::before { left:-9px; } .tw-line::after { right:-9px; }
+.tw-glow { width:220px; z-index:2; opacity:0; }
+.tw-glow.t1 { transform-origin:100% 50%; background:linear-gradient(90deg, transparent 0%, rgba(74,168,255,0.05) 35%, rgba(90,180,255,0.2) 70%, rgba(150,210,255,0.44) 94%, rgba(225,242,255,0.6) 100%); }
+.tw-glow.t2 { transform-origin:0% 50%; background:linear-gradient(270deg, transparent 0%, rgba(255,90,110,0.05) 35%, rgba(255,110,128,0.19) 70%, rgba(255,160,172,0.4) 94%, rgba(255,232,236,0.56) 100%); }
+.tw-flash { width:170px; z-index:3; opacity:0; background:linear-gradient(90deg, transparent, rgba(255,248,228,0.5) 35%, rgba(255,252,240,0.95) 50%, rgba(255,248,228,0.5) 65%, transparent); }
+/* VS 문장 = 마름모(어두운 바탕 · 금색 겹테) */
+.tw-vs { position:absolute; left:0; top:calc(54% - 20px); z-index:4; width:40px; height:40px; display:flex; align-items:center; justify-content:center; opacity:0; will-change:transform, opacity;
+  background:linear-gradient(135deg, #1e2b37, #070c12); border:1px solid var(--gold-hi); box-shadow:0 0 0 3px rgba(5,10,15,0.9), 0 0 0 4px rgba(200,170,110,0.55), 0 0 20px rgba(240,215,154,0.45); }
+.tw-vs b { transform:rotate(-45deg); font-family:var(--f-num); font-weight:700; font-size:17px; letter-spacing:1px; margin-right:-1px; color:var(--gold-hi); }
+/* 팀장 = 팀 표 · 겹테 얼굴 · 이름 · 팀 색 줄 · 팀장 */
+.tw-in { position:absolute; left:0; top:54%; width:40%; display:flex; flex-direction:column; align-items:center; text-align:center; z-index:2; opacity:0; will-change:transform, opacity; }
+.tw-en { margin-bottom:10px; font-family:var(--f-num); font-weight:700; font-size:11.5px; letter-spacing:2.5px; line-height:1; white-space:nowrap; text-shadow:0 1px 6px rgba(0,0,0,0.7); }
+.tw-in.t1 .tw-en, .tw-res.t1 .tw-ren { color:#7cc2ff; } .tw-in.t2 .tw-en, .tw-res.t2 .tw-ren { color:#ff8a98; }
+.tw-av { position:relative; flex:none; width:60px; height:60px; display:inline-flex; align-items:center; justify-content:center; overflow:hidden; border-radius:50%; background:var(--bg-3); border:2px solid var(--line-2);
+  box-shadow:0 0 0 3px rgba(5,10,15,0.92), 0 0 0 4px rgba(240,215,154,0.55), 0 8px 20px rgba(0,0,0,0.55); }
+.tw-in.t1 .tw-av, .tw-res.t1 .tw-av { border-color:var(--t1); } .tw-in.t2 .tw-av, .tw-res.t2 .tw-av { border-color:var(--t2); }
+.tw-av img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.tw-av i { font-style:normal; font-weight:800; font-size:23px; color:var(--ink); }
+.tw-nm { display:block; max-width:100%; margin-top:12px; font-size:17px; font-weight:800; line-height:1.25; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 2px 8px rgba(0,0,0,0.75); }
+.tw-ul { display:block; width:24px; height:2px; margin:8px 0 7px; }
+.tw-in.t1 .tw-ul { background:var(--t1); } .tw-in.t2 .tw-ul { background:var(--t2); }
+.tw-ko { font-size:11px; line-height:1; color:var(--ink-soft); text-shadow:0 1px 5px rgba(0,0,0,0.7); }
+/* 가장자리 어두움(버틸수록) · 위쪽 어두운 띠(제목·막대 자리 — 경계선이 글자를 가로지르지 않게) */
+.tw-vig { position:absolute; inset:0; z-index:3; opacity:0.3; pointer-events:none; background:radial-gradient(82% 70% at 50% 54%, transparent 48%, rgba(0,0,0,0.82)); }
+.tw-top { position:absolute; left:0; right:0; top:0; height:136px; z-index:4; pointer-events:none; background:linear-gradient(180deg, rgba(4,8,12,0.94), rgba(4,8,12,0.72) 55%, rgba(4,8,12,0)); }
+/* 퍼센트 막대 = 경계 위치(왼쪽 = 1팀 몫) · 막대만 미끄러짐(숫자는 크기 그대로) */
+.tw-meter { position:absolute; left:0; right:0; top:72px; z-index:5; display:flex; align-items:center; justify-content:center; gap:11px; opacity:0; }
+.tw-pc { width:44px; font-family:var(--f-num); font-weight:700; font-size:14.5px; letter-spacing:0.5px; line-height:1; }
+.tw-pc.t1 { color:#7cc2ff; text-align:right; } .tw-pc.t2 { color:#ff8a98; text-align:left; }
+.tw-bar { position:relative; width:52%; height:4px; background:rgba(255,255,255,0.07); }
+.tw-bar::before { content:''; position:absolute; left:50%; top:-5px; bottom:-5px; width:1px; background:rgba(200,170,110,0.5); }
+.tw-bar i { position:absolute; inset:0; will-change:transform; }
+.tw-bar i.t1 { transform-origin:0 50%; background:linear-gradient(90deg, rgba(74,168,255,0.35), #6ab8ff); }
+.tw-bar i.t2 { transform-origin:100% 50%; background:linear-gradient(270deg, rgba(255,90,110,0.35), #ff7586); }
+.tw-bar b { position:absolute; left:0; top:50%; width:8px; height:8px; margin:-4px 0 0 -4px; background:var(--gold-hi); box-shadow:0 0 0 2px rgba(5,10,15,0.9), 0 0 9px rgba(240,215,154,0.9); will-change:transform; }
+/* 결과 = 화면 정가운데 제목 카드(위아래 금색 선 사이) */
+.tw-res { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:6; width:84%; display:flex; flex-direction:column; align-items:center; text-align:center; opacity:0; }
+.tw-res::before { content:attr(data-n); position:absolute; left:50%; top:50%; z-index:-1; transform:translate(-50%,-53%) skewX(-10deg); font-family:var(--f-num); font-weight:700; font-size:430px; line-height:1; pointer-events:none; }
+.tw-res.t1::before { color:rgba(74,168,255,0.05); -webkit-text-stroke:1px rgba(130,200,255,0.13); }
+.tw-res.t2::before { color:rgba(255,90,110,0.045); -webkit-text-stroke:1px rgba(255,150,165,0.12); }
+.tw-res::after { content:''; position:absolute; left:50%; top:50%; z-index:-1; width:200%; height:150%; transform:translate(-50%,-50%); pointer-events:none; }
+.tw-res.t1::after { background:radial-gradient(closest-side, rgba(74,168,255,0.26), rgba(74,168,255,0.07) 55%, transparent); }
+.tw-res.t2::after { background:radial-gradient(closest-side, rgba(255,90,110,0.24), rgba(255,90,110,0.06) 55%, transparent); }
+.tw-rl { position:relative; display:block; flex:none; width:100%; height:1px; background:linear-gradient(90deg, transparent, var(--gold) 18%, var(--gold-hi) 50%, var(--gold) 82%, transparent); will-change:transform; }
+.tw-rl::after { content:''; position:absolute; left:50%; top:50%; width:7px; height:7px; margin:-3.5px 0 0 -3.5px; transform:rotate(45deg); background:var(--gold-hi); box-shadow:0 0 8px rgba(240,215,154,0.8); }
+.tw-ren { margin:18px 0 13px; font-family:var(--f-num); font-weight:700; font-size:12.5px; letter-spacing:3px; line-height:1; will-change:transform, opacity; }
+.tw-res .tw-av { width:72px; height:72px; will-change:transform, opacity; }
+.tw-res .tw-av i { font-size:27px; }
+.tw-res .tw-nm { margin-top:13px; font-size:20px; will-change:transform, opacity; }
+.tw-fp { display:block; margin:12px -5px 8px 0; font-family:var(--f-num); font-weight:700; font-size:52px; line-height:1; letter-spacing:5px; white-space:nowrap; text-shadow:0 3px 18px rgba(0,0,0,0.55); will-change:transform, opacity; }
+.tw-res.t1 .tw-fp { color:#6ab8ff; } .tw-res.t2 .tw-fp { color:#ff7586; }
+.tw-sub { margin-bottom:19px; font-size:12.5px; font-weight:600; line-height:1; color:var(--ink-soft); will-change:transform, opacity; }
 /* 🎯 드래프트 픽 연출 — 한 번만(약 1.7초) · 클릭은 그대로 통과 */
 .pk-layer { position:absolute; left:0; right:0; bottom:0; top:var(--bar-h, 80px); z-index:19; pointer-events:none; display:flex; align-items:center; justify-content:center; overflow:hidden; background:rgba(6,11,16,0.6); }
 .pk-band { position:absolute; left:-10%; right:-10%; top:50%; height:232px; margin-top:-116px;   /* 글자(약 150px)+기울기 여유(폭 400px에서 양끝 ±25px) — 글자가 사선 밖으로 안 삐져나오게 */ transform:skewY(-7deg); overflow:hidden;
@@ -436,28 +489,6 @@ header .phase, header .win-btn { flex-shrink:0; }
   .seat-no { display:none; }
   .seat-av { width:30px; height:30px; }
 }
-
-/* 🪙 3D 동전(v0.1.21 사미라 → v0.1.229 동전만) — 무대를 넓게, 2D 동전은 숨김 */
-.coin-layer.cn3d .cn-stage { width:100%; height:min(430px, 58vh); perspective:none;
-  background:radial-gradient(60% 18% at 50% 92%, rgba(200,170,110,0.16), transparent 70%); }
-.coin-layer.cn3d .cn-shadow, .coin-layer.cn3d .cn-pos { display:none; }
-.cn-3d { position:absolute; inset:0; z-index:1; width:100% !important; height:100% !important; display:block; }
-
-/* 🪙 3D(v0.1.22): 무대를 남는 높이 전부로 · 결과 글자는 무대 아래쪽 위에 겹쳐 뜸 · 동전은 서서히 등장 */
-.coin-layer.cn3d { justify-content:flex-start; }
-.coin-layer.cn3d .cn-stage { flex:1 1 auto; height:auto; min-height:220px;
-  background:radial-gradient(55% 9% at 50% 93%, rgba(200,170,110,0.22), transparent 72%), radial-gradient(70% 45% at 50% 55%, rgba(200,170,110,0.06), transparent 70%); }
-.coin-layer.cn3d .cn-res { position:absolute; left:14px; right:14px; bottom:18px; z-index:2; text-shadow:0 2px 10px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.9); }
-.cn-3d { animation:cn3dIn .45s ease-out both; }   /* 한 번만 */
-@keyframes cn3dIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
-
-/* 🪙 동전이 멈춘 순간(v0.1.229) — 동전 뒤 팀 색 빛 + 가는 테가 한 번 퍼짐(한 번만 · 예전 섬광·유리 금·파편은 없앰) */
-.cn-fx { position:absolute; inset:0; pointer-events:none; z-index:0; overflow:hidden; }
-.cn-halo, .cn-ring { position:absolute; border-radius:50%; transform:translate(-50%,-50%); }
-.cn-fx.t1 .cn-halo { background:radial-gradient(closest-side, rgba(74,168,255,0.34), rgba(74,168,255,0.12) 45%, transparent 72%); }
-.cn-fx.t2 .cn-halo { background:radial-gradient(closest-side, rgba(255,90,110,0.32), rgba(255,90,110,0.11) 45%, transparent 72%); }
-.cn-ring { box-sizing:border-box; border:1.5px solid var(--t1); }
-.cn-fx.t2 .cn-ring { border-color:var(--t2); }
 
 /* 🧩 직접 팀 짜기(v0.1.47) — 왼쪽 열 1팀 · 오른쪽 열 2팀 · 아래 「팀 미정」 칩에서 1팀/2팀 */
 .seat.side1 { box-shadow:inset 3px 0 0 var(--t1); }

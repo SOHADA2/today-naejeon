@@ -5,16 +5,16 @@ https://github.com/sgossner/VSCO-2-CE
   재료 위치: Strings/Solo Contrabass/Pizz(파일 이름 + 1옥타브가 실제 음), Strings/Cello Section/pizzT(파일 이름 + 2옥타브)
 
 
-coin-flip.ogg (v0.1.229 선픽 동전 — 동전만: 튕김 → 빙글 → 결과 면에서 딱 멈춤, 2.3초, 봉우리 -1dBFS, 앱 재생 볼륨 0.3) — 실제 녹음만 섞음(합성음 없음)
-- 재료 = OpenGameArt CC0(StarNinjas) 두 묶음
-  · 「4 metal dings/rings」 https://opengameart.org/content/4-metal-dingsrings (ding_-_starninjas.zip → ding.1.ogg)
-  · 「12 Coin Sound Effects」 https://opengameart.org/node/123368 (coins_-_starninjas.zip → coin.12.ogg · coin.5.ogg · coin.2.ogg)
-- 0.34초(튕김) 「틱」 = coin.12(실제 동전 부딪힘) ×0.5
-  + 「띵~」 = ding.1에서 가장 오래 우는 3865Hz 부분음만 좁게 걸러냄(대역 180Hz · 4차 버터워스 2번) + 7450Hz 반짝임 ×0.32 — v0.1.32에서 사장님이 고른 「맑은 띵~」과 같은 소리
-    · 원래 0.5초면 거의 안 들리게 줄어듦 → 도는 1.3초 내내 들리게 줄어드는 폭만 눌러 줌(압축) · 도는 박자(9Hz)로 아주 살짝 떨림 · 멈추는 1.62초에 0.02초 만에 끊김
-- 1.62초(멈춤) 「착」 = coin.5를 0.62배로 낮추고 6.5kHz 위를 깎아 둔탁하게(×0.62) + coin.2 앞 0.09초(×0.16)
-- 만드는 법 = tools/coin-flip-sfx.py <재료 폴더> <출력.ogg> · 시각은 overlay/coin3d.js(FLICK·STOP)·overlay.js(COIN_T)와 같은 값
-- (예전 coin-samira.ogg = 사미라 3D 장면용 6초 — v0.1.229에서 모델과 함께 지움 · 만든 과정은 git 기록 v0.1.24~32)
+firstpick.ogg (v0.1.230 선픽 줄다리기, 4.2초, 봉우리 -1dBFS, 앱 재생 볼륨 0.3) — 실제 녹음만 섞음(합성음 없음) · 사장님이 고른 「절제해서」(B)
+- 재료
+  · potg-hit.ogg(이 폴더 · 사장님이 Suno로 만든 「Impact Sequence」의 깊은 타격) — 앱의 소리 결(팟지)과 같은 계열
+  · cymbal-crash1_mp_rr1.wav = VSCO-2 Community Edition(CC0) Percussion https://github.com/sgossner/VSCO-2-CE — 거꾸로 틀고 350~5200Hz만 남겨 바람 「휙」
+  · ding.1.ogg = OpenGameArt 「4 metal dings/rings」(StarNinjas · CC0) https://opengameart.org/content/4-metal-dingsrings — 3865Hz 부분음만 걸러 맑은 「띵」(v0.1.32에서 고른 소리)
+- 0.32초 맞붙음 = 깊은 「쿵」 ×0.5 · 당길 때마다(0.51~1.55초 다섯 번) 바람 「휙」(크게 당길수록 크게) + 낮은 「붐」 조금(두 높이 번갈아)
+  · 버틸 때 바람이 0.75초 차오름 → 2.39초 밀어냄 = 깊은 「쿵」(0.8배로 낮춰서) ×0.95 + 「띵」 ×0.13
+- 만드는 법 = tools/firstpick-sfx.py <재료 폴더> · 시각은 overlay/overlay.js TW·TW_PULLS·TW_SEG와 같은 값
+- 안 쓰기로 한 것: 북소리(팀파니·큰북)·카드/클릭 소리(사장님: 안 어울림) · 「묵직하게」(A)
+- (예전 coin-flip.ogg = 동전 연출용 — v0.1.230에서 동전과 함께 지움 · 만든 과정은 git 기록 v0.1.229)
 
 v0.1.40 팟지 효과음 potg-intro·hit·slow·slam.ogg — 사장님이 Suno로 만든 효과음 묶음 「Impact Sequence」(24초, 틈 없이 이어짐)에서 스펙트로그램으로 타격 지점을 찾아 잘라냄(tools/potg-audio.py)
   intro = 1.00~4.60초(「쿵」+금속 울림, 타격 0.17초) · hit = 12.30~13.40초(타격 0.12초) · slow = 5.15~7.00초(점점 느려지는 떨림 → 타격 1.03초) · slam = 20.30~23.90초(가장 큰 타격 0.07초+잔향)
