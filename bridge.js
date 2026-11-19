@@ -274,6 +274,7 @@ async function handleEndOfGame(abnormal = false) {
 // 내전 EOG 저장 — ETag 조건부 PUT(다른 PC의 브릿지가 먼저 썼으면 건너뜀)
 function emitEog(stage, gameId, extra) { try { _onEog(Object.assign({ stage, gameId: gameId || null, at: Date.now() }, extra || {})); } catch (_) {} }
 async function saveEog(payload, src) {
+  if (payload && payload.gameMode == null && activeQueue && activeQueue.mode) payload.gameMode = activeQueue.mode;   // 🗺️ v0.1.233 협곡(CLASSIC)이면 팟지 안 함
   let etag = null;
   try {
     const { data: existing, etag: e } = await fbGetWithEtag(`${BRIDGE_ROOT}/eogStats`);
@@ -496,7 +497,7 @@ async function historyToEog(g) {
     };
   });
   const win = players.find(p => p.isWin) || (() => { const t = (g.teams || []).find(t => t.win === 'Win'); return t ? { teamId: t.teamId } : null; })();
-  return { players, winSide: win ? (win.teamId === 100 ? 'blue' : 'red') : null, gameId: g.gameId, gameTime: g.gameDuration || 0, savedAt: Date.now(), source: 'history' };
+  return { players, winSide: win ? (win.teamId === 100 ? 'blue' : 'red') : null, gameId: g.gameId, gameTime: g.gameDuration || 0, gameMode: g.gameMode || null, savedAt: Date.now(), source: 'history' };
 }
 
 // ── 진행 중 참가자 명단 (Live Client 1순위 → champSelect → gameflow) ──────────
@@ -724,5 +725,5 @@ function stop() {
   fbSet(`${FIXED_ROOT}/operators/${OPERATOR_ID}`, null);
 }
 
-module.exports = { _summarizeTimeline: summarizeTimeline, start, stop, setRoot: (r) => { BRIDGE_ROOT = r || 'today/bridge'; }, getGameId: () => activeGameId || lastSavedGameId || null,   // 🎬 팟지 수집이 어느 게임인지
+module.exports = { _summarizeTimeline: summarizeTimeline, start, stop, getQueue: () => activeQueue, setRoot: (r) => { BRIDGE_ROOT = r || 'today/bridge'; }, getGameId: () => activeGameId || lastSavedGameId || null,   // 🎬 팟지 수집이 어느 게임인지
   lcuRaw: (m, p, b) => basePort ? lcuRaw(m, p, b) : Promise.resolve({ status: 0, data: null }), lolDir: () => _lolDir, lcuUp: () => !!basePort };   // 🎬 팟지 리플레이 녹화(replayrec.js)   // 🎬 팟지 수집이 어느 게임인지

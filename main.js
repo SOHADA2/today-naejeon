@@ -1480,7 +1480,7 @@ async function pollGame() {
     inGame = nowIn;
     // 게임 중(전체화면)만 위로, 로비/클라에선 같은 층위(클라 활성 시에만 evalRaise가 올림)
     try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setAlwaysOnTop(inGame, inGame ? 'screen-saver' : 'normal'); } catch (_) {}
-    if (inGame) { hideOverlay(); hideLeftPanel(); hideHome(200); _slotDoneFormed = lastFormed; hideSlotMarker(); closePotg(); closeAugLab(); if (potg) potg.startCollect(bridge.getGameId()); }   // 🎬 팟지 수집 시작   // 게임 시작 → 양쪽 패널 완전히 숨김(전투 중 정보 미노출, 새 폼 재설계 예정) · 좌측 내 정보 패널도 숨김(클라 창 사라지며 floatPanels가 잠깐 띄우는 레이스 차단) · applyRaise/floatPanels가 inGame return이라 재등장 없음
+    if (inGame) { hideOverlay(); hideLeftPanel(); hideHome(200); _slotDoneFormed = lastFormed; hideSlotMarker(); closePotg(); closeAugLab(); if (potg) { const q = bridge.getQueue && bridge.getQueue(); if (!q || potgMapOk(q.mode, q.id)) potg.startCollect(bridge.getGameId()); else console.log('[potg] 칼바람 맵이 아님 → 게임 중 수집 안 함', q.mode, q.id); } }   // 🎬 팟지 수집 시작   // 게임 시작 → 양쪽 패널 완전히 숨김(전투 중 정보 미노출, 새 폼 재설계 예정) · 좌측 내 정보 패널도 숨김(클라 창 사라지며 floatPanels가 잠깐 띄우는 레이스 차단) · applyRaise/floatPanels가 inGame return이라 재등장 없음
     else { setTimeout(tryInstallUpdate, 90000); hideOverlay(); userHid = false; latestPlayers = []; _lastRaise = null; evalRaise(); recGameEnded(); if (potg) potg.stopCollect(bridge.getGameId()).catch(() => {}); }   // 🎬 수집 올림   // 게임 종료 → 로비 층위 재적용 · 📼 「기록 저장 중」 시작
     broadcast('state', { inGame, label: inGame ? '게임 중' : '대기' });
     if (!inGame) { setTimeout(() => ratingUpdate(true), 90000);   // 🏅 판 끝 → 전적에 들어간 뒤 점수 다시
@@ -2515,16 +2515,29 @@ let _potgBusy = false, _potgFor = null;
 // 🛡️ 숨은 영웅은 판이 클 때만(v0.1.81 · 사장님: 서브 팟지는 최소 6인 대전은 돼야) — 1:1·2:2는 한타라 부를 장면이 없어 평범한 장면이 뽑힘
 const HERO_MIN_PLAYERS = 6;
 const heroAllowed = n => n >= HERO_MIN_PLAYERS;
+// 🗺️ v0.1.233 팟지·숨은 영웅 = 칼바람 나락 맵(칼바람·아수라장)만(사장님: 협곡 콘텐츠는 팟지 따로 넣지 말아 줘 · 나중에 수정) — 모드·큐를 모르면 예전처럼 함
+//   칼바람 맵 = 모드 ARAM·KIWI · 큐 450·2400·3270(아수라장 내전) / 그 밖(CLASSIC 협곡·URF·아레나 등) = 팟지 없음(기록·투표·재미 지표는 그대로)
+function potgMapOk(gameMode, queueId) {
+  if (gameMode) return ['ARAM', 'KIWI'].includes(String(gameMode).toUpperCase());
+  if (queueId != null) return [450, 2400, 3270, 3200, 3210, 3220, 3230, 100].includes(Number(queueId));
+  return true;
+}
+async function potgOffSr(path, gid) {   // 팟지 안 하는 판 = 「팟지 없음」으로만 남김(카드·녹화·기다림 화면 없음)
+  console.log('[potg] 칼바람 맵이 아님(협곡 등) → 팟지 안 함', gid);
+  await fbUpdate(path, { potg: { none: true, gameId: String(gid), off: 'map' } }).catch(() => {});
+}
 async function hostPotg(s) {
   if (!potg || _potgBusy || _potgFor === String(s.game.id) || String(s.game.id).startsWith('m')) return;   // 수동 기록 판은 게임 번호가 없어 수집과 못 이음
   _potgBusy = true;
   try {
+    if (s.lolGame === 'sr') { _potgFor = String(s.game.id); await potgOffSr(`${T}/days/${s.game.day}/matches/${s.game.id}`, s.game.id); await fbUpdate(`${RP()}/session`, { potg: { none: true, gameId: String(s.game.id), off: 'map' } }); return; }   // 🗺️ v0.1.233 협곡 내전
     const raws = await potg.readRaws(s.game.id);
     const n = raws ? Object.keys(raws).length : 0, age = Date.now() - (s.game.at || 0);
     const expect = (s.teamA || []).length + (s.teamB || []).length;
     if ((n === 0 && age < 60000) || (n > 0 && n < expect && age < 25000)) return;   // 다른 PC 수집 기다림
     _potgFor = String(s.game.id);
     const rec = await getJson(`${FIREBASE_DB}/${T}/days/${s.game.day}/matches/${s.game.id}.json`);
+    if (rec && rec.game === 'sr') { await potgOffSr(`${T}/days/${s.game.day}/matches/${s.game.id}`, s.game.id); await fbUpdate(`${RP()}/session`, { potg: { none: true, gameId: String(s.game.id), off: 'map' } }); return; }   // 🗺️ 롤에서 직접 만든 협곡 방 등
     const card = n ? potg.pickPotg(raws, s, rec && rec.stats) : null;
     if (!card) { await fbUpdate(`${RP()}/session`, { potg: { none: true, gameId: String(s.game.id) } }); return; }
     card.gameId = String(s.game.id);
@@ -2600,6 +2613,7 @@ async function recordNormal(e) {
 async function normalPotg(rec) {
   if (!potg) return;
   const path = `${T}/days/${rec.day}/normals/${rec.gameId}`, t0 = Date.now();
+  if (!potgMapOk(rec.gameMode, rec.queueId)) return potgOffSr(path, rec.gameId);   // 🗺️ v0.1.233 협곡 일반 판 = 팟지 없음
   let raws = null, n = 0;
   for (;;) {   // 우리 팀 각자 수집이 다 모일 때까지(최대 25초 · 하나도 없으면 60초)
     raws = await potg.readRaws(rec.gameId); n = raws ? Object.keys(raws).length : 0;
@@ -3029,7 +3043,7 @@ async function recordGame(winner, eog) {
   const rec = {
     gameId: gid, ts: Date.now(), day, source: eog ? 'auto' : 'manual', by: config.myName || null,
     teamA: s.teamA, teamB: s.teamB, spectators: s.spectators || null, mode: s.mode || null,
-    game: s.lolGame === 'sr' ? 'sr' : null, srPick: s.lolGame === 'sr' ? s.srPick || null : null,   // 🗺️ v0.1.232 협곡 내전(없으면 아수라장)
+    game: s.lolGame === 'sr' || (eog && eog.gameMode === 'CLASSIC') ? 'sr' : null, srPick: s.lolGame === 'sr' ? s.srPick || null : null,   // 🗺️ v0.1.232 협곡 내전(없으면 아수라장)
     winner, winSide: (eog && eog.winSide) || null, gameTime: (eog && eog.gameTime) || 0,
     stats: (eog && eog.players) || null, teamsFormedAt: s.teamsFormedAt || null,
     ids: s.ids || null,   // 👤 이름→puuid(프로필이 닉변해도 같은 사람으로 묶음)
