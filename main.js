@@ -2473,15 +2473,25 @@ async function waitView(W) {
     for (const a of (p.augments || [])) if (C.augs && C.augs[a]) used[a] = { name: C.augs[a].name, icon: C.augs[a].icon, rarity: C.augs[a].rarity };
     return { n: p.summonerName, c: p.championId, cn: p.championName, tm: p.teamId, win: !!p.isWin, k: p.kills || 0, d: p.deaths || 0, a: p.assists || 0, dmg: p.damage || 0,
       tk: (p.taken || 0) + (p.mitig || 0), heal: (p.healMates || 0) + (p.shieldMates || 0), selfHeal: p.heal || 0, cc: p.cc || 0, gold: p.gold || 0, cs: p.cs || 0, fb: !!p.firstBlood,
-      multi: p.pentaKills ? 5 : p.quadraKills ? 4 : p.tripleKills ? 3 : p.doubleKills ? 2 : 0, aug: p.augments || [] };
+      multi: p.pentaKills ? 5 : p.quadraKills ? 4 : p.tripleKills ? 3 : p.doubleKills ? 2 : 0, aug: p.augments || [],
+      it: (p.items || []).slice(0, 6), crit: p.crit || 0, lvl: p.lvl || 0, spree: p.spree || 0, pu: p.puuid || null };
   });
+  // 📇 v0.1.238 「내 판」 카드(사장님: 게임 끝나고 본인 관련 정보를 먼저 · 예측 투표는 뺌) — 내 줄(puuid → 이름) · 게임 끝 능력치(potg.myFinal = 이 PC만) · 스킨 일러스트 · 아이템 그림 주소
+  const myRow = stats.find(p => account && p.pu && p.pu === account.puuid) || stats.find(p => normName(p.n || '') === normName(config.myName || ''));
+  let myCard = null;
+  if (myRow) {
+    const fin = potg && potg.myFinal ? potg.myFinal(W.gameId) : null;
+    if (!C.splash && !C.splashBusy && potg) { C.splashBusy = true; potg.splashFor(myRow.c, fin && fin.skin).then(u => { C.splash = u || ''; }).catch(() => { C.splash = ''; }); }
+    if (C.ddv === undefined) { C.ddv = null; getJson('https://ddragon.leagueoflegends.com/api/versions.json').then(v => { C.ddv = (v || [])[0] || ''; }).catch(() => { C.ddv = ''; }); }
+    myCard = { n: myRow.n, fin, splash: C.splash || null, itemBase: C.ddv ? `https://ddragon.leagueoflegends.com/cdn/${C.ddv}/img/item/` : null };
+  }
   const me = config.myName || '', g = W.guess || {}, counts = {};
   for (const v of Object.values(g)) if (v && Number.isInteger(v.i)) counts[v.i] = (counts[v.i] || 0) + 1;
   const mine = g[fbKeyOf(me)];
   const P = _recLocal ? Object.assign({ sub: _recToastMsg.sub }, recProgNow() || {}) : potgRecRaw ? { pct: potgRecRaw.pct, left: potgRecRaw.left, sub: potgRecRaw.sub } : null;
   const votes = W.kind === 'match' && sessionData && sessionData.game && String(sessionData.game.id) === String(W.gameId) ? { done: Object.keys(sessionData.votes || {}).length, all: [...(sessionData.teamA || []), ...(sessionData.teamB || [])].length } : null;
   return { gameId: W.gameId, kind: W.kind, who: W.who, hero: !!W.hero, me, skipped: W.skipped || null, canSkip: !!_recLocal && !_potgSkip, cands: W.cands || [], counts, mine: mine ? mine.i : null, voters: Object.keys(g).length,
-    kills: W.kills || [], gameTime: rec.gameTime || null, stats, augs: used, today: C.today, prog: P, votes, queue: rec.queue || null };
+    kills: W.kills || [], gameTime: rec.gameTime || null, stats, augs: used, today: C.today, prog: P, votes, queue: rec.queue || null, meCard: myCard, mode: rec.game === 'sr' ? '협곡 내전' : W.kind === 'match' ? '아수라장 내전' : (rec.queue || '일반 게임') };
 }
 let _waitSeq = 0;
 async function openPotgWait(W) {

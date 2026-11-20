@@ -1,5 +1,7 @@
 // ⏳ 팟지 기다림 화면(2026-11-01 · 사장님: 팟지 녹화하는 1~2분이 붕 뜸) — 녹화하는 동안 가운데 창에서
 //   맨 위 = 진행 막대(퍼센트·남은 시간·단계) · 아래 = 탭(자동으로 9초마다 넘어감 · 누르면 20초 멈춤)
+//   📇 v0.1.238(사장님: 팟지 누가 받을지 예측 투표는 빼고 본인 관련 정보를 먼저 · 자동 넘김 대신 넘기기 버튼) — 첫 탭 = 「내 판」 카드 · 예측 탭·오늘의 예측왕 없앰
+//   · 자동 넘김 없음 → 탭 줄 오른쪽 ‹ n/m › · ← → 키 · 탭을 눌러도 됨
 //   🔮 예측(누가 팟지일까? 후보 2~3 · 한 표 · 실시간 표 수) · 📊 기록(피해량·받은 피해·힐·CC 상위 5) · 🎉 재미(캐리·탱커·힐러·CC·버스·최다 데스·퍼블·멀티킬·골드·KDA·천적)
 //   🗺️ 킬 지도(칼바람 다리 + 킬 자리 + 시간 줄) · 🧩 증강(10명이 고른 증강) · 🏆 오늘(순위 변화·연승·오늘의 예측왕·투표 현황)
 //   데이터 = main waitView(today/potgWait + 경기 기록) 'potg-wait' 3초마다·표 바뀔 때 · 진행 막대 'potg-wait-prog' 0.5초마다(녹화하는 앱)
@@ -12,16 +14,17 @@
   const num = n => Math.round(n || 0).toLocaleString('en-US');
   const mmss = s => `${Math.floor((s || 0) / 60)}:${String(Math.floor((s || 0) % 60)).padStart(2, '0')}`;
   const room = $('pg-room');
-  let V = null, tab = null, autoAt = 0, holdUntil = 0, sigs = {}, timer = null;
+  let V = null, tab = null, autoAt = 0, holdUntil = 0, sigs = {}, timer = null, picked = false;   // picked = 사람이 탭을 직접 고름(그 전엔 「내 판」이 생기면 그리로)
 
   const TABS = [
-    { k: 'guess', t: '예측', ok: v => v.cands && v.cands.length >= 2 },
+    { k: 'me', t: '내 판', ok: v => !!myStat(v) },
     { k: 'stats', t: '기록', ok: v => v.stats && v.stats.length },
     { k: 'fun', t: '재미', ok: v => v.stats && v.stats.length },
     { k: 'map', t: '킬 지도', ok: v => v.kills && v.kills.length },
     { k: 'aug', t: '증강', ok: v => v.stats && v.stats.some(p => p.aug && p.aug.length) },
     { k: 'today', t: '오늘', ok: v => v.today && (v.today.rows.length || v.today.kings.length || v.today.normal) },
   ];
+  const myStat = v => v && v.meCard && v.stats ? v.stats.find(p => p.n === v.meCard.n) || null : null;
   const teamName = (tm, v) => v.kind === 'normal' ? (tm === 100 ? '블루' : '레드') : (tm === 100 ? '1팀' : '2팀');
 
   // ── 맨 위: 진행 막대 ──
@@ -47,26 +50,52 @@
   // ── 탭 ──
   function tabs() {
     const list = TABS.filter(x => x.ok(V));
-    if (!list.some(x => x.k === tab)) tab = list[0] ? list[0].k : null;
-    const html = list.map(x => `<button data-k="${x.k}" class="${x.k === tab ? 'on' : ''}">${E(x.t)}${x.k === 'guess' && V.mine == null ? '<i class="dot"></i>' : ''}</button>`).join('');
+    if (!list.some(x => x.k === tab) || (!picked && list[0] && list[0].k === 'me')) tab = list[0] ? list[0].k : null;
+    const i = list.findIndex(x => x.k === tab);
+    const html = list.map(x => `<button data-k="${x.k}" class="${x.k === tab ? 'on' : ''}">${E(x.t)}</button>`).join('')
+      + (list.length > 1 ? `<span class="wr-nav"><button class="wr-nv" data-go="-1" ${i <= 0 ? 'disabled' : ''} aria-label="이전">‹</button><b class="num">${i + 1}<i>/${list.length}</i></b><button class="wr-nv nx" data-go="1" ${i >= list.length - 1 ? 'disabled' : ''}>${i < list.length - 1 ? `${E(list[i + 1].t)} ›` : '›'}</button></span>` : '');
     if ($('wr-tabs').innerHTML !== html) $('wr-tabs').innerHTML = html;
     return list;
   }
-  $('wr-tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; tab = b.dataset.k; holdUntil = Date.now() + 20000; autoAt = Date.now(); render(true); });
+  function go(d) { const list = TABS.filter(x => V && x.ok(V)), i = list.findIndex(x => x.k === tab), j = i + d; if (j < 0 || j >= list.length) return; tab = list[j].k; picked = true; render(true); }
+  $('wr-tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.disabled) return; if (b.dataset.go) { go(+b.dataset.go); return; } tab = b.dataset.k; picked = true; render(true); });
+  document.addEventListener('keydown', e => { if (!V || room.style.display === 'none') return; if (e.key === 'ArrowRight') go(1); else if (e.key === 'ArrowLeft') go(-1); });
 
-  // ── 🔮 예측 ──
-  function guess(v) {
-    const tot = Object.values(v.counts || {}).reduce((a, b) => a + b, 0);
-    return `<div class="wr-h"><b>이번 판 팟지는 누구일까요?</b><span>영상이 뜨면 정답 공개 · 맞히면 오늘의 예측왕</span></div>
-      <div class="wr-cands n${v.cands.length}">${v.cands.map((c, i) => {
-        const n = (v.counts || {})[i] || 0, me = v.mine === i;
-        return `<button class="wr-cand t${c.team === 'teamB' ? 2 : 1}${me ? ' me' : ''}" data-i="${i}">
-          ${face(c.championId, 'big', c.champ)}<b class="nm">${E(c.name)}</b><span class="ch">${E(c.champ)}</span><em class="lb">${E(c.label)}</em>
-          <span class="cnt"><i style="width:${tot ? Math.round(n / tot * 100) : 0}%"></i></span><small class="num">${n}표</small>${me ? '<span class="mine">내 선택</span>' : ''}</button>`;
-      }).join('')}</div>
-      <div class="wr-foot">${v.mine == null ? '눌러서 한 표 · 바꿀 수 있어요' : `투표 완료 · ${v.voters}명 참여`}</div>`;
+  // ── 📇 내 판(v0.1.238) — 내 챔피언 스킨 일러스트 위에 승패·피해량·K/D/A·킬 관여·증강·아이템 ──
+  //   자료 = 정산(10명 · 서버 경기 기록) + 게임 끝 순간 내 능력치(이 PC 라이브 클라이언트 · 없으면 그 칸만 빠짐)
+  function me(v) {
+    const p = myStat(v), M = v.meCard || {}, f = M.fin, S = v.stats;
+    const team = S.filter(x => x.tm === p.tm), tk = team.reduce((a, x) => a + x.k, 0), td = team.reduce((a, x) => a + x.dmg, 0);
+    const kp = tk ? Math.round((p.k + p.a) / tk * 100) : 0, share = td ? Math.round(p.dmg / td * 100) : 0;
+    const rank = f2 => S.slice().sort((a, b) => f2(b) - f2(a)).indexOf(p) + 1;
+    const badges = [];
+    if (p.dmg && rank(x => x.dmg) === 1) badges.push('피해량 1위');
+    if (p.multi >= 3) badges.push(['', '', '', '트리플킬', '쿼드라킬', '펜타킬'][p.multi]);
+    if (p.tk && rank(x => x.tk) === 1) badges.push('받아낸 피해 1위');
+    if (p.heal >= 2000 && rank(x => x.heal) === 1) badges.push('힐·보호막 1위');
+    if (p.cc >= 20 && rank(x => x.cc) === 1) badges.push('CC 1위');
+    if (p.fb) badges.push('퍼스트 블러드');
+    const cells = [
+      { v: `${p.k} / ${p.d} / ${p.a}`, l: 'K / D / A' },
+      { v: kp + '%', l: '킬 관여' },
+      { v: share + '%', l: '팀 피해 비중' },
+      p.crit > 0 ? { v: num(p.crit), l: '가장 큰 치명타' } : null,
+      { v: num(p.tk), l: '받아낸 피해' },
+      f && (f.ad || f.ap) ? (f.ap > f.ad ? { v: num(f.ap), l: '주문력' } : { v: num(f.ad), l: '공격력' }) : null,
+      f && f.hp ? { v: num(f.hp), l: '최대 체력' } : null,
+      { v: num(p.gold), l: '골드' },
+    ].filter(Boolean).slice(0, 6);
+    const aug = id => { const a = (v.augs || {})[id] || {}; return `<i class="me-aug ${E(a.rarity || '')}" title="${E(a.name || '')}">${a.icon ? `<img src="${E(a.icon)}" alt="" onerror="this.remove()">` : ''}</i>`; };
+    const item = id => `<i class="me-it">${M.itemBase ? `<img src="${E(M.itemBase + id + '.png')}" alt="" onerror="this.remove()">` : ''}</i>`;
+    const lvl = (f && f.lvl) || p.lvl;
+    return `<div class="me-card tm${p.tm === 200 ? 2 : 1} ${p.win ? 'win' : 'lose'}${M.splash ? ' has-sp' : ''}"${M.splash ? ` style="--sp:url('${E(M.splash)}')"` : ''}>
+      <div class="me-top"><span class="me-mode">${E(v.mode || '')}</span><b class="me-res">${p.win ? '승리' : '패배'}</b>${v.gameTime ? `<span class="num me-t">${mmss(v.gameTime)}</span>` : ''}${badges.slice(0, 3).map(b => `<em class="me-bd">${E(b)}</em>`).join('')}</div>
+      <div class="me-who">${face(p.c, 'md', p.cn)}<div><b>${E(p.cn)}</b><small>${E(p.n)}${lvl ? ` · 레벨 ${lvl}` : ''}</small></div></div>
+      <div class="me-big"><b class="num">${num(p.dmg)}</b><span>챔피언에게 준 피해</span></div>
+      <div class="me-stats">${cells.map(c => `<div><b class="num">${E(c.v)}</b><small>${E(c.l)}</small></div>`).join('')}</div>
+      ${(p.aug || []).length || (p.it || []).length ? `<div class="me-gear">${(p.aug || []).length ? `<span class="me-augs">${p.aug.map(aug).join('')}</span>` : ''}${(p.it || []).length ? `<span class="me-items">${p.it.map(item).join('')}</span>` : ''}</div>` : ''}
+    </div>`;
   }
-  room.addEventListener('click', e => { const b = e.target.closest('.wr-cand'); if (!b || !window.api.potgGuess) return; window.api.potgGuess(+b.dataset.i); holdUntil = Date.now() + 6000; });
 
   // ── 📊 이번 판 기록 ──
   function stats(v) {
@@ -134,19 +163,17 @@
     const ch = r => r.prev == null ? '<i class="new">NEW</i>' : r.prev > r.rank ? `<i class="up">▲${r.prev - r.rank}</i>` : r.prev < r.rank ? `<i class="dn">▼${r.rank - r.prev}</i>` : '<i class="eq">–</i>';
     const left = v.kind === 'match' && rows.length ? `<div class="wr-rank"><h4>오늘 순위 · 이번 판 반영</h4>${rows.map(r => `<div class="row${r.here ? ' here' : ''}${r.name === v.me ? ' me' : ''}"><b class="num rk">${r.rank}</b>${ch(r)}<span class="nm">${E(r.name)}</span><span class="num wl">${r.w}승 ${r.l}패</span>${r.streak >= 2 ? `<em class="st">${r.streak}연승</em>` : r.streak <= -2 ? `<em class="st cold">${-r.streak}연패</em>` : ''}</div>`).join('')}</div>`
       : T.normal ? `<div class="wr-rank"><h4>오늘 같이 한 일반 판</h4><div class="big num">${T.normal.w}승 ${T.normal.l}패</div></div>` : '';
-    const kings = `<div class="wr-kings"><h4>🔮 오늘의 예측왕</h4>${T.kings.length ? T.kings.map((k, i) => `<div class="row"><b class="num">${i + 1}</b><span class="nm">${E(k.name)}</span><em class="num">${k.n}번 맞힘</em></div>`).join('') : '<div class="none">아직 없어요 · 이번 판이 첫 기회!</div>'}
-      ${v.votes ? `<h4 class="vt">MVP·매너 투표</h4><div class="vbar"><i style="width:${v.votes.all ? Math.round(v.votes.done / v.votes.all * 100) : 0}%"></i></div><small>${v.votes.done}/${v.votes.all}명 완료</small>` : ''}</div>`;
-    return `<div class="wr-today">${left}${kings}</div>`;
+    const kings = !v.votes ? '' : `<div class="wr-kings">
+      <h4 class="vt">MVP·매너 투표</h4><div class="vbar"><i style="width:${v.votes.all ? Math.round(v.votes.done / v.votes.all * 100) : 0}%"></i></div><small>${v.votes.done}/${v.votes.all}명 완료</small></div>`;
+    return `<div class="wr-today">${left}${kings}</div>`;   // v0.1.238 오늘의 예측왕 뺌(예측 투표가 없어짐)
   }
 
-  const BODY = { guess, stats, fun, map, aug, today };
+  const BODY = { me, stats, fun, map, aug, today };
   function render(force) {
     if (!V) return;
     const list = tabs();
     if (!tab) { $('wr-body').innerHTML = '<div class="none">이번 판 기록을 불러오는 중…</div>'; return; }
-    // 자동 넘김 — 예측은 아직 안 찍었으면 조금 더(12초) 머묾
-    const stay = tab === 'guess' && V.mine == null ? 12000 : 9000;
-    if (!force && Date.now() > holdUntil && Date.now() - autoAt > stay && list.length > 1) { const i = list.findIndex(x => x.k === tab); tab = list[(i + 1) % list.length].k; autoAt = Date.now(); tabs(); force = true; }
+    // v0.1.238 자동 넘김 없음(사장님: 넘기기 버튼으로 하나씩) — 1초마다는 바뀐 내용(투표 현황·스킨 그림)만 다시 그림
     const html = BODY[tab](V), sig = tab + '|' + html.length + '|' + html.slice(-200) + '|' + html.slice(0, 200);
     if (!force && sigs.body === sig) return;
     const changedTab = sigs.tab !== tab; sigs.body = sig; sigs.tab = tab;
@@ -181,7 +208,7 @@
       try { window.api.potgCancel(); } catch (_) {}
     };
   }
-  function hide() { room.style.display = 'none'; V = null; { const sk = $('wr-skipped'); if (sk) sk.hidden = true; } sigs = {}; tab = null; clearInterval(timer); const b = $('wr-skip'); if (b) { b.hidden = true; b.disabled = false; b.classList.remove('arm'); b.textContent = '팟지 건너뛰기'; } }
+  function hide() { room.style.display = 'none'; V = null; { const sk = $('wr-skipped'); if (sk) sk.hidden = true; } sigs = {}; tab = null; picked = false; clearInterval(timer); const b = $('wr-skip'); if (b) { b.hidden = true; b.disabled = false; b.classList.remove('arm'); b.textContent = '팟지 건너뛰기'; } }
   if (window.api && window.api.onPotgWait) {
     window.api.onPotgWait(show);
     window.api.onPotgWaitProg(p => { if (V) prog(p); });

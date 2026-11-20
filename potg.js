@@ -34,6 +34,7 @@ module.exports = function makePotg(d) {
 
   // ── ① 수집 ───────────────────────────────────────────────────────────────
   let col = null;   // { gameId, me, hp:[[t,pct]], events, players, timers }
+  let lastFinal = null;   // 📇 v0.1.238 {gameId, lvl, ad, ap, hp, armor, mr, as, crit, skin} — 이 PC 사람의 게임 끝 능력치(서버에 안 올림)
   function startCollect(gameId) {
     if (col) return;
     col = { gameId: gameId || null, me: '', hp: [], ms: [], events: [], players: [], lastHpAt: -99, busy: false };
@@ -43,7 +44,8 @@ module.exports = function makePotg(d) {
         const [a, g] = await Promise.all([live('/liveclientdata/activeplayer'), live('/liveclientdata/gamestats')]);
         if (col && a && g && typeof g.gameTime === 'number') {
           if (!col.me) col.me = nameOf(a);
-          const cs = a.championStats || {}, pct = cs.maxHealth > 0 ? Math.max(0, Math.round(cs.currentHealth / cs.maxHealth * 100)) : null;
+          const cs = a.championStats || {}; col.fin = { cs, lvl: a.level || 0 };   // 📇 v0.1.238 마지막 능력치(게임 끝 순간 = 「내 판」 카드)
+          const pct = cs.maxHealth > 0 ? Math.max(0, Math.round(cs.currentHealth / cs.maxHealth * 100)) : null;
           const t = Math.round(g.gameTime * 2) / 2, last = col.hp[col.hp.length - 1];
           if (pct != null && (!last || Math.abs(last[1] - pct) >= 2 || t - col.lastHpAt >= 5)) { col.hp.push([t, pct]); col.lastHpAt = t; }   // 바뀔 때만(용량)
           const sp = Math.round(cs.moveSpeed || 0), lm = col.ms[col.ms.length - 1];   // 🐢 이동 속도(v0.1.44) — 여러 명이 한꺼번에 느려지면 광역 둔화 신호
@@ -63,6 +65,8 @@ module.exports = function makePotg(d) {
     if (!col) return;
     const c = col; col = null; clearInterval(c.t1); clearInterval(c.t2);
     const gid = gameId || c.gameId;
+    if (c.fin && gid) { const s = c.fin.cs || {}, mine = (c.players || []).find(x => x && c.me && norm(x.name) === norm(c.me));
+      lastFinal = { gameId: String(gid), at: Date.now(), lvl: c.fin.lvl, ad: Math.round(s.attackDamage || 0), ap: Math.round(s.abilityPower || 0), hp: Math.round(s.maxHealth || 0), armor: Math.round(s.armor || 0), mr: Math.round(s.magicResist || 0), as: +(s.attackSpeed || 0).toFixed(2), crit: Math.round((s.critChance || 0) * 100), skin: mine && mine.skin != null ? mine.skin : null }; }
     if (!gid || !c.me || (!c.events.length && !c.hp.length)) { log('올릴 수집 없음'); return; }
     const events = c.events.filter(e => KEEP_EVENTS.includes(e.EventName)).map(e => {
       const o = { n: e.EventName, t: Math.round((e.EventTime || 0) * 10) / 10 };
@@ -500,5 +504,5 @@ module.exports = function makePotg(d) {
     return cdPath(s.splashPath || s.uncenteredSplashPath);
   }
 
-  return { splashFor, startCollect, stopCollect, pickPotg, pickHero, heroStats, readRaws, uploadClip, uploadShot, getClip, prepUpload, cleanup, extOf, pxJson, _pick: pickPotg };
+  return { myFinal: gid => lastFinal && String(lastFinal.gameId) === String(gid) ? lastFinal : null, splashFor, startCollect, stopCollect, pickPotg, pickHero, heroStats, readRaws, uploadClip, uploadShot, getClip, prepUpload, cleanup, extOf, pxJson, _pick: pickPotg };
 };

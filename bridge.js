@@ -250,6 +250,7 @@ async function handleEndOfGame(abnormal = false) {
           doubleKills: s.DOUBLE_KILLS || 0, tripleKills: s.TRIPLE_KILLS || 0,
           quadraKills: s.QUADRA_KILLS || 0, pentaKills: s.PENTA_KILLS || 0,
           firstBlood: (s.FIRST_BLOOD_KILL || 0) === 1,
+          crit: s.LARGEST_CRITICAL_STRIKE || 0, lvl: s.LEVEL || 0, spree: s.LARGEST_KILLING_SPREE || 0,   // 📇 v0.1.238 「내 판」 카드
           ...roleStats(s, {   // 🛡️ 서포터·탱커 지표(v0.1.44 숨은 영웅) — 키 이름은 실기 확인 전이라 후보 여러 개
             taken: ['TOTAL_DAMAGE_TAKEN'], mitig: ['TOTAL_DAMAGE_SELF_MITIGATED'], heal: ['TOTAL_HEAL'],
             healMates: ['TOTAL_HEAL_ON_TEAMMATES', 'TOTAL_HEALS_ON_TEAMMATES'], shieldMates: ['TOTAL_DAMAGE_SHIELDED_ON_TEAMMATES'],
@@ -491,6 +492,7 @@ async function historyToEog(g) {
       augments: [s.playerAugment1, s.playerAugment2, s.playerAugment3, s.playerAugment4, s.playerAugment5, s.playerAugment6].filter(i => i > 0),
       doubleKills: s.doubleKills || 0, tripleKills: s.tripleKills || 0, quadraKills: s.quadraKills || 0, pentaKills: s.pentaKills || 0,
       firstBlood: !!s.firstBloodKill,
+      crit: s.largestCriticalStrike || 0, lvl: s.champLevel || 0, spree: s.largestKillingSpree || 0,   // 📇 v0.1.238
       ...roleStats(s, { taken: ['totalDamageTaken'], mitig: ['damageSelfMitigated'], heal: ['totalHeal'],
         healMates: ['totalHealsOnTeammates', 'totalHealOnTeammates'], shieldMates: ['totalDamageShieldedOnTeammates'],
         cc: ['timeCCingOthers'], ccTotal: ['totalTimeCrowdControlDealt'] }),
