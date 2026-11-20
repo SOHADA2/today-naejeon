@@ -2372,9 +2372,10 @@ async function pollSession() {
       showRecToast();
       setTimeout(() => { if (!_recLocal && Date.now() >= _skipToastUntil) hideRecToast(); }, 6100);
     }
-    if (mine && W.skipped && Date.now() - (W.skippedAt || _skipSeenAt(W.gameId)) > 9000) { if (_potgMode === 'wait') closePotg(); _waitClosed = W.gameId; if (_skipToastFor !== W.gameId) { _skipToastFor = W.gameId; _skipToastAt = Date.now(); } }   // v0.1.210 건너뜀을 9초 보여 준 뒤 닫음(서버 기록이 늦게 지워져도)
+    if (mine && W.skipped) _waitKeep = String(W.gameId);   // 🚫 v0.1.240 건너뛴 판 기다림 창은 사람이 닫거나 게임이 시작될 때까지 둠(사장님: 알림만 뜨고 뒤 화면은 계속 봐야)
+    if (mine && W.skipped && Date.now() - (W.skippedAt || _skipSeenAt(W.gameId)) > 9000) { _waitClosed = W.gameId; if (_skipToastFor !== W.gameId) { _skipToastFor = W.gameId; _skipToastAt = Date.now(); } }   // v0.1.210 9초 뒤 더는 다시 열지 않음(v0.1.240부터 열린 창은 안 닫음)   // v0.1.210 건너뜀을 9초 보여 준 뒤 닫음(서버 기록이 늦게 지워져도)
     else if (mine) { _waitSeen = Date.now(); if (_potgMode !== 'play' && _waitClosed !== W.gameId) openPotgWait(W).catch(() => {}); }
-    else if (_potgMode === 'wait' && Date.now() - _waitSeen > 8000) closePotg();   // 팟지가 안 뜨고 끝났으면(카드 없음 등) 닫음 · 공개되면 openPotg가 이어받음
+    else if (_potgMode === 'wait' && Date.now() - _waitSeen > 8000 && !(_waitKeep && _waitCache && String(_waitCache.id) === _waitKeep)) closePotg();   // 팟지가 안 뜨고 끝났으면(카드 없음 등) 닫음 · 공개되면 openPotg가 이어받음
   }
   autoSeat();   // 🪑 팀이 정해진 순간·재시도(자리 감지는 바뀔 때만 와서 여기서도)
   if (config.isHost) runHost();
@@ -2412,6 +2413,7 @@ function closePotg() { if (potgWin && !potgWin.isDestroyed()) { try { potgWin.de
 // ── ⏳ 팟지 기다림 화면(2026-11-01 사장님: 녹화하는 1~2분이 붕 뜸) ──────────────────────────────────────
 //   녹화하는 앱이 today/potgWait {gameId, path, kind, at, who, players, cands(후보 2~3 · 이름순이라 정답을 안 드러냄), hero, kills(롤 전적 타임라인 킬 위치·시각), guess/{키}:{i,name}} 를 쓰고
 //   공개할 때 맞힌 사람을 경기 기록 guess·카드 guess로 옮긴 뒤 지움 → 그 판 사람(관전 포함) 앱이 가운데 창에 기다림 화면 · ✕로 닫으면 그 판엔 다시 안 뜸(팟지는 그대로 뜸)
+let _waitKeep = null;   // 🚫 v0.1.240 건너뛴 판 = 이 게임 번호의 기다림 창은 저절로 안 닫음
 let potgWaitRaw = null, _waitClosed = null, _waitSeen = 0, _waitCache = null, _skipToastFor = null, _skipToastUntil = 0, _skipToastAt = 0;
 const _skipSeen = {}; const _skipSeenAt = id => _skipSeen[id] || (_skipSeen[id] = Date.now());   // 건너뜀을 처음 본 시각(옛 앱이 skippedAt을 안 쓸 때)
 async function killTimeline(gameId) {   // 롤 전적 타임라인(게임 끝나고 바로 받아짐 · 실측 4판 모두 첫 시도) → 챔피언 킬 위치·시각
@@ -2712,6 +2714,7 @@ function recToastBounds() {
   return { x: Math.round(wa.x + (wa.width - W) / 2), y: wa.y + 16, width: W, height: H };
 }
 function showRecToast(sub, prog) {
+  if (_potgSkip && _potgMode === 'wait' && potgWin && !potgWin.isDestroyed() && potgWin.isVisible()) return;   // 🚫 v0.1.240 건너뛴 뒤엔 기다림 창 안 알림 줄 하나만(위쪽 알림 창을 다시 띄우지 않음)
   if (sub != null) _recToastMsg = Object.assign({}, _recToastMsg, { title: '팟지 녹화 중', sub });
   if (prog !== undefined) Object.assign(_recToastMsg, { pct: prog ? prog.pct : null, left: prog ? prog.left : null });
   if (_potgMode === 'wait' && potgWin && !potgWin.isDestroyed() && potgWin.isVisible()) { hideRecToast(); return; }   // ⏳ 기다림 화면에 같은 막대가 있음
@@ -2826,8 +2829,11 @@ let _potgSkip = false;
 ipcMain.on('potg-cancel', () => {
   if (!_recLocal || !replayRec || _potgSkip) return;
   _potgSkip = true; try { replayRec.cancel(); } catch (_) {}
+  recProgStop();   // v0.1.240 진행 알림이 0.5초마다 위쪽 알림 창을 다시 띄우지 않게
   _recLog.push(`${new Date().toTimeString().slice(0, 8)} 🚫 팟지 건너뛰기(${config.myName || '녹화한 사람'})`);
-  showRecToast('팟지 건너뛰는 중…', null);
+  // v0.1.240 알림은 한 가지만 — 기다림 창이 보이면 그 안 알림 줄로(위쪽 알림 창은 내림) · 안 보이면 위쪽 알림 창에 「건너뜀」
+  if (_potgMode === 'wait' && potgWin && !potgWin.isDestroyed() && potgWin.isVisible()) hideRecToast(); else showRecToast('🚫 팟지 건너뜀 · 이번 판은 팟지 없이 넘어가요', null);
+  _waitKeep = _waitCache ? String(_waitCache.id) : _waitKeep;
   fbUpdate(`${RP()}/potgWait`, { skipped: config.myName || '녹화한 사람', skippedAt: Date.now() }).catch(() => {});
   fbSet(`${RP()}/potgRec`, null).catch(() => {});   // v0.1.210 친구들 「○○님 PC에서 찍는 중」 안내를 바로 내림
 });

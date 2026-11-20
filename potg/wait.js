@@ -100,9 +100,9 @@
   // ── 📊 이번 판 기록 ──
   function stats(v) {
     const box = (title, f, unit) => {
-      const xs = v.stats.slice().sort((a, b) => f(b) - f(a)).filter(p => f(p) > 0).slice(0, 5), top = xs.length ? f(xs[0]) : 1;
+      const g = p => +f(p) || 0, xs = v.stats.slice().sort((a, b) => g(b) - g(a)).filter(p => g(p) > 0).slice(0, 5), top = xs.length ? g(xs[0]) : 1;   // v0.1.240 빈 값(NaN)이 섞여도 순서가 안 깨지게
       return `<div class="wr-chart"><h4>${E(title)}</h4>${xs.map(p => `<div class="row tm${p.tm === 200 ? 2 : 1}">${face(p.c, 'sm', p.cn)}<span class="nm">${E(p.n)}</span>
-        <span class="bar"><i style="width:${Math.max(3, f(p) / top * 100)}%"></i></span><b class="num">${num(f(p))}${unit || ''}</b></div>`).join('') || '<div class="none">기록 없음</div>'}</div>`;
+        <span class="bar"><i style="width:${Math.min(100, Math.max(3, g(p) / top * 100))}%"></i></span><b class="num">${num(g(p))}${unit || ''}</b></div>`).join('') || '<div class="none">기록 없음</div>'}</div>`;
     };
     return `<div class="wr-grid4">${box('피해량', p => p.dmg)}${box('받은 피해', p => p.tk)}${box('아군 힐·보호막', p => p.heal || p.selfHeal)}${box('CC 건 시간', p => p.cc, '초')}</div>`;
   }
@@ -184,13 +184,13 @@
     const first = !V;
     V = v; room.style.display = '';
     if (first) { autoAt = Date.now(); $('wr-steps').innerHTML = STEPS(v).map(s => `<span>${E(s)}</span>`).join(''); }
-    $('wr-who').textContent = v.skipped ? `${v.skipped === v.me ? '내가' : v.skipped + '님이'} 이번 판 팟지를 건너뛰었어요`   // 🚫 v0.1.118
+    $('wr-who').textContent = v.skipped ? '이 창은 닫을 때까지 계속 볼 수 있어요'   // 🚫 v0.1.240 건너뛴 사람은 아래 알림 줄에
       : v.who && v.me && v.who === v.me ? '내 PC에서 리플레이로 찍는 중' : v.who ? `${v.who}님 PC에서 리플레이로 찍는 중` : '리플레이로 찍는 중';   // v0.1.92: 방장 본인은 자기 PC가 찍는 걸 알게
     room.classList.toggle('skipped', !!v.skipped);
-    { // 🚫 v0.1.190 건너뛰면 모두에게 가운데 큰 안내(사장님: 팀원도 건너뛴 걸 알게 — 예전엔 위 작은 글 한 줄뿐)
+    { // 🚫 v0.1.190 건너뛰면 모두에게 안내 · v0.1.240(사장님: 건너뛰었을 때 화면을 못 누르면 안 됨 · 알림만 뜨고 뒤 화면은 봐야 함 · 알림이 두 종류) = 창을 덮던 큰 카드 → 진행 막대 자리의 알림 줄 하나(탭·「내 판」 그대로 누름)
       const sk = $('wr-skipped');
       if (sk) { const was = !sk.hidden; sk.hidden = !v.skipped; if (v.skipped && !was) { $('wr-sk-who').textContent = v.skipped === v.me ? '내가 이번 판 팟지를 건너뛰었어요' : `${v.skipped}님이 이번 판 팟지를 건너뛰었어요`; } }
-      const t = room.querySelector('.wr-ttl b'); if (t) t.textContent = v.skipped ? '팟지 건너뜀' : '팟지 준비 중';
+      const t = room.querySelector('.wr-ttl b'); if (t) t.textContent = v.skipped ? '이번 판 기록' : '팟지 준비 중';
     }
     skipBtn(v);
     prog(); render();
