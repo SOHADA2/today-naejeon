@@ -185,7 +185,7 @@ function makeReplayRec(d) {
         if (!muted && d.muteAudio) { const np = (await gamePids()).find(x => !before.includes(x)); if (np) { replayPid = np; await mute(true); } }
         await sleep(1000);
       }
-      if (!len) { log('리플레이 창구가 안 열림(EnableReplayApi?)'); return null; }
+      if (!len) { log(_cancel ? '건너뛰기 — 리플레이 여는 중에 그만' : '리플레이 창구가 안 열림(EnableReplayApi?)'); return null; }
       replayPid = (await gamePids()).find(x => !before.includes(x)) || replayPid;
       log(`리플레이 열림 · 길이 ${Math.round(len)}초 · 프로세스 ${replayPid || '?'} (${sec()}초)`);
       await mute(true);
@@ -410,6 +410,20 @@ function makeReplayRec(d) {
           return clip.p;
       }
     } finally {
+      // 🚫 v0.1.241(사장님: 리플레이가 켜지는 순간 건너뛰면 내 화면에 리플레이 화면이 뜸) — 열기 요청 직후 롤이 리플레이 프로그램을 띄우는 몇 초 사이에 건너뛰면
+      //   ① 아직 리플레이 프로그램이 없고 롤 상태도 WatchInProgress 전이라 closeReplay가 「닫을 것 없음」으로 끝남 ② 바로 아래에서 창 숨기기도 꺼짐
+      //   ③ 몇 초 뒤 리플레이 창이 떠서 그대로 화면에 남았음 → 열기 요청을 보냈는데 리플레이를 아직 못 찾았으면 뜰 때까지 기다렸다가(최대 30초 · 숨기기는 켠 채) 닫음
+      //   · 그사이 실제 게임·큐·챔피언 선택이 시작되면 안 건드림(새로 생긴 프로세스가 실제 게임일 수 있음)
+      if (!replayPid) {
+        for (let i = 0; i < 30; i++) {
+          const np = (await gamePids()).find(x => !before.includes(x)); if (np) { replayPid = np; break; }
+          const p2 = await d.lcuRaw('GET', '/lol-gameflow/v1/gameflow-phase').catch(() => null), ph2 = p2 && p2.status === 200 ? p2.data : null;
+          if (ph2 === 'WatchInProgress') break;   // closeReplay가 닫음
+          if (['GameStart', 'InProgress', 'Reconnect', 'ChampSelect', 'Matchmaking', 'ReadyCheck'].includes(ph2)) { log('리플레이를 기다리는 사이 실제 게임·큐 시작 → 안 닫음'); break; }
+          if (i === 0) log('리플레이가 아직 안 떴음 → 뜰 때까지 기다렸다 닫음(숨긴 채)');
+          await sleep(1000);
+        }
+      }
       await mute(false);   // ⚠️ 닫기 전에 꼭 — 윈도우가 음소거를 기억해 다음 실제 게임까지 소리가 안 날 수 있음
       await closeReplay(replayPid);   // 열기 요청을 보냈으면 늘 정리(창구가 안 열렸어도 게임 창은 떴을 수 있음) · 리플레이 프로세스만
       if (hid) { const h = hid.stop(); if (h != null) log(`창 숨김 ${h}회`); }

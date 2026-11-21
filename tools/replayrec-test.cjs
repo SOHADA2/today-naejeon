@@ -19,7 +19,7 @@ async function run(name, opt) {
     if (p === '/lol-gameflow/v1/gameflow-phase') return { status: 200, data: st.phase };
     if (p === `/lol-replays/v1/metadata/${GID}`) return { status: 200, data: { state: st.meta } };
     if (m === 'POST' && p.endsWith('/download/graceful')) { setTimeout(() => st.meta = 'watch', 1500); return { status: 204 }; }
-    if (m === 'POST' && p.endsWith('/watch')) { st.cfgDuring = fs.readFileSync(path.join(lolDir, 'Config', 'game.cfg'), 'utf8'); st.phase = 'WatchInProgress'; if (opt.realGameAfter) setTimeout(() => { st.phase = 'GameStart'; }, opt.realGameAfter); if (!opt.noapi) setTimeout(() => st.api = true, 1200); return { status: 204 }; }
+    if (m === 'POST' && p.endsWith('/watch')) { st.cfgDuring = fs.readFileSync(path.join(lolDir, 'Config', 'game.cfg'), 'utf8'); if (opt.cancelOnWatch) setTimeout(() => rr.cancel(), opt.cancelOnWatch); if (opt.slowWatch) { st.phase = 'EndOfGame'; setTimeout(() => { st.phase = 'WatchInProgress'; st.api = true; }, opt.slowWatch); return { status: 204 }; } st.phase = 'WatchInProgress'; if (opt.realGameAfter) setTimeout(() => { st.phase = 'GameStart'; }, opt.realGameAfter); if (!opt.noapi) setTimeout(() => st.api = true, 1200); return { status: 204 }; }
     return { status: 404 };
   };
   const srv = https.createServer(tls, async (req, res) => {
@@ -43,7 +43,7 @@ async function run(name, opt) {
     }
     send(404, {});
   }).listen(29990, '127.0.0.1');
-  const rr = makeReplayRec({ lcuRaw, lolDir: () => lolDir, log: m => opt.v && console.log('   ', m), kill: async () => { st.killed++; st.api = false; st.phase = 'EndOfGame'; }, liveBase: 'https://127.0.0.1:29990', docsDir, outDir, loadWaitSec: 6, restoreFile: path.join(TMP, name, 'restore.json'),
+  const rr = makeReplayRec({ lcuRaw, lolDir: () => lolDir, log: m => opt.v && console.log('   ', m), kill: async () => { st.killed++; st.killHidden = st.hidden; st.api = false; st.phase = 'EndOfGame'; }, liveBase: 'https://127.0.0.1:29990', docsDir, outDir, loadWaitSec: 6, restoreFile: path.join(TMP, name, 'restore.json'),
     hideWindow: () => { st.hidden = true; st.hides++; return { stop: () => { st.hidden = false; return 3; }, show: () => { st.hidden = false; st.shown++; } }; } });
   const t = Date.now();
   if (opt.cancelAfter) setTimeout(() => rr.cancel(), opt.cancelAfter);   // 🚫 v0.1.118 팟지 건너뛰기
@@ -91,6 +91,8 @@ async function run(name, opt) {
   ok(Array.isArray(r.out) && r.out.every(x => x === null) && r.st.killed === 1 && cfgBack(r.cfg) && !r.restoreLeft && Number(r.sec) < 12, `영상 없음 ${JSON.stringify(r.out)} · 리플레이 닫음 ${r.st.killed}번 · 창 설정 되돌림 ${cfgBack(r.cfg)} · ${r.sec}초`);
   console.log('■ skip0 — 리플레이 열기 전에 건너뛰기'); r = await run('skip0', { cancelAfter: 300 });
   ok(r.out === null && !r.calls.some(c => c.endsWith('/watch')) && r.st.killed === 0, `안 열고 그만(${r.sec}초)`);
+  console.log('■ skipLoad — 리플레이가 뜨는 중(롤이 아직 리플레이 상태 전)에 건너뛰기(v0.1.241)'); r = await run('skipLoad', { slowWatch: 2500, cancelOnWatch: 300 });
+  ok(r.out === null && r.calls.some(c => c.endsWith('/watch')) && r.st.killed === 1 && r.st.killHidden === true && !r.st.hidden, `리플레이가 뜰 때까지 기다렸다 닫음(숨긴 채로 닫음 ${r.st.killHidden} · 닫은 뒤 숨기기 끔 · ${r.sec}초)`);
   console.log('■ ingame — 실제 게임 중'); r = await run('ingame', { phase: 'InProgress' });
   ok(r.out === null && !r.calls.some(c => c.endsWith('/watch')) && r.st.killed === 0, '아무것도 안 열고 아무것도 안 닫음');
   console.log(fail ? `\n❌ ${fail}건 실패` : '\n✅ 전부 통과');
