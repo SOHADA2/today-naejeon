@@ -770,7 +770,7 @@ function stopDockStream() { if (dockProc) { try { dockProc.kill(); } catch (_) {
 // ── HTTPS GET (JSON) ────────────────────────────────────────────────────
 // 🔐 우리 Firebase 주소(문자열)면 로그인 표식을 붙여 읽음(v0.1.98)
 function getJson(opts) {
-  if (typeof opts === 'string' && opts.startsWith(FIREBASE_DB + '/')) return fbToken().then(tok => getJsonRaw(withAuth(opts, tok)));
+  if (typeof opts === 'string' && opts.startsWith(FIREBASE_DB + '/')) return fbToken().then(tok => getJsonRaw(withAuth(opts, tok))).then(x => x && typeof x === 'object' && x.error === 'Permission denied' ? null : x);   // 🔐 v0.1.243 읽기가 막힌 칸 = 없음으로
   return getJsonRaw(opts);
 }
 const withAuth = (url, tok) => !tok || tok === NOAUTH ? url : `${url}${url.includes('?') ? '&' : '?'}auth=${tok}`;
@@ -1635,6 +1635,17 @@ function roomStreams() {   // 방 바뀜 → 방 스트림 다시(예전 방 데
     if ((p.bridge && p.bridge.eogStats) !== (c.bridge && c.bridge.eogStats) && config.isHost) runHost();      // ⚡ 경기 종료 → 방장 앱이 바로 기록
   }, RP());
 }
+// 🔐 v0.1.243 보안 2단계 준비 — 서버 규칙이 「rooms/{방}/uids/{내 uid}가 있는 사람만 방 안에 쓰기」가 되면 이 칸이 다른 방 쓰기보다 먼저 있어야 함
+//   롤 계정 로그인이면 uid = puuid · 표식을 먼저 받아(계정이 막 바뀐 때 익명 uid로 쓰지 않게) 씀 · 실패하면 방에 안 들어감(나중에 써도 다른 쓰기가 다 막힘)
+async function roomUidPut(id) {
+  if (!account) return { ok: true };
+  await fbToken().catch(() => null);
+  const uid = fbUid(); if (!uid) return { ok: true };
+  const k = id + '|' + account.puuid + '|' + uid; if (_roomUidKey === k) return { ok: true };
+  const w = await fbSet(`${T}/rooms/${id}/uids/${uid}`, account.puuid).catch(() => null);
+  if (!w || !w.ok) { console.log('[room] 방 기기 칸 못 씀', w && w.status); return { ok: false, err: '롤 계정 확인이 안 돼서 방에 못 들어갔어요 · 잠시 뒤 다시 해 주세요' }; }
+  _roomUidKey = k; return { ok: true };
+}
 async function roomJoin(id, pw, hash) {
   if (!account) return { ok: false, err: '롤에 로그인하면 방에 들어갈 수 있어요' };
   if (!_live) return { ok: false, err: '지금은 자리가 꽉 찼어요' };
@@ -1647,6 +1658,7 @@ async function roomJoin(id, pw, hash) {
   }
   if (room && room.id === id) return { ok: true };
   if (room) await roomLeave(true);
+  { const u = await roomUidPut(id); if (!u.ok) return u; }   // 🔐 v0.1.243 맨 먼저
   room = { id, name: r.name, priv: !!r.priv, h };
   config.lastRoom = { id, h }; saveConfig();
   fbSet(`${T}/rooms/${id}/lobby/kick/${account.puuid}`, null).catch(() => {});   // 🚪 v0.1.217 예전에 내보내졌던 표시는 지움(내가 다시 들어온 것)
@@ -1693,6 +1705,7 @@ async function roomCreate(name, priv, pw) {
   const id = 'r' + Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 6), now = Date.now();
   const meta = { name: nm, priv: !!priv, pw: priv ? pwHash(id, p) : null, host: account.gameName, at: now, seen: now, by: account.gameName };
   const w = await fbSet(`${T}/roomList/${id}`, meta); if (!w.ok) return w;
+  { const u = await roomUidPut(id); if (!u.ok) { fbSet(`${T}/roomList/${id}`, null).catch(() => {}); return u; } }   // 🔐 v0.1.243 방장 칸보다 먼저
   await fbSet(`${T}/rooms/${id}/host`, { puuid: account.puuid, name: account.gameName, at: now });   // 👑 만든 사람 = 방장(방 스트림이 받아 자동으로 방장이 됨)
   roomListRaw = Object.assign({}, roomListRaw, { [id]: meta });
   return roomJoin(id, null, meta.pw);
@@ -1704,10 +1717,10 @@ async function roomLeave(quiet) {
     const next = roomMembers(id).filter(m => !account || m.key !== account.puuid).sort((a, b) => a.key.localeCompare(b.key))[0];
     if (next) await handHost(next.key).catch(() => {}); else await releaseHost().catch(() => {});
   }
-  if (account) { fbSet(`${T}/rooms/${id}/lobby/join/${account.puuid}`, null).catch(() => {}); fbSet(`${T}/rooms/${id}/lobby/chat/${account.puuid}`, null).catch(() => {}); fbSet(`${T}/rooms/${id}/lobby/ping/${account.puuid}`, null).catch(() => {}); fbSet(`${T}/rooms/${id}/lobby/cping/${account.puuid}`, null).catch(() => {}); }   // 💬 내 한마디·📍 핑도 같이
-  if (account) fbSet(`${T}/rooms/${id}/members/${account.puuid}`, null).catch(() => {});   // 📦 방 사람 칸
-  { const uid = fbUid(); if (uid) fbSet(`${T}/rooms/${id}/uids/${uid}`, null).catch(() => {}); if (account) fbSet(`${T}/rooms/${id}/dc/${account.puuid}`, null).catch(() => {}); _roomUidKey = null; _dcRoomKey = null; }   // 🔐 v0.1.236
-  room = null; config.lastRoom = null; saveConfig();
+  const uid = fbUid(), dels = account ? ['lobby/join', 'lobby/chat', 'lobby/ping', 'lobby/cping', 'members', 'dc'].map(k => fbSet(`${T}/rooms/${id}/${k}/${account.puuid}`, null).catch(() => {})) : [];   // 💬 내 한마디·📍 핑·📦 방 사람 칸·디스코드 사본
+  room = null; config.lastRoom = null; saveConfig(); _roomUidKey = null; _dcRoomKey = null;   // 먼저 방을 비움(지우는 사이 접속 신호가 방 사람 칸을 다시 쓰지 않게)
+  await Promise.all(dels);
+  if (uid) fbSet(`${T}/rooms/${id}/uids/${uid}`, null).catch(() => {});   // 🔐 v0.1.236 · v0.1.243 = 다른 칸을 다 지운 뒤에(먼저 지우면 2단계 규칙에서 나머지가 막힘)
   roomStreams();
   await beatPresence();
   broadcastRooms();
@@ -1724,7 +1737,7 @@ function roomAutoHost() {   // 👑 방장이 없거나 1분 넘게 응답 없�
   }
 }
 async function roomGc() {   // 🧹 아무도 없는 방 지우기(아무 앱이나 · 30초마다)
-  if (Date.now() - _gcAt < 30000 || !(MIR.roomList && MIR.roomList.ready)) return;   // 📦 v0.1.110: 방 목록을 보는 앱(방 밖)만
+  if (Date.now() - _gcAt < 30000 || !(MIR.roomList && MIR.roomList.ready) || !account) return;   // 🔐 v0.1.243 게스트는 지울 권한 없음   // 📦 v0.1.110: 방 목록을 보는 앱(방 밖)만
   _gcAt = Date.now();
   for (const [id, r] of Object.entries(roomListRaw || {})) {
     if (room && room.id === id) continue;
@@ -4062,7 +4075,8 @@ function dcLink() {   // 내 디스코드 번호·켜짐·연결한 서버 → t
 }
 async function dcMapGet(fresh) {   // today/discord 전체(작음 · 1분 보관)
   if (!fresh && _dcMap && Date.now() - _dcMapAt < 60000) return _dcMap;
-  let m = await getJson(`${FIREBASE_DB}/${T}/discord.json`).catch(() => undefined);
+  const own = account ? await getJson(`${FIREBASE_DB}/${T}/discord/${account.puuid}.json`).catch(() => undefined) : null;   // 🔐 v0.1.243 내 칸만(남의 디스코드 = 같은 방 사본)
+  let m = own === undefined ? undefined : (own && typeof own === 'object' && own.id ? { [account.puuid]: own } : {});
   const rdc = room ? await roomPart('dc', () => roomGet('dc')).catch(() => null) : null;   // 🔐 v0.1.236 같은 방 사람 사본
   if (rdc && typeof rdc === 'object') m = Object.assign({}, m || {}, rdc);
   if (m !== undefined) { const ch = JSON.stringify(m) !== JSON.stringify(_dcMap); _dcMap = m || {}; _dcMapAt = Date.now(); if (ch) broadcast('lobby', lobbyView()); }
