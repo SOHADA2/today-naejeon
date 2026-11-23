@@ -1,10 +1,9 @@
 {
   "rules": {
     "today": {
-      ".read": "auth != null",
       "presence": {
         "$k": {
-          ".write": "auth != null",
+          ".write": "auth != null && (auth.uid === $k || $k.beginsWith('g_'))",
           ".validate": "$k.length <= 80 && newData.hasChildren(['name', 'at'])",
           "name": {
             ".validate": "newData.isString() && newData.val().length <= 40"
@@ -30,17 +29,19 @@
           "$other": {
             ".validate": false
           }
-        }
+        },
+        ".read": "auth != null"
       },
       "conns": {
         "$dev": {
           ".write": "auth != null",
           ".validate": "newData.isNumber() && $dev.length <= 40"
-        }
+        },
+        ".read": "auth != null"
       },
       "roomList": {
         "$rid": {
-          ".write": "auth != null",
+          ".write": "auth != null && auth.token.riot === true && (!data.exists() || root.child('today/rooms/' + $rid + '/uids/' + auth.uid).exists() || (!newData.exists() && (!data.child('seen').exists() || data.child('seen').val() < now - 90000) && (!data.child('at').exists() || data.child('at').val() < now - 90000)))",
           ".validate": "$rid.length <= 40 && newData.hasChild('name')",
           "name": {
             ".validate": "newData.isString() && newData.val().length <= 40"
@@ -72,13 +73,16 @@
           "$other": {
             ".validate": false
           }
-        }
+        },
+        ".read": "auth != null"
       },
       "rooms": {
         "$rid": {
-          ".write": "auth != null && ($rid !== '_none')",
+          ".write": "auth != null && auth.token.riot === true && !newData.exists() && !root.child('today/roomList/' + $rid).exists()",
           ".validate": "$rid.length <= 40",
-          "session": {},
+          "session": {
+            ".write": "auth != null && auth.token.riot === true && root.child('today/rooms/' + $rid + '/uids/' + auth.uid).exists()"
+          },
           "lobby": {
             "chat": {
               "$k": {
@@ -91,15 +95,39 @@
                 },
                 "$other": {
                   ".validate": false
-                }
+                },
+                ".write": "auth != null && auth.token.riot === true && auth.uid === $k"
               }
+            },
+            "ping": {
+              "$k": {
+                ".write": "auth != null && auth.token.riot === true && auth.uid === $k"
+              }
+            },
+            "cping": {
+              "$k": {
+                ".write": "auth != null && auth.token.riot === true && auth.uid === $k"
+              }
+            },
+            "$other": {
+              ".write": "auth != null && auth.token.riot === true && root.child('today/rooms/' + $rid + '/uids/' + auth.uid).exists()"
             }
           },
-          "host": {},
-          "normalLive": {},
-          "potgWait": {},
-          "potgRec": {},
-          "bridge": {},
+          "host": {
+            ".write": "auth != null && auth.token.riot === true && root.child('today/rooms/' + $rid + '/uids/' + auth.uid).exists()"
+          },
+          "normalLive": {
+            ".write": "auth != null && auth.token.riot === true && root.child('today/rooms/' + $rid + '/uids/' + auth.uid).exists()"
+          },
+          "potgWait": {
+            ".write": "auth != null && auth.token.riot === true && root.child('today/rooms/' + $rid + '/uids/' + auth.uid).exists()"
+          },
+          "potgRec": {
+            ".write": "auth != null && auth.token.riot === true && root.child('today/rooms/' + $rid + '/uids/' + auth.uid).exists()"
+          },
+          "bridge": {
+            ".write": "auth != null && auth.token.riot === true && root.child('today/rooms/' + $rid + '/uids/' + auth.uid).exists()"
+          },
           "members": {
             "$k": {
               ".validate": "$k.length <= 80 && newData.hasChildren(['name', 'at'])",
@@ -126,12 +154,14 @@
               },
               "$other": {
                 ".validate": false
-              }
+              },
+              ".write": "auth != null && auth.token.riot === true && auth.uid === $k"
             }
           },
           "uids": {
             "$uid": {
-              ".validate": "auth.uid === $uid && newData.isString() && newData.val().length <= 80"
+              ".validate": "auth.uid === $uid && newData.isString() && newData.val().length <= 80",
+              ".write": "auth != null && auth.token.riot === true && auth.uid === $uid && (!newData.exists() || root.child('today/roomList/' + $rid).exists())"
             }
           },
           "dc": {
@@ -160,13 +190,15 @@
               },
               "$other": {
                 ".validate": false
-              }
+              },
+              ".write": "auth != null && auth.token.riot === true && auth.uid === $puuid"
             }
           },
           "$other": {
             ".validate": false
           }
-        }
+        },
+        ".read": "auth != null && auth.token.riot === true"
       },
       "bridge": {
         "gamePhase": {
@@ -191,25 +223,27 @@
           "$id": {
             ".write": "auth != null"
           }
-        }
+        },
+        ".read": "auth != null"
       },
       "potg": {
         "raw": {
           "$day": {
-            ".write": "auth != null && (!newData.exists())",
+            ".write": "auth != null && auth.token.riot === true && (!newData.exists())",
             "$gid": {
               "$k": {
-                ".write": "auth != null"
+                ".write": "auth != null && auth.token.riot === true"
               }
             }
           }
-        }
+        },
+        ".read": "auth != null"
       },
       "clips": {
         "$day": {
-          ".write": "auth != null && (!newData.exists())",
+          ".write": "auth != null && auth.token.riot === true && (!newData.exists())",
           "$gid": {
-            ".write": "auth != null",
+            ".write": "auth != null && auth.token.riot === true",
             "meta": {},
             "c": {
               "$i": {
@@ -220,11 +254,12 @@
               ".validate": false
             }
           }
-        }
+        },
+        ".read": "auth != null"
       },
       "accounts": {
         "$puuid": {
-          ".write": "auth != null && (newData.exists() || root.child('today/owners/' + $puuid + '/' + auth.uid).exists())",
+          ".write": "auth != null && auth.uid === $puuid",
           ".validate": "$puuid.length <= 80",
           "name": {
             ".validate": "newData.isString() && newData.val().length <= 40"
@@ -241,26 +276,28 @@
           "$other": {
             ".validate": false
           }
-        }
+        },
+        ".read": "auth != null"
       },
       "augGuide": {
         "champs": {
           "$id": {
-            ".write": "auth != null"
+            ".write": "auth != null && auth.token.riot === true"
           }
         },
         "hist": {
           "$id": {
             "$k": {
-              ".write": "auth != null && (!data.exists() || (!newData.exists() && data.child('at').val() < now - 259200000))"
+              ".write": "auth != null && auth.token.riot === true && (!data.exists() || (!newData.exists() && data.child('at').val() < now - 259200000))"
             }
           }
         },
         "recent": {
           "$k": {
-            ".write": "auth != null && (!data.exists() || (!newData.exists() && data.child('at').val() < now - 259200000))"
+            ".write": "auth != null && auth.token.riot === true && (!data.exists() || (!newData.exists() && data.child('at').val() < now - 259200000))"
           }
-        }
+        },
+        ".read": "auth != null"
       },
       "days": {
         "$day": {
@@ -268,41 +305,51 @@
           "$kind": {
             ".validate": "$kind === 'matches' || $kind === 'normals'",
             "$gid": {
-              ".write": "auth != null && (!data.exists() && newData.exists() && newData.child('sv').val() === now)",
+              ".write": "auth != null && auth.token.riot === true && (!data.exists() && newData.exists() && newData.child('sv').val() === now) && ($kind === 'normals' || (newData.child('roomId').isString() && root.child('today/rooms/' + newData.child('roomId').val() + '/uids/' + auth.uid).exists()))",
               "potg": {
-                ".write": "auth != null && (data.parent().child('sv').val() > now - 21600000)"
+                ".write": "auth != null && auth.token.riot === true && (data.parent().child('sv').val() > now - 21600000)"
               },
               "potgRec": {
-                ".write": "auth != null && (data.parent().child('sv').val() > now - 21600000)"
+                ".write": "auth != null && auth.token.riot === true && (data.parent().child('sv').val() > now - 21600000)"
               },
               "guess": {
-                ".write": "auth != null && (data.parent().child('sv').val() > now - 21600000)"
+                ".write": "auth != null && auth.token.riot === true && (data.parent().child('sv').val() > now - 21600000)"
               },
               "mvp": {
-                ".write": "auth != null && (data.parent().child('sv').val() > now - 21600000)"
+                ".write": "auth != null && auth.token.riot === true && (data.parent().child('sv').val() > now - 21600000)"
               },
               "svp": {
-                ".write": "auth != null && (data.parent().child('sv').val() > now - 21600000)"
+                ".write": "auth != null && auth.token.riot === true && (data.parent().child('sv').val() > now - 21600000)"
               },
               "manner": {
-                ".write": "auth != null && (data.parent().child('sv').val() > now - 21600000)"
+                ".write": "auth != null && auth.token.riot === true && (data.parent().child('sv').val() > now - 21600000)"
               },
               "votes": {
-                ".write": "auth != null && (data.parent().child('sv').val() > now - 21600000)"
+                ".write": "auth != null && auth.token.riot === true && (data.parent().child('sv').val() > now - 21600000)"
               }
             },
             ".indexOn": [
               "roomName"
             ]
           }
-        }
+        },
+        ".read": "auth != null"
       },
       "config": {
-        ".write": false
+        ".write": false,
+        "connCap": {
+          ".read": "auth != null"
+        },
+        "clipProxy": {
+          ".read": "auth != null"
+        },
+        "discordApp": {
+          ".read": "auth != null"
+        }
       },
       "discord": {
         "$puuid": {
-          ".write": "auth != null && $puuid.length <= 80",
+          ".write": "auth != null && auth.uid === $puuid",
           ".validate": "newData.hasChildren(['id', 'at'])",
           "id": {
             ".validate": "newData.isString() && newData.val().matches(/^[0-9]{15,21}$/)"
@@ -327,12 +374,13 @@
           },
           "$other": {
             ".validate": false
-          }
+          },
+          ".read": "auth != null && auth.uid === $puuid"
         }
       },
       "ratings": {
         "$puuid": {
-          ".write": "auth != null && $puuid.length <= 80",
+          ".write": "auth != null && auth.uid === $puuid",
           ".validate": "newData.hasChildren(['at'])",
           "at": {
             ".validate": "newData.isNumber()"
@@ -464,13 +512,14 @@
           "$other": {
             ".validate": false
           }
-        }
+        },
+        ".read": "auth != null"
       },
       "owners": {
         "$puuid": {
           ".validate": "$puuid.length <= 80",
           "$uid": {
-            ".write": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && auth.uid === $uid && auth.uid === $puuid",
             ".validate": "newData.isNumber()"
           }
         }
