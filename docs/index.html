@@ -230,6 +230,61 @@ button { font:inherit; color:inherit; background:none; border:0; cursor:pointer;
 .feat ul { list-style:none; margin-top:20px; border-top:1px solid var(--rule); max-width:38em; }
 .feat li { padding:12px 0; border-bottom:1px solid var(--rule); color:var(--ink-2); font-size:15px; }
 .feat li b { color:var(--ink); font-weight:700; }
+/* 🧭 2026-11-23 「이렇게 진행됩니다」 = 단계 4개 + 화면 예시 + 설명(한 칸) */
+.tour { display:grid; grid-template-columns:minmax(0, 270px) minmax(0, 300px) minmax(0, 1fr); gap:28px clamp(28px, 4vw, 56px); margin-top:clamp(32px, 5vw, 56px); align-items:start; }
+.tour-steps { list-style:none; border-top:1px solid var(--rule-2); }
+.tour-steps button { all:unset; box-sizing:border-box; cursor:pointer; display:grid; grid-template-columns:34px minmax(0, 1fr); gap:3px 8px; width:100%; padding:16px 12px 16px 14px; border-bottom:1px solid var(--rule); border-left:2px solid transparent; transition:background .2s; }
+.tour-steps .n { grid-row:span 2; font:700 13px var(--mono); color:var(--ink-3); padding-top:4px; }
+.tour-steps b { font-size:17px; font-weight:800; letter-spacing:-0.02em; color:var(--ink-2); }
+.tour-steps small { font-size:13px; color:var(--ink-3); line-height:1.45; }
+.tour-steps button:hover b { color:var(--ink); }
+.tour-steps button.on { border-left-color:var(--gold); background:linear-gradient(90deg, rgba(214,179,106,.10), transparent 80%); }
+.tour-steps button.on .n { color:var(--gold); } .tour-steps button.on b { color:var(--ink); } .tour-steps button.on small { color:var(--ink-2); }
+.tour-steps button:focus-visible { outline:2px solid var(--gold); outline-offset:-2px; }
+.tour-shot .mock[hidden], .tour-tx[hidden] { display:none; }
+.tour-tx h3 { font-size:clamp(22px, 2.3vw, 30px); line-height:1.25; font-weight:800; letter-spacing:-0.04em; }
+.tour-tx > p { margin-top:12px; color:var(--ink-2); font-size:15.5px; }
+.tour-tx ul { list-style:none; margin-top:18px; border-top:1px solid var(--rule); }
+.tour-tx li { padding:11px 0; border-bottom:1px solid var(--rule); color:var(--ink-2); font-size:14.5px; }
+.tour-tx li b { color:var(--ink); font-weight:700; }
+/* 「판이 끝나면」 */
+.hl { display:grid; grid-template-columns:minmax(0, 1.3fr) minmax(0, 1fr); gap:28px clamp(28px, 5vw, 72px); align-items:center; margin-top:clamp(32px, 5vw, 56px); }
+.hl-v { position:relative; aspect-ratio:16 / 9; background:#000; border:1px solid var(--rule-2); overflow:hidden; }
+.hl-v video { width:100%; height:100%; object-fit:cover; display:block; }
+.hl-v .tag { position:absolute; right:12px; top:10px; font-size:12px; color:rgba(236,230,218,.8); text-shadow:0 1px 4px #000; }
+.hl-list { list-style:none; border-top:1px solid var(--rule-2); }
+.hl-list li { padding:15px 0; border-bottom:1px solid var(--rule); }
+.hl-list b { display:block; font-size:17px; font-weight:800; letter-spacing:-0.02em; }
+.hl-list b small { font:700 11px var(--mono); color:var(--gold); letter-spacing:.12em; margin-right:10px; vertical-align:2px; }
+.hl-list span { display:block; margin-top:4px; color:var(--ink-2); font-size:14.5px; }
+/* 기능 카드 */
+.cards { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:1px; background:var(--rule); border:1px solid var(--rule); margin-top:clamp(32px, 5vw, 56px); }
+.cards > div { background:var(--bg); padding:22px 20px 26px; }
+.cards .k { font:700 11px var(--mono); letter-spacing:.14em; color:var(--gold); }
+.cards h3 { margin-top:10px; font-size:18px; font-weight:800; letter-spacing:-0.03em; }
+.cards p { margin-top:8px; color:var(--ink-2); font-size:14.5px; }
+/* 스마트 앱 컨트롤 = 접음 */
+details.sac summary { list-style:none; cursor:pointer; font-size:15px; font-weight:700; line-height:1.45; display:flex; gap:12px; justify-content:space-between; }
+details.sac summary::-webkit-details-marker { display:none; }
+details.sac summary::after { content:'+'; font-family:var(--mono); color:var(--ink-3); font-weight:500; }
+details.sac[open] summary::after { content:'−'; }
+@media (max-width:1100px) {
+  .tour { grid-template-columns:minmax(0, 300px) minmax(0, 1fr); }
+  .tour-steps { grid-column:1 / -1; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); border-top:0; }
+  .tour-steps button { border-left:0; border-bottom:2px solid var(--rule); height:100%; }
+  .tour-steps button.on { border-bottom-color:var(--gold); background:linear-gradient(0deg, rgba(214,179,106,.10), transparent 80%); }
+  .cards { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width:900px) { .hl { grid-template-columns:minmax(0, 1fr); } }
+@media (max-width:640px) {
+  .tour { grid-template-columns:minmax(0, 1fr); }
+  .tour-steps { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .tour-steps small { display:none; }
+  .tour-shot { max-width:320px; width:100%; justify-self:center; }
+  .cards { grid-template-columns:minmax(0, 1fr); }
+  .cards > div { padding:16px 18px 18px; }
+  .cards h3 { margin-top:6px; font-size:17px; }
+}
 .more { list-style:none; border-top:1px solid var(--rule-2); }
 .more > div { display:grid; grid-template-columns:minmax(0, 170px) minmax(0, 1fr); gap:6px 32px; padding:18px 0; border-bottom:1px solid var(--rule); }
 .more dt { font-weight:700; font-size:15px; }
@@ -364,7 +419,7 @@ footer p + p { margin-top:6px; }
 <header class="top">
   <div class="wrap">
     <a class="mark" href="#top"><img src="img/icon.png" alt="">투데이 내전</a>
-    <nav aria-label="페이지 안 이동"><a href="#how">진행 순서</a><a href="#features">기능</a><a href="#install">설치</a><a href="#faq">질문</a></nav>
+    <nav aria-label="페이지 안 이동"><a href="#how">진행</a><a href="#highlight">하이라이트</a><a href="#features">기능</a><a href="#install">설치</a><a href="#faq">질문</a></nav>
     <a class="btn btn-dl js-dl" href="https://github.com/SOHADA2/today-naejeon/releases/latest">다운로드 <span class="arrow">↓</span></a>
   </div>
 </header>
@@ -391,81 +446,74 @@ footer p + p { margin-top:6px; }
 
   <section class="sec" id="how">
     <div class="wrap">
-      <h2 data-rv>진행 순서</h2>
-      <ol class="flow" data-rv>
-        <li><span class="n">01</span><h3>방 만들기</h3><p>롤에 로그인한 계정으로 바로 들어갑니다. 한 명이 방을 만들면 나머지는 그 방에 들어오면 됩니다.</p></li>
-        <li><span class="n">02</span><h3>팀 나누기</h3><p>랜덤, 밸런스, 팀장 드래프트, 방장 직접 배치 중에서 고르고 시작을 누르면 다들 화면에 팀이 뜹니다. 디스코드를 연결해 두면 음성 채널도 1팀·2팀으로 나뉩니다.</p></li>
-        <li><span class="n">03</span><h3>게임</h3><p>사용자 설정 게임은 평소대로 하시면 됩니다. 끝나면 승패와 KDA가 자동으로 저장됩니다.</p></li>
-        <li><span class="n">04</span><h3>투표와 순위</h3><p>MVP와 매너왕을 뽑고 오늘 순위를 확인합니다. 그리고 한 판 더.</p></li>
-      </ol>
+      <h2 data-rv>이렇게 진행됩니다</h2>
+      <p class="sec-lead" data-rv>롤 클라이언트 양옆에 작은 창이 붙고, 방에 있는 모두가 같은 화면을 보면서 진행합니다.</p>
+      <div class="tour" data-rv>
+        <ol class="tour-steps" role="tablist" aria-label="진행 단계">
+          <li><button type="button" role="tab" data-s="0" class="on" aria-selected="true"><span class="n">01</span><b>방에 모이기</b><small>친구가 만든 방에 들어가면 자리에 앉습니다</small></button></li>
+          <li><button type="button" role="tab" data-s="1"><span class="n">02</span><b>팀 나누기</b><small>랜덤 · 밸런스 · 팀장 드래프트 · 직접</small></button></li>
+          <li><button type="button" role="tab" data-s="2"><span class="n">03</span><b>게임 · 결과 저장</b><small>끝나면 승패·KDA·증강이 자동으로</small></button></li>
+          <li><button type="button" role="tab" data-s="3"><span class="n">04</span><b>오늘 순위</b><small>그날 판을 모아 순위 · 그리고 한 판 더</small></button></li>
+        </ol>
+        <div class="tour-shot">
+          <div class="mock" data-mock="rooms" role="img" aria-label="방 목록에서 방에 들어가 대기실 자리에 앉는 화면"><div class="mk-top"><span>TODAY IN-HOUSE</span><em><b>방 목록</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div>
+          <div class="mock" hidden data-mock="draft" role="img" aria-label="드래프트: 팀장 두 명, 선픽 줄다리기, 차례대로 팀원 뽑기"><div class="mk-top"><span>TODAY IN-HOUSE</span><em><b>드래프트</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div>
+          <div class="mock" hidden data-mock="vote" role="img" aria-label="1팀 승리 뒤 MVP 투표가 쌓여 결정되는 화면"><div class="mk-top"><span>TODAY IN-HOUSE</span><em><b>투표</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div>
+          <div class="mock" hidden data-mock="today" role="img" aria-label="새 판 결과가 들어와 오늘 순위가 바뀌는 화면"><div class="mk-top"><span>TODAY IN-HOUSE</span><em><b>오늘</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div>
+        </div>
+        <div class="tour-tx" data-s="0">
+          <h3>방 하나에 다 같이 모입니다</h3>
+          <p>롤에 로그인한 계정으로 바로 들어갑니다. 한 명이 방을 만들면 나머지는 목록에서 골라 들어오면 됩니다.</p>
+          <ul><li>만든 사람이 방장이 되고, 방장이 나가면 남은 사람이 이어받습니다. 비밀번호를 걸 수도 있습니다.</li><li>방장이 롤 사용자 설정 방을 만들면 방 사람 모두에게 초대가 갑니다.</li><li>대기실에서 한마디, 롤 이모티콘, 롤과 같은 핑으로 이야기합니다.</li></ul>
+        </div>
+        <div class="tour-tx" data-s="1" hidden>
+          <h3>팀은 네 가지 방법으로 나눕니다</h3>
+          <p>방장이 방법을 고르고 시작을 누르면 모두의 화면에 팀이 뜹니다. 아수라장과 소환사의 협곡 둘 다 됩니다.</p>
+          <ul><li><b>랜덤</b> 버튼 한 번 · <b>밸런스</b> 우리끼리 티어와 롤 랭크로 비슷한 실력</li><li><b>팀장 드래프트</b> 줄다리기로 선픽을 정하고 30초씩 번갈아 데려갑니다</li><li><b>직접</b> 방장이 배치 · 지난 판 팀 그대로도 버튼 하나</li><li>팀이 정해지면 롤 방 자리와 디스코드 음성 채널도 1팀·2팀으로 나뉩니다.</li></ul>
+        </div>
+        <div class="tour-tx" data-s="2" hidden>
+          <h3>끝나면 알아서 기록하고 투표합니다</h3>
+          <p>사용자 설정 게임은 평소대로 하면 됩니다. 게임이 끝나면 승패, KDA, 딜량, 고른 증강까지 저장됩니다.</p>
+          <ul><li>MVP는 진 팀이 이긴 팀에서, SVP는 이긴 팀이 진 팀에서 뽑습니다. 매너왕은 모두가 뽑습니다.</li><li>투표하는 동안 그 판 하이라이트가 만들어집니다(아래).</li></ul>
+        </div>
+        <div class="tour-tx" data-s="3" hidden>
+          <h3>오늘 누가 제일 잘했는지</h3>
+          <p>그날 판들을 모아 승률, MVP·매너왕 횟수, KDA로 순위를 매깁니다. 하루는 새벽 6시에 넘어갑니다.</p>
+          <ul><li>판마다 누가 어느 팀이었는지 다시 볼 수 있습니다.</li><li>이름을 누르면 전적, 자주 하는 챔피언, 같이 하면 잘 이기는 팀원과 천적까지 담긴 프로필이 열립니다.</li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="highlight">
+    <div class="wrap">
+      <h2 data-rv>판이 끝나면, 하이라이트</h2>
+      <p class="sec-lead" data-rv>방장 PC가 롤 리플레이로 그 판 최고 장면을 찍어서 다 같이 봅니다. 따로 녹화 프로그램을 켤 필요가 없습니다.</p>
+      <div class="hl" data-rv>
+        <div class="hl-v"><video data-lazy src="img/potg.mp4" poster="img/potg-poster.jpg" muted loop playsinline preload="none"></video><span class="tag">실제 내전 팟지 · 자야 트리플킬</span></div>
+        <ul class="hl-list">
+          <li><b><small>POTG</small>팟지</b><span>킬·멀티킬·스틸·딜량으로 그 판 최고 장면을 골라 슬로모션과 자막을 넣어 보여 줍니다.</span></li>
+          <li><b><small>UNSUNG HERO</small>숨은 영웅</b><span>킬이 아니어도 버티기·광역 CC·세이브처럼 판 전체에서 압도적인 활약을 한 사람을 한 번 더 비춥니다.</span></li>
+          <li><b><small>MY GAME</small>내 판 카드</b><span>하이라이트를 기다리는 동안 내 챔피언 일러스트 위에 피해량·KDA·증강·아이템이 정리돼 나옵니다.</span></li>
+          <li><b><small>SAVE</small>영상 저장</b><span>효과와 음악까지 들어간 영상을 mp4로 저장할 수 있습니다. 하이라이트는 칼바람·아수라장 판에서 만듭니다.</span></li>
+        </ul>
+      </div>
     </div>
   </section>
 
   <section class="sec" id="features">
     <div class="wrap">
-      <h2 data-rv>기능</h2>
-      <p class="sec-lead" data-rv>롤 클라이언트 양옆에 작은 창 두 개가 붙습니다. 숨기려면 <kbd>Shift</kbd>+<kbd>F7</kbd>.</p>
-
-      <div class="feat" data-rv>
-        <div class="shot"><div class="mock" data-mock="rooms" role="img" aria-label="방 목록에서 방에 들어가 대기실 자리에 앉는 화면"><div class="mk-top"><span>TODAY IN-HOUSE</span><em><b>방 목록</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div></div>
-        <div>
-          <h3>방 목록</h3>
-          <p>친구가 만든 방을 목록에서 골라 들어갑니다. 그날 기록과 순위는 방마다 따로 쌓입니다.</p>
-          <ul>
-            <li>방을 만든 사람이 방장이 되고, 방장이 나가면 남은 사람이 자동으로 이어받습니다.</li>
-            <li>방에 비밀번호를 걸 수도 있습니다.</li>
-            <li>모두 나가면 방은 자동으로 사라집니다.</li>
-          </ul>
-        </div>
+      <h2 data-rv>그 밖에</h2>
+      <div class="cards" data-rv>
+        <div><span class="k">MAP</span><h3>소환사의 협곡 내전</h3><p>아수라장 말고 협곡 5 : 5 내전도 됩니다. 밴픽(토너먼트 교차 선택)과 블라인드(비공개 선택) 중에서 고릅니다.</p></div>
+        <div><span class="k">TIER</span><h3>우리끼리 티어</h3><p>아수라장 전적으로 매기는 브론즈~챌린저 티어입니다. 아수라장 내전과 일반 아수라장은 따로 매깁니다.</p></div>
+        <div><span class="k">AUGMENT</span><h3>증강 가이드</h3><p>챔피언 선택 때 그 챔피언의 추천 증강과 조합을 보여 줍니다(aramgg.com 통계). 증강이 어떻게 뜨는지 미리 뽑아 볼 수도 있습니다.</p></div>
+        <div><span class="k">DISCORD</span><h3>디스코드 연동</h3><p>프로필에 「투데이 내전 · 대기실 · 6명」처럼 상태가 뜨고, 방장이 서버를 연결하면 음성 채널이 1팀·2팀으로 나뉘었다 다시 모입니다.</p></div>
+        <div><span class="k">CHAT</span><h3>대기실 채팅 · 핑</h3><p>한마디와 롤 이모티콘, 롤 스마트 핑을 씁니다. 롤 클라이언트 화면 위에서도 Alt를 누른 채 끌면 핑이 찍힙니다.</p></div>
+        <div><span class="k">NORMAL</span><h3>같이 한 일반 판</h3><p>같은 방 사람끼리 칼바람·아수라장 같은 일반 게임에서 한 팀이 되면 그 판도 기록하고 하이라이트를 만듭니다.</p></div>
+        <div><span class="k">SAFE</span><h3>깨끗한 대기실</h3><p>욕설과 비속어는 보내기 전에 가려집니다. 문제가 있으면 신고할 수 있고 운영자가 경고·채팅 금지·이용 정지를 합니다.</p></div>
+        <div><span class="k">LIGHT</span><h3>가볍고 알아서</h3><p>롤 클라이언트 양옆에 작은 창 두 개가 붙습니다. 숨기려면 Shift+F7. 업데이트는 앱을 켤 때 알아서 받습니다.</p></div>
       </div>
-
-      <div class="feat" data-rv>
-        <div class="shot"><div class="mock" data-mock="draft" role="img" aria-label="드래프트: 팀장 두 명, 선픽 줄다리기, 차례대로 팀원 뽑기"><div class="mk-top"><span>TODAY IN-HOUSE</span><em><b>드래프트</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div></div>
-        <div>
-          <h3>팀장 드래프트</h3>
-          <p>팀장 두 명을 정하고, 줄다리기로 선픽을 정한 뒤, 번갈아 한 명씩 데려갑니다. 한 차례에 30초씩입니다.</p>
-          <ul>
-            <li><b>랜덤</b>: 버튼 한 번으로 팀이 나뉩니다.</li>
-            <li><b>밸런스</b>: 아수라장은 우리끼리 티어 점수로, 소환사의 협곡은 롤 랭크 티어와 협곡 내전 기록으로 두 팀 실력이 비슷하게 나뉩니다.</li>
-            <li><b>소환사의 협곡</b>: 아수라장 말고 협곡 5 : 5 내전도 됩니다(밴픽 = 토너먼트 교차 선택 · 블라인드 = 비공개 선택).</li>
-            <li><b>드래프트</b>: <span class="t1">1팀</span>, <span class="t2">2팀</span> 팀장이 번갈아 뽑습니다.</li>
-            <li><b>직접</b>: 방장이 팀을 배치합니다. 지난 판 팀 그대로 가는 것도 버튼 하나면 됩니다.</li>
-            <li>이번 판을 쉬는 사람은 관전으로 빠집니다.</li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="feat" data-rv>
-        <div class="shot"><div class="mock" data-mock="vote" role="img" aria-label="1팀 승리 뒤 MVP 투표가 쌓여 결정되는 화면"><div class="mk-top"><span>TODAY IN-HOUSE</span><em><b>투표</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div></div>
-        <div>
-          <h3>결과 저장과 투표</h3>
-          <p>게임이 끝나면 승패, KDA, 딜량, 고른 증강까지 저장됩니다.</p>
-          <ul>
-            <li>MVP는 진 팀이 이긴 팀에서, SVP는 이긴 팀이 진 팀에서 뽑습니다.</li>
-            <li>매너왕은 모두가 함께 뽑습니다.</li>
-            <li>투표하는 동안 방장 PC가 리플레이로 그 판 하이라이트를 만들고, 다 되면 같이 봅니다.</li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="feat" data-rv>
-        <div class="shot"><div class="mock" data-mock="today" role="img" aria-label="새 판 결과가 들어와 오늘 순위가 바뀌는 화면"><div class="mk-top"><span>TODAY IN-HOUSE</span><em><b>오늘</b></em><button class="mk-re" type="button" aria-label="다시 보기">↻</button></div><div class="mk-body"></div></div></div>
-        <div>
-          <h3>오늘 순위</h3>
-          <p>그날 판들을 모아 승률, MVP·매너왕 횟수, KDA로 순위를 매깁니다. 판마다 누가 어느 팀이었는지도 볼 수 있습니다.</p>
-          <ul>
-            <li>하루는 새벽 6시에 넘어갑니다. 새벽 2시에 한 판도 그날 순위에 들어갑니다.</li>
-            <li>이름을 누르면 전적, 자주 하는 챔피언, 같이 하면 잘 이기는 팀원과 천적까지 담긴 프로필이 열립니다.</li>
-          </ul>
-        </div>
-      </div>
-
-      <dl class="more" data-rv>
-        <div><dt>아수라장 티어</dt><dd>전적으로 매기는 우리끼리 티어입니다. 아이언부터 챌린저까지 있고, 아수라장 내전과 일반 아수라장은 따로 매깁니다.</dd></div>
-        <div><dt>증강 가이드</dt><dd>챔피언 선택 때 그 챔피언의 추천 증강과 조합을 보여 줍니다(aramgg.com 통계). 설정에서 켜면 게임 중 뜬 증강 세 장 위에 순위도 표시됩니다.</dd></div>
-        <div><dt>디스코드 연동</dt><dd>PC 디스코드를 켜 두면 프로필에 「투데이 내전 · 대기실 · 6명」처럼 지금 상태가 뜹니다. 방장이 서버를 연결하면 팀이 정해질 때 음성 채널이 1팀·2팀으로 나뉘고, 게임이 끝나면 다시 모입니다.</dd></div>
-        <div><dt>같이 한 일반 게임</dt><dd>같은 방 사람끼리 칼바람·아수라장·협곡 같은 일반 게임에서 한 팀이 되면 그 판도 기록하고 하이라이트를 만듭니다.</dd></div>
-      </dl>
     </div>
   </section>
 
@@ -493,8 +541,9 @@ footer p + p { margin-top:6px; }
           <div class="row"><span class="run">실행</span><span>실행 안 함</span></div>
         </div>
         <p class="win-cap">노란 테두리 순서대로 누르시면 됩니다. 「실행」 버튼은 「추가 정보」를 눌러야 나타납니다.</p>
-        <div class="sac" id="smartapp">
-          <h3>「스마트 앱 컨트롤이 안전하지 않을 수 있는 앱을 차단했습니다」가 뜨고 「실행」 버튼이 없나요?</h3>
+        <details class="sac" id="smartapp">
+          <summary>「스마트 앱 컨트롤이 안전하지 않을 수 있는 앱을 차단했습니다」가 뜨고 「실행」 버튼이 없나요?</summary>
+          
           <p>Windows 11의 스마트 앱 컨트롤이 켜진 PC입니다. 이 기능은 서명이 없는 앱을 설치·실행·업데이트 모두 막아서, 끄지 않으면 투데이 내전을 쓸 수 없습니다.</p>
           <div class="win sacw" role="img" aria-label="스마트 앱 컨트롤 차단 창 예시">
             <div class="t">스마트 앱 컨트롤이 안전하지 않을 수 있는 앱을 차단했습니다</div>
@@ -509,7 +558,7 @@ footer p + p { margin-top:6px; }
             <li>받아 둔 설치 파일을 다시 실행 → 파란 경고창은 위처럼 「추가 정보」 → 「실행」</li>
           </ol>
           <p class="warn">버튼이 안 열리면: 설정 → 개인 정보 및 보안 → Windows 보안 → 앱 및 브라우저 컨트롤 → 스마트 앱 컨트롤 설정. 최신 Windows 11(24H2·25H2, 2026년 4월 업데이트 이후)은 같은 화면에서 다시 켤 수 있고, 그보다 오래된 Windows는 다시 설치해야 켤 수 있습니다(Windows 화면에 나오는 안내를 따르세요). 바이러스 검사(실시간 보호)는 그대로 켜져 있습니다.</p>
-        </div>
+        </details>
       </div>
     </div>
   </section>
@@ -883,6 +932,30 @@ if ('IntersectionObserver' in window) {
   mocks.forEach(m => mio.observe(m));
 } else mocks.forEach(mockRun);
 
+// 🧭 「이렇게 진행됩니다」 단계
+(() => {
+  const T = document.querySelector('.tour'); if (!T) return;
+  const btns = [...T.querySelectorAll('.tour-steps button')], ms = [...T.querySelectorAll('.tour-shot .mock')], txs = [...T.querySelectorAll('.tour-tx')];
+  let cur = 0, auto = true, timer = null, vis = false;
+  const show = (i, run) => {
+    cur = i;
+    btns.forEach((b, j) => { b.classList.toggle('on', j === i); b.setAttribute('aria-selected', j === i ? 'true' : 'false'); });
+    ms.forEach((m, j) => { if (j === i) { m.hidden = false; if (run) { m._on = true; mockRun(m); } } else { m.hidden = true; mockStop(m); m._on = false; } });
+    txs.forEach((t, j) => { t.hidden = j !== i; });
+  };
+  const tick = () => { clearTimeout(timer); if (auto && vis && !reduce) timer = setTimeout(() => { show((cur + 1) % btns.length, true); tick(); }, 9000); };
+  btns.forEach((b, i) => b.addEventListener('click', () => { auto = false; clearTimeout(timer); show(i, true); }));
+  if ('IntersectionObserver' in window) new IntersectionObserver(es => es.forEach(e => { vis = e.isIntersecting; tick(); }), { threshold: 0.35 }).observe(T);
+})();
+// 🎬 하이라이트 영상 = 보일 때만 받고 재생
+(() => {
+  const v = document.querySelector('.hl-v video'); if (!v) return;
+  if (!('IntersectionObserver' in window)) { v.preload = 'auto'; v.play().catch(() => {}); return; }
+  new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { v.preload = 'auto'; v.play().catch(() => {}); } else v.pause(); }), { threshold: 0.3 }).observe(v);
+})();
+// 🧩 #smartapp으로 오면 접힌 안내를 펼침
+const openSac = () => { if (location.hash === '#smartapp') { const d = document.getElementById('smartapp'); if (d) { d.open = true; d.scrollIntoView({ block: 'start' }); } } };
+window.addEventListener('hashchange', openSac); openSac();
 let seen = false; try { seen = sessionStorage.getItem('tn-intro') === '1'; } catch (_) {}
 if (reduce || seen) ready(); else playIntro();
 </script>
