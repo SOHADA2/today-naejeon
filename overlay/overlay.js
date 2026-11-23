@@ -923,6 +923,7 @@ function renderLobby() {
   // ⑥ 아래 고정 구역 = 이번 판
   el('lb-dock').style.display = login ? '' : 'none';
   el('lb-chat').style.display = me && !me.guest ? '' : 'none';   // 💬 채팅(방에 들어온 앱 켠 사람만)
+  chatMuteMark(L);   // 💬 v0.1.245 채팅 금지
   const hostNm = L.hostName, noHost = login && !myIsHost && !hostNm;
   { // 방식 버튼(방장 · 시작 버튼 왼쪽) + 고르는 창(버튼 위로 열림)
     const chipB = el('lb-mchip'), pop = el('lb-mpop');
@@ -1116,6 +1117,7 @@ function fillRoomMenu(L) {
       + '<button class="lb-hm-item" id="lb-hm-guest"><span>＋ 앱 없는 사람 추가</span></button>'
       + '<button class="lb-hm-item stop" id="lb-hm-stop"><span>방장 그만하기</span></button>'
     : `<div class="lb-hm-hd">${hn ? `👑 방장 <b>${esc(hn)}</b>` : '방장 없음'}</div>`)
+    + (L.room && others.length ? '<button class="lb-hm-item" id="lb-hm-rep"><span>🚨 신고하기 ›</span></button>' : '')
     + (L.room ? '<button class="lb-hm-item leave" id="lb-hm-leave"><span>방에서 나가기</span></button>' : '');
   popAnim(m, true);   // 🎞️ v0.1.235 열 때 펼쳐짐(이미 열려 있으면 그대로)
   m.querySelectorAll('[data-p]').forEach(b => b.onclick = async () => {
@@ -1124,6 +1126,12 @@ function fillRoomMenu(L) {
     if (!await tnConfirm(`${o.name}님에게 방장을 넘길까요?\n진행 중인 판은 그대로 이어져요.`)) return;
     lbAct(() => window.api.handHost(o.key));
   });
+  const rp = el('lb-hm-rep'); if (rp) rp.onclick = e => {   // 🚨 v0.1.245 신고할 사람 고르기
+    e.stopPropagation();
+    m.innerHTML = '<div class="lb-hm-hd">🚨 누구를 신고할까요?</div>' + others.map(x => `<button class="lb-hm-item" data-rk="${esc(x.key)}">${avatar(x, 'chip-av')}<span>${esc(x.name)}</span></button>`).join('') + '<button class="lb-hm-item" id="lb-hm-back"><span>‹ 뒤로</span></button>';
+    m.querySelectorAll('[data-rk]').forEach(b => b.onclick = () => { const x = others.find(y => y.key === b.dataset.rk); closeRoomMenu(); if (x) reportAsk(x); });
+    el('lb-hm-back').onclick = ev => { ev.stopPropagation(); fillRoomMenu(L); };
+  };
   const st = el('lb-hm-stop'); if (st) st.onclick = () => { closeRoomMenu(); lbAct(() => window.api.setHost(false)); };
   const gs = el('lb-hm-guest'); if (gs) gs.onclick = () => { closeRoomMenu(); addGuestAsk(); };
   const lv = el('lb-hm-leave'); if (lv) lv.onclick = async () => { closeRoomMenu(); if (myIsHost && !(await tnConfirm('방에서 나갈까요?\n방장은 방에 남은 사람에게 넘어가요.', { ok: '나가기' }))) return; lbAct(() => window.api.roomLeave()); };
@@ -1212,8 +1220,8 @@ function chatLayer() {
 }
 // 💬 v0.1.236 채팅 욕설 가리기(내 화면만 · ⚙ 「채팅 욕설 가리기」 · 기본 켬) + 「이 사람 말 숨기기」(⚙에서 모두 다시 보기)
 //   가리기 = 흔한 욕설·초성·띄어 쓴 변형을 ●로 · 서버엔 원문 그대로(가리는 건 보는 쪽)
-const CHAT_BAD = /(씨|시|ㅆ|ㅅ)\s*[0-9]*\s*(발|빨|바|팔|ㅂ)|병\s*신|븅\s*신|ㅂ\s*ㅅ|좆|ㅈ\s*같|개\s*(새|색|섀|세)\s*(끼|기|키)|(새|섀)\s*끼|느\s*금|니\s*(애미|엄마|애비)|애\s*미|엠\s*창|지\s*랄|ㅈ\s*ㄹ|미\s*친\s*(놈|년|새)|ㅁ\s*ㅊ|f+u+c+k|s+h+i+t|b+i+t+c+h/gi;
-const chatClean = t => (_set && _set.chatFilter === false) ? t : String(t).replace(CHAT_BAD, w => '●'.repeat(Math.min(4, Math.max(2, w.replace(/\s/g, '').length))));
+// 💬 v0.1.245 욕설·비속어 목록 = overlay/chatfilter.js(보내는 쪽 main과 같은 목록 · 보는 쪽은 옛 앱이 보낸 말도 가림)
+const chatClean = t => (_set && _set.chatFilter === false) || !window.tnChatFilter ? String(t) : window.tnChatFilter.clean(t);
 const chatMuted = k => !!(_set && Array.isArray(_set.chatMute) && _set.chatMute.includes(k));
 function chatShow(d) {
   if (window.tnDemo && window.tnDemo.on) return;   // 사용법 예시 화면 위에는 실제 채팅을 안 띄움
@@ -1230,9 +1238,10 @@ function chatShow(d) {
 function chatSay(m, text) {   // 최근 말 줄에 한 줄
   const row = document.createElement('div');
   row.className = 'lb-say' + (m.me ? ' me' : '');
-  row.innerHTML = avatar(m, 'chip-av') + '<p><b></b><span></span></p>' + (m.me ? '' : '<button class="lb-say-mute" title="이 사람 말·이모티콘 숨기기(내 화면만 · ⚙ 설정에서 다시 볼 수 있어요)">숨기기</button>');
+  row.innerHTML = avatar(m, 'chip-av') + '<p><b></b><span></span></p>' + (m.me ? '' : '<button class="lb-say-mute" title="이 사람 말·이모티콘 숨기기(내 화면만 · ⚙ 설정에서 다시 볼 수 있어요)">숨기기</button><button class="lb-say-mute lb-say-rep" title="운영자에게 신고(이 사람의 최근 말이 같이 전달돼요)">신고</button>');
   row.querySelector('p b').textContent = m.name; row.querySelector('p span').textContent = chatClean(text);
-  const mb = row.querySelector('.lb-say-mute');
+  const rb = row.querySelector('.lb-say-rep'); if (rb) rb.onclick = e => { e.stopPropagation(); reportAsk(m); };   // 🚨 v0.1.245
+  const mb = row.querySelector('.lb-say-mute:not(.lb-say-rep)');
   if (mb) mb.onclick = async e => { e.stopPropagation(); if (!(await tnConfirm(`${m.name}님의 말과 이모티콘을 숨길까요?\n내 화면에서만 안 보이고, ⚙ 설정에서 다시 볼 수 있어요.`, { title: '말 숨기기', ok: '숨기기' }))) return; await window.api.chatMute(m.key, true); for (const r of CHAT.rows.filter(x => x.key === m.key)) chatDrop(r, true); };   // ⚠️ 'span'만 쓰면 얼굴 칸(chip-av)이 먼저 잡힘
   el('lb-chat-feed').appendChild(row);
   const o = { el: row, name: m.name, text: chatClean(text), key: m.key };
@@ -1302,6 +1311,24 @@ function chatRoom() {   // 방이 바뀌면 지난 방에서 본 말은 지움
   if (id === CHAT.room) return;
   CHAT.room = id; CHAT.seen = {};
   for (const o of CHAT.rows.slice()) chatDrop(o, true);
+}
+// 🚨 v0.1.245 신고 — 무슨 일인지 한 줄 + 그 사람의 최근 말(이 앱이 받은 것)이 운영자에게 감 · 신고한 사실은 그 사람에게 안 보임
+async function reportAsk(m) {
+  const memo = await tnPrompt(`${m.name}님을 운영자에게 신고할까요?\n무슨 일이 있었는지 짧게 적어 주세요.\n이 사람의 최근 말이 같이 전달되고, 신고한 건 상대에게 보이지 않아요.`, { title: '신고하기', ok: '신고', placeholder: '예) 계속 욕설을 해요', max: 200 });
+  if (memo === null || memo === undefined) return;
+  const r = await window.api.reportSend({ key: m.key, name: m.name, memo: String(memo).trim() }).catch(() => null);
+  if (r && r.ok) tnAlert('신고했어요. 운영자가 확인합니다.', { title: '신고 완료' }); else lbErr((r && r.err) || '신고를 보내지 못했어요');
+}
+// ⚠️ v0.1.245 운영자 경고 — 처음 볼 때 한 번(확인을 누르면 다시 안 뜸)
+if (window.api.onModWarn) window.api.onModWarn(d => {
+  if (!d) return;
+  tnAlert(`운영자에게 경고를 받았어요${d.n > 1 ? ` (지금까지 ${d.n}번)` : ''}.\n사유 · ${d.reason || '—'}\n계속되면 채팅 금지나 이용 정지가 될 수 있어요.`, { title: '운영자 경고', en: 'WARNING' }).then(() => window.api.warnSeen(d.at)).catch(() => {});
+});
+function chatMuteMark(L) {   // 💬 v0.1.245 채팅 금지면 입력 칸을 막고 언제까지인지
+  const inp = el('lb-chat-in'), mm = L && L.myMute; if (!inp) return;
+  inp.disabled = !!mm; inp.placeholder = mm ? `채팅 금지 · ${mm.txt}` : '한마디 · Enter';
+  for (const id of ['lb-emo-btn', 'lb-chat-go']) { const b = el(id); if (b) b.disabled = !!mm; }
+  el('lb-chat').classList.toggle('muted', !!mm);
 }
 async function chatSend(emo) {
   const inp = el('lb-chat-in'), t = emo || inp.value.replace(/\s+/g, ' ').trim();

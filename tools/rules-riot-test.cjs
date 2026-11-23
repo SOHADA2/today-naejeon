@@ -122,6 +122,35 @@ const OTHER = '00000000-0000-4000-8000-0000000000aa';
   await t('R', '목록에 없는 방에 들어왔음 칸', 'deny', 'PUT', `today/rooms/rt_s/uids/${A}`, A);
   await t('N', '게스트가 방 정리', 'deny', 'DELETE', 'today/roomList/rt_x');
 
+  if (!BEFORE) {   // 🚨💬 v0.1.245 신고 · 채팅 금지 · 경고 · 공지(내 방 rt_r에 들어가 있는 동안)
+    console.log('— 신고(내 방 rt_r)');
+    await t('R', '신고 — 들어간 방 · 나 이름', 'ok', 'PUT', 'today/reports/rt_rep1', { at: now, by: A, byName: '시험', target: OTHER, name: '남', room: 'rt_r', roomName: '시험방', why: '욕설·비하', memo: '시험', st: 'open', lines: { 0: { text: '●● 시험', at: now } } });
+    await t('R', '신고 — 고쳐 쓰기', 'deny', 'PUT', 'today/reports/rt_rep1', { at: now, by: A, target: OTHER, room: 'rt_r', st: 'done' });
+    await t('R', '신고 — 남 이름으로', 'deny', 'PUT', 'today/reports/rt_rep2', { at: now, by: OTHER, target: A, room: 'rt_r', st: 'open' });
+    await t('R', '신고 — 안 들어간 방', 'deny', 'PUT', 'today/reports/rt_rep3', { at: now, by: A, target: OTHER, room: 'rt_x', st: 'open' });
+    await t('N', '게스트 신고', 'deny', 'PUT', 'today/reports/rt_rep4', { at: now, by: NU, target: OTHER, room: 'rt_r', st: 'open' });
+    await t('R', '신고함 읽기(운영자만)', 'deny', 'GET', 'today/reports');
+    console.log('— 채팅 금지(내가 10분)');
+    await t('R', '채팅 금지 칸 쓰기(운영자만)', 'deny', 'PUT', `today/mutes/${OTHER}`, { until: now + 1e6, at: now });
+    await t('R', '경고 칸 쓰기(운영자만)', 'deny', 'PUT', `today/warns/${A}/rt_w0`, { at: now, reason: 'x' });
+    await t('R', '내 채팅 금지 칸 읽기', 'ok', 'GET', `today/mutes/${A}`);
+    await t('R', '내 경고 칸 읽기', 'ok', 'GET', `today/warns/${A}`);
+    await t('R', '남의 경고 칸 읽기', 'deny', 'GET', `today/warns/${OTHER}`);
+    admin('PUT', `today/mutes/${A}`, { until: Date.now() + 600000, at: Date.now(), reason: '규칙 시험', by: '시험', name: me.gameName });
+    await t('R', '채팅 금지 중 — 한마디', 'deny', 'PUT', `today/rooms/rt_r/lobby/chat/${A}`, { text: '시험', at: Date.now() });
+    await t('R', '채팅 금지 중 — 핑', 'deny', 'PUT', `today/rooms/rt_r/lobby/ping/${A}`, { k: 'look', at: Date.now() });
+    await t('R', '채팅 금지 중 — 롤 화면 핑', 'deny', 'PUT', `today/rooms/rt_r/lobby/cping/${A}`, { k: 'look', at: Date.now() });
+    await t('R', '채팅 금지 중 — 내 한마디 지우기(됨)', 'ok', 'DELETE', `today/rooms/rt_r/lobby/chat/${A}`);
+    await t('R', '채팅 금지 중 — 판 상태·방 사람 칸(게임은 그대로)', 'ok', 'PATCH', 'today/rooms/rt_r/session', { note: 'mute' });
+    await t('R', '채팅 금지 중 — 대기실 참가', 'ok', 'PUT', `today/rooms/rt_r/lobby/join/${A}`, { name: '시험', st: 'in' });
+    admin('PUT', `today/mutes/${A}`, { until: Date.now() - 1000, at: Date.now(), reason: '규칙 시험' });
+    await t('R', '채팅 금지 끝남 — 한마디(저절로 풀림)', 'ok', 'PUT', `today/rooms/rt_r/lobby/chat/${A}`, { text: '시험', at: Date.now() });
+    admin('DELETE', `today/mutes/${A}`);
+    console.log('— 공지');
+    await t('N', '공지 읽기(게스트도)', 'ok', 'GET', 'today/notice');
+    await t('R', '공지 쓰기(운영자만)', 'deny', 'PUT', 'today/notice', { id: 'x', text: '해킹', at: now, until: now + 1e6 });
+  }
+
   console.log('— 경기 기록·팟지·증강');
   await t('R', '내전 기록 — 들어간 방', 'ok', 'PUT', `${D}/matches/rt_1`, { gameId: 'rt_1', ts: now, sv: SV, roomId: 'rt_r', roomName: '시험방' });
   await t('R', '내전 기록 — 안 들어간 방', 'deny', 'PUT', `${D}/matches/rt_2`, { gameId: 'rt_2', ts: now, sv: SV, roomId: 'rt_x' });
@@ -178,6 +207,16 @@ const OTHER = '00000000-0000-4000-8000-0000000000aa';
     await t('R', '운영자 — 살아 있는 방 목록 지우기', 'ok', 'DELETE', 'today/roomList/rt_x');
     await t('R', '운영자 — 방 통째 지우기', 'ok', 'DELETE', 'today/rooms/rt_x');
     await t('R', '운영자 — 남의 접속 표시 지우기', 'ok', 'DELETE', `today/presence/${OTHER}`);
+    await t('R', '운영자 — 신고함 읽기', 'ok', 'GET', 'today/reports');
+    await t('R', '운영자 — 신고 처리', 'ok', 'PATCH', 'today/reports/rt_rep1', { st: 'done', res: '시험', doneBy: '시험운영자', doneAt: Date.now() });
+    await t('R', '운영자 — 경고', 'ok', 'PUT', `today/warns/${OTHER}/rt_w1`, { at: Date.now(), reason: '시험', by: '시험운영자' });
+    await t('R', '운영자 — 경고 모양 틀림(사유 없음)', 'deny', 'PUT', `today/warns/${OTHER}/rt_w2`, { at: Date.now() });
+    await t('R', '운영자 — 채팅 금지', 'ok', 'PUT', `today/mutes/${OTHER}`, { until: Date.now() + 3600e3, at: Date.now(), reason: '시험', by: '시험운영자', name: '남' });
+    if (admin('GET', 'today/notice') === '200 null') {   // 진짜 공지가 없을 때만(있으면 안 건드림) · v0.1.245 앱이 1분 안에 읽을 수 있어 1분짜리로 올렸다 바로 내림
+      await t('R', '운영자 — 공지 올리기', 'ok', 'PUT', 'today/notice', { id: 'rt', text: '규칙 시험(곧 사라짐)', at: Date.now(), until: Date.now() + 60000, by: '시험운영자', lv: 'info' });
+      await t('R', '운영자 — 공지 내리기', 'ok', 'DELETE', 'today/notice');
+    }
+    await t('R', '운영자 — 공지 모양 틀림(기간 없음)', 'deny', 'PUT', 'today/notice', { id: 'rt', text: '시험', at: Date.now() });
     await t('R', '운영자도 운영자 목록은 못 씀', 'deny', 'PUT', `today/admins/${OTHER}`, { name: 'x' });
     await t('R', '운영자도 설정은 못 씀', 'deny', 'PUT', 'today/config/clipProxy', 'https://evil.example');
     await t('R', '운영자도 남의 계정 칸은 못 씀', 'deny', 'PATCH', `today/accounts/${OTHER}`, { name: '사칭' });
@@ -186,7 +225,7 @@ const OTHER = '00000000-0000-4000-8000-0000000000aa';
   }
 
   console.log(`\n통과 ${pass} · 실패 ${fail}${info ? ` · 건너뜀 ${info}(차단 칸 = 2단계 적용 뒤에 시험)` : ''}`);
-  for (const p of ['today/roomList/rt_r', 'today/rooms/rt_r', 'today/roomList/rt_x', 'today/rooms/rt_x', 'today/roomList/rt_s', 'today/rooms/rt_s', 'today/roomList/rt_n', 'today/rooms/rt_n', D, 'today/potg/raw/2000-01-01', 'today/clips/2000-01-01', 'today/augGuide/champs/rt_x', 'today/augGuide/champs/rt_y', 'today/presence/g_rt_guest', 'today/conns/rt_dev', `today/discord/${OTHER}`, `today/presence/${OTHER}`, `today/accounts/${OTHER}`, `today/ratings/${OTHER}`, `today/owners/${OTHER}`, `today/owners/${A}/${NU}`, `today/bans/${OTHER}`, `today/bans/${A}`, `today/admins/${A}`, `today/admins/${OTHER}`, 'today/modlog/rt_m0', 'today/modlog/rt_m1', 'today/roomList/rt_b', 'today/rooms/rt_b']) admin('DELETE', p);
+  for (const p of ['today/roomList/rt_r', 'today/rooms/rt_r', 'today/roomList/rt_x', 'today/rooms/rt_x', 'today/roomList/rt_s', 'today/rooms/rt_s', 'today/roomList/rt_n', 'today/rooms/rt_n', D, 'today/potg/raw/2000-01-01', 'today/clips/2000-01-01', 'today/augGuide/champs/rt_x', 'today/augGuide/champs/rt_y', 'today/presence/g_rt_guest', 'today/conns/rt_dev', `today/discord/${OTHER}`, `today/presence/${OTHER}`, `today/accounts/${OTHER}`, `today/ratings/${OTHER}`, `today/owners/${OTHER}`, `today/owners/${A}/${NU}`, `today/bans/${OTHER}`, `today/bans/${A}`, `today/admins/${A}`, `today/admins/${OTHER}`, 'today/modlog/rt_m0', 'today/modlog/rt_m1', 'today/roomList/rt_b', 'today/rooms/rt_b', 'today/reports/rt_rep1', 'today/reports/rt_rep2', 'today/reports/rt_rep3', 'today/reports/rt_rep4', `today/mutes/${A}`, `today/mutes/${OTHER}`, `today/warns/${A}`, `today/warns/${OTHER}`]) admin('DELETE', p);
   admin('PATCH', `today/presence/${A}`, { app: require('../package.json').version });   // 시험으로 쓴 내 접속 표시 버전 글자 되돌림(다음 신호 때 앱이 다시 씀)
   console.log('정리 끝');
   process.exit(fail ? 1 : 0);

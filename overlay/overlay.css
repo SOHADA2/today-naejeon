@@ -583,6 +583,10 @@ body.tg-on .ui-scroll { overflow:hidden !important; }   /* 예시 화면은 스�
 .rm-empty { display:flex; flex-direction:column; align-items:center; gap:12px; padding:28px 10px; text-align:center; color:var(--dim); font-size:13px; line-height:1.6; }
 .rm-empty .ui-btn-gold { width:100%; max-width:260px; }
 .rm-full-t { font-size:15px; color:var(--ink); }
+.lb-chat.muted .lb-chat-in { color:#ff9ca8; }   /* 💬 v0.1.245 채팅 금지 */
+.lb-chat.muted .lb-chat-in::placeholder { color:#ff9ca8; opacity:0.85; }
+.lb-say-mute.lb-say-rep { right:50px; }   /* 🚨 v0.1.245 신고(숨기기 왼쪽) */
+.lb-say-mute.lb-say-rep:hover { color:#ffb3bd; border-color:rgba(255,90,110,0.6); }
 .rm-ban { border:1px solid rgba(232,64,87,0.45); background:linear-gradient(180deg, rgba(232,64,87,0.12), transparent); clip-path:var(--cut-sm); gap:8px; }   /* 🚫 v0.1.244 */
 .rm-ban-en { font:700 11px 'Barlow Condensed', var(--f-body); letter-spacing:0.22em; color:#ff9c90; }
 .rm-ban-why { color:var(--ink); font-weight:600; word-break:break-all; }

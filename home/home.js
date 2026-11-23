@@ -94,3 +94,11 @@ $('h-close').onclick = () => window.api.homeClose();
 window.api.onHome(render);
 window.api.onHomeIntro(intro);
 window.api.getHome().then(render);
+
+// 📢 v0.1.245 운영 공지(운영 보드에서 씀 · ✕로 닫으면 그 공지는 다시 안 뜸)
+(() => {
+  let N = null;
+  const draw = n => { N = n; const b = $('notice'); if (!b) return; b.hidden = !n; b.classList.toggle('warn', !!(n && n.lv === 'warn')); $('nt-tx').textContent = n ? n.text : ''; };
+  if (window.api.onNotice) { window.api.onNotice(draw); window.api.getNotice().then(draw).catch(() => {}); }
+  const x = $('nt-x'); if (x) x.onclick = () => { if (N) window.api.noticeDismiss(N.id); draw(null); };
+})();

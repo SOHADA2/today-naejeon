@@ -1807,10 +1807,36 @@ let _ownKey = null, _roomUidKey = null, _dcMine = null, _dcRoomKey = null;
 //   앱은 내 정지 칸을 1분마다 읽어 안내(사유·풀리는 시각) + 방에서 나감 + 방 들어가기·만들기 막음 · 롤 계정 로그인 표식이어야 읽힘(익명이면 못 읽음 = 안내 없음 · 쓰기는 어차피 게스트처럼 막힘)
 let _ban = null, _banKey = '';
 const banOn = () => !!(_ban && _ban.until > Date.now());
+// 💬 v0.1.245 채팅 금지(today/mutes/{puuid} · 한마디·이모티콘·핑만 막음 · 서버 규칙도 막음) · ⚠️ 경고(today/warns/{puuid}/{키} · 처음 볼 때 한 번 안내)
+let _mute = null, _warnShown = 0;
+const muteOn = () => !!(_mute && _mute.until > Date.now());
+const untilTxt = ms => { if (ms > 9e14) return '기간 없이'; const d = new Date(ms); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}까지`; };
+async function modExtra(a) {
+  const [mu, wa] = await Promise.all([getJson(`${FIREBASE_DB}/${T}/mutes/${a.puuid}.json`).catch(() => null), getJson(`${FIREBASE_DB}/${T}/warns/${a.puuid}.json`).catch(() => null)]);
+  if (a !== account) return;
+  const nm = mu && typeof mu === 'object' && Number(mu.until) > Date.now() ? { until: Number(mu.until), reason: String(mu.reason || '').slice(0, 200) } : null;
+  if (JSON.stringify(nm) !== JSON.stringify(_mute)) { _mute = nm; console.log('[mod] 채팅 금지', nm ? untilTxt(nm.until) : '풀림'); broadcast('lobby', lobbyView()); }
+  const ws = wa && typeof wa === 'object' ? Object.values(wa).filter(w => w && Number(w.at) > 0).sort((x, y) => y.at - x.at) : [];
+  const w = ws[0];
+  if (w && w.at > (config.warnSeen || 0) && w.at !== _warnShown && overlayWin && !overlayWin.isDestroyed()) { _warnShown = w.at; try { overlayWin.webContents.send('mod-warn', { at: w.at, reason: String(w.reason || '').slice(0, 200), n: ws.length }); } catch (_) {} }
+}
+ipcMain.handle('warn-seen', (_e, at) => { if (Number(at) > (config.warnSeen || 0)) { config.warnSeen = Number(at); saveConfig(); } return { ok: true }; });
+// 📢 v0.1.245 공지(today/notice · 운영 보드에서 씀 · 누구나 읽음) — 1분마다 · 닫으면 그 공지는 다시 안 띄움(config.noticeSeen)
+let _notice = null;
+async function noticeCheck() {
+  const x = await getJson(`${FIREBASE_DB}/${T}/notice.json`).catch(() => undefined);
+  if (x === undefined) return;
+  const n = x && typeof x === 'object' && x.id && x.text && Number(x.until) > Date.now() && x.id !== config.noticeSeen ? { id: String(x.id), text: String(x.text).slice(0, 200), lv: x.lv === 'warn' ? 'warn' : 'info', until: Number(x.until) } : null;
+  if (JSON.stringify(n) === JSON.stringify(_notice)) return;
+  _notice = n; for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) try { w.webContents.send('notice', n); } catch (_) {}
+}
+ipcMain.handle('notice-get', () => _notice);
+ipcMain.handle('notice-dismiss', (_e, id) => { if (id) { config.noticeSeen = String(id); saveConfig(); } _notice = null; for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) try { w.webContents.send('notice', null); } catch (_) {} return { ok: true }; });
+setTimeout(() => noticeCheck().catch(() => {}), 6000); setInterval(() => noticeCheck().catch(() => {}), 60000);
 async function banCheck() {
   const a = account;
   let b = null;
-  if (a) { const x = await getJson(`${FIREBASE_DB}/${T}/bans/${a.puuid}.json`).catch(() => null); if (x && typeof x === 'object' && Number(x.until) > Date.now()) b = { until: Number(x.until), reason: String(x.reason || '').slice(0, 200), at: Number(x.at) || 0 }; }
+  if (a) { const x = await getJson(`${FIREBASE_DB}/${T}/bans/${a.puuid}.json`).catch(() => null); if (x && typeof x === 'object' && Number(x.until) > Date.now()) b = { until: Number(x.until), reason: String(x.reason || '').slice(0, 200), at: Number(x.at) || 0 }; modExtra(a).catch(() => {}); }
   if (a !== account) return;
   const k = b ? JSON.stringify(b) : ''; if (k === _banKey) return;
   _banKey = k; _ban = b;
@@ -1874,7 +1900,7 @@ function setAccount(acc) {
     _away = null;
   }
   account = acc;
-  if (!acc || (prev && prev.puuid !== acc.puuid)) { _ban = null; _banKey = ''; }   // 🚫 계정이 바뀌면 다시 확인
+  if (!acc || (prev && prev.puuid !== acc.puuid)) { _ban = null; _banKey = ''; _mute = null; }   // 🚫 계정이 바뀌면 다시 확인
   config.myName = acc ? acc.gameName : '';
   try { guestBeat(); sendHome(); pushStart(); } catch (_) {}   // 👤 로그인하면 게스트 표시 지움 · 홈의 「나」 갱신 · 시작 상태(v0.1.227)
   if (acc) {
@@ -2034,24 +2060,54 @@ async function handHost(puuid) {
 //   받는 쪽 = 방 스트림에서 「바뀐 한마디」만 왼쪽 창으로('chat') · 방에 막 들어왔을 때 남아 있던 옛 한마디는 안 띄움(first) · PC 시계에 안 기댐
 //   글은 CHAT_MAX자까지 · 0.8초에 한 번 · 서버 규칙도 같은 길이로 막음(2026-11-13 · database.rules.json `lobby/chat/$k` — CHAT_MAX를 바꾸면 규칙도 같이) · 받을 때도 한 번 더 자름 · 옛 앱은 이 칸을 그냥 무시
 const CHAT_MAX = 50;
+const chatFilter = require('./overlay/chatfilter.js');   // 💬 v0.1.245 욕설·비속어 가리기(보내기 전에)
+const _chatHist = [];   // 🚨 v0.1.245 이 방 최근 말(신고 때 그 사람 말을 같이 보냄 · 15분 · 40개)
+function chatHistPush(k, text, at) { _chatHist.push({ k, text: String(text).slice(0, 60), at: Number(at) || Date.now(), room: room ? room.id : null }); const lim = Date.now() - 15 * 60e3; while (_chatHist.length > 40 || (_chatHist[0] && _chatHist[0].at < lim)) _chatHist.shift(); }
 let _chatAt = 0;
 function chatDiff(a, b) {
   for (const [k, m] of Object.entries(b || {})) {
     if (!m || typeof m.text !== 'string' || !m.text) continue;
     const o = a && a[k];
     if (o && o.at === m.at && o.text === m.text) continue;
+    chatHistPush(k, m.text, m.at);
     try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.webContents.send('chat', { key: k, text: m.text.slice(0, CHAT_MAX), at: Number(m.at) || 0 }); } catch (_) {}
   }
 }
+// 🚨 v0.1.245 신고(사장님: 문제가 생겨도 증거가 안 남음) — today/reports/{키} = {at, by, byName, target, name, room, roomName, why, memo, lines(그 사람 최근 말 · 이 앱이 받은 것), st:'open'}
+//   서버 규칙 = 그 방에 들어온 롤 계정이 「나」 이름으로 새로 쓰기만 · 운영자만 읽음(운영 보드 「신고함」) · 이 앱 = 30초에 한 번 · 같은 사람은 10분에 한 번
+const REPORT_WHY = ['욕설·비하', '도배', '게임 방해', '사칭', '기타'];
+let _reportAt = 0; const _reportedAt = new Map();
+ipcMain.handle('report-send', async (_e, o) => {
+  const key = String(o && o.key || ''), memo = String(o && o.memo || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (!account || !room) return { ok: false, err: '방 안에서만 신고할 수 있어요' };
+  if (banOn()) return { ok: false, err: '이용이 정지된 계정이에요' };
+  if (!/^[0-9a-f-]{30,}$/i.test(key) || key === account.puuid) return { ok: false, err: '신고할 수 없는 사람이에요' };
+  const now = Date.now();
+  if (now - _reportAt < 30000) return { ok: false, err: '조금 뒤에 다시 신고해 주세요' };
+  if (now - (_reportedAt.get(key) || 0) < 600000) return { ok: false, err: '이 사람은 방금 신고했어요 · 운영자가 확인합니다' };
+  const mm = roomMembers(room.id).find(x => x.key === key), lines = {};
+  _chatHist.filter(h => h.k === key && h.room === room.id).slice(-5).forEach((h, i) => { lines[i] = { text: h.text, at: h.at }; });
+  const why = REPORT_WHY.includes(o && o.why) ? o.why : Object.values(lines).some(l => /●/.test(l.text)) ? '욕설·비하' : '기타';   // 가려진 말이 있으면 욕설
+  const rep = { at: now, by: account.puuid, byName: String(account.gameName || '').slice(0, 60), target: key, name: String(mm ? mm.name : (o && o.name) || '?').slice(0, 60), room: room.id, roomName: String(room.name || '').slice(0, 40), why, memo, st: 'open' };
+  if (Object.keys(lines).length) rep.lines = lines;
+  const tok = await fbToken().catch(() => null);
+  const r = await new Promise(res => { const req = https.request(withAuth(`${FIREBASE_DB}/${T}/reports.json`, tok), { method: 'POST', headers: { 'Content-Type': 'application/json' } }, x => { x.resume(); x.on('end', () => res(x.statusCode)); }); req.on('error', () => res(0)); req.end(JSON.stringify(rep)); });
+  if (r !== 200) return { ok: false, err: '신고를 보내지 못했어요 · 잠시 뒤 다시 해 주세요' };
+  _reportAt = now; _reportedAt.set(key, now);
+  console.log('[report] 신고 보냄', why);
+  return { ok: true };
+});
 ipcMain.handle('chat-send', async (_e, text) => {
-  const t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX);
+  const raw = String(text || '').replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX), t = chatFilter.clean(raw);
   if (!t) return { ok: false };
   if (!account || !room) return { ok: false, err: '방에 들어가야 말할 수 있습니다' };
+  if (muteOn()) return { ok: false, err: `채팅 금지 중이에요 · ${untilTxt(_mute.until)}` };   // 💬 v0.1.245
   const now = Date.now();
   if (now - _chatAt < 800) return { ok: false, err: '조금 천천히 보내 주세요', slow: true };   // slow = 이모티콘을 연달아 누른 건 화면이 조용히 넘김
   _chatAt = now;
   const w = await fbSet(`${RP()}/lobby/chat/${account.puuid}`, { text: t, at: now });
-  return w && w.ok ? { ok: true, key: account.puuid, text: t, at: now } : { ok: false, err: '보내지 못했습니다 · 인터넷 연결을 확인해 주세요' };
+  if (w && w.ok) chatHistPush(account.puuid, t, now);
+  return w && w.ok ? { ok: true, key: account.puuid, text: t, at: now, masked: t !== raw } : { ok: false, err: '보내지 못했습니다 · 인터넷 연결을 확인해 주세요' };
 });
 // 📍 v0.1.219 대기실 핑 · v0.1.220 롤 핑 그대로(사장님: 마우스로 찍은 곳에 · 롤처럼 도배 제한) — rooms/{방}/lobby/ping/{puuid} = {k, a, at}(사람마다 마지막 하나 · 기록 안 남김 · 서버 규칙 변경 없음)
 //   k = 롤 스마트 핑 8개 + 기본(look) · a = 찍은 곳 {t:'s' 자리 칸 i | 'c' 관전 칩 pk | 'v' 대기실 창, fx, fy(0~1)} → 받는 PC가 자기 창에서 같은 곳을 찾음
@@ -2068,6 +2124,7 @@ function pingAnchor(a) {
   return o;
 }
 function pingRate(k) {   // 도배 제한 — 막히면 안내 글 · 통과하면 null(기록에 남김) · 대기실 핑·롤 클라 핑 같이 셈
+  if (muteOn()) return '채팅 금지 중이라 핑을 찍을 수 없어요';   // 💬 v0.1.245
   const now = Date.now();
   if (now < _pingLock) return `핑을 너무 많이 찍었어요 · ${Math.ceil((_pingLock - now) / 1000)}초 뒤에 다시 찍을 수 있어요`;
   _pingLog = _pingLog.filter(p => now - p.at < 6000);
@@ -2246,7 +2303,7 @@ function lobbyView() {
   const inNames = members.filter(m => m.st === 'in').map(m => m.name);
   const sd = L.sides || {}, sides = {};
   for (const n of inNames) { const t = sd[fbKeyOf(n)]; if (t === 'teamA' || t === 'teamB') sides[n] = t; }
-  return { members, sides, mode: ['draft', 'manual', 'normal', 'balance'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
+  return { myMute: muteOn() ? { until: _mute.until, txt: untilTxt(_mute.until) } : null, members, sides, mode: ['draft', 'manual', 'normal', 'balance'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
     dcGuild: dcRoomGuild(members), dcInv: !!((dcRoomInfo(members) || {}).inv), dcJoin: dcJoinView(members), hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members), room: room ? { id: room.id, name: room.name, priv: room.priv } : null, lol: room ? { inCustom: lobbyPhase === 'Lobby' && lobbyCustom === true, phase: lobbyPhase || null, invite: _lolInv, party: lobbyCustom === false ? lobbyParty : null, ids: lobbyCustom === true && lobbyCust ? lobbyCust.ids : null, invs: lobbyCustom === true && lobbyCust ? lobbyCust.inv : null, cmap: lobbyCustom === true && lobbyCust ? lobbyCust.map : null, cq: lobbyCustom === true && lobbyCust ? lobbyCust.q : null, nq: LOL_NQ.includes(config.lolNormalQ) ? config.lolNormalQ : 2400 } : null, game: lobbyGame().game, srPick: lobbyGame().pick };   // 🎮 v0.1.185 롤 방
 }
 // 🔄 버전 비교(v0.1.56) — 대기실 내 자리 「업데이트 필요」·내 안내 줄

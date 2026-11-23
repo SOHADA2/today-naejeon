@@ -47,6 +47,17 @@ header{position:sticky;top:0;z-index:5;background:rgba(10,14,18,.92);backdrop-fi
 nav.tabs{max-width:1180px;margin:0 auto;padding:0 16px;display:flex;gap:4px;overflow-x:auto}
 nav.tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:9px 12px;color:var(--ink-2);cursor:pointer;font-weight:700;white-space:nowrap}
 nav.tabs button.on{color:var(--ink);border-bottom-color:var(--gold)}
+nav.tabs .nb{display:inline-block;min-width:18px;margin-left:5px;padding:0 5px;background:var(--t2);color:#fff;font:700 11px/18px var(--sans);text-align:center}
+nav.tabs .nb:empty{display:none}
+.rep{padding:12px 0;border-bottom:1px solid var(--rule)} .rep:last-child{border-bottom:0}
+.rep.done{opacity:.55}
+.rep .top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.rep .who{font-weight:800;cursor:pointer} .rep .who:hover{color:var(--gold)}
+.rep .lines{margin:8px 0 0;padding:8px 10px;background:var(--bg);border-left:2px solid var(--rule-2);font-size:13px}
+.rep .lines div{display:flex;gap:8px} .rep .lines small{color:var(--ink-3);flex:none}
+.rep .memo{margin-top:6px}
+.rep .act{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.ntc{width:100%;min-height:80px}
 .card{background:var(--bg-2);border:1px solid var(--rule);clip-path:var(--cut);padding:16px}
 .gate{max-width:460px;margin:12vh auto 0;text-align:center}
 .gate h1{font-size:22px;margin:4px 0 8px}
@@ -135,8 +146,10 @@ textarea{width:100%;min-height:62px;resize:vertical}
   </div>
   <nav class="tabs hide" id="tabs">
     <button data-t="now" class="on">현황</button>
+    <button data-t="reports">신고함<span class="nb" id="rep-n"></span></button>
     <button data-t="people">사람</button>
     <button data-t="bans">정지</button>
+    <button data-t="notice">공지</button>
     <button data-t="log">운영 기록</button>
   </nav>
 </header>
@@ -172,6 +185,18 @@ textarea{width:100%;min-height:62px;resize:vertical}
         <table><thead><tr><th>이름</th><th>사유</th><th>풀리는 때</th><th>운영자</th><th></th></tr></thead><tbody id="bans"></tbody></table></div>
       <div class="sec card tw"><div class="sec-h"><span class="en">EXPIRED</span><h2>기간이 끝난 정지</h2><span class="sp">서버가 이미 풀어 줌 · 기록만 남음</span></div>
         <table><tbody id="bans-old"></tbody></table></div>
+    </section>
+    <!-- 신고함 -->
+    <section data-p="reports" class="hide">
+      <div class="sec card"><div class="sec-h"><span class="en">REPORTS</span><h2>신고함</h2><span class="sp">줄의 말 = 신고한 사람 앱이 받은 그 사람의 최근 말</span></div><div id="reps"></div></div>
+    </section>
+    <!-- 공지 -->
+    <section data-p="notice" class="hide">
+      <div class="sec card"><div class="sec-h"><span class="en">NOTICE</span><h2>공지</h2><span class="sp">모든 앱 위쪽에 띠로 뜸 · 각자 닫으면 그 공지는 다시 안 뜸</span></div>
+        <div id="ntc-now"></div>
+        <div class="row" style="margin-top:12px"><textarea id="ntc-tx" class="ntc" maxlength="200" placeholder="예) 오늘 밤 11시~11시 반 서버 점검이 있어요"></textarea></div>
+        <div class="row"><select id="ntc-h"><option value="1">1시간</option><option value="6">6시간</option><option value="24" selected>1일</option><option value="72">3일</option><option value="168">7일</option></select>
+          <select id="ntc-lv"><option value="info">일반(파랑)</option><option value="warn">중요(빨강)</option></select><button class="btn gold" id="ntc-go">공지 올리기</button></div></div>
     </section>
     <!-- 운영 기록 -->
     <section data-p="log" class="hide">
@@ -245,8 +270,8 @@ $('tabs').onclick = e => { const b = e.target.closest('button[data-t]'); if (!b)
 async function load() {
   $('loaded').textContent = '불러오는 중…';
   try {
-    const [presence, accounts, roomList, rooms, bans, modlog] = await Promise.all(['today/presence', 'today/accounts', 'today/roomList', 'today/rooms', 'today/bans', 'today/modlog'].map(p => get(p).catch(() => null)));
-    Object.assign(S, { presence: presence || {}, accounts: accounts || {}, roomList: roomList || {}, rooms: rooms || {}, bans: bans || {}, modlog: modlog || {} });
+    const [presence, accounts, roomList, rooms, bans, modlog, reports, warns, mutes, notice] = await Promise.all(['today/presence', 'today/accounts', 'today/roomList', 'today/rooms', 'today/bans', 'today/modlog', 'today/reports', 'today/warns', 'today/mutes', 'today/notice'].map(p => get(p).catch(() => null)));
+    Object.assign(S, { presence: presence || {}, accounts: accounts || {}, roomList: roomList || {}, rooms: rooms || {}, bans: bans || {}, modlog: modlog || {}, reports: reports || {}, warns: warns || {}, mutes: mutes || {}, notice: notice || null });
     S.at = Date.now();
     renderAll();
     $('loaded').textContent = `불러온 시각 ${fmt(S.at)} · `;
@@ -277,6 +302,7 @@ function people() {
     const o = out.get(k) || { key: k, name: p.name || '?', tag: p.tag || '', last: 0 };
     o.p = p; o.last = Math.max(o.last, p.at || 0); o.on = now - (p.at || 0) < ONLINE_MS; out.set(k, o);
   }
+  for (const r of Object.values(S.reports || {})) if (r && r.target && !out.has(r.target)) out.set(r.target, { key: r.target, name: r.name || '?', tag: '', last: 0 });
   for (const [k, b] of Object.entries(S.bans)) { const o = out.get(k) || { key: k, name: b.name || '?', tag: '', last: 0 }; o.ban = b; out.set(k, o); }
   return [...out.values()];
 }
@@ -284,13 +310,13 @@ const banOn = b => b && b.until > Date.now();
 function roomOf(key) { for (const [id, r] of Object.entries(S.rooms)) if (r && r.uids && r.uids[key]) return id; return null; }
 const latest = () => { let v = '0.0.0'; for (const p of Object.values(S.presence)) if (p && p.app && vcmp(p.app, v) > 0) v = p.app; return v; };
 
-function renderAll() { renderKpis(); renderRooms(); renderVers(); renderPeople(); renderBans(); renderLog(); }
+function renderAll() { renderKpis(); renderRooms(); renderVers(); renderPeople(); renderBans(); renderLog(); renderReports(); renderNotice(); }
 function renderKpis() {
   const P = people(), on = P.filter(x => x.on).length, guests = Object.entries(S.presence).filter(([k, p]) => k.startsWith('g_') && p && Date.now() - (p.at || 0) < ONLINE_MS).length;
   const open = Object.values(S.roomList).filter(r => r && r.name && Date.now() - Math.max(r.seen || 0, r.at || 0) < 90000).length;
-  const td = S.days ? S.days[S.days.length - 1] : null, bans = Object.values(S.bans).filter(banOn).length;
+  const td = S.days ? S.days[S.days.length - 1] : null, bans = Object.values(S.bans).filter(banOn).length, reps = openReports().length;
   const k = (l, v, s, cls) => `<div class="kpi ${cls || ''}"><div class="l">${l}</div><div class="v">${v}${s ? `<small>${s}</small>` : ''}</div></div>`;
-  $('kpis').innerHTML = k('지금 접속', on, guests ? `게스트 ${guests}` : '') + k('열린 방', open) + k('오늘 판', td ? td.m + td.n : '…', td ? `내전 ${td.m} · 일반 ${td.n}` : '') + k('계정', Object.keys(S.accounts).length) + k('정지 중', bans, '', bans ? 'warn' : '');
+  $('kpis').innerHTML = k('지금 접속', on, guests ? `게스트 ${guests}` : '') + k('열린 방', open) + k('오늘 판', td ? td.m + td.n : '…', td ? `내전 ${td.m} · 일반 ${td.n}` : '') + k('계정', Object.keys(S.accounts).length) + k('정지 중', bans, '', bans ? 'warn' : '') + k('처리 안 한 신고', reps, '', reps ? 'warn' : '');
 }
 function renderRooms() {
   const list = Object.entries(S.roomList).filter(([, r]) => r && r.name).sort((a, b) => (b[1].seen || 0) - (a[1].seen || 0));
@@ -320,7 +346,7 @@ function renderPeople() {
   P.sort((a, b) => (b.on - a.on) || (b.last - a.last));
   $('ppl').innerHTML = P.length ? P.map(x => {
     const v = x.p && x.p.app, room = x.p && x.p.room && S.roomList[x.p.room];
-    return `<tr class="click" data-k="${esc(x.key)}"><td><b>${esc(x.name)}</b><span class="mute">#${esc(x.tag)}</span>${banOn(x.ban) ? '<span class="tag ban">정지</span>' : ''}</td>
+    return `<tr class="click" data-k="${esc(x.key)}"><td><b>${esc(x.name)}</b><span class="mute">#${esc(x.tag)}</span>${banOn(x.ban) ? '<span class="tag ban">정지</span>' : ''}${banOn(S.mutes[x.key]) ? '<span class="tag old">채팅 금지</span>' : ''}${warnN(x.key) ? `<span class="tag">경고 ${warnN(x.key)}</span>` : ''}${openReports().some(r => r.target === x.key) ? '<span class="tag ban">신고</span>' : ''}</td>
       <td><span class="dot ${x.on ? 'on' : ''}"></span>${x.on ? (room ? esc(room.name) + ' 방' : '접속 중') : '오프라인'}</td>
       <td>${v ? `v${esc(v)}${vcmp(v, L) < 0 ? ' <span class="tag old">옛 버전</span>' : ''}` : '<span class="mute">—</span>'}</td><td class="mute">${ago(x.last)}</td></tr>`;
   }).join('') : '<tr><td colspan="4" class="empty">찾는 사람이 없습니다</td></tr>';
@@ -337,10 +363,54 @@ document.querySelector('section[data-p="bans"]').onclick = e => {
   const u = e.target.closest('[data-unban]'), c = e.target.closest('[data-clear]'), p = e.target.closest('[data-k]');
   if (u) unban(u.dataset.unban); else if (c) unban(c.dataset.clear, true); else if (p) openPerson(p.dataset.k);
 };
-const ACT = { ban: '정지', unban: '정지 해제', kick: '방에서 내보냄', roomdel: '방 지움' };
+const ACT = { ban: '정지', unban: '정지 해제', kick: '방에서 내보냄', roomdel: '방 지움', warn: '경고', mute: '채팅 금지', unmute: '채팅 금지 해제', report: '신고 처리', notice: '공지', unnotice: '공지 내림' };
+const warnN = k => Object.keys(S.warns[k] || {}).length;
+const openReports = () => Object.entries(S.reports || {}).map(([id, r]) => ({ id, ...r })).filter(r => r && r.st !== 'done');
+// 🚨 신고함
+function renderReports() {
+  const all = Object.entries(S.reports || {}).map(([id, r]) => ({ id, ...r })).filter(r => r && r.at).sort((a, b) => (a.st === 'done') - (b.st === 'done') || b.at - a.at);
+  const open = all.filter(r => r.st !== 'done').length; $('rep-n').textContent = open || '';
+  $('reps').innerHTML = all.length ? all.map(r => {
+    const L = Object.values(r.lines || {}).sort((a, b) => a.at - b.at);
+    return `<div class="rep ${r.st === 'done' ? 'done' : ''}"><div class="top"><span class="tag ${r.st === 'done' ? '' : 'ban'}">${r.st === 'done' ? '처리함' : '대기'}</span><span class="tag">${esc(r.why || '기타')}</span>
+      <span class="who" data-k="${esc(r.target)}">${esc(r.name || '?')}</span><span class="mute">← 신고: ${esc(r.byName || '?')} · ${esc(r.roomName || '')} 방 · ${fmt(r.at)}</span></div>
+      ${r.memo ? `<div class="memo">${esc(r.memo)}</div>` : ''}
+      ${L.length ? `<div class="lines">${L.map(l => `<div><small>${fmt(l.at)}</small><span>${esc(l.text)}</span></div>`).join('')}</div>` : '<div class="mute" style="margin-top:6px">최근 말 없음</div>'}
+      ${r.st === 'done' ? `<div class="mute" style="margin-top:6px">처리 · ${esc(r.res || '')} · ${esc(r.doneBy || '')} ${fmt(r.doneAt || 0)}</div>`
+        : `<div class="act"><button class="btn sm" data-open="${esc(r.target)}">사람 카드(경고·채팅 금지·정지)</button><button class="btn sm" data-done="${esc(r.id)}">처리함으로</button><button class="btn sm" data-skip="${esc(r.id)}">문제없음</button></div>`}</div>`;
+  }).join('') : '<div class="empty">신고가 없습니다</div>';
+}
+document.querySelector('section[data-p="reports"]').onclick = async e => {
+  const o = e.target.closest('[data-open],[data-k]'), d = e.target.closest('[data-done]'), sk = e.target.closest('[data-skip]');
+  if (d || sk) { const id = (d || sk).dataset.done || (sk && sk.dataset.skip); const res = d ? (prompt('어떻게 처리했나요? (예: 경고 줌 · 채팅 금지 1일)', '') ?? null) : '문제없음'; if (res === null) return; await resolveReport(id, String(res).slice(0, 200) || '처리함'); }
+  else if (o) openPerson(o.dataset.open || o.dataset.k);
+};
+async function resolveReport(id, res) {
+  const r = S.reports[id] || {};
+  try { await api('PATCH', `today/reports/${id}`, { st: 'done', res, doneBy: ME.name.slice(0, 40), doneAt: Date.now() }); await logIt({ act: 'report', target: r.target || '', name: String(r.name || '').slice(0, 60), reason: res }); toast('처리했습니다'); await load(); }
+  catch (e) { toast('처리하지 못했습니다 · ' + e.message, true); }
+}
+// 📢 공지
+function renderNotice() {
+  const n = S.notice, live = n && n.until > Date.now();
+  $('ntc-now').innerHTML = live ? `<div class="box ${n.lv === 'warn' ? 'banbox' : ''}"><h4>지금 떠 있는 공지 · ${fmt(n.until)}까지</h4><div style="white-space:pre-wrap">${esc(n.text)}</div><div class="row" style="margin-top:10px"><button class="btn sm red" id="ntc-down">공지 내리기</button><span class="mute">${esc(n.by || '')} · ${fmt(n.at)}</span></div></div>` : '<div class="mute">지금 떠 있는 공지가 없습니다</div>';
+  const dn = $('ntc-down'); if (dn) dn.onclick = noticeDown;
+}
+$('ntc-go').onclick = async () => {
+  const text = $('ntc-tx').value.trim(), h = Number($('ntc-h').value), lv = $('ntc-lv').value;
+  if (!text) { toast('공지 글을 적어 주세요', true); return; }
+  if (!confirm(`모든 앱에 이 공지를 ${h >= 24 ? h / 24 + '일' : h + '시간'} 띄울까요?\n\n${text}`)) return;
+  try { await api('PUT', 'today/notice', { id: 'n' + Date.now().toString(36), text: text.slice(0, 200), at: Date.now(), until: Date.now() + h * 3600e3, by: ME.name.slice(0, 40), lv }); await logIt({ act: 'notice', reason: text.slice(0, 200), until: Date.now() + h * 3600e3 }); $('ntc-tx').value = ''; toast('공지를 올렸습니다 · 1분 안에 모든 앱에 뜹니다'); await load(); }
+  catch (e) { toast('올리지 못했습니다 · ' + e.message, true); }
+};
+async function noticeDown() {
+  if (!confirm('지금 공지를 내릴까요?')) return;
+  try { await api('DELETE', 'today/notice'); await logIt({ act: 'unnotice' }); toast('공지를 내렸습니다'); await load(); }
+  catch (e) { toast('내리지 못했습니다 · ' + e.message, true); }
+}
 function renderLog() {
   const L = Object.values(S.modlog).filter(Boolean).sort((a, b) => b.at - a.at);
-  $('mlog').innerHTML = L.length ? L.map(x => `<li><b>${esc(x.by)}</b> · ${ACT[x.act] || esc(x.act)} · <b>${esc(x.name || x.room || x.target || '')}</b>${x.act === 'ban' ? ` · ${x.until >= PERM ? '영구' : fmt(x.until) + '까지'}` : ''}${x.reason ? ` · <span class="mute">${esc(x.reason)}</span>` : ''}<span class="mute" style="float:right">${fmt(x.at)}</span></li>`).join('') : '<li class="empty">아직 기록이 없습니다</li>';
+  $('mlog').innerHTML = L.length ? L.map(x => `<li><b>${esc(x.by)}</b> · ${ACT[x.act] || esc(x.act)} · <b>${esc(x.name || x.room || x.target || '')}</b>${['ban', 'mute', 'notice'].includes(x.act) && x.until ? ` · ${x.until >= PERM ? '영구' : fmt(x.until) + '까지'}` : ''}${x.reason ? ` · <span class="mute">${esc(x.reason)}</span>` : ''}<span class="mute" style="float:right">${fmt(x.at)}</span></li>`).join('') : '<li class="empty">아직 기록이 없습니다</li>';
 }
 
 // ── 사람 카드 ──
@@ -359,11 +429,21 @@ async function openPerson(key) {
         <div class="row"><select id="ban-d"><option value="1">1일</option><option value="3" selected>3일</option><option value="7">7일</option><option value="30">30일</option><option value="0">영구</option></select><span class="mute">정지하면 있던 방에서 바로 내보냅니다 · 기간이 끝나면 저절로 풀립니다</span></div>
         <div class="row"><textarea id="ban-r" maxlength="200" placeholder="사유(정지당한 사람 앱에 그대로 보입니다)"></textarea></div>
         <div class="row"><button class="btn red" id="ban-go">정지</button></div></div>`}
+    <div class="box"><h4>경고 · 채팅 금지</h4>
+      <div class="mute">경고 ${warnN(key)}번${banOn(S.mutes[key]) ? ` · <b style="color:#ff9ca8">채팅 금지 중 ${until(S.mutes[key])}</b>` : ''} · 받은 신고 ${Object.values(S.reports || {}).filter(r => r && r.target === key).length}건</div>
+      <div class="row" style="margin-top:10px"><input class="in" id="wm-r" maxlength="200" placeholder="사유(그 사람 앱에 그대로 보입니다)" style="flex:1;min-width:0"></div>
+      <div class="row"><button class="btn" id="warn-go">경고 주기</button>
+        ${banOn(S.mutes[key]) ? '<button class="btn" id="unmute-go">채팅 금지 풀기</button>' : '<select id="mute-h"><option value="1">1시간</option><option value="24" selected>1일</option><option value="72">3일</option><option value="168">7일</option></select><button class="btn" id="mute-go">채팅 금지</button>'}</div>
+      <div class="mute" style="margin-top:6px">경고 = 그 사람 앱에 한 번 안내 · 채팅 금지 = 한마디·이모티콘·핑만 막음(게임은 그대로)</div></div>
     ${rid ? `<div class="box"><h4>방에서 내보내기</h4><div class="row"><span class="mute">${esc(room ? room.name : rid)} 방에서만 내보냅니다(정지는 아님 · 다시 들어올 수 있음)</span><button class="btn" id="kick-go">내보내기</button></div></div>` : ''}
     <div class="box log"><h4>운영 기록</h4><ul>${hist.length ? hist.map(l => `<li>${fmt(l.at)} · ${ACT[l.act] || esc(l.act)} · ${esc(l.by)}${l.reason ? ' · ' + esc(l.reason) : ''}</li>`).join('') : '<li class="mute">없음</li>'}</ul></div>`;
   $('dr').classList.add('on');
   const bg = $('ban-go'); if (bg) bg.onclick = () => ban(key, x.name, Number($('ban-d').value), $('ban-r').value.trim());
   const kg = $('kick-go'); if (kg) kg.onclick = () => kick(key, x.name, rid, true);
+  const wr = () => $('wm-r').value.trim();
+  $('warn-go').onclick = () => warn(key, x.name, wr());
+  const mg = $('mute-go'); if (mg) mg.onclick = () => mute(key, x.name, Number($('mute-h').value), wr());
+  const ug = $('unmute-go'); if (ug) ug.onclick = () => unmute(key, x.name);
   $('pn').querySelectorAll('[data-unban]').forEach(b2 => b2.onclick = () => unban(key));
   // 기록 요약(경기 기록 전체에서 이 계정 판)
   const all = await loadAllDays(); let m = 0, w = 0, n = 0, lastDay = '';
@@ -398,6 +478,24 @@ async function ban(key, name, days, reason) {
     await logIt({ act: 'ban', target: key, name: String(name).slice(0, 60), reason: reason.slice(0, 200), until: u });
     toast('정지했습니다'); await load(); openPerson(key);
   } catch (e) { toast('정지하지 못했습니다 · ' + e.message, true); }
+}
+async function warn(key, name, reason) {
+  if (!reason) { toast('사유를 적어 주세요', true); return; }
+  if (!confirm(`${name}님에게 경고를 줄까요?\n사유: ${reason}`)) return;
+  try { await api('POST', `today/warns/${key}`, { at: Date.now(), reason: reason.slice(0, 200), by: ME.name.slice(0, 40) }); await logIt({ act: 'warn', target: key, name: String(name).slice(0, 60), reason: reason.slice(0, 200) }); toast('경고했습니다 · 그 사람 앱에 1분 안에 뜹니다'); await load(); openPerson(key); }
+  catch (e) { toast('경고하지 못했습니다 · ' + e.message, true); }
+}
+async function mute(key, name, hours, reason) {
+  if (!reason) { toast('사유를 적어 주세요', true); return; }
+  if (!confirm(`${name}님을 ${hours >= 24 ? hours / 24 + '일' : hours + '시간'} 채팅 금지할까요?\n사유: ${reason}`)) return;
+  const u = Date.now() + hours * 3600e3;
+  try { await api('PUT', `today/mutes/${key}`, { until: u, at: Date.now(), reason: reason.slice(0, 200), by: ME.name.slice(0, 40), name: String(name).slice(0, 60) }); await logIt({ act: 'mute', target: key, name: String(name).slice(0, 60), reason: reason.slice(0, 200), until: u }); toast('채팅 금지했습니다'); await load(); openPerson(key); }
+  catch (e) { toast('채팅 금지하지 못했습니다 · ' + e.message, true); }
+}
+async function unmute(key, name) {
+  if (!confirm(`${name}님 채팅 금지를 풀까요?`)) return;
+  try { await api('DELETE', `today/mutes/${key}`); await logIt({ act: 'unmute', target: key, name: String(name).slice(0, 60) }); toast('채팅 금지를 풀었습니다'); await load(); openPerson(key); }
+  catch (e) { toast('풀지 못했습니다 · ' + e.message, true); }
 }
 async function unban(key, quiet) {
   const b = S.bans[key] || {}, name = b.name || key.slice(0, 8);

@@ -97,6 +97,14 @@ body { -webkit-font-smoothing:antialiased; font-feature-settings:'tnum' 0; lette
 .tn-gear.on { color:var(--gold-hi) !important; }
 .tn-gear-dot { display:none; position:absolute; top:1px; right:0; width:7px; height:7px; border-radius:50%; background:var(--gold-hi); box-shadow:0 0 0 2px var(--bg-0); }
 .tn-gear.has-up .tn-gear-dot { display:block; }
+/* 📢 v0.1.245 운영 공지 띠 */
+.tn-notice { display:flex; align-items:flex-start; gap:8px; padding:6px 6px 6px 12px; box-sizing:border-box; background:linear-gradient(90deg, rgba(74,168,255,0.16), rgba(74,168,255,0.04)); border-bottom:1px solid rgba(74,168,255,0.35); -webkit-app-region:no-drag; }
+.tn-notice.warn { background:linear-gradient(90deg, rgba(255,90,110,0.18), rgba(255,90,110,0.05)); border-bottom-color:rgba(255,90,110,0.45); }
+.tn-nt-en { flex:none; margin-top:2px; font:700 10.5px 'Barlow Condensed', var(--f-body); letter-spacing:0.18em; color:#8cc8ff; }
+.tn-notice.warn .tn-nt-en { color:#ff9ca8; }
+.tn-nt-tx { flex:1; min-width:0; font-size:12px; font-weight:600; color:var(--ink); line-height:1.45; white-space:pre-wrap; word-break:break-all; }
+.tn-nt-x { flex:none; background:none; border:0; color:var(--dim); cursor:pointer; font-size:12px; padding:2px 4px; }
+.tn-nt-x:hover { color:var(--ink); }
 .tn-upstrip.busy .tn-up-go, .tn-upstrip.busy .tn-up-x { display:none; }   /* v0.1.143 설치 중·업데이트됨 = 버튼 없이 */
 .tn-upstrip { display:flex; align-items:center; gap:8px; padding:4px 6px 4px 12px; min-height:30px; box-sizing:border-box;   /* v0.1.148 한 줄(설명 줄은 마우스 올림) */ background:linear-gradient(90deg, rgba(200,170,110,0.22), rgba(200,170,110,0.08)); border-bottom:1px solid var(--gold-line); flex:none; }
 .tn-up-tx { flex:1; min-width:0; display:flex; flex-direction:column; font-size:12px; font-weight:700; color:var(--ink); line-height:1.3; overflow:hidden; }

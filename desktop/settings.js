@@ -23,6 +23,13 @@
     gear.onclick = (e) => { e.stopPropagation(); panel.style.display === 'none' ? openPanel() : closePanel(); };
     strip.querySelector('.tn-up-go').onclick = updateNow;
     strip.querySelector('.tn-up-x').onclick = () => { hideStrip = true; renderStrip(); };
+    // 📢 v0.1.245 운영 공지 띠(운영 보드에서 씀 · ✕로 닫으면 그 공지는 다시 안 뜸)
+    const nstrip = $(`<div class="tn-notice" style="display:none;"><span class="tn-nt-en">NOTICE</span><span class="tn-nt-tx"></span><button class="tn-nt-x" title="닫기(이 공지는 다시 안 떠요)">✕</button></div>`);
+    strip.insertAdjacentElement('afterend', nstrip);
+    let N = null;
+    const drawNotice = n => { N = n; nstrip.style.display = n ? '' : 'none'; nstrip.classList.toggle('warn', !!(n && n.lv === 'warn')); nstrip.querySelector('.tn-nt-tx').textContent = n ? n.text : ''; };
+    nstrip.querySelector('.tn-nt-x').onclick = () => { if (N) api.noticeDismiss(N.id); drawNotice(null); };
+    if (api.onNotice) { api.onNotice(drawNotice); api.getNotice().then(drawNotice).catch(() => {}); }
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
   }
   function updateNow() { api.updateNow(); }   // v0.1.143: 윈도우 기본 확인 창 뺌(톤앤매너) — 누르면 「설치 중」 줄 → 조용히 설치 → 다시 켜짐

@@ -61,7 +61,13 @@ contextBridge.exposeInMainWorld('api', {
   lolAccept: () => ipcRenderer.invoke('lol-accept'),        // 🎮 방장 롤 초대 수락
   onSettings: (cb) => ipcRenderer.on('settings', (_e, d) => cb(d)),
   quitApp: () => ipcRenderer.send('app-quit'),
-  chatMute: (key, on) => ipcRenderer.invoke('chat-mute', { key, on }),   // 💬 v0.1.236 이 사람 말 숨기기
+  chatMute: (key, on) => ipcRenderer.invoke('chat-mute', { key, on }),
+  reportSend: (o) => ipcRenderer.invoke('report-send', o),   // 🚨 v0.1.245 신고 {key, name, why, memo}
+  warnSeen: (at) => ipcRenderer.invoke('warn-seen', at),
+  onModWarn: (cb) => ipcRenderer.on('mod-warn', (_e, d) => cb(d)),   // ⚠️ v0.1.245 운영자 경고
+  getNotice: () => ipcRenderer.invoke('notice-get'),   // 📢 v0.1.245 공지
+  noticeDismiss: (id) => ipcRenderer.invoke('notice-dismiss', id),
+  onNotice: (cb) => ipcRenderer.on('notice', (_e, d) => cb(d)),   // 💬 v0.1.236 이 사람 말 숨기기
   privacyWipe: () => ipcRenderer.invoke('privacy-wipe'),   // 🔐 v0.1.236 내 정보 지우기
   openPrivacy: () => ipcRenderer.send('open-privacy'),
   quitConfirm: (yes, noAsk) => ipcRenderer.send('quit-confirm', yes, !!noAsk),

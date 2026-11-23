@@ -87,6 +87,14 @@ body.logo .hero-bg { display:none; }
 .rm.go:hover { border-color:var(--gold-line); }
 .rm-join { flex:none; margin-left:4px; padding:5px 11px; font-size:12px; font-weight:800; cursor:pointer; color:#1a1206; border:none; background:linear-gradient(180deg, var(--gold-hi), var(--gold)); clip-path:var(--cut-sm); }
 .empty small { display:block; margin-top:4px; font-size:12px; color:var(--mute); }
+.notice { display:flex; align-items:flex-start; gap:10px; margin:0 20px 10px; padding:8px 10px 8px 14px; background:linear-gradient(90deg, rgba(74,168,255,0.16), rgba(74,168,255,0.04)); border:1px solid rgba(74,168,255,0.35); clip-path:var(--cut-sm); }   /* 📢 v0.1.245 */
+.notice[hidden] { display:none; }
+.notice.warn { background:linear-gradient(90deg, rgba(255,90,110,0.18), rgba(255,90,110,0.05)); border-color:rgba(255,90,110,0.45); }
+.nt-en { flex:none; margin-top:2px; font:700 11px 'Barlow Condensed', sans-serif; letter-spacing:0.18em; color:#8cc8ff; }
+.notice.warn .nt-en { color:#ff9ca8; }
+.nt-tx { flex:1; min-width:0; font-size:13px; font-weight:600; color:var(--ink); line-height:1.5; white-space:pre-wrap; word-break:break-all; }
+.nt-x { flex:none; background:none; border:0; color:var(--dim); cursor:pointer; font-size:13px; }
+.nt-x:hover { color:var(--ink); }
 .empty.ban { color:#ff9c90; font-weight:700; border:1px solid rgba(232,64,87,0.45); background:rgba(232,64,87,0.08); clip-path:var(--cut-sm); }   /* 🚫 v0.1.244 운영 정지 */
 .empty.ban small { color:var(--ink-soft, #c9c3b4); font-weight:500; word-break:break-all; }
 .empty .ui-btn-gold { display:block; margin:14px auto 0; min-width:150px; padding:10px 18px; font-size:13.5px; }
