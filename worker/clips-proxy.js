@@ -75,9 +75,49 @@ async function verifyIdToken(tok) {   // 맞으면 uid · 아니면 null
   return (await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64u(sig), new TextEncoder().encode(`${h}.${p}`))) ? P.sub : null;
 }
 
+// 🔐 2026-11-23(앱 v0.1.242~): 롤 계정 로그인 — 사장님: PC 등록 방식은 같은 PC 여러 계정·남의 PC에서 어긋남 → 「롤에 연결된 정보로 판단」
+//   앱이 롤 클라이언트(LCU /entitlements/v1/token)에서 꺼낸 라이엇 로그인 증표(accessToken · RS256 · iss auth.riotgames.com · sub = puuid)를
+//   여기서 라이엇 공개 키(https://auth.riotgames.com/jwks.json)로 확인 → 맞으면 Firebase 커스텀 로그인 증표(uid = puuid)를 만들어 줌
+//   → 앱이 그걸로 로그인 → 서버 규칙이 auth.uid == puuid로 「내 칸은 내 롤 계정만」을 확인할 수 있음
+//   ⚠️ 라이엇 증표 = 1시간 동안 그 계정으로 라이엇 서비스를 쓸 수 있는 열쇠 → **확인만 하고 저장·기록·로그에 남기지 않음**(이 함수 밖으로 안 나감)
+//   서명 키 = 비밀값 RIOT_AUTH_SA({client_email, private_key}) = 권한(역할) 없는 전용 서비스 계정 tn-riot-auth — DB 관리자 키(firebase-adminsdk)는 여기 안 둠
+const RIOT_ISS = 'https://auth.riotgames.com', PUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+let _rjwk = null;
+async function riotJwks(fresh) {   // 라이엇 서명 공개키(1시간 보관 · 모르는 kid면 한 번 새로 받음)
+  if (!fresh && _rjwk && Date.now() - _rjwk.at < 3600e3) return _rjwk.keys;
+  const j = await (await fetch(`${RIOT_ISS}/jwks.json`)).json();
+  _rjwk = { at: Date.now(), keys: j.keys || [] }; return _rjwk.keys;
+}
+async function verifyRiotToken(tok) {   // 맞으면 puuid · 아니면 null
+  const [h, p, sig] = String(tok || '').split('.'); if (!sig || tok.length > 8000) return null;
+  let H, P; try { H = JSON.parse(new TextDecoder().decode(b64u(h))); P = JSON.parse(new TextDecoder().decode(b64u(p))); } catch (_) { return null; }
+  const now = Date.now() / 1000;
+  if (H.alg !== 'RS256' || P.iss !== RIOT_ISS || !(P.exp > now) || !(P.iat <= now + 300) || !PUUID.test(P.sub || '') || P.cid !== 'lol') return null;   // cid lol = 롤 클라이언트가 받은 증표만
+  let jwk = (await riotJwks()).find(k => k.kid === H.kid); if (!jwk) jwk = (await riotJwks(true)).find(k => k.kid === H.kid); if (!jwk) return null;
+  const key = await crypto.subtle.importKey('jwk', { kty: jwk.kty, n: jwk.n, e: jwk.e }, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
+  return (await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64u(sig), new TextEncoder().encode(`${h}.${p}`))) ? P.sub : null;
+}
+let _sa = null;
+async function customToken(env, uid) {   // Firebase 커스텀 로그인 증표(1시간 · 앱이 accounts:signInWithCustomToken으로 바꿈)
+  if (!_sa) { const c = JSON.parse(env.RIOT_AUTH_SA); const der = Uint8Array.from(atob(String(c.private_key).replace(/-----[^-]+-----/g, '').replace(/\s+/g, '')), x => x.charCodeAt(0));
+    _sa = { email: c.client_email, key: await crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']) }; }
+  const now = Math.floor(Date.now() / 1000), head = b64uStr(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const pay = b64uStr(JSON.stringify({ iss: _sa.email, sub: _sa.email, aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit', iat: now, exp: now + 3600, uid, claims: { riot: true } }));
+  const sig = new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', _sa.key, new TextEncoder().encode(`${head}.${pay}`)));
+  return `${head}.${pay}.${b64uStr(String.fromCharCode(...sig))}`;
+}
+
 async function route(req, env) {
   const u = new URL(req.url);
   if (req.headers.get('x-tn-app') !== 'today-naejeon') return json({ err: 'forbidden' }, 403);
+  if (req.method === 'POST' && u.pathname === '/riot-auth') {   // 🔐 롤 계정 로그인(위 verifyRiotToken) — 익명 표식 없이도 받음(이 증표 자체가 확인 수단) · IP당 1분 10번
+    if (env.UP_LIMIT && !(await env.UP_LIMIT.limit({ key: `ra:${req.headers.get('cf-connecting-ip') || ''}` })).success) return json({ err: 'too many' }, 429);
+    if (!env.RIOT_AUTH_SA) return json({ err: 'no signer' }, 501);
+    const b = await req.json().catch(() => null);
+    const puuid = await verifyRiotToken(b && b.token);
+    if (!puuid) return json({ err: 'bad riot token' }, 401);
+    return json({ token: await customToken(env, puuid), uid: puuid });
+  }
   const auth = req.headers.get('authorization') || '';
   const uid = auth.startsWith('Bearer ') ? await verifyIdToken(auth.slice(7)) : null;
   if (auth && !uid) return json({ err: 'bad token' }, 401);

@@ -874,18 +874,60 @@ function reqJson(method, url, body) {
   });
 }
 
-// 🔑 Firebase 익명 인증 — 쓰기 규칙(auth != null)용. 홈페이지 signInAnonymously와 동일한 신뢰모델.
-let _fbTok = null, _fbTokAt = 0, _fbTokP = null;
+// 🔑 Firebase 인증 — 쓰기 규칙(auth != null)용.
+//   🔐 v0.1.242 **롤 계정 로그인**(사장님: PC 등록은 같은 PC 여러 계정·남의 PC에서 어긋남 → 롤에 연결된 정보로 판단): 롤에 로그인돼 있으면
+//     롤 클라이언트(LCU /entitlements/v1/token)의 라이엇 로그인 증표를 중계(worker /riot-auth)에 보내 → 중계가 라이엇 공개 키로 확인 →
+//     Firebase 커스텀 로그인 증표(uid = puuid)를 받아 로그인 → 서버가 「이 요청 = 이 롤 계정 주인」을 앎(3단계에서 규칙을 auth.uid == puuid로 잠금)
+//     라이엇 증표는 중계에서 확인만 하고 버림(앱도 저장 안 함) · 그 뒤로는 계정별 갱신 증표(config.fbRiot[puuid])로 이어 씀 = 롤을 잠깐 꺼도 같은 사람
+//   롤 로그인 전(게스트)·롤 로그인 실패(중계·롤 문제) = 예전처럼 익명 로그인(v0.1.98 · config.fbRefresh) — 실패하면 1분 뒤 다시 시도
+let _fbTok = null, _fbTokAt = 0, _fbTokP = null, _fbWho = null, _riotFailAt = 0;
 const NOAUTH = 'noauth';
 const authQ = tok => tok === NOAUTH ? '' : `?auth=${tok}`;
+const RIOT_AUTH_URL = (!app.isPackaged && process.env.TN_CLIP_PROXY) || 'https://today-naejeon-clips.shm2644.workers.dev';   // 중계(worker/clips-proxy.js)
+const PUUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const jwtPay = t => { try { return JSON.parse(Buffer.from(String(t).split('.')[1], 'base64url').toString()); } catch (_) { return null; } };
+function fbWant() { const a = account || _away; return a && PUUID_RE.test(a.puuid || '') ? a.puuid : 'anon'; }   // 지금 표식이 누구여야 하는지(클라를 잠깐 꺼도 2분은 그 계정)
+async function fbRefresh(rt) {   // 갱신 증표 → {tok, rt}
+  const r = await reqJson('POST', `https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`, { grant_type: 'refresh_token', refresh_token: rt });
+  return { tok: r.json && r.json.id_token, rt: r.json && r.json.refresh_token };
+}
+async function riotLogin(puuid) {   // → {tok, rt} | null
+  const keep = (config.fbRiot && config.fbRiot[puuid]) || null;
+  if (keep) { const g = await fbRefresh(keep); if (g.tok && (jwtPay(g.tok) || {}).user_id === puuid) return g; }
+  if (Date.now() - _riotFailAt < 60000) return null;
+  const e = await bridge.lcuRaw('GET', '/entitlements/v1/token').catch(() => null);
+  const at = e && e.status === 200 && e.data && e.data.accessToken;
+  if (!at || (jwtPay(at) || {}).sub !== puuid) { _riotFailAt = Date.now(); return null; }   // 롤 클라가 지금 다른 계정이면 안 씀
+  const c = await riotPost(at);
+  if (!c || !c.token || c.uid !== puuid) { _riotFailAt = Date.now(); console.log('[riot-auth] 실패', c && c.err); return null; }
+  const s = await reqJson('POST', `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${FIREBASE_API_KEY}`, { token: c.token, returnSecureToken: true });
+  const tok = s.json && s.json.idToken, rt = s.json && s.json.refreshToken;
+  if (!tok || (jwtPay(tok) || {}).user_id !== puuid) { _riotFailAt = Date.now(); return null; }
+  return { tok, rt };
+}
+async function riotPost(accessToken) {   // 중계 /riot-auth(앱 표시 머리말 필요) → {token, uid} | {err}
+  try {
+    const r = await fetch(`${RIOT_AUTH_URL}/riot-auth`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-tn-app': 'today-naejeon' }, body: JSON.stringify({ token: accessToken }), signal: AbortSignal.timeout(15000) });
+    return await r.json().catch(() => ({ err: 'http ' + r.status }));
+  } catch (e) { return { err: e.message }; }
+}
 async function fbToken() {
   if (!FIREBASE_API_KEY) return NOAUTH;
-  if (_fbTok && Date.now() - _fbTokAt < 50 * 60 * 1000) return _fbTok;   // idToken 수명 1h → 50분 캐시
-  if (!_fbTokP) _fbTokP = (async () => {   // 🔐 v0.1.98: 처음 한 번만 익명 가입 → 갱신 토큰(config.fbRefresh)으로 계속 같은 사람(uid) · 동시에 불러도 한 번만
-    let tok = null, rt = null;
-    if (config.fbRefresh) { const r = await reqJson('POST', `https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`, { grant_type: 'refresh_token', refresh_token: config.fbRefresh }); tok = r.json && r.json.id_token; rt = r.json && r.json.refresh_token; }
-    if (!tok) { const r = await reqJson('POST', `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`, { returnSecureToken: true }); tok = r.json && r.json.idToken; rt = r.json && r.json.refreshToken; }
-    if (tok) { _fbTok = tok; _fbTokAt = Date.now(); if (rt && rt !== config.fbRefresh) { config.fbRefresh = rt; saveConfig(); } }
+  const who = fbWant();
+  if (_fbTok && _fbWho === who && Date.now() - _fbTokAt < 50 * 60 * 1000) return _fbTok;   // idToken 수명 1h → 50분 캐시
+  if (_fbTok && _fbWho === 'anon' && who !== 'anon' && Date.now() - _riotFailAt < 60000 && Date.now() - _fbTokAt < 50 * 60 * 1000) return _fbTok;   // 롤 로그인이 방금 실패 = 1분은 익명 그대로
+  if (!_fbTokP) _fbTokP = (async () => {
+    let tok = null, rt = null, got = 'anon';
+    if (who !== 'anon') { const g = await riotLogin(who).catch(() => null); if (g && g.tok) { tok = g.tok; rt = g.rt; got = who; } }
+    if (tok) {
+      config.fbRiot = config.fbRiot || {};
+      if (rt && config.fbRiot[who] !== rt) { config.fbRiot[who] = rt; const ks = Object.keys(config.fbRiot); if (ks.length > 12) delete config.fbRiot[ks[0]]; saveConfig(); }
+    } else {   // 🔐 v0.1.98: 익명 — 처음 한 번만 가입 → 갱신 토큰(config.fbRefresh)으로 계속 같은 사람(uid) · 동시에 불러도 한 번만
+      if (config.fbRefresh) { const g = await fbRefresh(config.fbRefresh); tok = g.tok; rt = g.rt; }
+      if (!tok) { const r = await reqJson('POST', `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`, { returnSecureToken: true }); tok = r.json && r.json.idToken; rt = r.json && r.json.refreshToken; }
+      if (tok && rt && rt !== config.fbRefresh) { config.fbRefresh = rt; saveConfig(); }
+    }
+    if (tok) { if (_fbWho !== got) console.log('[auth]', got === 'anon' ? '익명' : '롤 계정', '로그인'); _fbTok = tok; _fbTokAt = Date.now(); _fbWho = got; }
     return tok;
   })().catch(() => null).finally(() => { _fbTokP = null; });
   return (await _fbTokP) || (_fbTok && Date.now() - _fbTokAt < 55 * 60 * 1000 ? _fbTok : NOAUTH);   // 실패하면 아직 안 끝난 옛 표식, 그것도 없으면 표식 없이(규칙이 공개인 동안 앱이 멈추지 않게 · 만료 표식은 공개 규칙에서도 401)
