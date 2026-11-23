@@ -259,7 +259,7 @@
       },
       "accounts": {
         "$puuid": {
-          ".write": "auth != null && auth.uid === $puuid && ((!root.child('today/bans/' + auth.uid).exists() || root.child('today/bans/' + auth.uid + '/until').val() < now) || !newData.exists())",
+          ".write": "(auth != null && auth.uid === $puuid && ((!root.child('today/bans/' + auth.uid).exists() || root.child('today/bans/' + auth.uid + '/until').val() < now) || !newData.exists())) || ((auth != null && root.child('today/admins/' + auth.uid).exists()) && !newData.exists())",
           ".validate": "$puuid.length <= 80",
           "name": {
             ".validate": "newData.isString() && newData.val().length <= 40"
@@ -305,7 +305,7 @@
           "$kind": {
             ".validate": "$kind === 'matches' || $kind === 'normals'",
             "$gid": {
-              ".write": "auth != null && auth.token.riot === true && (!root.child('today/bans/' + auth.uid).exists() || root.child('today/bans/' + auth.uid + '/until').val() < now) && (!data.exists() && newData.exists() && newData.child('sv').val() === now) && ($kind === 'normals' || (newData.child('roomId').isString() && root.child('today/rooms/' + newData.child('roomId').val() + '/uids/' + auth.uid).exists()))",
+              ".write": "(auth != null && root.child('today/admins/' + auth.uid).exists()) || auth != null && auth.token.riot === true && (!root.child('today/bans/' + auth.uid).exists() || root.child('today/bans/' + auth.uid + '/until').val() < now) && (!data.exists() && newData.exists() && newData.child('sv').val() === now) && ($kind === 'normals' || (newData.child('roomId').isString() && root.child('today/rooms/' + newData.child('roomId').val() + '/uids/' + auth.uid).exists()))",
               "potg": {
                 ".write": "auth != null && auth.token.riot === true && (!root.child('today/bans/' + auth.uid).exists() || root.child('today/bans/' + auth.uid + '/until').val() < now) && (data.parent().child('sv').val() > now - 21600000)"
               },
@@ -338,7 +338,9 @@
       "config": {
         ".write": false,
         "connCap": {
-          ".read": "auth != null"
+          ".read": "auth != null",
+          ".write": "(auth != null && root.child('today/admins/' + auth.uid).exists())",
+          ".validate": "newData.isNumber() && newData.val() >= 10 && newData.val() <= 100"
         },
         "clipProxy": {
           ".read": "auth != null"
@@ -349,7 +351,7 @@
       },
       "discord": {
         "$puuid": {
-          ".write": "auth != null && auth.uid === $puuid && ((!root.child('today/bans/' + auth.uid).exists() || root.child('today/bans/' + auth.uid + '/until').val() < now) || !newData.exists())",
+          ".write": "(auth != null && auth.uid === $puuid && ((!root.child('today/bans/' + auth.uid).exists() || root.child('today/bans/' + auth.uid + '/until').val() < now) || !newData.exists())) || ((auth != null && root.child('today/admins/' + auth.uid).exists()) && !newData.exists())",
           ".validate": "newData.hasChildren(['id', 'at'])",
           "id": {
             ".validate": "newData.isString() && newData.val().matches(/^[0-9]{15,21}$/)"
@@ -380,7 +382,7 @@
       },
       "ratings": {
         "$puuid": {
-          ".write": "auth != null && auth.uid === $puuid && ((!root.child('today/bans/' + auth.uid).exists() || root.child('today/bans/' + auth.uid + '/until').val() < now) || !newData.exists())",
+          ".write": "(auth != null && auth.uid === $puuid && ((!root.child('today/bans/' + auth.uid).exists() || root.child('today/bans/' + auth.uid + '/until').val() < now) || !newData.exists())) || ((auth != null && root.child('today/admins/' + auth.uid).exists()) && !newData.exists())",
           ".validate": "newData.hasChildren(['at'])",
           "at": {
             ".validate": "newData.isNumber()"
@@ -521,13 +523,18 @@
           "$uid": {
             ".write": "auth != null && auth.uid === $uid && auth.uid === $puuid",
             ".validate": "newData.isNumber()"
-          }
+          },
+          ".write": "(auth != null && root.child('today/admins/' + auth.uid).exists()) && !newData.exists()"
         }
       },
       ".read": "(auth != null && root.child('today/admins/' + auth.uid).exists())",
       "admins": {
         "$uid": {
           ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && root.child('today/admins/' + auth.uid + '/owner').val() === true && $uid !== auth.uid",
+          "owner": {
+            ".validate": "newData.isBoolean()"
+          },
           ".validate": "newData.hasChildren(['name'])",
           "name": {
             ".validate": "newData.isString() && newData.val().length <= 40"
