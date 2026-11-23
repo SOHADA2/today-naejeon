@@ -1089,7 +1089,7 @@ function homeView() {
   // 🎬 v0.1.177 게임 시작 화면에 이번 판 두 팀(내전 · 팀이 짜인 판만) + 오늘 몇 번째 판인지
   const sd = sessionData, match = _homeMode === 'logo' && sd && sd.phase === 'teams' && sd.mode !== 'normal' && Array.isArray(sd.teamA) && Array.isArray(sd.teamB) && sd.teamA.length && sd.teamB.length
     ? { n: _todayGames != null ? _todayGames + 1 : 0 } : null;
-  return { mode: _homeMode, match, day: dayKey(), me: account ? { name: account.gameName, tag: account.tagLine || '' } : null, rooms: rv.rooms, room: rv.room, online: onlineList(), full: rv.full, ready: rv.ready || !!room, slow: rv.slow, start: startView(), ver: app.getVersion() };
+  return { mode: _homeMode, match, day: dayKey(), me: account ? { name: account.gameName, tag: account.tagLine || '' } : null, rooms: rv.rooms, room: rv.room, online: onlineList(), full: rv.full, ban: rv.ban, ready: rv.ready || !!room, slow: rv.slow, start: startView(), ver: app.getVersion() };
 }
 function sendHome() { if (homeWin && !homeWin.isDestroyed() && _homeLoaded) try { homeWin.webContents.send('home', homeView()); } catch (_) {} }
 async function homeRefresh() {   // 홈이 떠 있을 때만 10초마다(접속 표시는 실시간으로 안 받아서 직접 읽음)
@@ -1610,7 +1610,7 @@ function roomsView() {
     rooms.push({ id, name: r.name, priv: !!r.priv, host: r.host || null, n: mine ? mem.length : (Number(r.n) || mem.length), members: mem.slice(0, 10), at: r.at || 0, mine });
   }
   rooms.sort((a, b) => b.mine - a.mine || b.n - a.n || b.at - a.at);
-  return { rooms, room: room ? { id: room.id, name: room.name, priv: room.priv } : null, me: config.myName || '', ready: !!(MIR.roomList && MIR.roomList.ready), slow: !room && _live && !(MIR.roomList && MIR.roomList.ready) && now - _liveAt > SLOW_MS, full: seatFull };
+  return { rooms, room: room ? { id: room.id, name: room.name, priv: room.priv } : null, me: config.myName || '', ready: !!(MIR.roomList && MIR.roomList.ready), slow: !room && _live && !(MIR.roomList && MIR.roomList.ready) && now - _liveAt > SLOW_MS, ban: banOn() ? { until: _ban.until, reason: _ban.reason, perm: _ban.until > 9e14 } : null, full: seatFull };
 }
 const broadcastRooms = () => broadcast('rooms', roomsView());
 // ⚡ v0.1.95: 방 노드 스트림 7개(session·lobby·host·normalLive·potgWait·potgRec·eogStats) → **방 하나에 스트림 1개**(rooms/{방})
@@ -1628,6 +1628,10 @@ function roomStreams() {   // 방 바뀜 → 방 스트림 다시(예전 방 데
   broadcast('lobby', lobbyView()); broadcast('session', { session: null, myName: config.myName || '' });
   if (!room || !runSession) return;
   fbMirror('room', d => {
+    if (!d && _roomPrev && Object.keys(_roomPrev).length && room) {   // 🛡️ v0.1.244 방이 통째로 지워짐(운영 보드 「방 지우기」) → 나감 + 안내 · 남아 있으면 방장 앱이 방 목록을 다시 만들어 버림
+      const nm = room.name; _roomPrev = null; console.log('[room] 방이 지워짐 →', nm);
+      roomLeave(false).then(() => broadcast('kicked', { room: nm, by: '운영자', gone: true })).catch(() => {}); return;
+    }
     const first = !_roomPrev, p = _roomPrev || {}, c = d || {}; _roomPrev = c;
     if (p.lobby !== c.lobby) { lobbyRaw = c.lobby || null; broadcast('lobby', lobbyView()); if (!first) { chatDiff((p.lobby || {}).chat, (c.lobby || {}).chat); kickDiff((p.lobby || {}).kick, (c.lobby || {}).kick); pingDiff((p.lobby || {}).ping, (c.lobby || {}).ping); cpingDiff((p.lobby || {}).cping, (c.lobby || {}).cping); } }               // ⚡ 대기실(참가·방식·팀장)
     if (p.members !== c.members) { presenceRaw = c.members || null; broadcast('lobby', lobbyView()); broadcastRooms(); }   // 📦 v0.1.110: 방 사람(들어오고 나감)
@@ -1648,6 +1652,7 @@ async function roomUidPut(id) {
 }
 async function roomJoin(id, pw, hash) {
   if (!account) return { ok: false, err: '롤에 로그인하면 방에 들어갈 수 있어요' };
+  if (banOn()) return { ok: false, err: '이용이 정지된 계정이에요' };   // 🚫 v0.1.244
   if (!_live) return { ok: false, err: '지금은 자리가 꽉 찼어요' };
   const r = (roomListRaw || {})[id] || await getJson(`${FIREBASE_DB}/${T}/roomList/${id}.json`);
   if (!r || !r.name) return { ok: false, err: '없어진 방이에요' };
@@ -1689,16 +1694,18 @@ async function lobbyKick(key) {
   return { ok: true, lol };
 }
 function kickDiff(prev, cur) {
-  if (!room || !account || config.isHost) return;
+  if (!room || !account) return;
   const me = account.puuid, a = (prev || {})[me], b = (cur || {})[me];
   if (!b || (a && a.at === b.at)) return;
+  if (config.isHost && !b.admin) return;   // 🛡️ v0.1.244 운영 보드가 내보내면(admin) 방장이어도 나감
   const nm = room.name, by = b.by || '방장';
   fbSet(`${RP()}/lobby/kick/${me}`, null).catch(() => {});
   console.log('[room] 방장이 내보냄 →', nm);
-  roomLeave(false).then(() => broadcast('kicked', { room: nm, by })).catch(() => {});
+  roomLeave(false).then(() => broadcast('kicked', { room: nm, by, admin: !!b.admin })).catch(() => {});
 }
 async function roomCreate(name, priv, pw) {
   if (!account) return { ok: false, err: '롤에 로그인하면 방을 만들 수 있어요' };
+  if (banOn()) return { ok: false, err: '이용이 정지된 계정이에요' };   // 🚫 v0.1.244
   if (!_live) return { ok: false, err: '지금은 자리가 꽉 찼어요' };
   const nm = normName(String(name || '')).slice(0, 20) || `${account.gameName}의 방`, p = String(pw || '').trim();
   if (priv && !p) return { ok: false, err: '비밀번호를 정해주세요' };
@@ -1757,7 +1764,7 @@ async function roomGc() {   // 🧹 아무도 없는 방 지우기(아무 앱이
 let _orphanAt = Date.now();
 function roomRejoin() {   // 앱을 다시 켜면(업데이트 등) 있던 방으로 — 그 방이 아직 있으면
   const L = config.lastRoom;
-  if (room || !account || !L || !L.id || !(MIR.roomList && MIR.roomList.ready)) return;
+  if (room || !account || banOn() || !L || !L.id || !(MIR.roomList && MIR.roomList.ready)) return;
   const r = (roomListRaw || {})[L.id];
   if (!r || !r.name) { config.lastRoom = null; saveConfig(); return; }
   roomJoin(L.id, null, L.h).then(x => { if (!x.ok) { config.lastRoom = null; saveConfig(); } }).catch(() => {});
@@ -1796,6 +1803,22 @@ let _presenceTimer = null;
 //   ① today/owners/{puuid}/{uid} = 등록 시각 — 지금은 자기 기기만 추가(친구들이 쓰는 PC가 다 등록되게 · 잠그기 전) ② 방에 들어온 기기 rooms/{방}/uids/{uid} = puuid(2단계 = 그 방 기기만 방 안에 쓰기)
 //   ③ 디스코드 번호 사본 rooms/{방}/dc/{puuid} — 방장 봇이 음성 채널로 옮길 때 필요한 건 같은 방 사람뿐 → 2단계에서 전체 today/discord 읽기를 막아도 됨
 let _ownKey = null, _roomUidKey = null, _dcMine = null, _dcRoomKey = null;
+// 🚫 v0.1.244 운영 정지 — 운영 보드(docs/admin)가 today/bans/{puuid} = {until, reason, at}를 씀 · 서버 규칙이 그 계정의 쓰기·방 읽기를 막음(기간이 지나면 서버 시각으로 저절로 풀림)
+//   앱은 내 정지 칸을 1분마다 읽어 안내(사유·풀리는 시각) + 방에서 나감 + 방 들어가기·만들기 막음 · 롤 계정 로그인 표식이어야 읽힘(익명이면 못 읽음 = 안내 없음 · 쓰기는 어차피 게스트처럼 막힘)
+let _ban = null, _banKey = '';
+const banOn = () => !!(_ban && _ban.until > Date.now());
+async function banCheck() {
+  const a = account;
+  let b = null;
+  if (a) { const x = await getJson(`${FIREBASE_DB}/${T}/bans/${a.puuid}.json`).catch(() => null); if (x && typeof x === 'object' && Number(x.until) > Date.now()) b = { until: Number(x.until), reason: String(x.reason || '').slice(0, 200), at: Number(x.at) || 0 }; }
+  if (a !== account) return;
+  const k = b ? JSON.stringify(b) : ''; if (k === _banKey) return;
+  _banKey = k; _ban = b;
+  console.log('[ban]', b ? `정지됨 · ${new Date(b.until).toLocaleString()}까지` : '정지 풀림');
+  if (b) { if (room) await roomLeave(true).catch(() => {}); if (a) fbSet(`${T}/presence/${a.puuid}`, null).catch(() => {}); }
+  broadcastRooms(); sendHome();
+}
+setInterval(() => { banCheck().catch(() => {}); if (_ban && !banOn()) banCheck().catch(() => {}); }, 60000);
 function privacyTick() {
   const uid = fbUid(); if (!uid || !account) return;
   const ok = account.puuid + '|' + uid;
@@ -1815,6 +1838,7 @@ async function beatPresence() {
     if (_away && config.isHost && room) fbCas(`${RP()}/host`, cur => cur && cur.puuid === _away.puuid ? { value: { puuid: cur.puuid, name: cur.name, at: Date.now() } } : { err: 'not mine' }).catch(() => {});
     return;
   }
+  if (banOn()) return;   // 🚫 v0.1.244 정지 중 = 접속 표시 안 함
   const pres = { name: account.gameName, tag: account.tagLine || null, icon: account.iconId || null, at: Date.now(), host: !!config.isHost, app: app.getVersion(), room: room ? room.id : null };
   await fbSet(`${T}/presence/${account.puuid}`, pres).catch(() => {});   // 전역(아무도 실시간으로 안 받음 · 옛 앱 호환·관리용)
   if (!room) { privacyTick(); return; }
@@ -1850,6 +1874,7 @@ function setAccount(acc) {
     _away = null;
   }
   account = acc;
+  if (!acc || (prev && prev.puuid !== acc.puuid)) { _ban = null; _banKey = ''; }   // 🚫 계정이 바뀌면 다시 확인
   config.myName = acc ? acc.gameName : '';
   try { guestBeat(); sendHome(); pushStart(); } catch (_) {}   // 👤 로그인하면 게스트 표시 지움 · 홈의 「나」 갱신 · 시작 상태(v0.1.227)
   if (acc) {
@@ -1857,6 +1882,7 @@ function setAccount(acc) {
     fbUpdate(`${T}/accounts/${acc.puuid}`, { name: acc.gameName, tag: acc.tagLine || null, icon: acc.iconId || null, lastSeen: Date.now() }).catch(() => {});
     if (!_presenceTimer) _presenceTimer = setInterval(beatPresence, PRESENCE_MS);
     setTimeout(() => ratingUpdate(true), 20000);   // 🏅 롤 로그인 → 전적 점수
+    banCheck().catch(() => {}); setTimeout(() => banCheck().catch(() => {}), 8000);   // 🚫 v0.1.244
   }
   broadcast('account', { account, isHost: !!config.isHost, switched: !!(prev && acc && prev.puuid !== acc.puuid) });
   broadcast('myname', config.myName);

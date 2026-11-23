@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>투데이 내전 운영 보드</title>
+<link rel="icon" href="../img/icon.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;1,700&display=swap" rel="stylesheet">
+<!--
+  🛡️ 운영 보드(v0.1.244 · 2026-11-23) — 사장님: 운영 권한을 롤 계정에 묶지 말고, 검색·현황을 보고 정지 같은 일을 하는 보드
+  · 들어가기 = 구글 로그인(Firebase Auth) → 서버 today/admins/{uid}가 있는 계정만 데이터를 읽고 씀(서버 규칙 · tools/rules-riot.cjs ⑥) — 이 페이지엔 데이터가 없음
+  · 운영자 추가 = 그 사람이 한 번 로그인하면 화면에 「운영자 번호」가 뜸 → 관리자 도구: node tools/gapi.cjs PUT <DB>/today/admins/<번호>.json '{"name":"이름","at":…}'
+  · 정지 = today/bans/{puuid} {until(풀리는 시각 ms · 영구 9e15), reason, by, at, name} → 앱(v0.1.244+)이 안내 + 서버가 그 계정 쓰기를 막음 · 운영 기록 = today/modlog
+  · 하루 = 새벽 6시 기준(앱과 같음)
+-->
+<style>
+:root{
+  --bg:#0a0e12; --bg-2:#10161c; --bg-3:#151d25; --rule:#1f2830; --rule-2:#2c3843;
+  --ink:#ece6da; --ink-2:#a9a396; --ink-3:#6c6a63;
+  --gold:#d6b36a; --t1:#4aa8ff; --t2:#ff5a6e; --ok:#3ec7a7;
+  --sans:'Pretendard Variable','Pretendard','Malgun Gothic',system-ui,sans-serif;
+  --en:'Barlow Condensed',var(--sans);
+  --cut:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);
+  --cut-sm:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--gold)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px 60px}
+header{position:sticky;top:0;z-index:5;background:rgba(10,14,18,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--rule)}
+.hd{max-width:1180px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;min-width:0}
+.brand-en{font:italic 700 20px var(--en);letter-spacing:.04em;color:var(--gold)}
+.brand b{font-size:15px;font-weight:800}
+.who{margin-left:auto;display:flex;align-items:center;gap:10px;color:var(--ink-2);font-size:13px;min-width:0}
+.who span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+.btn{border:1px solid var(--rule-2);background:var(--bg-3);padding:7px 14px;cursor:pointer;clip-path:var(--cut-sm);white-space:nowrap}
+.btn:hover{border-color:var(--gold)}
+.btn.gold{background:var(--gold);color:#1a1408;border-color:var(--gold);font-weight:800}
+.btn.red{background:rgba(255,90,110,.14);border-color:rgba(255,90,110,.6);color:#ffb3bd;font-weight:700}
+.btn.sm{padding:4px 10px;font-size:12.5px}
+.btn:disabled{opacity:.45;cursor:default}
+nav.tabs{max-width:1180px;margin:0 auto;padding:0 16px;display:flex;gap:4px;overflow-x:auto}
+nav.tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:9px 12px;color:var(--ink-2);cursor:pointer;font-weight:700;white-space:nowrap}
+nav.tabs button.on{color:var(--ink);border-bottom-color:var(--gold)}
+.card{background:var(--bg-2);border:1px solid var(--rule);clip-path:var(--cut);padding:16px}
+.gate{max-width:460px;margin:12vh auto 0;text-align:center}
+.gate h1{font-size:22px;margin:4px 0 8px}
+.gate p{color:var(--ink-2);margin:0 0 18px}
+.en{font:700 12px var(--en);letter-spacing:.22em;color:var(--gold)}
+.uid{font:600 13px ui-monospace,Consolas,monospace;background:var(--bg);border:1px solid var(--rule-2);padding:8px 10px;word-break:break-all;margin:10px 0}
+.sec{margin-top:22px}
+.sec-h{display:flex;align-items:baseline;gap:10px;margin:0 0 10px}
+.sec-h h2{font-size:16px;margin:0}
+.sec-h .en{font-size:11px}
+.sec-h .sp{margin-left:auto;color:var(--ink-3);font-size:12px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:18px}
+.kpi{background:var(--bg-2);border:1px solid var(--rule);clip-path:var(--cut-sm);padding:12px 14px}
+.kpi .l{color:var(--ink-2);font-size:12.5px}
+.kpi .v{font:700 30px/1.1 var(--en);margin-top:4px}
+.kpi .v small{font:500 13px var(--sans);color:var(--ink-3);margin-left:4px}
+.kpi.warn .v{color:var(--t2)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:820px){.grid2{grid-template-columns:1fr}}
+.bars{display:flex;flex-direction:column;gap:6px}
+.bar{display:grid;grid-template-columns:92px 1fr 40px;gap:8px;align-items:center;font-size:13px}
+.bar .t{height:10px;background:var(--bg);position:relative}
+.bar .t i{position:absolute;left:0;top:0;bottom:0;background:var(--gold)}
+.bar .t i.old{background:var(--t2)}
+.bar .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.days{display:flex;align-items:flex-end;gap:4px;height:120px;padding-top:6px}
+.days .d{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.days .c{width:100%;display:flex;flex-direction:column-reverse;height:92px}
+.days .c i{display:block;width:100%}
+.days .c i.m{background:var(--gold)} .days .c i.n{background:var(--t1)}
+.days .x{font-size:10.5px;color:var(--ink-3);white-space:nowrap}
+.days .k{font-size:11px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--ink-2);margin-top:6px}
+.legend i{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-size:12px;color:var(--ink-3);font-weight:600}
+tr.click{cursor:pointer} tr.click:hover td{background:var(--bg-3)}
+.tw{overflow-x:auto}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ink-3);margin-right:6px;vertical-align:1px}
+.dot.on{background:var(--ok)}
+.tag{display:inline-block;font-size:11.5px;padding:1px 7px;border:1px solid var(--rule-2);color:var(--ink-2);margin-left:4px;white-space:nowrap}
+.tag.ban{border-color:rgba(255,90,110,.6);color:#ffb3bd}
+.tag.old{border-color:rgba(255,90,110,.4);color:#ff9ca8}
+.tag.gold{border-color:rgba(214,179,106,.6);color:var(--gold)}
+.mute{color:var(--ink-3)}
+.search{display:flex;gap:8px;margin-top:18px}
+.search input{flex:1;min-width:0;background:var(--bg-2);border:1px solid var(--rule-2);padding:10px 12px;outline:none}
+.search input:focus{border-color:var(--gold)}
+.room{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--rule)}
+.room:last-child{border-bottom:0}
+.room .nm{font-weight:800}
+.room .mem{color:var(--ink-2);font-size:12.5px;margin-top:2px;word-break:break-all}
+.room .r{margin-left:auto;display:flex;gap:6px;align-items:center;flex-shrink:0}
+.empty{color:var(--ink-3);padding:18px 0;text-align:center}
+/* 사람 카드(오른쪽에서 열림) */
+.drawer{position:fixed;inset:0;z-index:20;display:none}
+.drawer.on{display:block}
+.drawer .bk{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.drawer .pn{position:absolute;right:0;top:0;bottom:0;width:min(520px,100%);background:var(--bg-2);border-left:1px solid var(--rule-2);overflow-y:auto;padding:18px 18px 40px}
+.pn h3{font-size:20px;margin:4px 0 2px;word-break:break-all}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;margin-top:14px;font-size:13.5px}
+.kv dt{color:var(--ink-3)} .kv dd{margin:0;word-break:break-all}
+.box{border:1px solid var(--rule-2);padding:12px;margin-top:16px;clip-path:var(--cut-sm)}
+.box h4{margin:0 0 10px;font-size:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row+.row{margin-top:8px}
+select,textarea,.in{background:var(--bg);border:1px solid var(--rule-2);padding:8px 10px;outline:none}
+textarea{width:100%;min-height:62px;resize:vertical}
+.banbox{border-color:rgba(255,90,110,.5);background:rgba(255,90,110,.06)}
+.log{font-size:13px}
+.log li{padding:7px 0;border-bottom:1px solid var(--rule);list-style:none}
+.log ul{margin:0;padding:0}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--bg-3);border:1px solid var(--gold);padding:10px 16px;z-index:40;display:none;max-width:calc(100% - 32px)}
+.toast.on{display:block}
+.toast.err{border-color:var(--t2)}
+.x{position:absolute;right:14px;top:12px;background:none;border:0;color:var(--ink-2);font-size:22px;cursor:pointer}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <div class="hd">
+    <div class="brand"><span class="brand-en">TODAY IN-HOUSE</span><b>운영 보드</b></div>
+    <div class="who" id="who"></div>
+  </div>
+  <nav class="tabs hide" id="tabs">
+    <button data-t="now" class="on">현황</button>
+    <button data-t="people">사람</button>
+    <button data-t="bans">정지</button>
+    <button data-t="log">운영 기록</button>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div id="gate" class="gate card">
+    <div class="en">ADMIN</div>
+    <h1>운영 보드</h1>
+    <p id="gate-msg">운영자로 등록된 구글 계정으로 들어갑니다</p>
+    <button class="btn gold" id="login">Google로 로그인</button>
+  </div>
+
+  <main id="app" class="hide">
+    <!-- 현황 -->
+    <section data-p="now">
+      <div class="kpis" id="kpis"></div>
+      <div class="grid2">
+        <div class="sec card"><div class="sec-h"><span class="en">ROOMS</span><h2>열린 방</h2><span class="sp" id="rooms-n"></span></div><div id="rooms"></div></div>
+        <div class="sec card"><div class="sec-h"><span class="en">VERSIONS</span><h2>앱 버전</h2><span class="sp">최근 14일 접속한 계정</span></div><div class="bars" id="vers"></div></div>
+      </div>
+      <div class="sec card"><div class="sec-h"><span class="en">GAMES</span><h2>날짜별 판 수</h2><span class="sp">최근 14일 · 새벽 6시 기준</span></div><div class="days" id="days"></div>
+        <div class="legend"><span><i style="background:var(--gold)"></i>내전</span><span><i style="background:var(--t1)"></i>같이 한 일반 판</span></div></div>
+      <div class="sec mute" id="loaded"></div>
+    </section>
+    <!-- 사람 -->
+    <section data-p="people" class="hide">
+      <div class="search"><input id="q" placeholder="이름 또는 이름#태그로 찾기" autocomplete="off"><button class="btn" id="reload2">새로고침</button></div>
+      <div class="sec card tw"><table><thead><tr><th>이름</th><th>상태</th><th>앱</th><th>마지막 접속</th></tr></thead><tbody id="ppl"></tbody></table></div>
+    </section>
+    <!-- 정지 -->
+    <section data-p="bans" class="hide">
+      <div class="sec card tw"><div class="sec-h"><span class="en">SUSPENDED</span><h2>정지 중</h2><span class="sp" id="bans-n"></span></div>
+        <table><thead><tr><th>이름</th><th>사유</th><th>풀리는 때</th><th>운영자</th><th></th></tr></thead><tbody id="bans"></tbody></table></div>
+      <div class="sec card tw"><div class="sec-h"><span class="en">EXPIRED</span><h2>기간이 끝난 정지</h2><span class="sp">서버가 이미 풀어 줌 · 기록만 남음</span></div>
+        <table><tbody id="bans-old"></tbody></table></div>
+    </section>
+    <!-- 운영 기록 -->
+    <section data-p="log" class="hide">
+      <div class="sec card log"><div class="sec-h"><span class="en">MOD LOG</span><h2>운영 기록</h2><span class="sp">고치거나 지울 수 없음</span></div><ul id="mlog"></ul></div>
+    </section>
+  </main>
+</div>
+
+<div class="drawer" id="dr"><div class="bk" data-close></div><div class="pn" id="pn"></div></div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
+
+const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app';
+const fb = initializeApp({ apiKey: 'AIzaSyDhVbSzNQ306LUTcPo44Ru9G4_RqV9Dl_E', authDomain: 'today-naejeon-sohada.firebaseapp.com', projectId: 'today-naejeon-sohada' });
+const auth = getAuth(fb);
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const PERM = 9e15, ONLINE_MS = 60000, DAY_START_HOUR = 6;
+let ME = null, S = {};   // S = 받은 자료
+
+// ── 서버 읽기·쓰기(운영자 표식) ──
+async function api(method, path, body) {
+  const tok = await auth.currentUser.getIdToken();
+  const r = await fetch(`${DB}/${path}.json?auth=${tok}`, { method, body: body === undefined ? undefined : JSON.stringify(body) });
+  const j = await r.json().catch(() => null);
+  if (!r.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
+  return j;
+}
+const get = p => api('GET', p);
+function toast(msg, err) { const t = $('toast'); t.textContent = msg; t.className = 'toast on' + (err ? ' err' : ''); clearTimeout(toast._t); toast._t = setTimeout(() => t.className = 'toast', 3200); }
+
+// ── 시간 글자 ──
+const pad = n => String(n).padStart(2, '0');
+const fmt = ms => { const d = new Date(ms); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+function ago(ms) { if (!ms) return '—'; const s = (Date.now() - ms) / 1000; if (s < 60) return '방금'; if (s < 3600) return Math.floor(s / 60) + '분 전'; if (s < 86400) return Math.floor(s / 3600) + '시간 전'; return Math.floor(s / 86400) + '일 전'; }
+const until = b => b.until >= PERM ? '영구' : fmt(b.until) + (b.until > Date.now() ? ` (${ago(Date.now() - (b.until - Date.now())).replace(' 전', ' 남음')})` : '');
+function dayKey(ms) { const d = new Date(ms - DAY_START_HOUR * 3600e3); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+const vcmp = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); return 0; };
+
+// ── 로그인 ──
+$('login').onclick = () => signInWithPopup(auth, new GoogleAuthProvider()).catch(e => toast('로그인 실패 · ' + (e.code || e.message), true));
+onAuthStateChanged(auth, async u => {
+  if (!u) { gate('운영자로 등록된 구글 계정으로 들어갑니다', true); $('who').innerHTML = ''; return; }
+  $('who').innerHTML = `<span>${esc(u.displayName || u.email || '')}</span><button class="btn sm" id="out">로그아웃</button>`;
+  $('out').onclick = () => signOut(auth);
+  let a = null; try { a = await get(`today/admins/${u.uid}`); } catch (_) {}
+  if (!a) {
+    gate('');
+    $('gate').innerHTML = `<div class="en">NOT AN OPERATOR</div><h1>운영자로 등록되지 않은 계정입니다</h1><p>아래 운영자 번호를 관리자에게 전달하면 등록해 줍니다</p><div class="uid">${esc(u.uid)}</div><button class="btn" id="cp">번호 복사</button>`;
+    $('cp').onclick = () => navigator.clipboard.writeText(u.uid).then(() => toast('복사했습니다'));
+    return;
+  }
+  ME = { uid: u.uid, name: a.name || u.displayName || '운영자' };
+  $('gate').classList.add('hide'); $('app').classList.remove('hide'); $('tabs').classList.remove('hide');
+  load();
+});
+function gate(msg, showBtn) {
+  $('app').classList.add('hide'); $('tabs').classList.add('hide'); $('gate').classList.remove('hide');
+  if (!showBtn) return;
+  $('gate').innerHTML = `<div class="en">ADMIN</div><h1>운영 보드</h1><p>${esc(msg)}</p><button class="btn gold" id="login2">Google로 로그인</button>`;
+  $('login2').onclick = () => signInWithPopup(auth, new GoogleAuthProvider()).catch(e => toast('로그인 실패 · ' + (e.code || e.message), true));
+}
+
+// ── 탭 ──
+$('tabs').onclick = e => { const b = e.target.closest('button[data-t]'); if (!b) return; for (const x of $('tabs').children) x.classList.toggle('on', x === b); for (const s of document.querySelectorAll('section[data-p]')) s.classList.toggle('hide', s.dataset.p !== b.dataset.t); };
+
+// ── 자료 받기 ──
+async function load() {
+  $('loaded').textContent = '불러오는 중…';
+  try {
+    const [presence, accounts, roomList, rooms, bans, modlog] = await Promise.all(['today/presence', 'today/accounts', 'today/roomList', 'today/rooms', 'today/bans', 'today/modlog'].map(p => get(p).catch(() => null)));
+    Object.assign(S, { presence: presence || {}, accounts: accounts || {}, roomList: roomList || {}, rooms: rooms || {}, bans: bans || {}, modlog: modlog || {} });
+    S.at = Date.now();
+    renderAll();
+    $('loaded').textContent = `불러온 시각 ${fmt(S.at)} · `;
+    const rb = document.createElement('button'); rb.className = 'btn sm'; rb.textContent = '새로고침'; rb.onclick = load; $('loaded').appendChild(rb);
+    loadDays().catch(() => {});
+  } catch (e) { $('loaded').textContent = '불러오지 못했습니다 · ' + e.message; }
+}
+$('reload2').onclick = load;
+async function loadDays() {   // 최근 14일 판 수(내전·일반) — 날짜 칸마다 얕게 읽어 셈
+  const keys = []; for (let i = 13; i >= 0; i--) keys.push(dayKey(Date.now() - i * 86400e3));
+  const tok = await auth.currentUser.getIdToken();
+  const cnt = async (d, k) => { const r = await fetch(`${DB}/today/days/${d}/${k}.json?shallow=true&auth=${tok}`); const j = await r.json().catch(() => null); return j && !j.error ? Object.keys(j).length : 0; };
+  S.days = await Promise.all(keys.map(async d => ({ d, m: await cnt(d, 'matches'), n: await cnt(d, 'normals') })));
+  renderDays(); renderKpis();
+}
+async function loadAllDays() {   // 사람 카드용 — 기록 전체(한 번만 · 크면 몇 MB)
+  if (S.allDays) return S.allDays;
+  S.allDays = (await get('today/days').catch(() => null)) || {};
+  return S.allDays;
+}
+
+// ── 사람 목록 ──
+function people() {
+  const out = new Map(), now = Date.now();
+  for (const [k, a] of Object.entries(S.accounts)) if (a) out.set(k, { key: k, name: a.name || '?', tag: a.tag || '', last: a.lastSeen || 0 });
+  for (const [k, p] of Object.entries(S.presence)) {
+    if (!p || k.startsWith('g_')) continue;
+    const o = out.get(k) || { key: k, name: p.name || '?', tag: p.tag || '', last: 0 };
+    o.p = p; o.last = Math.max(o.last, p.at || 0); o.on = now - (p.at || 0) < ONLINE_MS; out.set(k, o);
+  }
+  for (const [k, b] of Object.entries(S.bans)) { const o = out.get(k) || { key: k, name: b.name || '?', tag: '', last: 0 }; o.ban = b; out.set(k, o); }
+  return [...out.values()];
+}
+const banOn = b => b && b.until > Date.now();
+function roomOf(key) { for (const [id, r] of Object.entries(S.rooms)) if (r && r.uids && r.uids[key]) return id; return null; }
+const latest = () => { let v = '0.0.0'; for (const p of Object.values(S.presence)) if (p && p.app && vcmp(p.app, v) > 0) v = p.app; return v; };
+
+function renderAll() { renderKpis(); renderRooms(); renderVers(); renderPeople(); renderBans(); renderLog(); }
+function renderKpis() {
+  const P = people(), on = P.filter(x => x.on).length, guests = Object.entries(S.presence).filter(([k, p]) => k.startsWith('g_') && p && Date.now() - (p.at || 0) < ONLINE_MS).length;
+  const open = Object.values(S.roomList).filter(r => r && r.name && Date.now() - Math.max(r.seen || 0, r.at || 0) < 90000).length;
+  const td = S.days ? S.days[S.days.length - 1] : null, bans = Object.values(S.bans).filter(banOn).length;
+  const k = (l, v, s, cls) => `<div class="kpi ${cls || ''}"><div class="l">${l}</div><div class="v">${v}${s ? `<small>${s}</small>` : ''}</div></div>`;
+  $('kpis').innerHTML = k('지금 접속', on, guests ? `게스트 ${guests}` : '') + k('열린 방', open) + k('오늘 판', td ? td.m + td.n : '…', td ? `내전 ${td.m} · 일반 ${td.n}` : '') + k('계정', Object.keys(S.accounts).length) + k('정지 중', bans, '', bans ? 'warn' : '');
+}
+function renderRooms() {
+  const list = Object.entries(S.roomList).filter(([, r]) => r && r.name).sort((a, b) => (b[1].seen || 0) - (a[1].seen || 0));
+  $('rooms-n').textContent = list.length ? list.length + '개' : '';
+  $('rooms').innerHTML = list.length ? list.map(([id, r]) => {
+    const live = Date.now() - Math.max(r.seen || 0, r.at || 0) < 90000, mem = Object.values((S.rooms[id] || {}).members || {}).map(m => m.name);
+    return `<div class="room"><div><div class="nm">${esc(r.name)}${r.priv ? '<span class="tag">비공개</span>' : ''}${live ? '' : '<span class="tag old">소식 없음</span>'}</div>
+      <div class="mem">방장 ${esc(r.host || '?')} · ${mem.length ? mem.map(esc).join(', ') : esc(String(r.mem || '').split('\n').join(', ')) || '아무도 없음'}</div><div class="mem mute">만든 때 ${fmt(r.at || 0)} · 마지막 소식 ${ago(r.seen || r.at)}</div></div>
+      <div class="r"><button class="btn sm red" data-rdel="${esc(id)}">방 지우기</button></div></div>`;
+  }).join('') : '<div class="empty">열린 방이 없습니다</div>';
+}
+$('rooms').onclick = e => { const b = e.target.closest('[data-rdel]'); if (b) roomDelete(b.dataset.rdel); };
+function renderVers() {
+  const cnt = {}, L = latest(), since = Date.now() - 14 * 86400e3;
+  for (const [k, p] of Object.entries(S.presence)) if (p && p.app && !k.startsWith('g_') && (p.at || 0) > since) cnt[p.app] = (cnt[p.app] || 0) + 1;
+  const rows = Object.entries(cnt).sort((a, b) => vcmp(b[0], a[0])), max = Math.max(1, ...rows.map(r => r[1]));
+  $('vers').innerHTML = rows.length ? rows.map(([v, n]) => `<div class="bar"><span>v${esc(v)}${v === L ? ' <span class="tag gold">최신</span>' : ''}</span><span class="t"><i class="${v === L ? '' : 'old'}" style="width:${n / max * 100}%"></i></span><span class="n">${n}명</span></div>`).join('') : '<div class="empty">최근 접속 기록이 없습니다</div>';
+}
+function renderDays() {
+  const D = S.days || [], max = Math.max(1, ...D.map(x => x.m + x.n));
+  $('days').innerHTML = D.map(x => `<div class="d" title="${x.d} · 내전 ${x.m} · 일반 ${x.n}"><span class="k">${x.m + x.n || ''}</span><div class="c"><i class="m" style="height:${x.m / max * 100}%"></i><i class="n" style="height:${x.n / max * 100}%"></i></div><span class="x">${x.d.slice(5).replace('-', '/')}</span></div>`).join('');
+}
+function renderPeople() {
+  const q = $('q').value.trim().toLowerCase().replace(/\s/g, ''), L = latest();
+  let P = people();
+  if (q) P = P.filter(x => (x.name + '#' + x.tag).toLowerCase().replace(/\s/g, '').includes(q));
+  P.sort((a, b) => (b.on - a.on) || (b.last - a.last));
+  $('ppl').innerHTML = P.length ? P.map(x => {
+    const v = x.p && x.p.app, room = x.p && x.p.room && S.roomList[x.p.room];
+    return `<tr class="click" data-k="${esc(x.key)}"><td><b>${esc(x.name)}</b><span class="mute">#${esc(x.tag)}</span>${banOn(x.ban) ? '<span class="tag ban">정지</span>' : ''}</td>
+      <td><span class="dot ${x.on ? 'on' : ''}"></span>${x.on ? (room ? esc(room.name) + ' 방' : '접속 중') : '오프라인'}</td>
+      <td>${v ? `v${esc(v)}${vcmp(v, L) < 0 ? ' <span class="tag old">옛 버전</span>' : ''}` : '<span class="mute">—</span>'}</td><td class="mute">${ago(x.last)}</td></tr>`;
+  }).join('') : '<tr><td colspan="4" class="empty">찾는 사람이 없습니다</td></tr>';
+}
+$('q').oninput = renderPeople;
+$('ppl').onclick = e => { const r = e.target.closest('tr[data-k]'); if (r) openPerson(r.dataset.k); };
+function renderBans() {
+  const all = Object.entries(S.bans).map(([k, b]) => ({ k, ...b })), on = all.filter(banOn).sort((a, b) => a.until - b.until), off = all.filter(b => !banOn(b));
+  $('bans-n').textContent = on.length ? on.length + '명' : '';
+  $('bans').innerHTML = on.length ? on.map(b => `<tr><td class="click" data-k="${esc(b.k)}"><b>${esc(b.name || b.k.slice(0, 8))}</b></td><td>${esc(b.reason || '—')}</td><td>${until(b)}</td><td class="mute">${esc(b.by || '')} · ${fmt(b.at || 0)}</td><td><button class="btn sm" data-unban="${esc(b.k)}">해제</button></td></tr>`).join('') : '<tr><td colspan="5" class="empty">정지 중인 사람이 없습니다</td></tr>';
+  $('bans-old').innerHTML = off.length ? off.map(b => `<tr><td>${esc(b.name || b.k.slice(0, 8))}</td><td>${esc(b.reason || '—')}</td><td class="mute">${fmt(b.until)}에 끝남</td><td><button class="btn sm" data-clear="${esc(b.k)}">기록 지우기</button></td></tr>`).join('') : '<tr><td class="empty">없습니다</td></tr>';
+}
+document.querySelector('section[data-p="bans"]').onclick = e => {
+  const u = e.target.closest('[data-unban]'), c = e.target.closest('[data-clear]'), p = e.target.closest('[data-k]');
+  if (u) unban(u.dataset.unban); else if (c) unban(c.dataset.clear, true); else if (p) openPerson(p.dataset.k);
+};
+const ACT = { ban: '정지', unban: '정지 해제', kick: '방에서 내보냄', roomdel: '방 지움' };
+function renderLog() {
+  const L = Object.values(S.modlog).filter(Boolean).sort((a, b) => b.at - a.at);
+  $('mlog').innerHTML = L.length ? L.map(x => `<li><b>${esc(x.by)}</b> · ${ACT[x.act] || esc(x.act)} · <b>${esc(x.name || x.room || x.target || '')}</b>${x.act === 'ban' ? ` · ${x.until >= PERM ? '영구' : fmt(x.until) + '까지'}` : ''}${x.reason ? ` · <span class="mute">${esc(x.reason)}</span>` : ''}<span class="mute" style="float:right">${fmt(x.at)}</span></li>`).join('') : '<li class="empty">아직 기록이 없습니다</li>';
+}
+
+// ── 사람 카드 ──
+async function openPerson(key) {
+  const x = people().find(p => p.key === key) || { key, name: '?', tag: '' };
+  const rid = roomOf(key), room = rid && S.roomList[rid], b = x.ban;
+  const hist = Object.values(S.modlog).filter(l => l && l.target === key).sort((a, c) => c.at - a.at);
+  $('pn').innerHTML = `<button class="x" data-close>×</button><div class="en">PLAYER</div><h3>${esc(x.name)}<span class="mute" style="font-size:15px">#${esc(x.tag)}</span></h3>
+    <dl class="kv"><dt>상태</dt><dd><span class="dot ${x.on ? 'on' : ''}"></span>${x.on ? '접속 중' : '오프라인'} · 마지막 ${ago(x.last)}</dd>
+      <dt>앱 버전</dt><dd>${x.p && x.p.app ? 'v' + esc(x.p.app) : '—'}</dd>
+      <dt>지금 있는 방</dt><dd>${room ? esc(room.name) : '—'}</dd>
+      <dt>계정 번호</dt><dd class="mute">${esc(key)}</dd>
+      <dt>기록</dt><dd id="pn-games" class="mute">불러오는 중…</dd></dl>
+    ${banOn(b) ? `<div class="box banbox"><h4>정지 중 · ${until(b)}</h4><div class="mute">사유 · ${esc(b.reason || '—')} · ${esc(b.by || '')} ${fmt(b.at || 0)}</div><div class="row" style="margin-top:10px"><button class="btn" data-unban="${esc(key)}">정지 해제</button></div></div>`
+      : `<div class="box banbox"><h4>정지하기</h4>
+        <div class="row"><select id="ban-d"><option value="1">1일</option><option value="3" selected>3일</option><option value="7">7일</option><option value="30">30일</option><option value="0">영구</option></select><span class="mute">정지하면 있던 방에서 바로 내보냅니다 · 기간이 끝나면 저절로 풀립니다</span></div>
+        <div class="row"><textarea id="ban-r" maxlength="200" placeholder="사유(정지당한 사람 앱에 그대로 보입니다)"></textarea></div>
+        <div class="row"><button class="btn red" id="ban-go">정지</button></div></div>`}
+    ${rid ? `<div class="box"><h4>방에서 내보내기</h4><div class="row"><span class="mute">${esc(room ? room.name : rid)} 방에서만 내보냅니다(정지는 아님 · 다시 들어올 수 있음)</span><button class="btn" id="kick-go">내보내기</button></div></div>` : ''}
+    <div class="box log"><h4>운영 기록</h4><ul>${hist.length ? hist.map(l => `<li>${fmt(l.at)} · ${ACT[l.act] || esc(l.act)} · ${esc(l.by)}${l.reason ? ' · ' + esc(l.reason) : ''}</li>`).join('') : '<li class="mute">없음</li>'}</ul></div>`;
+  $('dr').classList.add('on');
+  const bg = $('ban-go'); if (bg) bg.onclick = () => ban(key, x.name, Number($('ban-d').value), $('ban-r').value.trim());
+  const kg = $('kick-go'); if (kg) kg.onclick = () => kick(key, x.name, rid, true);
+  $('pn').querySelectorAll('[data-unban]').forEach(b2 => b2.onclick = () => unban(key));
+  // 기록 요약(경기 기록 전체에서 이 계정 판)
+  const all = await loadAllDays(); let m = 0, w = 0, n = 0, lastDay = '';
+  for (const [day, kinds] of Object.entries(all)) {
+    for (const g of Object.values((kinds || {}).matches || {})) { if (!g) continue; const ids = g.ids || {}, nm = Object.keys(ids).find(k => ids[k] === key); if (!nm) continue; m++; lastDay = day > lastDay ? day : lastDay; const inA = (g.teamA || []).includes(nm); if (g.winner && ((g.winner === 'teamA') === inA)) w++; }
+    for (const g of Object.values((kinds || {}).normals || {})) { if (g && Object.values(g.ids || {}).includes(key)) { n++; lastDay = day > lastDay ? day : lastDay; } }
+  }
+  const el = $('pn-games'); if (el) el.textContent = m || n ? `내전 ${m}판 ${w}승 ${m - w}패${m ? ` · 승률 ${Math.round(w / m * 100)}%` : ''} · 같이 한 일반 판 ${n} · 마지막 판 ${lastDay || '—'}` : '기록 없음';
+}
+$('dr').onclick = e => { if (e.target.closest('[data-close]')) $('dr').classList.remove('on'); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('dr').classList.remove('on'); });
+
+// ── 조작 ──
+const logIt = o => api('POST', 'today/modlog', Object.assign({ at: Date.now(), by: ME.name }, o));
+async function kick(key, name, rid, alone) {   // ① 내보냄 표시(앱 v0.1.217+가 보고 스스로 방을 나가며 안내 · v0.1.244+는 방장이어도) ② 들어왔음·방 사람·참가 칸을 지움(옛 앱도 방 안 쓰기가 바로 막힘)
+  if (alone && !confirm(`${name}님을 방에서 내보낼까요?`)) return;
+  try {
+    await api('PUT', `today/rooms/${rid}/lobby/kick/${key}`, { at: Date.now(), by: '운영자', admin: true });
+    await new Promise(r => setTimeout(r, 2500));   // 그 사람 앱이 표시를 보고 나갈 틈
+    for (const p of [`uids/${key}`, `members/${key}`, `lobby/join/${key}`, `lobby/chat/${key}`]) await api('DELETE', `today/rooms/${rid}/${p}`);
+    if (alone) { await logIt({ act: 'kick', target: key, name, room: String((S.roomList[rid] || {}).name || rid).slice(0, 40) }); toast('내보냈습니다'); await load(); openPerson(key); }
+  } catch (e) { toast('내보내지 못했습니다 · ' + e.message, true); }
+}
+async function ban(key, name, days, reason) {
+  if (!reason) { toast('사유를 적어 주세요', true); return; }
+  const u = days ? Date.now() + days * 86400e3 : PERM;
+  if (!confirm(`${name}님을 ${days ? days + '일' : '영구'} 정지할까요?\n사유: ${reason}`)) return;
+  try {
+    await api('PUT', `today/bans/${key}`, { until: u, at: Date.now(), reason: reason.slice(0, 200), by: ME.name.slice(0, 40), name: String(name).slice(0, 60) });
+    const rid = roomOf(key); if (rid) await kick(key, name, rid, false);
+    await api('DELETE', `today/presence/${key}`).catch(() => {});
+    await logIt({ act: 'ban', target: key, name: String(name).slice(0, 60), reason: reason.slice(0, 200), until: u });
+    toast('정지했습니다'); await load(); openPerson(key);
+  } catch (e) { toast('정지하지 못했습니다 · ' + e.message, true); }
+}
+async function unban(key, quiet) {
+  const b = S.bans[key] || {}, name = b.name || key.slice(0, 8);
+  if (!quiet && !confirm(`${name}님 정지를 풀까요?`)) return;
+  try {
+    await api('DELETE', `today/bans/${key}`);
+    if (!quiet) await logIt({ act: 'unban', target: key, name: String(name).slice(0, 60) });
+    toast(quiet ? '기록을 지웠습니다' : '정지를 풀었습니다'); await load(); if ($('dr').classList.contains('on')) openPerson(key);
+  } catch (e) { toast('풀지 못했습니다 · ' + e.message, true); }
+}
+async function roomDelete(id) {
+  const r = S.roomList[id] || {};
+  if (!confirm(`「${r.name || id}」 방을 지울까요?\n안에 있는 사람은 방 밖으로 나가게 됩니다`)) return;
+  try { await api('DELETE', `today/roomList/${id}`); await api('DELETE', `today/rooms/${id}`); await logIt({ act: 'roomdel', room: String(r.name || id).slice(0, 40) }); toast('방을 지웠습니다'); load(); }
+  catch (e) { toast('지우지 못했습니다 · ' + e.message, true); }
+}
+</script>
+</body>
+</html>

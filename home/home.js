@@ -36,6 +36,11 @@ function render(d) {
   // 방 목록 — 롤 로그인한 사람이 방 밖이면 여기서 바로 들어가거나 만듦(대기실 창이 열림 · v0.1.227)
   const rooms = d.rooms || [], canJoin = !!d.me && !d.room;
   $('rooms-n').textContent = rooms.length ? rooms.length : '';
+  if (d.ban) {   // 🚫 v0.1.244 운영 정지
+    const B = d.ban, dt = new Date(B.until), when = B.perm ? '기간 없이 정지되었습니다' : `${dt.getMonth() + 1}월 ${dt.getDate()}일 ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}에 풀립니다`;
+    $('rooms-n').textContent = '';
+    $('rooms').innerHTML = `<div class="empty ban">이용이 정지되었습니다<small>${B.reason ? '사유 · ' + esc(B.reason) + ' · ' : ''}${when}</small></div>`;
+  } else
   $('rooms').innerHTML = !d.ready ? `<div class="empty">${d.slow ? '서버에 연결하지 못했습니다<small>인터넷 연결을 확인해 주세요 · 연결되면 자동으로 이어집니다</small>' : '방 목록을 불러오는 중입니다'}</div>`
     : rooms.length ? rooms.map(r => `<div class="rm${r.mine ? ' mine' : ''}${canJoin ? ' go' : ''}"${canJoin ? ` data-rid="${esc(r.id)}"` : ''}>
         <div class="rm-top"><span class="rm-nm">${esc(r.name)}</span>${r.mine ? '<span class="rm-tag me">내 방</span>' : ''}${r.priv ? '<span class="rm-tag">비공개</span>' : ''}<span class="rm-n"><b>${r.n}</b>/10</span>${canJoin ? '<button class="rm-join">들어가기</button>' : ''}</div>

@@ -113,6 +113,16 @@ async function rmJoin(id, pw) {
   }
 }
 if (window.api.onRoomPick) window.api.onRoomPick(id => { if (id === '+new') { if (myName && roomData && !roomData.room) rmForm(true); } else if (id) rmJoin(id); });
+// 🚫 v0.1.244 운영 정지 안내(사유 · 풀리는 시각) — 방 목록 자리에
+const banWhen = B => { if (B.perm) return '기간 없이 정지되었습니다'; const d = new Date(B.until); return `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}에 풀립니다`; };
+function renderBan() {
+  const B = roomData.ban;
+  el('rm-new').style.display = 'none'; rmForm(false); rmErr('');
+  const sig = 'ban:' + B.until + B.reason;
+  if (sig === _rmSig) return;
+  _rmSig = sig;
+  el('rm-list').innerHTML = `<div class="rm-empty rm-ban"><span class="rm-ban-en">SUSPENDED</span><b class="rm-full-t">이용이 정지되었습니다</b>${B.reason ? `<span class="rm-ban-why">사유 · ${esc(B.reason)}</span>` : ''}<span>${banWhen(B)}</span><small>기록 보기·증강 가이드는 그대로 쓸 수 있습니다</small></div>`;
+}
 function renderFull() {   // 🚦 v0.1.96: 자리 꽉 참(무료 서버 동시 연결 한도) — 실시간 연결 안 열고 기다림 · 자리 나면 앱이 알아서 들어감
   const F = roomData.full;
   el('rm-new').style.display = 'none'; rmForm(false); rmErr('');
@@ -1067,7 +1077,13 @@ function hostSpecNote(box, on, names, inLobby) {
 // 👑 v0.1.151 방장이 나에게 넘어옴(자동으로 이어받음 · 넘겨받음) → 창 맨 위 금색 줄 · 이전 방장이 방에 돌아와 있으면 「돌려주기」
 let _hostNote = null;
 window.api.onHostNotice(d => { _hostNote = d || null; renderHostNote(); });
-if (window.api.onKicked) window.api.onKicked(d => { tnAlert(`${d && d.by || '방장'}님(방장)이 「${d && d.room || '방'}」 방에서 내보냈어요.\n다른 방에 들어가거나 다시 들어갈 수 있어요.`, { title: '방에서 나왔어요' }); });   // 🚪 v0.1.217
+if (window.api.onKicked) window.api.onKicked(d => {   // 🚪 v0.1.217 · 🛡️ v0.1.244 운영자가 내보냄 / 방이 지워짐
+  const nm = d && d.room || '방';
+  const msg = d && d.gone ? `「${nm}」 방이 운영자에 의해 닫혔어요.\n다른 방에 들어가거나 새로 만들 수 있어요.`
+    : d && d.admin ? `운영자가 「${nm}」 방에서 내보냈어요.\n다른 방에 들어가거나 다시 들어갈 수 있어요.`
+    : `${d && d.by || '방장'}님(방장)이 「${nm}」 방에서 내보냈어요.\n다른 방에 들어가거나 다시 들어갈 수 있어요.`;
+  tnAlert(msg, { title: '방에서 나왔어요' });
+});
 window.api.getHostNotice().then(d => { _hostNote = d || null; renderHostNote(); }).catch(() => {});
 function renderHostNote() {
   const box = el('hn'), n = myIsHost ? _hostNote : null;
@@ -1142,6 +1158,7 @@ function renderRoster() {
 function render() {
   if (window.tnDemo && window.tnDemo.on && !window.tnDemo.rendering) { window.tnDemo.blocked(); return; }   // 🧭 v0.1.228 사용법 예시 화면이 떠 있는 동안은 실제 상태로 다시 안 그림(끝나면 실제 상태를 다시 받아 그림 · overlay/tutorial.js)
   try { renderHostNote(); } catch (_) {}   // 👑 방장 넘어옴 줄(이전 방장 돌아오면 「돌려주기」)
+  if (roomData && roomData.ban) { renderBan(); showView('rooms'); el('phase').textContent = '이용 정지'; return; }   // 🚫 v0.1.244 운영 정지
   if (roomData && roomData.full) { renderFull(); showView('rooms'); el('phase').textContent = '자리 없음'; return; }   // 🚦 서버 자리 꽉 참
   const s = sessionData, ph = s && s.phase;
   if (ph === 'draft' && !inGame) { maybePick(s); loadToday(); renderDraft(); updateDraftTimer(); showView('draft'); el('phase').textContent = '드래프트'; maybeFirstPick(s); return; }   // 픽 먼저(뽑힌 칸을 연출 끝까지 비워둠)
