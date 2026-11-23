@@ -58,6 +58,14 @@ nav.tabs .nb:empty{display:none}
 .rep .memo{margin-top:6px}
 .rep .act{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .ntc{width:100%;min-height:80px}
+.gm{padding:12px 0;border-bottom:1px solid var(--rule)} .gm:last-child{border-bottom:0}
+.gm .top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.gm .tm{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;font-size:13px}
+.gm .tm div{padding:6px 8px;background:var(--bg);border-left:3px solid var(--t1)} .gm .tm div.b{border-left-color:var(--t2)}
+.gm .tm div.win{box-shadow:inset 0 0 0 1px rgba(214,179,106,.6)}
+.gm .act{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.days-pick{display:flex;gap:6px;flex-wrap:wrap;margin-top:18px}
+.days-pick button.on{border-color:var(--gold);color:var(--gold)}
 .card{background:var(--bg-2);border:1px solid var(--rule);clip-path:var(--cut);padding:16px}
 .gate{max-width:460px;margin:12vh auto 0;text-align:center}
 .gate h1{font-size:22px;margin:4px 0 8px}
@@ -149,8 +157,10 @@ textarea{width:100%;min-height:62px;resize:vertical}
     <button data-t="reports">신고함<span class="nb" id="rep-n"></span></button>
     <button data-t="people">사람</button>
     <button data-t="bans">정지</button>
+    <button data-t="games">경기 기록</button>
     <button data-t="notice">공지</button>
     <button data-t="log">운영 기록</button>
+    <button data-t="admin">설정</button>
   </nav>
 </header>
 
@@ -190,6 +200,11 @@ textarea{width:100%;min-height:62px;resize:vertical}
     <section data-p="reports" class="hide">
       <div class="sec card"><div class="sec-h"><span class="en">REPORTS</span><h2>신고함</h2><span class="sp">줄의 말 = 신고한 사람 앱이 받은 그 사람의 최근 말</span></div><div id="reps"></div></div>
     </section>
+    <!-- 경기 기록 -->
+    <section data-p="games" class="hide">
+      <div class="days-pick" id="gm-days"></div>
+      <div class="sec card"><div class="sec-h"><span class="en">RECORDS</span><h2 id="gm-h">경기 기록</h2><span class="sp">이긴 팀 바꾸기·지우기 = 운영 기록에 남음 · 순위·티어는 앱이 다시 계산</span></div><div id="gm-list"><div class="empty">날짜를 고르세요</div></div></div>
+    </section>
     <!-- 공지 -->
     <section data-p="notice" class="hide">
       <div class="sec card"><div class="sec-h"><span class="en">NOTICE</span><h2>공지</h2><span class="sp">모든 앱 위쪽에 띠로 뜸 · 각자 닫으면 그 공지는 다시 안 뜸</span></div>
@@ -201,6 +216,11 @@ textarea{width:100%;min-height:62px;resize:vertical}
     <!-- 운영 기록 -->
     <section data-p="log" class="hide">
       <div class="sec card log"><div class="sec-h"><span class="en">MOD LOG</span><h2>운영 기록</h2><span class="sp">고치거나 지울 수 없음</span></div><ul id="mlog"></ul></div>
+    </section>
+    <!-- 설정 -->
+    <section data-p="admin" class="hide">
+      <div class="sec card"><div class="sec-h"><span class="en">SEATS</span><h2>동시 접속 한도</h2><span class="sp">무료 서버 = 동시 연결 100개까지</span></div><div id="cap"></div></div>
+      <div class="sec card tw"><div class="sec-h"><span class="en">OPERATORS</span><h2>운영자</h2><span class="sp" id="adm-sp"></span></div><table><tbody id="adms"></tbody></table><div id="adm-add"></div></div>
     </section>
   </main>
 </div>
@@ -252,7 +272,7 @@ onAuthStateChanged(auth, async u => {
     $('cp').onclick = () => navigator.clipboard.writeText(u.uid).then(() => toast('복사했습니다'));
     return;
   }
-  ME = { uid: u.uid, name: a.name || u.displayName || '운영자' };
+  ME = { uid: u.uid, name: a.name || u.displayName || '운영자', owner: a.owner === true };
   $('gate').classList.add('hide'); $('app').classList.remove('hide'); $('tabs').classList.remove('hide');
   load();
 });
@@ -270,8 +290,9 @@ $('tabs').onclick = e => { const b = e.target.closest('button[data-t]'); if (!b)
 async function load() {
   $('loaded').textContent = '불러오는 중…';
   try {
-    const [presence, accounts, roomList, rooms, bans, modlog, reports, warns, mutes, notice] = await Promise.all(['today/presence', 'today/accounts', 'today/roomList', 'today/rooms', 'today/bans', 'today/modlog', 'today/reports', 'today/warns', 'today/mutes', 'today/notice'].map(p => get(p).catch(() => null)));
-    Object.assign(S, { presence: presence || {}, accounts: accounts || {}, roomList: roomList || {}, rooms: rooms || {}, bans: bans || {}, modlog: modlog || {}, reports: reports || {}, warns: warns || {}, mutes: mutes || {}, notice: notice || null });
+    const [presence, accounts, roomList, rooms, bans, modlog, reports, warns, mutes, notice, conns, connCap, admins] = await Promise.all(['today/presence', 'today/accounts', 'today/roomList', 'today/rooms', 'today/bans', 'today/modlog', 'today/reports', 'today/warns', 'today/mutes', 'today/notice', 'today/conns', 'today/config/connCap', 'today/admins'].map(p => get(p).catch(() => null)));
+    Object.assign(S, { presence: presence || {}, accounts: accounts || {}, roomList: roomList || {}, rooms: rooms || {}, bans: bans || {}, modlog: modlog || {}, reports: reports || {}, warns: warns || {}, mutes: mutes || {}, notice: notice || null, conns: conns || {}, connCap: Number.isInteger(connCap) ? connCap : null, admins: admins || {} });
+    S.allDays = null;   // 경기 기록은 다시 받음
     S.at = Date.now();
     renderAll();
     $('loaded').textContent = `불러온 시각 ${fmt(S.at)} · `;
@@ -287,8 +308,8 @@ async function loadDays() {   // 최근 14일 판 수(내전·일반) — 날짜
   S.days = await Promise.all(keys.map(async d => ({ d, m: await cnt(d, 'matches'), n: await cnt(d, 'normals') })));
   renderDays(); renderKpis();
 }
-async function loadAllDays() {   // 사람 카드용 — 기록 전체(한 번만 · 크면 몇 MB)
-  if (S.allDays) return S.allDays;
+async function loadAllDays(fresh) {   // 사람 카드용 — 기록 전체(한 번만 · 크면 몇 MB)
+  if (S.allDays && !fresh) return S.allDays;
   S.allDays = (await get('today/days').catch(() => null)) || {};
   return S.allDays;
 }
@@ -310,13 +331,13 @@ const banOn = b => b && b.until > Date.now();
 function roomOf(key) { for (const [id, r] of Object.entries(S.rooms)) if (r && r.uids && r.uids[key]) return id; return null; }
 const latest = () => { let v = '0.0.0'; for (const p of Object.values(S.presence)) if (p && p.app && vcmp(p.app, v) > 0) v = p.app; return v; };
 
-function renderAll() { renderKpis(); renderRooms(); renderVers(); renderPeople(); renderBans(); renderLog(); renderReports(); renderNotice(); }
+function renderAll() { renderKpis(); renderRooms(); renderVers(); renderPeople(); renderBans(); renderLog(); renderReports(); renderNotice(); renderAdmin(); renderGameDays(); }
 function renderKpis() {
   const P = people(), on = P.filter(x => x.on).length, guests = Object.entries(S.presence).filter(([k, p]) => k.startsWith('g_') && p && Date.now() - (p.at || 0) < ONLINE_MS).length;
   const open = Object.values(S.roomList).filter(r => r && r.name && Date.now() - Math.max(r.seen || 0, r.at || 0) < 90000).length;
   const td = S.days ? S.days[S.days.length - 1] : null, bans = Object.values(S.bans).filter(banOn).length, reps = openReports().length;
   const k = (l, v, s, cls) => `<div class="kpi ${cls || ''}"><div class="l">${l}</div><div class="v">${v}${s ? `<small>${s}</small>` : ''}</div></div>`;
-  $('kpis').innerHTML = k('지금 접속', on, guests ? `게스트 ${guests}` : '') + k('열린 방', open) + k('오늘 판', td ? td.m + td.n : '…', td ? `내전 ${td.m} · 일반 ${td.n}` : '') + k('계정', Object.keys(S.accounts).length) + k('정지 중', bans, '', bans ? 'warn' : '') + k('처리 안 한 신고', reps, '', reps ? 'warn' : '');
+  $('kpis').innerHTML = k('지금 접속', on, guests ? `게스트 ${guests}` : '') + k('열린 방', open) + k('오늘 판', td ? td.m + td.n : '…', td ? `내전 ${td.m} · 일반 ${td.n}` : '') + k('자리', seatsNow(), `/ ${S.connCap || 80}`, seatsNow() >= (S.connCap || 80) * 0.9 ? 'warn' : '') + k('계정', Object.keys(S.accounts).length) + k('정지 중', bans, '', bans ? 'warn' : '') + k('처리 안 한 신고', reps, '', reps ? 'warn' : '');
 }
 function renderRooms() {
   const list = Object.entries(S.roomList).filter(([, r]) => r && r.name).sort((a, b) => (b[1].seen || 0) - (a[1].seen || 0));
@@ -363,7 +384,7 @@ document.querySelector('section[data-p="bans"]').onclick = e => {
   const u = e.target.closest('[data-unban]'), c = e.target.closest('[data-clear]'), p = e.target.closest('[data-k]');
   if (u) unban(u.dataset.unban); else if (c) unban(c.dataset.clear, true); else if (p) openPerson(p.dataset.k);
 };
-const ACT = { ban: '정지', unban: '정지 해제', kick: '방에서 내보냄', roomdel: '방 지움', warn: '경고', mute: '채팅 금지', unmute: '채팅 금지 해제', report: '신고 처리', notice: '공지', unnotice: '공지 내림' };
+const ACT = { gamefix: '경기 기록 고침', gamedel: '경기 기록 지움', wipe: '개인정보 지움', cap: '자리 한도 바꿈', opadd: '운영자 추가', opdel: '운영자 뺌', ban: '정지', unban: '정지 해제', kick: '방에서 내보냄', roomdel: '방 지움', warn: '경고', mute: '채팅 금지', unmute: '채팅 금지 해제', report: '신고 처리', notice: '공지', unnotice: '공지 내림' };
 const warnN = k => Object.keys(S.warns[k] || {}).length;
 const openReports = () => Object.entries(S.reports || {}).map(([id, r]) => ({ id, ...r })).filter(r => r && r.st !== 'done');
 // 🚨 신고함
@@ -436,12 +457,14 @@ async function openPerson(key) {
         ${banOn(S.mutes[key]) ? '<button class="btn" id="unmute-go">채팅 금지 풀기</button>' : '<select id="mute-h"><option value="1">1시간</option><option value="24" selected>1일</option><option value="72">3일</option><option value="168">7일</option></select><button class="btn" id="mute-go">채팅 금지</button>'}</div>
       <div class="mute" style="margin-top:6px">경고 = 그 사람 앱에 한 번 안내 · 채팅 금지 = 한마디·이모티콘·핑만 막음(게임은 그대로)</div></div>
     ${rid ? `<div class="box"><h4>방에서 내보내기</h4><div class="row"><span class="mute">${esc(room ? room.name : rid)} 방에서만 내보냅니다(정지는 아님 · 다시 들어올 수 있음)</span><button class="btn" id="kick-go">내보내기</button></div></div>` : ''}
+    <div class="box"><h4>개인정보 지우기(삭제 요청 처리)</h4><div class="mute">계정·전적 점수·디스코드 연결·접속 표시·기기 등록 칸을 지우고, 경기 기록 속 이름·계정 번호를 「지운 이름」으로 바꿉니다. 판 결과(승패·다른 사람 기록)는 그대로입니다. 앱을 다시 켜고 롤에 로그인하면 계정·접속 칸은 다시 생깁니다.</div><div class="row" style="margin-top:10px"><button class="btn red" id="wipe-go">개인정보 지우기</button></div></div>
     <div class="box log"><h4>운영 기록</h4><ul>${hist.length ? hist.map(l => `<li>${fmt(l.at)} · ${ACT[l.act] || esc(l.act)} · ${esc(l.by)}${l.reason ? ' · ' + esc(l.reason) : ''}</li>`).join('') : '<li class="mute">없음</li>'}</ul></div>`;
   $('dr').classList.add('on');
   const bg = $('ban-go'); if (bg) bg.onclick = () => ban(key, x.name, Number($('ban-d').value), $('ban-r').value.trim());
   const kg = $('kick-go'); if (kg) kg.onclick = () => kick(key, x.name, rid, true);
   const wr = () => $('wm-r').value.trim();
   $('warn-go').onclick = () => warn(key, x.name, wr());
+  $('wipe-go').onclick = () => wipe(key, x.name);
   const mg = $('mute-go'); if (mg) mg.onclick = () => mute(key, x.name, Number($('mute-h').value), wr());
   const ug = $('unmute-go'); if (ug) ug.onclick = () => unmute(key, x.name);
   $('pn').querySelectorAll('[data-unban]').forEach(b2 => b2.onclick = () => unban(key));
@@ -496,6 +519,74 @@ async function unmute(key, name) {
   if (!confirm(`${name}님 채팅 금지를 풀까요?`)) return;
   try { await api('DELETE', `today/mutes/${key}`); await logIt({ act: 'unmute', target: key, name: String(name).slice(0, 60) }); toast('채팅 금지를 풀었습니다'); await load(); openPerson(key); }
   catch (e) { toast('풀지 못했습니다 · ' + e.message, true); }
+}
+// 🧾 경기 기록(날짜별 · 이긴 팀 바꾸기 · 지우기)
+let GD = null;
+function renderGameDays() {
+  const keys = []; for (let i = 0; i < 14; i++) keys.push(dayKey(Date.now() - i * 86400e3));
+  $('gm-days').innerHTML = keys.map(d => { const c = (S.days || []).find(x => x.d === d); return `<button class="btn sm ${d === GD ? 'on' : ''}" data-d="${d}">${d.slice(5).replace('-', '/')}${c && c.m + c.n ? ` · ${c.m + c.n}` : ''}</button>`; }).join('');
+}
+$('gm-days').onclick = e => { const b = e.target.closest('[data-d]'); if (b) loadGames(b.dataset.d); };
+async function loadGames(d) {
+  GD = d; renderGameDays(); $('gm-h').textContent = d + ' 경기 기록'; $('gm-list').innerHTML = '<div class="empty">불러오는 중…</div>';
+  const day = (await get(`today/days/${d}`).catch(() => null)) || {};
+  const rows = [];
+  for (const [kind, set] of Object.entries(day)) for (const [gid, g] of Object.entries(set || {})) if (g) rows.push({ kind, gid, g });
+  rows.sort((a, b) => (b.g.ts || 0) - (a.g.ts || 0));
+  $('gm-list').innerHTML = rows.length ? rows.map(({ kind, gid, g }) => {
+    const A = (g.teamA || []).map(esc).join(', '), B = (g.teamB || []).map(esc).join(', ');
+    return `<div class="gm"><div class="top"><span class="tag ${kind === 'matches' ? 'gold' : ''}">${kind === 'matches' ? '내전' : '같이 한 일반 판'}</span><b>${fmt(g.ts || 0)}</b><span class="mute">${esc(g.roomName || '')}${g.queue ? ' · ' + esc(g.queue) : ''} · ${g.source === 'manual' ? '방장이 직접 기록' : '자동 기록'} · ${esc(gid)}</span></div>
+      ${kind === 'matches' ? `<div class="tm"><div class="${g.winner === 'teamA' ? 'win' : ''}"><b>1팀</b>${g.winner === 'teamA' ? ' · 승' : ''}<br>${A || '—'}</div><div class="b ${g.winner === 'teamB' ? 'win' : ''}"><b>2팀</b>${g.winner === 'teamB' ? ' · 승' : ''}<br>${B || '—'}</div></div>` : `<div class="mute" style="margin-top:6px">${g.win ? '승' : '패'} · ${(g.us || []).map(esc).join(', ')}</div>`}
+      ${g.mvp ? `<div class="mute" style="margin-top:6px">MVP ${esc(g.mvp)}${g.svp ? ' · SVP ' + esc(g.svp) : ''}${g.manner ? ' · 매너 ' + esc(g.manner) : ''}</div>` : ''}
+      <div class="act">${kind === 'matches' && g.winner ? `<button class="btn sm" data-flip="${esc(gid)}">이긴 팀을 ${g.winner === 'teamA' ? '2팀' : '1팀'}으로 바꾸기</button>` : ''}<button class="btn sm red" data-gdel="${esc(kind + '/' + gid)}">기록 지우기</button></div></div>`;
+  }).join('') : '<div class="empty">이 날 기록이 없습니다</div>';
+  $('gm-list').onclick = async e => {
+    const fl = e.target.closest('[data-flip]'), dl = e.target.closest('[data-gdel]');
+    if (fl) { const g = (day.matches || {})[fl.dataset.flip]; if (!g) return; const to = g.winner === 'teamA' ? 'teamB' : 'teamA', why = prompt(`이긴 팀을 ${to === 'teamA' ? '1팀' : '2팀'}으로 바꿀까요?\nMVP·SVP는 그대로 남습니다. 이유를 적어 주세요`, ''); if (why === null) return;
+      try { await api('PATCH', `today/days/${d}/matches/${fl.dataset.flip}`, { winner: to }); await logIt({ act: 'gamefix', target: fl.dataset.flip, room: String(g.roomName || '').slice(0, 40), reason: `${d} 이긴 팀 → ${to === 'teamA' ? '1팀' : '2팀'}${why ? ' · ' + why : ''}`.slice(0, 200) }); toast('바꿨습니다'); loadGames(d); } catch (er) { toast('바꾸지 못했습니다 · ' + er.message, true); } }
+    if (dl) { const [kind, gid] = dl.dataset.gdel.split('/'), g = (day[kind] || {})[gid] || {}; const why = prompt(`${d} ${fmt(g.ts || 0)} 기록을 지울까요? 되돌릴 수 없습니다.\n이유를 적어 주세요`, ''); if (why === null) return;
+      try { await api('DELETE', `today/days/${d}/${kind}/${gid}`); await logIt({ act: 'gamedel', target: gid, room: String(g.roomName || '').slice(0, 40), reason: `${d}${why ? ' · ' + why : ''}`.slice(0, 200) }); toast('지웠습니다'); loadGames(d); loadDays().catch(() => {}); } catch (er) { toast('지우지 못했습니다 · ' + er.message, true); } }
+  };
+}
+// 🧹 개인정보 지우기 — 내 칸들 지우고 경기 기록 속 이름·계정 번호를 「지운 이름 ○○○○」으로(판 결과는 그대로)
+const fbKey = n => String(n || '').trim().replace(/\s+/g, ' ').replace(/\s+/g, '_').replace(/[.#$\[\]\/]/g, '_');
+async function wipe(key, name) {
+  if (!confirm(`${name}님의 개인정보를 지울까요?\n계정·전적 점수·디스코드·접속·기기 칸을 지우고, 경기 기록 속 이름을 「지운 이름」으로 바꿉니다. 되돌릴 수 없습니다.`)) return;
+  const label = '지운 이름 ' + key.replace(/-/g, '').slice(0, 4);
+  try {
+    toast('경기 기록을 살펴보는 중…');
+    const all = await loadAllDays(true); let n = 0;
+    for (const [day, kinds] of Object.entries(all)) for (const [kind, set] of Object.entries(kinds || {})) for (const [gid, g] of Object.entries(set || {})) {
+      if (!g || !JSON.stringify(g).includes(key)) continue;
+      const names = new Set([name]);
+      for (const [nm, pu] of Object.entries(g.ids || {})) if (pu === key) names.add(nm);
+      for (const p of Object.values(g.stats || {})) if (p && p.puuid === key && p.summonerName) names.add(p.summonerName);
+      const hit = new Set([key]), keyed = new Set(); for (const nm of names) if (nm) { hit.add(nm); keyed.add(fbKey(nm)); }
+      const subs = [...names].filter(x => x && x.length >= 2);
+      const tr = v => typeof v === 'string' ? (hit.has(v) ? label : subs.reduce((t, x) => t.split(x).join(label), v)) : Array.isArray(v) ? v.map(tr) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [hit.has(k) ? label : keyed.has(k) ? fbKey(label) : k, tr(x)])) : v;
+      await api('PUT', `today/days/${day}/${kind}/${gid}`, tr(g)); n++;
+    }
+    for (const p of [`today/accounts/${key}`, `today/ratings/${key}`, `today/discord/${key}`, `today/presence/${key}`, `today/owners/${key}`]) await api('DELETE', p);
+    await logIt({ act: 'wipe', target: key, name: label, reason: `경기 기록 ${n}판 이름 바꿈` });
+    toast(`지웠습니다 · 경기 기록 ${n}판`); $('dr').classList.remove('on'); await load();
+  } catch (e) { toast('지우다 멈췄습니다 · ' + e.message + ' · 다시 누르면 이어서 합니다', true); }
+}
+// 🚦 자리 한도 · 👥 운영자
+const seatsNow = () => Object.values(S.conns || {}).filter(t => Date.now() - t < 60000).length;
+function renderAdmin() {
+  const cap = S.connCap || 80;
+  $('cap').innerHTML = `<div class="row"><span style="font:700 26px var(--en)">${seatsNow()} <small class="mute" style="font:500 13px var(--sans)">/ ${cap}${S.connCap ? '' : ' (기본값)'}</small></span><span class="mute">지금 앱을 켠 기기 수 / 한도 · 한도가 차면 새로 켠 사람에게 「자리가 꽉 찼어요」</span></div>
+    <div class="row" style="margin-top:10px"><input class="in" id="cap-in" type="number" min="10" max="100" value="${cap}" style="width:90px"><button class="btn" id="cap-go">한도 바꾸기</button><span class="mute">10~100 · 앱마다 연결 1개 + 켜는 순간 여유 · 무료 서버 한도 100</span></div>`;
+  $('cap-go').onclick = async () => { const v = Math.round(Number($('cap-in').value)); if (!(v >= 10 && v <= 100)) { toast('10~100 사이로 적어 주세요', true); return; } if (!confirm(`동시 접속 한도를 ${v}로 바꿀까요?`)) return;
+    try { await api('PUT', 'today/config/connCap', v); await logIt({ act: 'cap', reason: `${S.connCap || 80} → ${v}` }); toast('바꿨습니다'); load(); } catch (e) { toast('바꾸지 못했습니다 · ' + e.message, true); } };
+  const L = Object.entries(S.admins || {});
+  $('adm-sp').textContent = ME.owner ? '주인 운영자만 추가·뺄 수 있음' : '추가·빼기는 주인 운영자만';
+  $('adms').innerHTML = L.map(([uid, a]) => `<tr><td><b>${esc(a.name || '?')}</b>${a.owner ? ' <span class="tag gold">주인</span>' : ''}${uid === ME.uid ? ' <span class="tag">나</span>' : ''}</td><td class="mute">${esc(uid)}</td><td class="mute">${a.at ? fmt(a.at) : ''}</td><td>${ME.owner && uid !== ME.uid ? `<button class="btn sm red" data-opdel="${esc(uid)}">빼기</button>` : ''}</td></tr>`).join('');
+  $('adm-add').innerHTML = ME.owner ? `<div class="row" style="margin-top:12px"><input class="in" id="op-uid" placeholder="운영자 번호(그 사람이 보드에 로그인하면 보임)" style="flex:1;min-width:0"><input class="in" id="op-nm" maxlength="40" placeholder="이름" style="width:130px"><button class="btn" id="op-go">운영자 추가</button></div>` : '';
+  const og = $('op-go'); if (og) og.onclick = async () => { const uid = $('op-uid').value.trim(), nm = $('op-nm').value.trim(); if (!/^[A-Za-z0-9]{20,40}$/.test(uid) || !nm) { toast('번호와 이름을 확인해 주세요', true); return; } if (!confirm(`${nm}님을 운영자로 추가할까요?\n정지·경고·기록 고치기를 할 수 있게 됩니다.`)) return;
+    try { await api('PUT', `today/admins/${uid}`, { name: nm, at: Date.now() }); await logIt({ act: 'opadd', target: uid, name: nm }); toast('추가했습니다'); load(); } catch (e) { toast('추가하지 못했습니다 · ' + e.message, true); } };
+  $('adms').onclick = async e => { const b = e.target.closest('[data-opdel]'); if (!b) return; const a = S.admins[b.dataset.opdel] || {}; if (!confirm(`${a.name || '이 운영자'}를 운영자에서 뺄까요?`)) return;
+    try { await api('DELETE', `today/admins/${b.dataset.opdel}`); await logIt({ act: 'opdel', target: b.dataset.opdel, name: String(a.name || '').slice(0, 60) }); toast('뺐습니다'); load(); } catch (er) { toast('빼지 못했습니다 · ' + er.message, true); } };
 }
 async function unban(key, quiet) {
   const b = S.bans[key] || {}, name = b.name || key.slice(0, 8);

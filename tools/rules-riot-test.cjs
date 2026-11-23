@@ -159,6 +159,8 @@ const OTHER = '00000000-0000-4000-8000-0000000000aa';
   await t('N', '게스트가 일반 판 기록', 'deny', 'PUT', `${D}/normals/rt_g`, { gameId: 'rt_g', ts: now, sv: SV });
   await t('R', '막 끝난 판 투표(PATCH)', 'ok', 'PATCH', `${D}/matches/rt_1`, { mvp: 'a', votes: { x: 1 } });
   await t('N', '게스트가 투표 바꾸기', 'deny', 'PATCH', `${D}/matches/rt_1`, { mvp: 'hack' });
+  await t('R', '경기 기록 이긴 팀 바꾸기(운영자만)', 'deny', 'PATCH', `${D}/matches/rt_1`, { winner: 'teamB' });
+  await t('R', '자리 한도 바꾸기(운영자만)', 'deny', 'PUT', 'today/config/connCap', 90);
   await t('R', '기록 덮어쓰기(그대로 막힘)', 'deny', 'PUT', `${D}/matches/rt_1`, { gameId: 'hack', sv: SV, roomId: 'rt_r' });
   await t('R', '팟지 수집', 'ok', 'PUT', 'today/potg/raw/2000-01-01/rt_g/rt_k', { a: 1 });
   await t('N', '게스트 팟지 수집', 'deny', 'PUT', 'today/potg/raw/2000-01-01/rt_g/rt_k2', { a: 1 });
@@ -217,6 +219,22 @@ const OTHER = '00000000-0000-4000-8000-0000000000aa';
       await t('R', '운영자 — 공지 내리기', 'ok', 'DELETE', 'today/notice');
     }
     await t('R', '운영자 — 공지 모양 틀림(기간 없음)', 'deny', 'PUT', 'today/notice', { id: 'rt', text: '시험', at: Date.now() });
+    // 🧾🧹🚦👥 v0.1.246 기록 고치기·개인정보 지우기·자리 한도·운영자 추가
+    await t('R', '운영자 — 경기 기록 이긴 팀 바꾸기', 'ok', 'PATCH', `${D}/matches/rt_1`, { winner: 'teamB' });
+    await t('R', '운영자 — 경기 기록 지우기', 'ok', 'DELETE', `${D}/normals/rt_n`);
+    await t('R', '운영자 — 남의 계정 칸 지우기', 'ok', 'DELETE', `today/accounts/${OTHER}`);
+    await t('R', '운영자 — 남의 점수 지우기', 'ok', 'DELETE', `today/ratings/${OTHER}`);
+    await t('R', '운영자 — 남의 디스코드 지우기', 'ok', 'DELETE', `today/discord/${OTHER}`);
+    await t('R', '운영자 — 남의 기기 등록 지우기', 'ok', 'DELETE', `today/owners/${OTHER}`);
+    const capWas = admin('GET', 'today/config/connCap');
+    await t('R', '운영자 — 자리 한도 500(범위 밖)', 'deny', 'PUT', 'today/config/connCap', 500);
+    if (capWas === '200 null') { await t('R', '운영자 — 자리 한도 80', 'ok', 'PUT', 'today/config/connCap', 80); await t('R', '운영자 — 자리 한도 지우기(기본값으로)', 'ok', 'DELETE', 'today/config/connCap'); }
+    await t('R', '운영자(주인 아님) — 운영자 추가', 'deny', 'PUT', `today/admins/${OTHER}`, { name: '남', at: Date.now() });
+    admin('PUT', `today/admins/${A}`, { name: '시험운영자', at: Date.now(), owner: true });
+    await t('R', '주인 운영자 — 운영자 추가', 'ok', 'PUT', `today/admins/${OTHER}`, { name: '남', at: Date.now() });
+    await t('R', '주인 운영자 — 나 자신 바꾸기', 'deny', 'PUT', `today/admins/${A}`, { name: 'x', at: Date.now(), owner: true });
+    await t('R', '주인 운영자 — 운영자 빼기', 'ok', 'DELETE', `today/admins/${OTHER}`);
+    admin('PUT', `today/admins/${A}`, { name: '시험운영자', at: Date.now() });
     await t('R', '운영자도 운영자 목록은 못 씀', 'deny', 'PUT', `today/admins/${OTHER}`, { name: 'x' });
     await t('R', '운영자도 설정은 못 씀', 'deny', 'PUT', 'today/config/clipProxy', 'https://evil.example');
     await t('R', '운영자도 남의 계정 칸은 못 씀', 'deny', 'PATCH', `today/accounts/${OTHER}`, { name: '사칭' });

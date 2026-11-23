@@ -8,6 +8,7 @@
 //   ⑤ 빈 방 정리 = 롤 로그인 앱이 방 목록에서 90초 넘게 소식 없는 방 · 목록에 없는 방 데이터 통째
 //   ⑥ 🛡️ 운영(v0.1.244) = today/admins/{uid}(운영 보드 구글 로그인 uid · 관리자 도구로만 넣음)가 있으면 운영자: 전부 읽기 · 정지 today/bans/{puuid} · 운영 기록 today/modlog · 아무 방·방 목록·접속 표시 지우기
 //   ⑦ (v0.1.245) 채팅 금지 today/mutes/{puuid}(한마디·이모티콘·핑만 막음) · 경고 today/warns/{puuid}/{키} · 신고 today/reports/{키}(그 방에 들어온 롤 계정만 · 운영자만 읽음) · 공지 today/notice(운영자가 씀 · 누구나 읽음)
+//   ⑧ (v0.1.246) 운영자 = 경기 기록 고치기·지우기 · 개인정보 지우기(남의 계정·점수·디스코드·기기 등록 칸 「지우기」만) · 자리 한도 config/connCap(10~100) · 운영자 추가·빼기 = admins의 owner:true인 운영자만
 //      정지된 롤 계정(bans/{puuid}.until > 서버 시각) = 롤 로그인으로 하는 쓰기·방 읽기가 전부 막힘(기간이 지나면 저절로 풀림) · 자기 칸 지우기만 됨 · 자기 정지 칸은 읽을 수 있음(앱이 사유·풀리는 시각을 보여 줌)
 const fs = require('fs');
 const src = JSON.parse(fs.readFileSync(0, 'utf8'));
@@ -54,12 +55,13 @@ t.clips.$day['.write'] = `${RIOT} && (!newData.exists())`;
 t.clips.$day.$gid['.write'] = RIOT;
 // 본인 칸
 t.accounts['.read'] = AUTH;
-t.accounts.$puuid['.write'] = OWN('$puuid');
+t.accounts.$puuid['.write'] = `(${OWN('$puuid')}) || (${ADMIN} && !newData.exists())`;   // 운영자 = 지우기만(개인정보 삭제 요청)
 t.ratings['.read'] = AUTH;
-t.ratings.$puuid['.write'] = OWN('$puuid');
+t.ratings.$puuid['.write'] = `(${OWN('$puuid')}) || (${ADMIN} && !newData.exists())`;
 t.discord.$puuid['.read'] = 'auth != null && auth.uid === $puuid';
-t.discord.$puuid['.write'] = OWN('$puuid');
+t.discord.$puuid['.write'] = `(${OWN('$puuid')}) || (${ADMIN} && !newData.exists())`;
 t.owners.$puuid.$uid['.write'] = 'auth != null && auth.uid === $uid && auth.uid === $puuid';
+t.owners.$puuid['.write'] = `${ADMIN} && !newData.exists()`;
 // 증강 가이드
 t.augGuide['.read'] = AUTH;
 t.augGuide.champs.$id['.write'] = RIOT;
@@ -68,12 +70,13 @@ t.augGuide.recent.$k['.write'] = `${RIOT} && (!data.exists() || (!newData.exists
 // 경기 기록
 t.days['.read'] = AUTH;
 const G = t.days.$day.$kind.$gid;
-G['.write'] = `${RIOT} && (!data.exists() && newData.exists() && newData.child('sv').val() === now) && ($kind === 'normals' || (newData.child('roomId').isString() && root.child('today/rooms/' + newData.child('roomId').val() + '/uids/' + auth.uid).exists()))`;
+G['.write'] = `${ADMIN} || ${RIOT} && (!data.exists() && newData.exists() && newData.child('sv').val() === now) && ($kind === 'normals' || (newData.child('roomId').isString() && root.child('today/rooms/' + newData.child('roomId').val() + '/uids/' + auth.uid).exists()))`;
 for (const k of ['potg', 'potgRec', 'guess', 'mvp', 'svp', 'manner', 'votes']) G[k]['.write'] = `${RIOT} && (data.parent().child('sv').val() > now - 21600000)`;
 // 설정 = 앱이 읽는 칸만
 for (const k of ['connCap', 'clipProxy', 'discordApp']) t.config[k] = { '.read': AUTH };
+t.config.connCap['.write'] = ADMIN; t.config.connCap['.validate'] = 'newData.isNumber() && newData.val() >= 10 && newData.val() <= 100';   // 🚦 자리 한도(무료 서버 동시 연결 100)
 // 🛡️ 운영자 목록 = 관리자 도구로만(쓰기 규칙 없음) · 본인만 「내가 운영자인지」 읽음
-t.admins = { $uid: { '.read': 'auth != null && auth.uid === $uid', '.validate': "newData.hasChildren(['name'])", name: { '.validate': 'newData.isString() && newData.val().length <= 40' }, at: { '.validate': 'newData.isNumber()' }, $other: { '.validate': false } } };
+t.admins = { $uid: { '.read': 'auth != null && auth.uid === $uid', '.write': "auth != null && root.child('today/admins/' + auth.uid + '/owner').val() === true && $uid !== auth.uid", owner: { '.validate': 'newData.isBoolean()' }, '.validate': "newData.hasChildren(['name'])", name: { '.validate': 'newData.isString() && newData.val().length <= 40' }, at: { '.validate': 'newData.isNumber()' }, $other: { '.validate': false } } };
 // 🚫 정지 = 운영자만 씀 · 본인은 읽음(앱 안내) · until = 풀리는 시각(ms · 영구 = 9e15)
 const STR = n => ({ '.validate': `newData.isString() && newData.val().length <= ${n}` }), NUM = { '.validate': 'newData.isNumber()' };
 t.bans = { $puuid: { '.read': 'auth != null && auth.uid === $puuid', '.write': ADMIN, '.validate': "$puuid.length <= 80 && newData.hasChildren(['until', 'at'])", until: NUM, at: NUM, reason: STR(200), by: STR(40), name: STR(60), $other: { '.validate': false } } };
