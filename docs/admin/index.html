@@ -293,6 +293,8 @@ async function load() {
     const [presence, accounts, roomList, rooms, bans, modlog, reports, warns, mutes, notice, conns, connCap, admins] = await Promise.all(['today/presence', 'today/accounts', 'today/roomList', 'today/rooms', 'today/bans', 'today/modlog', 'today/reports', 'today/warns', 'today/mutes', 'today/notice', 'today/conns', 'today/config/connCap', 'today/admins'].map(p => get(p).catch(() => null)));
     Object.assign(S, { presence: presence || {}, accounts: accounts || {}, roomList: roomList || {}, rooms: rooms || {}, bans: bans || {}, modlog: modlog || {}, reports: reports || {}, warns: warns || {}, mutes: mutes || {}, notice: notice || null, conns: conns || {}, connCap: Number.isInteger(connCap) ? connCap : null, admins: admins || {} });
     S.allDays = null;   // 경기 기록은 다시 받음
+    // 🗑️ 처리한 신고는 30일 뒤 지움(개인정보 처리방침 · 서버 코드가 없어 운영자가 보드를 열 때 정리)
+    for (const [id, r] of Object.entries(S.reports)) if (r && r.st === 'done' && (r.doneAt || r.at || 0) < Date.now() - 30 * 86400e3) { await api('DELETE', `today/reports/${id}`).catch(() => {}); delete S.reports[id]; }
     S.at = Date.now();
     renderAll();
     $('loaded').textContent = `불러온 시각 ${fmt(S.at)} · `;
