@@ -59,7 +59,8 @@ let fbOk = null, fbErrorLogged = false;
 let _getToken = async () => null;
 const fbUrl = async p => { const t = await _getToken().catch(() => null); return `${FIREBASE_URL}/${p}.json${t && t !== 'noauth' ? `?auth=${t}` : ''}`; };
 async function fbSet(p, data) {
-  const r = await httpReq('PUT', await fbUrl(p), typeof data === 'string' ? JSON.stringify(data) : data);   // 문자열도 JSON으로(안 하면 HTTP 400 — gamePhase가 계속 실패했음)
+  const u = await fbUrl(p);
+  const r = await httpReq('PUT', u + (u.includes('?') ? '&' : '?') + 'print=silent', typeof data === 'string' ? JSON.stringify(data) : data);   // 문자열도 JSON으로(안 하면 HTTP 400 — gamePhase가 계속 실패했음) · 💤 v0.1.246 print=silent = 쓴 내용을 되돌려 받지 않음(204 · 내려받기 전송량 절약)
   if (r.status >= 200 && r.status < 300) { fbOk = true; fbErrorLogged = false; return true; }
   fbOk = false;
   if (!fbErrorLogged) { log(`⚠️ Firebase 쓰기 실패(${p} · HTTP ${r.status})`); fbErrorLogged = true; }
@@ -184,6 +185,7 @@ async function lcuRaw(method, pathStr, body) {
 function startHeartbeat() {
   if (heartbeatTimer) return;
   const beat = () => {
+    if (!basePort || !_acctKey) return;   // 💤 v0.1.246 롤 클라가 실제로 응답해 계정이 잡혔을 때만(예전 = 앱을 켜 둔 내내 5초마다 · 읽는 곳 없음 · 트레이 PC가 하루 1만 7천 번 쓰던 것 · lockfile만 남은 PC도 안 씀)
     fbSet(`${FIXED_ROOT}/operators/${OPERATOR_ID}`, _operatorPayload());  // 다중 진행자 표시
   };
   beat();

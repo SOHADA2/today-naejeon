@@ -1582,20 +1582,56 @@ function connBeat() {
 }
 let _liveAt = 0;   // 🚀 v0.1.227 실시간 연결을 시작한 때 — SLOW_MS 넘게 방 목록을 못 받으면 「서버에 연결하지 못했습니다」(roomsView.slow)
 const SLOW_MS = 12000;
+// 💤 v0.1.246 대기 상태(사장님: 자동 실행으로 켜 둔 PC가 자리·전송량을 차지하지 않게) — 예전 = 켜자마자(트레이에만 있어도) 실시간 연결 + 20초마다 신호를 PC 끌 때까지
+//   지금 = 서버가 필요할 때만 연결: 롤 클라 켜짐·롤 로그인(잠깐 끈 2분 포함)·게임 중·앱 창이 화면에 보임(홈·대기실 — 롤을 끈 채 창을 열어 두면 지금처럼 방 목록·접속 중이 보임)
+//   필요 없는 상태(트레이에만 · 롤 꺼짐)가 10분 이어지면 연결을 끊고 자리(conns)·게스트 표시를 비움 · 방 안이었으면 방에서 나감 → 필요해지면 3초 안에 다시 자리 확인부터
+//   꽉 차서 기다리는 것도 필요할 때만(예전 = 트레이 PC도 30초마다 하루 종일 다시 확인)
+const IDLE_DROP_MS = (!app.isPackaged && Number(process.env.TN_IDLE_MS)) || 10 * 60 * 1000;   // 🧪 개발용 TN_IDLE_MS(시험할 때 짧게)
+let _connIv = null, _guestIv = null, _idleSince = 0, _gateBusy = false, _gateNext = 0;
+function liveWanted() {
+  if (account || _away || inGame) return true;   // 롤 클라가 실제로 응답해 계정이 잡혔을 때만(lockfile만 남은 경우 = 롤이 비정상 종료한 PC · 연결됨/끊김을 되풀이 → 안 셈)
+  return [overlayWin, leftWin, homeWin].some(w => { try { return w && !w.isDestroyed() && w.isVisible() && !w.isMinimized(); } catch (_) { return false; } });
+}
+function liveTick() {
+  if (liveWanted()) { _idleSince = 0; if (!_live) seatGate(); return; }
+  if (!_live) { if (seatFull) { seatFull = null; broadcastRooms(); } return; }   // 쉬는 중 = 자리 확인도 안 함
+  if (!_idleSince) { _idleSince = Date.now(); return; }
+  if (Date.now() - _idleSince >= IDLE_DROP_MS) stopLive().catch(e => console.log('[live] 쉬기 실패', e && e.message));
+}
 function startLive() {   // v0.1.110: 실시간 연결 1개 = 방 밖이면 방 목록 · 방 안이면 그 방(roomStreams가 바꿔 끼움)
-  _live = true; _liveAt = Date.now();
+  _live = true; _liveAt = Date.now(); _idleSince = 0;
   setTimeout(() => { try { broadcastRooms(); sendHome(); } catch (_) {} }, SLOW_MS + 300);
   roomStreams();
-  connBeat(); setInterval(connBeat, CONN_MS);
-  guestBeat(); setInterval(guestBeat, PRESENCE_MS);   // 👤 v0.1.127 롤 로그인 전 = 게스트 접속 표시
+  clearInterval(_connIv); clearInterval(_guestIv);
+  connBeat(); _connIv = setInterval(connBeat, CONN_MS);
+  guestBeat(); _guestIv = setInterval(guestBeat, PRESENCE_MS);   // 👤 v0.1.127 롤 로그인 전 = 게스트 접속 표시
+  noticeCheck().catch(() => {});
+  console.log('[live] 서버 연결 시작');
+}
+async function stopLive() {
+  if (!_live) return;
+  if (room) await roomLeave(false).catch(() => {});   // 트레이에만 · 롤 꺼짐으로 10분 = 방에서도 나감(접속 표시는 이미 사라진 상태)
+  _live = false; _idleSince = 0;
+  clearInterval(_connIv); clearInterval(_guestIv); _connIv = _guestIv = null;
+  mirClose('roomList'); mirClose('room');
+  guestBeat();   // _live = false → 게스트 접속 표시 지움
+  fbSet(`${T}/conns/${config.deviceId}`, null).catch(() => {});   // 🚦 자리 반납
+  console.log('[live] 롤·창 없이 10분 → 서버 연결 쉼(자리 반납)');
+  broadcastRooms(); sendHome();
 }
 async function seatGate() {
-  const [c, capRaw] = await Promise.all([getJson(`${FIREBASE_DB}/${T}/conns.json`), getJson(`${FIREBASE_DB}/${T}/config/connCap.json`)]);
-  const cap = Number.isInteger(capRaw) && capRaw > 0 ? capRaw : CONN_CAP, now = Date.now();
-  const n = Object.entries(c || {}).filter(([k, v]) => k !== config.deviceId && now - v < ONLINE_MS).length;   // 나는 빼고(업데이트로 다시 켠 건 내 자리 그대로)
-  if (n >= cap) { seatFull = { n, cap }; broadcastRooms(); setTimeout(seatGate, 30000); return; }
-  seatFull = null; startLive(); broadcastRooms();
+  if (_live || _gateBusy || Date.now() < _gateNext) return;
+  _gateBusy = true;
+  try {
+    const [c, capRaw] = await Promise.all([getJson(`${FIREBASE_DB}/${T}/conns.json`), getJson(`${FIREBASE_DB}/${T}/config/connCap.json`)]);
+    if (_live) return;
+    const cap = Number.isInteger(capRaw) && capRaw > 0 ? capRaw : CONN_CAP, now = Date.now();
+    const n = Object.entries(c || {}).filter(([k, v]) => k !== config.deviceId && now - v < ONLINE_MS).length;   // 나는 빼고(업데이트로 다시 켠 건 내 자리 그대로)
+    if (n >= cap) { seatFull = { n, cap }; _gateNext = Date.now() + 30000; broadcastRooms(); return; }   // 30초 뒤 다시(필요할 때만 · liveTick)
+    seatFull = null; startLive(); broadcastRooms();
+  } finally { _gateBusy = false; }
 }
+const notLiveErr = () => { seatGate(); return seatFull ? '지금은 자리가 꽉 찼어요' : '서버에 연결하는 중이에요 · 잠시 뒤 다시 눌러 주세요'; };
 function roomMembers(id) {
   const now = Date.now();
   return Object.entries(presenceRaw || {}).filter(([, p]) => p && p.room === id && p.name && now - (p.at || 0) < ONLINE_MS).map(([key, p]) => ({ key, name: normName(p.name), icon: p.icon || null }));
@@ -1653,7 +1689,7 @@ async function roomUidPut(id) {
 async function roomJoin(id, pw, hash) {
   if (!account) return { ok: false, err: '롤에 로그인하면 방에 들어갈 수 있어요' };
   if (banOn()) return { ok: false, err: '이용이 정지된 계정이에요' };   // 🚫 v0.1.244
-  if (!_live) return { ok: false, err: '지금은 자리가 꽉 찼어요' };
+  if (!_live) return { ok: false, err: notLiveErr() };
   const r = (roomListRaw || {})[id] || await getJson(`${FIREBASE_DB}/${T}/roomList/${id}.json`);
   if (!r || !r.name) return { ok: false, err: '없어진 방이에요' };
   let h = null;
@@ -1706,7 +1742,7 @@ function kickDiff(prev, cur) {
 async function roomCreate(name, priv, pw) {
   if (!account) return { ok: false, err: '롤에 로그인하면 방을 만들 수 있어요' };
   if (banOn()) return { ok: false, err: '이용이 정지된 계정이에요' };   // 🚫 v0.1.244
-  if (!_live) return { ok: false, err: '지금은 자리가 꽉 찼어요' };
+  if (!_live) return { ok: false, err: notLiveErr() };
   const nm = normName(String(name || '')).slice(0, 20) || `${account.gameName}의 방`, p = String(pw || '').trim();
   if (priv && !p) return { ok: false, err: '비밀번호를 정해주세요' };
   const id = 'r' + Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 6), now = Date.now();
@@ -1824,7 +1860,8 @@ ipcMain.handle('warn-seen', (_e, at) => { if (Number(at) > (config.warnSeen || 0
 // 📢 v0.1.245 공지(today/notice · 운영 보드에서 씀 · 누구나 읽음) — 1분마다 · 닫으면 그 공지는 다시 안 띄움(config.noticeSeen)
 let _notice = null;
 async function noticeCheck() {
-  const x = await getJson(`${FIREBASE_DB}/${T}/notice.json`).catch(() => undefined);
+  if (!_live) return;   // 💤 v0.1.246 쉬는 중엔 안 읽음(연결을 다시 시작할 때 바로 한 번)
+  const x =await getJson(`${FIREBASE_DB}/${T}/notice.json`).catch(() => undefined);
   if (x === undefined) return;
   const n = x && typeof x === 'object' && x.id && x.text && Number(x.until) > Date.now() && x.id !== config.noticeSeen ? { id: String(x.id), text: String(x.text).slice(0, 200), lv: x.lv === 'warn' ? 'warn' : 'info', until: Number(x.until) } : null;
   if (JSON.stringify(n) === JSON.stringify(_notice)) return;
@@ -4656,7 +4693,8 @@ else {
     discord = makeDiscord({ pipe: !app.isPackaged && process.env.TN_DISCORD_PIPE ? (i => `\\\\?\\pipe\\${process.env.TN_DISCORD_PIPE}-${i}`) : undefined, log: m => { try { console.log(m); } catch (_) {} }, onUser: (u) => { if (u) _dcLinked = null; dcLink(); broadcastSettings(); dcPresence(); } });   // 🎧 v0.1.130
     setInterval(dcPresence, 3000); setTimeout(dcPresence, 4000);
     setInterval(pushStart, 5000);                        // 🚀 v0.1.227 롤 켜짐/꺼짐 → 「롤 클라이언트 켜기」 버튼
-    seatGate();                                          // 🚦 자리 있으면 실시간 연결(접속 표시·방 목록·방) · 꽉 찼으면 안내하고 30초마다 다시
+    if (!_quiet) seatGate();                             // 🚦 자리 있으면 실시간 연결(접속 표시·방 목록·방) · 꽉 찼으면 안내하고 30초마다 다시
+    setInterval(liveTick, 3000);                         // 💤 v0.1.246 자동 실행(트레이에만)은 롤을 켜거나 창을 열 때 연결 · 필요 없는 상태 10분 = 연결 쉼
     setupAutoUpdate();
     replayRec = makeReplayRec(Object.assign(makeReplayRec.defaults(), {   // 🎬 방장 PC가 팟지 장면을 리플레이로 녹화
       lcuRaw: bridge.lcuRaw, lolDir: bridge.lolDir, outDir: path.join(app.getPath('userData'), 'replay-rec'),
@@ -4679,7 +4717,7 @@ else {
       lcuGet: async p => { const r = await bridge.lcuRaw('GET', p); return r && r.status >= 200 && r.status < 300 ? r.data : null; } });
     setInterval(() => ratingUpdate(false), 30 * 60e3);
     potg = makePotg({ T, FIREBASE_DB, fbSet, fbDelete, getJson, getToken: fbToken, dayKey, normName, userData: app.getPath('userData'), getPlayers: () => latestPlayers, log: (m) => { try { console.log(m); } catch (_) {} } });
-    setTimeout(() => potg.cleanup().catch(() => {}), 8000); setInterval(() => potg.cleanup().catch(() => {}), 30 * 60 * 1000);   // 🎬 3일 지난 영상·수집 지우기
+    setTimeout(() => { if (_live) potg.cleanup().catch(() => {}); }, 8000); setInterval(() => { if (_live) potg.cleanup().catch(() => {}); }, 30 * 60 * 1000);   // 🎬 3일 지난 영상·수집 지우기
     bridge.start({ getToken: fbToken, getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, onLobbySeat, onChampSelect, onNormal: (e) => recordNormal(e).catch(err => console.log('[normal] 오류', err && err.message)), fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
     // 🧪 개발용: 롤 없이 테스트 — TN_FAKE_ACCOUNT="이름#태그" (배포본에선 안 씀) · TN_FAKE_DELAY=ms(기본 1500 · 50이면 창 로딩 도중 계정이 잡히는 경우 재현)
     if (!app.isPackaged && process.env.TN_FAKE_ACCOUNT) { const [g, t] = process.env.TN_FAKE_ACCOUNT.split('#'); setTimeout(() => setAccount({ puuid: 'fake-' + g, gameName: g, tagLine: t || 'KR1', iconId: 29 }), +(process.env.TN_FAKE_DELAY || 1500)); }
