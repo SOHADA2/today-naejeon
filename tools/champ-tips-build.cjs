@@ -10,7 +10,7 @@ const norm = s => String(s || '').replace(/\s+/g, '').toLowerCase();
   const [champs, augs, items] = await Promise.all(['champion-summary.json', 'cherry-augments.json', 'items.json'].map(f => fetch(CD + f).then(r => r.json())));
   const idx = JSON.parse(fs.readFileSync(path.join(R, 'docs/data/aramgg/index.json'), 'utf8'));
   let pat = { patches: [] }; try { pat = JSON.parse(fs.readFileSync(path.join(R, 'docs/data/aramgg/patches.json'), 'utf8')); } catch (_) {}
-  const live = new Set([...Object.keys(idx.g || {}), ...(pat.patches[0] ? pat.patches[0].added.map(a => String(a.id)) : [])]);
+  const live = new Set([...(Array.isArray(idx.ids) ? idx.ids.map(String) : Object.keys(idx.g || {})), ...(pat.patches[0] ? pat.patches[0].added.map(a => String(a.id)) : [])]);
   const C = new Map(champs.filter(c => c.id > 0 && c.id < 10000).map(c => [norm(c.name), c.id]));
   const A = new Map(); for (const a of augs) if (a.id >= 1000 && a.nameTRA && !A.has(norm(a.nameTRA)) || (a.id >= 1000 && live.has(String(a.id)))) A.set(norm(a.nameTRA), a.id);   // 같은 이름이면 지금 시즌 것 우선
   const I = new Map(); for (const i of items.filter(i => i.id < 10000 && i.priceTotal > 0).sort((x, y) => x.id - y.id)) if (!I.has(norm(i.name))) I.set(norm(i.name), i.id);

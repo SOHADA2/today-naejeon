@@ -30,7 +30,6 @@ contextBridge.exposeInMainWorld('api', {
   lolLaunch: () => ipcRenderer.invoke('lol-launch'),                // 🚀 「롤 클라이언트 켜기」          // 🚪 창이 움직이는 동안 안쪽 화면을 문짝처럼(v0.1.127)          // 🚪 클라 없을 때 두 창이 맞붙은 한 창 — 머리줄 하나로(왼쪽 제목·오른쪽 버튼)         // 🖥️ 클라 도킹 중이면 각진 모서리
   onSlotTeam: (cb) => ipcRenderer.on('slot-team', (_e, t) => cb(t)),    // 📍 클라 위 내 팀 마커(1/2)
   onRecToast: (cb) => ipcRenderer.on('rec-toast', (_e, d) => cb(d)),
-  onAugRank: (cb) => ipcRenderer.on('augrank', (_e, d) => cb(d)),      // 🎯 증강 순위(설정에서 켠 사람 · 베타)        // 🖥️ 게임 중 정보 창(설정에서 켠 사람)    // 🎬 팟지 녹화 중 안내(방장 PC)
   onTeamBuild: (cb) => ipcRenderer.on('teambuild', (_e, d) => cb(d)),
   // 🪟 창
   sideClose: () => ipcRenderer.send('side-hide'),
@@ -123,7 +122,7 @@ contextBridge.exposeInMainWorld('api', {
   getAugments: () => ipcRenderer.invoke('augments'),
   getAugGuide: () => ipcRenderer.invoke('augguide'),                       // 🧭 챔피언 선택 화면 증강 가이드(내 챔피언+벤치)
   onAugGuide: (cb) => ipcRenderer.on('augguide', (_e, d) => cb(d)),
-  getAugGG: (champId) => ipcRenderer.invoke('augguide-gg', champId),         // 🧭 v0.1.100: 그 챔피언 가이드(aramgg 합친 것 · 편집 시작용)
+  getAugGG: (champId) => ipcRenderer.invoke('augguide-gg', champId),         // 🧭 그 챔피언 가이드(사람이 쓴 플랜 → 없으면 우리 기록 짝 · 편집 시작용)
   getAugGuideAll: () => ipcRenderer.invoke('augguide-all'),                // 🧭 편집용 전체(카테고리·챔피언·증강·우리 기록에 나온 증강)
   saveAugGuide: (champId, guide, baseAt, sum) => ipcRenderer.invoke('augguide-save', { champId, guide, baseAt, sum }),   // ✍️ baseAt = 편집 시작 때 버전(남이 먼저 고쳤으면 충돌 알림) · sum = 무엇을 바꿨는지
   getAugGuideHist: (champId) => ipcRenderer.invoke('augguide-hist', champId),            // ✍️ 그 챔피언 고친 기록

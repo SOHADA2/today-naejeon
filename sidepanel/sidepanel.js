@@ -340,7 +340,7 @@ async function renderProfile() {
   const champs = P.champs.length ? sec('많이 한 챔피언') + list(P.champs.map(c =>
     `<div class="pf-row">${champIcon(c.id)}<span class="pf-rn">${escH(c.name || '?')}</span><span class="pf-rv">${c.games}판 ${pct(c.wins, c.games)}%</span><span class="pf-rk">${kdaOf(c.k, c.d, c.a)}</span></div>`).join('')) : '';
   const augs = (P.augs || []).length ? sec('많이 고른 증강') + list(P.augs.map(x => { const a = AUG[x.id] || {};
-    return `<div class="pf-row"><i class="pf-aug ${a.rarity || ''}">${a.icon ? `<img src="${a.icon}" alt="" onerror="this.remove()">` : ''}<b>?</b></i><span class="pf-rn">${escH(a.name || '증강 #' + x.id)}</span><span class="pf-rv">${x.games}번 ${pct(x.wins, x.games)}%</span></div>`; }).join('')) : '';
+    return `<div class="pf-row"><i class="pf-aug ${a.rarity || ''}">${a.icon ? `<img src="${a.icon}" alt="" onerror="this.remove()">` : ''}<b>?</b></i><span class="pf-rn">${escH(a.name || '증강 #' + x.id)}</span><span class="pf-rv">${x.games}번</span></div>`; }).join('')) : '';
   const B = P.best, bestRow = (label, b, fmt) => b ? `<div class="pf-row">${champIcon(b.champId)}<span class="pf-rn">${label}</span><span class="pf-rv">${fmt(b.v)}</span><span class="pf-rk">${escH(b.champ || '')} · ${md(b.day)}</span></div>` : '';
   const best = (B.kills || B.damage || B.kda) ? sec('최고 기록') + list(bestRow('최다 킬', B.kills, v => v + '킬') + bestRow('최고 피해량', B.damage, v => v.toLocaleString()) + bestRow('최고 KDA', B.kda, v => v) + bestRow('최다 어시', B.assists, v => v + '어시')) : '';
   const pals = (label, rows, hint) => rows.length ? sec(label, hint) + list(rows.map(x =>

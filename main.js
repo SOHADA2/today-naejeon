@@ -606,8 +606,6 @@ function onLobbySeat(d) {
   { const pp = JSON.stringify(lobbyParty) + JSON.stringify(lobbyCust); lobbyParty = d && d.party || null; lobbyCust = d && d.cust || null; try { autoLobbyGame(); } catch (_) {} if (room && (pp !== JSON.stringify(lobbyParty) + JSON.stringify(lobbyCust) || prevPhase !== lobbyPhase)) broadcast('lobby', lobbyView()); }   // 🎮 v0.1.217 사용자 설정 방 사람·초대 상태도   // 🎮 v0.1.191 일반 파티 인원·큐 상태를 대기실 버튼에
   autoLobbyMode(); autoSeat();
   if ((prevPhase === 'ChampSelect') !== (lobbyPhase === 'ChampSelect')) { if (lobbyPhase !== 'ChampSelect') { champSel = null; _champSelSig = ''; } pushAugGuide().catch(() => {}); }   // 🧭 증강 가이드 켜고 끄기
-  if (lobbyPhase === 'ChampSelect' && prevPhase !== 'ChampSelect') borderlessOn();   // 🎯 증강 순위 켠 사람 = 게임 뜨기 전에 테두리 없는 창으로
-  else if (prevPhase === 'ChampSelect' && ['Lobby', 'None', 'Matchmaking', 'ReadyCheck'].includes(lobbyPhase) && !inGame) borderlessOff();   // 닷지·취소 → 원래대로
   if (!_floating && clientFg && _lastRect) updateSlotMarker(_lastRect); else hideSlotMarker();
   // 🚪 문 닫힌 채 게임이 아니게 됨(게임 끝·닷지·클라 종료) → 3초 안에 클라가 돌아오면 거기서 문이 열리고, 안 돌아오면 합친 창으로
   if (_door === 'closed' && !GAME_PH.has(lobbyPhase)) setTimeout(() => { if (_door === 'closed' && _floating && !inGame && !GAME_PH.has(lobbyPhase)) floatPanels(); }, 3000);
@@ -1220,290 +1218,10 @@ function broadcast(channel, payload) {
 
 // 🖥️ 게임 중 정보 창(v0.1.77 · 양 팀 아이템 골드·킬 띠)은 v0.1.136에서 뺌(사장님: 딱히 도움이 안 됨) · _rawPlayers(2999 playerlist)는 내 챔피언 찾기(myRaw·디스코드 상태)에 계속 씀
 let _rawPlayers = [];
-function borderlessOn() { try { if (replayRec && config.augRank) replayRec.borderlessOn(); } catch (_) {} }   // 증강 순위가 게임 위에 떠야 함(테두리 없는 창)
-function borderlessOff() { try { if (replayRec) replayRec.borderlessOff(); } catch (_) {} }
+function borderlessOff() { try { if (replayRec) replayRec.borderlessOff(); } catch (_) {} }   // 옛 증강 순위(≤v0.1.245)가 바꿔 둔 테두리 없는 창을 원래대로(배지는 v0.1.246에서 없앰)
 
-// ── 🎯 증강 순위(v0.1.78 · 설정에서 켠 사람만 · 베타) ─────────────────────────────
-// 사장님: 증강 3개가 뜨면 내 챔피언 기준 1·2·3위를 띄우고, 리롤로 바뀌면 순위도 바로 바뀌게
-// 롤은 뜬 증강을 앱에 안 알려줌 → 게임 화면 가운데를 캡처(desktopCapturer) → Windows 내장 글자 읽기(OCR, 한국어)로 카드의 증강 이름 → augscan.findCards
-//  · 언제 읽나: 게임 시작 2분 30초 · 내 레벨이 오른 뒤 60초 · 순위가 떠 있는 동안 = 1.2초마다 / 그 밖엔 5초마다(가볍게)
-//  · 순위 = augscan.rankAugs(그 챔피언 이번 패치 등급 tiers·top > 전체 등급 today/augGuide/global > 모름 · 콤보 + · 함정 − · 우리 기록)
-//  · 화면 = desktop/augrank.html(게임 화면 크기 · 투명 · 클릭 통과) 카드 이름 위에 「1위」 · 이름이 사라지면 2.5초 뒤 지움
-//  · Shift+F8(게임 중) = 지금 화면과 읽은 글자를 개발용 비공개 저장소(today/config/clips의 저장소)로 보냄 → 위치·글자 맞추기용
-// ⚠️ 실제 증강 화면으로 아직 못 맞춰 봄 · ⚖️ 화면을 보기만 함(게임 파일·메모리 안 건드림) · 라이엇 정책상 위험할 수 있어 기본 꺼짐
-const augscan = require('./augscan');
-const OCR_PS = `
-$ErrorActionPreference = 'Stop'
-[Console]::OutputEncoding = [Text.Encoding]::UTF8
-[Console]::InputEncoding = [Text.Encoding]::UTF8
-Add-Type -AssemblyName System.Runtime.WindowsRuntime
-Add-Type -AssemblyName System.Drawing
-Add-Type -Name Dpi -Namespace Tn -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();'
-[void][Tn.Dpi]::SetProcessDPIAware()   # 화면 캡처 좌표 = 실제 픽셀(배율 쓰는 모니터에서도)
-[void][Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime]
-[void][Windows.Graphics.Imaging.BitmapDecoder, Windows.Graphics, ContentType = WindowsRuntime]
-[void][Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]
-[void][Windows.Globalization.Language, Windows.Globalization, ContentType = WindowsRuntime]   # v0.1.79: 안 불러오면 Language를 못 만들어 한국어 OCR이 있어도 「no-korean-ocr」(실기에서 발견)
-$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation\`1' })[0]
-function Await($op, [Type]$t) { $task = $asTask.MakeGenericMethod($t).Invoke($null, @($op)); $task.Wait(-1) | Out-Null; $task.Result }
-$engine = $null
-try { $lang = New-Object Windows.Globalization.Language('ko'); if ([Windows.Media.Ocr.OcrEngine]::IsLanguageSupported($lang)) { $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromLanguage($lang) } } catch {}
-if ($engine -eq $null) { [Console]::Out.WriteLine('{"ready":false,"err":"no-korean-ocr"}'); [Console]::Out.Flush(); exit }
-[Console]::Out.WriteLine('{"ready":true,"max":' + [Windows.Media.Ocr.OcrEngine]::MaxImageDimension + '}'); [Console]::Out.Flush()
-while ($true) {
-  $p = [Console]::In.ReadLine(); if ($p -eq $null) { break }
-  try {
-    $sw = [Diagnostics.Stopwatch]::StartNew(); $capMs = 0
-    if ($p.StartsWith('cap ') -or $p.StartsWith('img ')) {
-      # v0.1.80: 「cap x y w h k」 = 화면의 그 영역만(실제 픽셀) 캡처해 k배로 키워 바로 읽음 · 「img x y w h k 경로」 = 파일에서 같은 영역(시험용)
-      #   예전엔 앱이 desktopCapturer로 화면 전체(3440×1440)를 캡처 → 한 번 0.4~0.76초 · 앱 메인 스레드 최대 0.5초 멈춤 + PNG 0.19초 → 1.2초마다라 마우스까지 끊김
-      $a = $p.Split(' '); $cx = [int]$a[1]; $cy = [int]$a[2]; $cw = [int]$a[3]; $chh = [int]$a[4]; $k = [double]$a[5]
-      if ($a[0] -eq 'cap') { $img = New-Object System.Drawing.Bitmap $cw, $chh; $g = [System.Drawing.Graphics]::FromImage($img); $g.CopyFromScreen($cx, $cy, 0, 0, $img.Size); $g.Dispose() }
-      else { $src = [System.Drawing.Bitmap]::FromFile(($a[6..($a.Length - 1)] -join ' ')); $img = $src.Clone((New-Object System.Drawing.Rectangle $cx, $cy, $cw, $chh), [System.Drawing.Imaging.PixelFormat]::Format32bppArgb); $src.Dispose() }
-      if ($k -gt 1) { $big = New-Object System.Drawing.Bitmap ([int]($cw * $k)), ([int]($chh * $k)); $g = [System.Drawing.Graphics]::FromImage($big); $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic; $g.DrawImage($img, 0, 0, $big.Width, $big.Height); $g.Dispose(); $img.Dispose(); $img = $big }
-      $ms = New-Object System.IO.MemoryStream; $img.Save($ms, [System.Drawing.Imaging.ImageFormat]::Bmp); $img.Dispose(); $ms.Position = 0
-      $s = [System.IO.WindowsRuntimeStreamExtensions]::AsRandomAccessStream($ms); $capMs = $sw.ElapsedMilliseconds
-    } else {
-      $f = Await ([Windows.Storage.StorageFile]::GetFileFromPathAsync($p)) ([Windows.Storage.StorageFile])
-      $s = Await ($f.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Windows.Storage.Streams.IRandomAccessStream])
-    }
-    $dec = Await ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($s)) ([Windows.Graphics.Imaging.BitmapDecoder])
-    $bmp = Await ($dec.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
-    $res = Await ($engine.RecognizeAsync($bmp)) ([Windows.Media.Ocr.OcrResult])
-    $sb = New-Object System.Text.StringBuilder
-    [void]$sb.Append('{"ms":' + $sw.ElapsedMilliseconds + ',"cap":' + $capMs + ',"lines":[')
-    $first = $true
-    foreach ($ln in $res.Lines) {
-      $x1 = 1e9; $y1 = 1e9; $x2 = 0; $y2 = 0
-      foreach ($w in $ln.Words) { $r = $w.BoundingRect; if ($r.X -lt $x1) { $x1 = $r.X }; if ($r.Y -lt $y1) { $y1 = $r.Y }; if ($r.X + $r.Width -gt $x2) { $x2 = $r.X + $r.Width }; if ($r.Y + $r.Height -gt $y2) { $y2 = $r.Y + $r.Height } }
-      $t = $ln.Text.Replace('\\', '\\\\').Replace('"', '\\"')
-      if (-not $first) { [void]$sb.Append(',') }; $first = $false
-      [void]$sb.Append('{"text":"' + $t + '","x":' + [int]$x1 + ',"y":' + [int]$y1 + ',"w":' + [int]($x2 - $x1) + ',"h":' + [int]($y2 - $y1) + '}')
-    }
-    [void]$sb.Append(']}')
-    $s.Dispose()
-    [Console]::Out.WriteLine($sb.ToString())
-  } catch { [Console]::Out.WriteLine('{"err":"' + ($_.Exception.Message -replace '[\\\\"\\r\\n]', ' ') + '"}') }
-  [Console]::Out.Flush()
-}
-`;
-let _ocr = null;   // {proc, ready, max, queue:[resolve], buf, err}
-function ocrStart() {
-  if (_ocr || process.platform !== 'win32') return _ocr;
-  const proc = spawn('powershell.exe', psArgs('ocr', OCR_PS), { windowsHide: true });
-  const o = _ocr = { proc, ready: null, max: 2600, q: [], buf: '' };
-  proc.stdout.setEncoding('utf8');
-  proc.stdout.on('data', (c) => {
-    o.buf += c; let i;
-    while ((i = o.buf.indexOf('\n')) >= 0) {
-      const line = o.buf.slice(0, i).trim(); o.buf = o.buf.slice(i + 1); if (!line) continue;
-      let j = null; try { j = JSON.parse(line); } catch (_) { j = { err: 'bad-json ' + line.slice(0, 80) }; }
-      if (o.ready === null && 'ready' in j) { o.ready = !!j.ready; o.err = j.err || null; if (j.max) o.max = j.max; augLog('글자 읽기 ' + (o.ready ? `준비됨(최대 ${o.max}px)` : '못 씀: ' + o.err)); continue; }
-      const r = o.q.shift(); if (r) r(j);
-    }
-  });
-  proc.stderr.on('data', (c) => augLog('글자 읽기 오류 ' + String(c).slice(0, 200)));
-  proc.on('exit', () => { for (const r of o.q) r({ err: 'exit' }); o.q = []; if (_ocr === o) _ocr = null; if (o.ready) augLog('글자 읽기 꺼짐'); });
-  return o;
-}
-function ocrStop() { if (_ocr) { try { _ocr.proc.kill(); } catch (_) {} _ocr = null; } }
-function ocrRead(file) {
-  const o = ocrStart(); if (!o || o.ready === false) return Promise.resolve({ err: (o && o.err) || 'no-ocr' });
-  return new Promise((resolve) => { const t = setTimeout(() => resolve({ err: 'timeout' }), 8000); o.q.push(j => { clearTimeout(t); resolve(j); }); try { o.proc.stdin.write(file + '\n'); } catch (e) { resolve({ err: e.message }); } });
-}
-const _augLog = [];
-function augLog(m) { _augLog.push(`${new Date().toTimeString().slice(0, 8)} ${m}`); if (_augLog.length > 200) _augLog.shift(); try { console.log('[aug]', m); } catch (_) {} }
-
-function gameDisplay() {
-  let d = screen.getPrimaryDisplay();
-  if (_lastRect) { const sf = d.scaleFactor || 1; d = screen.getDisplayNearestPoint({ x: Math.round(_lastRect[0] / sf), y: Math.round(_lastRect[1] / sf) }) || d; }
-  return d;
-}
-async function captureDisplay(d, full) {   // → nativeImage(그 화면 · 실제 픽셀 크기)
-  const { desktopCapturer } = require('electron');
-  const W = Math.round(d.size.width * d.scaleFactor), H = Math.round(d.size.height * d.scaleFactor);
-  const src = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: W, height: H } });
-  const s = src.find(x => String(x.display_id) === String(d.id)) || src[0];
-  return s ? s.thumbnail : null;
-}
-function augCrop(img) {   // 가운데(카드가 뜨는 곳)만 · 글자 읽기 최대 크기 안으로
-  const { width: W, height: H } = img.getSize();
-  const cw = Math.min(W, Math.round(H * 16 / 9)), x = Math.round((W - cw) / 2 + cw * 0.08), w = Math.round(cw * 0.84), y = Math.round(H * 0.12), h = Math.round(H * 0.66);
-  let c = img.crop({ x, y, width: w, height: h }), k = 1;
-  const max = (_ocr && _ocr.max) || 2600;
-  if (w > max - 40) { k = (max - 40) / w; c = c.resize({ width: Math.round(w * k), quality: 'best' }); }
-  return { img: c, x, y, k, H };
-}
-let _ingameAt = 0, augWin = null, augState = { lastScan: 0, hot: 0, lastLv: 0, busy: false, showing: null, lastSeen: 0, ix: null, ixAt: 0, global: null, globalAt: 0, champId: 0, n: 0 };
+// 🎯 게임 중 증강 순위 배지(v0.1.78~245)는 v0.1.246에서 없앰 — 라이엇 정책: 증강 승률 표시 금지 · 플레이어 결정을 정해 주는 앱 금지
 function myRaw() { const me = norm((account && account.gameName) || config.myName); return (_rawPlayers || []).find(p => norm(p.riotIdGameName || p.summonerName || (typeof p.riotId === 'string' ? p.riotId.split('#')[0] : '')) === me) || null; }
-async function augNames() {
-  if (augState.ix && Date.now() - augState.ixAt < 3600e3) return augState.ix;
-  const augs = await getAugments();
-  const names = Object.entries(augs || {}).map(([id, a]) => ({ id: Number(id), name: a.name })).filter(a => a.id >= 1000 && a.name && !a.name.startsWith('#'));
-  if (names.length) { augState.ix = augscan.nameIndex(names); augState.ixAt = Date.now(); }
-  return augState.ix;
-}
-async function augGlobal() {
-  if (augState.global && Date.now() - augState.globalAt < 30 * 60e3) return augState.global;
-  const g = await getJson(`${FIREBASE_DB}/${T}/augGuide/global.json`).catch(() => null);
-  augState.global = (g && g.t) || augState.global || {}; augState.globalR = (g && g.r) || augState.globalR || {}; augState.globalAt = Date.now();
-  return augState.global;
-}
-async function myChampId() {
-  const me = myRaw(); if (!me) return 0;
-  const alias = String(me.rawChampionName || '').replace(/^game_character_displayname_/i, '').toLowerCase();
-  const champs = await getChamps();
-  for (const [id, c] of Object.entries(champs || {})) if ((alias && String(c.alias).toLowerCase() === alias) || c.name === me.championName) return Number(id);
-  return 0;
-}
-// 🎯 증강 이름 띠(v0.1.80) — 카드 제목 줄이 있는 가로 띠만(화면 높이 26~54% · 16:9 영역 가운데 84%) · 실기 3440×1440: 제목 줄 = 높이 40%
-//   pr = 그 모니터의 실제 픽셀 사각형 → {x, y, w, h}(실제 픽셀) · 띠만 캡처(OCR 프로세스 「cap」)라 앱 메인 스레드는 안 멈춤
-function augBand(pr) {
-  const cw = Math.min(pr.width, Math.round(pr.height * 16 / 9));
-  return { x: pr.x + Math.round((pr.width - cw) / 2 + cw * 0.08), y: pr.y + Math.round(pr.height * 0.26), w: Math.round(cw * 0.84), h: Math.round(pr.height * 0.28) };
-}
-const augCap = (x, y, w, h, k) => `cap ${Math.round(x)} ${Math.round(y)} ${Math.round(w)} ${Math.round(h)} ${k}`;
-// 🎯 셋째 카드 다시 읽기(v0.1.79) — 띠 한 번에 읽으면 짧은 이름을 놓침(실기: 「무한 반복」→「口 하 B卜보」) → 찾은 두 장 간격으로
-//   남은 자리(간격이 넓으면 가운데, 아니면 양옆)를 계산해 그 제목 줄만 2배로 키워 다시 읽음(실기: 「무한 반보」→ 무한 반복 0.75 · 한 번 65ms)
-//   band = 띠(실제 픽셀) · 카드 좌표 = 띠 기준 · H = 화면 높이 · cmd = 읽기 명령 만들기(시험 땐 파일에서)
-async function augThird(band, found, ix, H, cmd) {
-  const [a, b] = found.cards, ca = a.x + a.w / 2, cb = b.x + b.w / 2, gap = cb - ca, y = Math.min(a.y, b.y), h = Math.max(a.h, b.h);
-  for (const cx of gap > H * 0.5 ? [(ca + cb) / 2] : [cb + gap, ca - gap]) {
-    const w = Math.round(H * 0.24), x = Math.round(cx - w / 2), yy = Math.round(y - h * 0.6), hh = Math.round(h * 2.4);
-    if (x < 0 || x + w > band.w || yy < 0 || yy + hh > band.h) continue;
-    const r = await ocrRead((cmd || augCap)(band.x + x, band.y + yy, w, hh, 2)); if (r.err) continue;
-    for (const L of r.lines || []) {
-      const m = augscan.matchLine(ix, L.text);
-      if (m && !found.cards.some(c => c.id === m.id)) return Object.assign({ x: x + L.x / 2, y: yy + L.y / 2, w: L.w / 2, h: L.h / 2 }, m);
-    }
-  }
-  return null;
-}
-async function augTick() {
-  if (!config.augRank || !inGame || replayBusy || augState.busy || process.platform !== 'win32') return;
-  const now = Date.now(), me = myRaw();
-  if (me && me.level !== augState.lastLv) { if (augState.lastLv) augState.hot = now + 60000; augState.lastLv = me.level; }
-  const hot = now < augState.hot || now - _ingameAt < 150000 || augState.showing;
-  if (!hot && now - augState.lastScan < 5000) return;
-  if (hot && now - augState.lastScan < (augState.showing ? 700 : 1200)) return;   // v0.1.108: 배지가 떠 있는 동안은 더 자주(고른 뒤 빨리 지우려고)
-  augState.busy = true; augState.lastScan = now;
-  try {
-    const d = gameDisplay(), pr = screen.dipToScreenRect(null, d.bounds), band = augBand(pr);
-    const r = await ocrRead(augCap(band.x, band.y, band.w, band.h, 1)); if (r.err) { if (augState.n++ < 5) augLog('읽기 실패 ' + r.err); return; }
-    const ix = await augNames(); if (!ix) return;
-    const found = augscan.findCards(ix, r.lines, pr.height);
-    // v0.1.108: 카드가 안 보인 지 2.5초 → 1.5초(사장님: 이미 골랐는데 배지가 남아 있음 · 실제 지움은 대부분 아래 클릭 감지가 먼저)
-    if (!found) { if (augState.showing && now - augState.lastSeen > 1500) augHide(); return; }
-    if (found.cards.length === 2) { const c3 = await augThird(band, found, ix, pr.height).catch(() => null); if (c3) found.cards = found.cards.concat(c3).sort((p, q) => p.x - q.x); }
-    augState.lastSeen = now;
-    const ids = found.cards.map(c => c.id), sig = ids.join(',');
-    if (augState.picked && now < augState.picked.until && ids.some(id => augState.picked.ids.includes(id))) return;   // 방금 고른 카드가 사라지는 중(애니메이션)에 다시 읽힘 → 다시 안 띄움
-    if (augState.showing && augState.showing.sig === sig) return;   // 같은 카드면 그대로
-    const champId = augState.champId || (augState.champId = await myChampId());
-    const [guide, glob, rec, gg, ggi] = await Promise.all([getGuide(), augGlobal(), augRecords().catch(() => ({})), ggChamp(champId).catch(() => null), ggIndex().catch(() => null)]);
-    const recMy = {}; for (const id of ids) { const x = rec[champId + ':' + id]; if (x) recMy[id] = x; }
-    // 기준 이름 = 지금 하고 있는 챔피언(사장님: 「이 챔피언」 말고 실제 이름 · 신뢰성) — 라이브 클라 championName, 없으면 챔피언 번호로 찾은 이름
-    let champName = (me && me.championName) || '';
-    if (!champName && champId) { try { const ch = (await getChamps()) || {}; champName = (ch[champId] && ch[champId].name) || ''; } catch (_) {} }
-    const tipsC = await tipsFor(champId).catch(() => null), tipV = tipsC && (tipsC.core.length || Object.keys(tipsC.good).length) ? await champTipView(champId).catch(() => null) : null;   // 🍯 v0.1.145
-    const ranks = augscan.rankAugs(ids, guideFor(champId, guide[champId], gg).guide, glob, recMy, augState.globalR, { champName, gg, ggG: ggi && ggi.g, tips: tipsC });   // 🧭 v0.1.100: aramgg 챔피언 등급 > aramgg 전체 > (없을 때만) arammayhem
-    const sf = d.scaleFactor || 1, ox = band.x - pr.x, oy = band.y - pr.y;   // 띠 좌표(실제 픽셀) → 그 모니터 기준 화면 좌표(DIP)
-    // v0.1.102: 배지 = 카드 **위쪽 빈 곳**(카드 위 끝 0.178H에 아래 끝을 0.015H 걸침 · 아이콘·이름·설명 안 가림) → 창 위 끝 = 화면 0.05H(게임 중 정보 띠 피함)
-    //   ay = 배지 아래 끝(이름 줄 0.40H − 0.207H) · u = 화면 높이 1%(DIP) · cw = 카드 폭(0.296H)
-    const top = Math.max(0, oy - Math.round(pr.height * 0.21)), lift = oy - top;
-    const aug = await getAugments();
-    const dtip = ids.includes(DESTINY_ID) ? await destinyTip(champId).catch(() => null) : null;   // 🗡️ v0.1.141 운명의 무기 첫 템
-    // 📌 v0.1.109: 배지 자리 = 카드 **고정 칸**(사장님: 증강 뜰 때 배지가 이리저리 움직임) — 예전엔 읽은 이름 글자 위치로 매번 계산 → 카드가 미끄러져 들어오는 동안 읽히거나
-    //   두 장 → 세 장으로 다시 그릴 때마다 위치가 달랐음 · 카드 칸 = 화면 가운데, 가운데 ± 0.340H(docs/screen-layout.md) · 이름 줄 = 0.40H → 읽기는 「몇 번째 칸의 어떤 증강」만 정함
-    const mid = pr.width / 2 - ox, gap = pr.height * 0.340, slotX = c => mid + Math.max(-1, Math.min(1, Math.round((c.x + c.w / 2 - mid) / gap))) * gap;
-    const ayFix = Math.max(60, lift + (pr.height * 0.40 - oy) - pr.height * 0.207);
-    const cards = found.cards.map((c, i) => ({ x: c.x / sf, y: c.y / sf, w: c.w / sf, h: c.h / sf, ax: slotX(c) / sf, ay: ayFix / sf, u: pr.height / sf / 100, cw: pr.height * 0.296 / sf, rank: ranks[i].rank, why: ranks[i].why, tier: ranks[i].tier, scope: ranks[i].scope, extra: ranks[i].extra, wr: ranks[i].wr, pr: ranks[i].pr, name: (aug[c.id] || {}).name || '', destiny: c.id === DESTINY_ID ? dtip : null, honey: tipV && tipV.build && (tipV.core || []).includes(c.id) ? { build: tipV.build, tip: tipV.tip, items: (tipV.items || []).slice(0, 2), core: tipV.core.indexOf(c.id) + 1 } : null, combo: augCombo(c.id, gg, aug, ids, (guide[champId] && guide[champId].plans) || []) }));   // 띠 기준
-    augState.showing = { sig, ids };
-    // 🖱️ 카드 영역(실제 픽셀 · docs/screen-layout.md: 카드 너비 0.296H · 위 0.178H ~ 아래 0.66H · 리롤 버튼은 그 아래 0.69~0.73H라 안 겹침)
-    augState.rects = found.cards.map(c => { const cx = band.x + slotX(c); return [cx - pr.height * 0.148, pr.y + pr.height * 0.178, cx + pr.height * 0.148, pr.y + pr.height * 0.66]; });
-    augClickWatch();
-    augLog(`증강 ${found.cards.map((c, i) => `${cards[i].name}(${c.score.toFixed(2)})=${ranks[i].rank}위`).join(' · ')} · 캡처 ${r.cap}ms · 읽기 ${r.ms}ms`);
-    showAugRank(d, cards, { x: ox / sf, y: top / sf, width: band.w / sf, height: (lift + band.h) / sf });
-  } catch (e) { augLog('오류 ' + e.message); } finally { augState.busy = false; }
-}
-// 🔗 v0.1.101: 이 카드와 조합이 좋은 증강(사장님: 실시간 추적 말고 「뜬 증강이 어떤 증강이랑 조합이 좋다」만 — 이미 뽑았으면 본인이 알고, 아니면 다음에 뜰 때 노림)
-//   v0.1.104: 짝이 **지금 같이 뜬 다른 카드**인 조합은 뺌(사장님: 셋 중 하나만 고르니 의미 없음)
-//   자료 두 곳(사장님: 정보가 부족하면 있는 데서 가져와야지) —
-//     ① aramgg 3개 조합 승률(그 챔피언 · 사이트가 판 수 151+ 조합을 **챔피언당 5개만** 줌 = 2026-11-02 받기 기록으로 확인)
-//     ② 그게 없으면 증강 가이드 플랜(arammayhem 편집 추천 조합 S~C · 사람이 고친 플랜 포함 · 증강 2개+) — 짝은 앞에서 2개, 나머지는 「+n」
-function augCombo(id, gg, aug, ids, plans) {
-  const meta = a => ({ id: a, name: (aug[a] || {}).name || '', icon: (aug[a] || {}).icon || '', rarity: (aug[a] || {}).rarity || '' });
-  const onScreen = a => a !== id && ids.includes(a);
-  const t = ((gg && gg.c) || []).find(c => c[0].includes(id) && !c[0].some(onScreen));
-  if (t) return { src: 'aramgg', with: t[0].filter(a => a !== id).map(meta), wr: t[1], n: t[2], p: (gg && gg.p) || '' };
-  const TSC = { 'S+': 10, S: 9, 'S-': 8, 'A+': 7, A: 6, 'A-': 5, 'B+': 4, B: 3, 'B-': 2, C: 1, D: 0 };
-  const ps = (plans || []).filter(p => Array.isArray(p.augs) && p.augs.includes(id))
-    .map(p => ({ p, rest: p.augs.filter(a => a !== id && !ids.includes(a)) })).filter(x => x.rest.length)
-    .sort((x, y) => (TSC[y.p.tier] != null ? TSC[y.p.tier] : 5) - (TSC[x.p.tier] != null ? TSC[x.p.tier] : 5));
-  if (!ps.length) return null;
-  const x = ps[0], am = /arammayhem\.com/.test(String(x.p.link || ''));
-  return { src: am ? 'arammayhem' : 'guide', with: x.rest.slice(0, 2).map(meta), more: Math.max(0, x.rest.length - 2), all: x.rest.map(a => (aug[a] || {}).name || '').filter(Boolean), date: x.p.date || '' };
-}
-function showAugRank(d, cards, area) {   // area = 띠(그 모니터 기준 DIP) — 투명 창을 띠 크기로만(v0.1.80: 예전엔 화면 전체 3440×1440 투명 창이 게임 위에 떠 합성 부담)
-  const b = area ? { x: Math.round(d.bounds.x + area.x), y: Math.round(d.bounds.y + area.y), width: Math.round(area.width), height: Math.round(area.height) } : d.bounds;
-  const send = () => { try { augWin.webContents.send('augrank', { cards: cards.map(c => Object.assign({}, c, { x: c.x, y: c.y })) }); } catch (_) {} };
-  if (augWin && !augWin.isDestroyed()) { augWin.setBounds(b); send(); if (!augWin.isVisible()) augWin.showInactive(); return; }
-  augWin = new BrowserWindow(Object.assign({}, b, {
-    frame: false, transparent: true, resizable: false, movable: false, focusable: false, skipTaskbar: true, alwaysOnTop: true, show: false, hasShadow: false, roundedCorners: false,
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
-  }));
-  augWin.setAlwaysOnTop(true, 'screen-saver'); augWin.setIgnoreMouseEvents(true, { forward: true });   // v0.1.103: 클릭은 게임으로 · 마우스 움직임만 받아 배지에 올리면 설명
-  augWin.webContents.on('did-finish-load', () => { if (augWin && !augWin.isDestroyed()) { send(); augWin.showInactive(); } });
-  augWin.on('closed', () => { augWin = null; });
-  augWin.loadFile('desktop/augrank.html');
-}
-function hideAugRank() { augClickStop(); if (augWin && !augWin.isDestroyed()) { try { augWin.destroy(); } catch (_) {} } augWin = null; }
-function augHide() { augState.showing = null; hideAugRank(); }
-// 🖱️ v0.1.108: 증강을 고르면 배지를 바로 지움(사장님: 고른 뒤에도 배지가 잠깐 남음 — 예전엔 화면 읽기 1.2초 간격 + 안 보인 지 2.5초라 최대 ~4초)
-//   배지가 떠 있는 동안만 작은 PowerShell이 마우스 왼쪽 버튼을 25ms마다 봄(GetAsyncKeyState · 누르는 순간 「d x y」 = 실제 픽셀) → 카드 영역 안이면 고른 것
-//   고른 카드 묶음은 4초 동안 다시 안 띄움(사라지는 애니메이션 중에 또 읽힘) · 리롤 버튼(카드 아래)·다른 곳 클릭은 무시 · 2분 지나면 스스로 끝남
-const CLICK_PS = `
-$ProgressPreference = 'SilentlyContinue'
-Add-Type -AssemblyName System.Drawing
-Add-Type -Name Ms -Namespace Tn -MemberDefinition '[DllImport("user32.dll")] public static extern short GetAsyncKeyState(int k); [DllImport("user32.dll")] public static extern bool GetCursorPos(out System.Drawing.Point p); [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();' -ReferencedAssemblies System.Drawing
-[void][Tn.Ms]::SetProcessDPIAware()
-$was = $true; $end = (Get-Date).AddSeconds(120)
-while ((Get-Date) -lt $end) {
-  $down = ([Tn.Ms]::GetAsyncKeyState(1) -band 0x8000) -ne 0
-  if ($down -and -not $was) { $p = New-Object System.Drawing.Point; [void][Tn.Ms]::GetCursorPos([ref]$p); [Console]::Out.WriteLine("d $($p.X) $($p.Y)"); [Console]::Out.Flush() }
-  $was = $down; Start-Sleep -Milliseconds 25
-}`;
-let _augClick = null;
-function augClickWatch() {
-  if (_augClick || process.platform !== 'win32') return;
-  const p = _augClick = spawn('powershell.exe', psArgs('click', CLICK_PS), { windowsHide: true });
-  let buf = '';
-  p.stdout.setEncoding('utf8');
-  p.stdout.on('data', c => {
-    buf += c; let i;
-    while ((i = buf.indexOf('\n')) >= 0) {
-      const m = /d (-?\d+) (-?\d+)$/.exec(buf.slice(0, i).trim()); buf = buf.slice(i + 1); if (!m || !augState.showing) continue;   // 줄 끝 기준(PowerShell 진행 표시 #< CLIXML이 앞에 붙어도)
-      const x = +m[1], y = +m[2], hit = (augState.rects || []).some(r => x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]);
-      if (hit) { augState.picked = { ids: augState.showing.ids || [], until: Date.now() + 4000 }; augLog('카드 클릭 → 배지 지움'); augHide(); }
-    }
-  });
-  p.on('error', () => {});
-  p.on('exit', () => { if (_augClick === p) _augClick = null; });
-}
-function augClickStop() { if (_augClick) { try { _augClick.kill(); } catch (_) {} _augClick = null; } }
-async function sendAugShot() {   // Shift+F8 — 지금 게임 화면 + 읽은 글자 → 개발용 비공개 저장소(위치·글자 맞추기)
-  if (!inGame || !potg) return;
-  try {
-    const d = gameDisplay(), img = await captureDisplay(d); if (!img) return;
-    const cr = augCrop(img), file = path.join(os.tmpdir(), 'tn-aug.png'); fs.writeFileSync(file, cr.img.toPNG());
-    const r = config.augRank ? await ocrRead(file) : { err: 'off' };
-    const sz = img.getSize(), name = `${dayKey()}-${Date.now().toString(36)}-${sz.width}x${sz.height}`;
-    const jpg = img.toJPEG(88);
-    const ok1 = await potg.uploadShot(`aug-shots/${name}.jpg`, jpg);
-    const ok2 = await potg.uploadShot(`aug-shots/${name}.json`, Buffer.from(JSON.stringify({ app: app.getVersion(), who: config.myName, display: { w: sz.width, h: sz.height, sf: d.scaleFactor }, crop: { x: cr.x, y: cr.y, k: cr.k }, ocr: r, log: _augLog.slice(-40) }, null, 1)));
-    showToast(ok1 && ok2 ? '증강 화면을 보냈어요' : '보내기 실패', ok1 && ok2 ? '개발용 저장소 · 위치 맞추는 데 써요' : '인터넷·저장소 설정 확인');
-  } catch (e) { augLog('보내기 오류 ' + e.message); }
-}
 
 // ── 폴링 루프 ──────────────────────────────────────────────────────────────
 async function pollGame() {
@@ -1529,8 +1247,7 @@ async function pollGame() {
     else { setTimeout(tryInstallUpdate, 90000); hideOverlay(); userHid = false; latestPlayers = []; _lastRaise = null; evalRaise(); recGameEnded(); if (potg) potg.stopCollect(bridge.getGameId()).catch(() => {}); }   // 🎬 수집 올림   // 게임 종료 → 로비 층위 재적용 · 📼 「기록 저장 중」 시작
     broadcast('state', { inGame, label: inGame ? '게임 중' : '대기' });
     if (!inGame) { setTimeout(() => ratingUpdate(true), 90000);   // 🏅 판 끝 → 전적에 들어간 뒤 점수 다시
-      _rawPlayers = []; hideAugRank(); ocrStop(); augState.showing = null; setTimeout(() => { if (!inGame) borderlessOff(); }, 4000); }
-    else { _ingameAt = Date.now(); Object.assign(augState, { hot: 0, lastLv: 0, showing: null, champId: 0, n: 0 }); }   // 🎯 새 게임 → 증강 순위 처음부터
+      _rawPlayers = []; setTimeout(() => { if (!inGame) borderlessOff(); }, 4000); }
   }
   broadcast('players', { players: latestPlayers });
 }
@@ -2919,8 +2636,6 @@ function showToast(title, sub, ms) {   // 짧은 안내(녹화 안내 창 재사
   _recToastMsg = { title, sub, pct: null }; showRecToast();
   setTimeout(() => { if (!_recLocal) hideRecToast(); }, ms || 3000);
 }
-const AUG_SHOT_KEY = 'Shift+F8';
-function regAugShot() { try { if (!globalShortcut.isRegistered(AUG_SHOT_KEY)) globalShortcut.register(AUG_SHOT_KEY, () => { sendAugShot().catch(() => {}); }); } catch (_) {} }
 function hideRecToast() { if (recToastWin && !recToastWin.isDestroyed()) { try { recToastWin.destroy(); } catch (_) {} } recToastWin = null; }
 // 🔴 팀원에게도(v0.1.57) — 녹화하는 앱이 단계마다 today/potgRec {at, who, players, sub}를 적고 끝나면 지움 → 그 판에 있던 사람 앱은 pollSession(3초)에서 읽어 같은 안내
 let _recLocal = false, _recPlayers = [], potgRecRaw = null;
@@ -3599,41 +3314,25 @@ async function getGuide(force) {   // 2분 캐시(챔피언 선택 1~2분 동안
   try { const g = await getJson(`${FIREBASE_DB}/${T}/augGuide/champs.json`); _guide = g || {}; _guideAt = Date.now(); } catch (_) { if (!_guide) _guide = {}; }
   return _guide;
 }
-// 🧭 v0.1.100: aramgg.com 증강 통계 = 증강 가이드·증강 순위의 **기본 자료**(사장님: arammayhem보다 적절 · 칸은 따로 안 늘림)
-//   매일 GitHub Actions(aramgg.yml → tools/aramgg-fetch.cjs)가 받아 홈페이지 docs/data/aramgg에 올린 파일을 읽음(Firebase 안 씀 · 3시간 캐시)
-//   index.json = {p 패치, d 날짜, g:{증강:[등급 1~5, 승률]}} · c/{챔피언}.json = {p, d, t, a:{증강:[등급, 승률, 픽률, 사이트 순위]}, c:[[[증강 3개], 승률, 게임 수]]}
-const GG_URL = 'https://sohada2.github.io/today-naejeon/data/aramgg', GG_PAGE = 'https://aramgg.com/ko/champion-stats/', GG_TTL = 3 * 3600e3;
-const _gg = { idx: null, idxAt: 0, c: {} };
+// 🧭 증강 목록용 aramgg 자료(지금 시즌 증강이 무엇인지만 · v0.1.246부터 등급·승률은 안 씀 — 라이엇 정책: 증강 승률 표시 금지)
+const GG_URL = 'https://sohada2.github.io/today-naejeon/data/aramgg', GG_TTL = 3 * 3600e3;
+const _gg = { idx: null, idxAt: 0 };
 async function ggIndex() {
   if (_gg.idx && Date.now() - _gg.idxAt < GG_TTL) return _gg.idx;
   const j = await getJson(`${GG_URL}/index.json`).catch(() => null);
-  if (j && j.g) { _gg.idx = j; _gg.idxAt = Date.now(); }
+  if (j && (j.g || j.ids)) { _gg.idx = j; _gg.idxAt = Date.now(); }
   return _gg.idx;
 }
-async function ggChamp(id) {
-  id = Number(id); if (!(id > 0)) return null;
-  const x = _gg.c[id]; if (x && Date.now() - x.at < GG_TTL) return x.v;
-  const v = await getJson(`${GG_URL}/c/${id}.json`).catch(() => null);
-  if (v && v.a) { _gg.c[id] = { v, at: Date.now() }; return v; }
-  return (x && x.v) || null;
-}
-// 가이드 한 챔피언 = Firebase 칸(사람이 고친 플랜 · 옛 arammayhem 초안) + aramgg(있으면 위주)
-//   「이번 패치 상위 증강」 = aramgg 이 챔피언 순위 1~6위 · 「추천 콤보」 = aramgg 3개 조합 승률 TOP 5(사람이 고친 플랜이 있으면 그것) · 「피하면 좋은」 = 많이 고르지만(픽률 2%+) T5
-function guideFor(id, raw, gg) {
-  const g = cleanGuideEntry(raw || {});
-  if (!gg || !gg.a) return { guide: g, draft: !!(raw && raw.draft), src: (raw && raw.src) || '' };
-  const human = !!(raw && !raw.draft && g.plans && g.plans.length);
-  const A = Object.entries(gg.a);
-  const out = Object.assign({}, g, { gg: { p: gg.p, d: gg.d }, top: { patch: gg.p, src: 'aramgg', augs: A.filter(([, v]) => v[3] > 0).sort((p, q) => p[1][3] - q[1][3]).slice(0, 6).map(([a, v]) => ({ id: +a, tier: 'T' + v[0], wr: v[1] })) } });
-  if (!human && (gg.c || []).length) out.plans = gg.c.slice(0, 5).map(c => ({ title: '', augs: c[0], why: '', wr: c[1], games: c[2], patch: gg.p, link: GG_PAGE + id, src: 'aramgg' }));
-  // 🧩 v0.1.140 aramgg 조합이 없는 챔피언(46명 · 151판 넘는 조합만 공개) = 옛 arammayhem 추천 조합(초안 플랜 그대로) → 그것도 없으면 우리 기록 짝(2판+ · 많이 · 잘 이긴 순 3개)
-  if (!human && !(out.plans || []).length) {
-    const P = Object.entries(_augPairs[id] || {}).filter(([, v]) => v.g >= 2).sort((a, b) => b[1].g - a[1].g || b[1].w / b[1].g - a[1].w / a[1].g).slice(0, 3);
-    if (P.length) out.plans = P.map(([k, v]) => ({ title: '', augs: k.split(',').map(Number), why: '', wr: Math.round(v.w / v.g * 10000) / 10000, games: v.g, src: 'ours' }));
+// 가이드 한 챔피언(v0.1.246) = 사람이 쓴 플랜 → 없으면 우리 기록 짝(이 챔피언으로 두 증강을 같이 고른 판 · 2판+ · 판 수만)
+//   예전 aramgg 상위 증강·조합 승률·피하기(T5)·arammayhem 초안은 뺌(라이엇 정책: 증강 승률 표시 금지 · 등급도 승률에서 나온 것)
+function guideFor(id, raw) {
+  const human = !!(raw && !raw.draft);
+  const out = { plans: human ? (cleanGuideEntry(raw).plans || []) : [] };
+  if (!out.plans.length) {
+    const P = Object.entries(_augPairs[id] || {}).filter(([, v]) => v.g >= 2).sort((a, b) => b[1].g - a[1].g).slice(0, 3);
+    if (P.length) out.plans = P.map(([k, v]) => ({ title: '', augs: k.split(',').map(Number), why: '', games: v.g, src: 'ours' }));
   }
-  const av = A.filter(([, v]) => v[0] === 5 && v[2] >= 0.02).sort((p, q) => q[1][2] - p[1][2]).slice(0, 3).map(([a]) => +a);
-  if (av.length) out.avoid = av; else delete out.avoid;
-  return { guide: out, draft: false, src: human ? (raw.src || '') : 'aramgg' };
+  return { guide: out, draft: false, src: human && out.plans.length && !out.plans[0].src ? (raw.src || '') : (out.plans.length ? 'ours' : '') };
 }
 function cleanGuideEntry(c) {   // 저장 전에 모양·길이 정리(누가 써도 같은 모양)
   const plans = [];
@@ -3641,34 +3340,12 @@ function cleanGuideEntry(c) {   // 저장 전에 모양·길이 정리(누가 �
     const augs = [...new Set((Array.isArray(p && p.augs) ? p.augs : []).map(Number).filter(x => x > 0))].slice(0, PLAN_AUGS);
     if (!augs.length) continue;
     const x = { title: String((p && p.title) || '').trim().slice(0, TITLE_MAX), augs, why: String((p && p.why) || '').trim().slice(0, WHY_MAX) };
-    // 자료에서 가져온 플랜(v0.1.75) = 사이트가 매긴 등급·그 자료의 패치·원문 링크(설명은 원문에서 보기 — 남의 글을 옮겨 쓰지 않음)
-    if (/^([SABCD][+-]?|T[1-5])$/.test(p && p.tier)) x.tier = p.tier;
-    if (Number(p && p.wr) > 0 && Number(p.wr) < 1) x.wr = Math.round(Number(p.wr) * 10000) / 10000;   // aramgg 조합 승률·게임 수(v0.1.100)
-    if (Number(p && p.games) > 0) x.games = Math.round(Number(p.games));
-    if (/^\d{1,2}\.\d{1,2}$/.test(p && p.patch)) x.patch = p.patch;
-    if (/^\d{4}-\d{2}(-\d{2})?$/.test(p && p.date)) x.date = p.date;   // 패치 기록이 없는 자료 = 등록 날짜라도(얼마나 오래된 자료인지 보이게)
-    if (guideLinkOk(p && p.link)) x.link = p.link;
+    if (guideLinkOk(p && p.link)) x.link = p.link;   // 사람이 붙인 원문 링크(v0.1.246: 자료 등급·승률·판 수·패치 칸은 안 남김)
     if (p && p.by) { x.by = String(p.by).slice(0, 24); if (Number(p.at) > 0) x.at = Number(p.at); }   // 이 플랜을 마지막으로 고친 사람(위키처럼 · v0.1.76)
     plans.push(x);
     if (plans.length >= PLAN_MAX) break;
   }
-  const out = plans.length ? { plans } : {};
-  const top = cleanTop(c && c.top); if (top) out.top = top;
-  const avoid = cleanAvoid(c && c.avoid); if (avoid) out.avoid = avoid;
-  const tiers = cleanTiers(c && c.tiers); if (tiers) out.tiers = tiers;
-  return out;
-}
-function cleanTiers(t) {   // 🎯 그 챔피언 이번 패치 증강 등급 전부 {patch, t:{증강 id: 등급}}(증강 순위용 · 자료에서만)
-  if (!t || !/^\d{1,2}\.\d{1,2}$/.test(t.patch) || !t.t || typeof t.t !== 'object') return null;
-  const o = {}; let n = 0; for (const [k, v] of Object.entries(t.t)) if (Number(k) > 0 && /^[SABCD][+-]?$/.test(v) && n++ < 60) o[k] = v;
-  return n ? { patch: t.patch, t: o } : null;
-}
-function cleanAvoid(v) { const a = [...new Set((Array.isArray(v) ? v : []).map(Number).filter(x => x > 0))].slice(0, 6); return a.length ? a : null; }   // 피하면 좋은 증강(자료 사이트 「함정」 표시)
-// 이번 패치 잘 나오는 증강(v0.1.75) = 자료 사이트의 챔피언별 증강 등급(그 패치 승률 기준) {patch, augs:[{id, tier}]} — 사람이 고치는 칸 아님(저장할 때 그대로 둠)
-function cleanTop(t) {
-  if (!t || !/^\d{1,2}\.\d{1,2}$/.test(t.patch) || !Array.isArray(t.augs)) return null;
-  const augs = []; for (const a of t.augs) { const id = Number(a && a.id); if (id > 0 && /^[SABCD][+-]?$/.test(a.tier) && !augs.some(x => x.id === id)) augs.push({ id, tier: a.tier }); if (augs.length >= 9) break; }
-  return augs.length ? { patch: t.patch, augs } : null;
+  return plans.length ? { plans } : {};
 }
 // 우리 기록 = 지금까지 내전·같이 한 일반 판에서 그 챔피언으로 그 증강을 고른 판 수·승 (프로필과 같은 30초 캐시)
 let _augRec = null, _augRecAt = 0;
@@ -3736,11 +3413,6 @@ async function tipsData() {
   if (j && j.champs) { _tips = j; _tipsAt = Date.now(); }
   return _tips || { champs: {}, augs: {} };
 }
-async function tipsFor(champId) {   // 증강 순위용 {core, avoid, good:{}, bad:{}}
-  const T = await tipsData(), c = T.champs[champId] || {}, good = {}, bad = {};
-  for (const [a, x] of Object.entries(T.augs || {})) { if ((x.good || []).includes(+champId)) good[a] = true; if ((x.bad || []).includes(+champId)) bad[a] = true; }
-  return { core: (c.core || []).map(Number), avoid: (c.avoid || []).map(Number), good, bad };
-}
 async function champTipView(champId) {   // 화면용 {build, tip, core, avoid, items:[{id,name,icon}], augTips:[{id, tip, good}]}
   const T = await tipsData(), c = T.champs[champId];
   const augTips = Object.entries(T.augs || {}).filter(([, x]) => (x.good || []).includes(+champId) || (x.bad || []).includes(+champId)).map(([a, x]) => ({ id: +a, tip: x.tip, good: (x.good || []).includes(+champId) }));
@@ -3778,24 +3450,24 @@ async function augGuideView() {
   if (!champSel || lobbyPhase !== 'ChampSelect') return { active: false };
   const [guide, champs, rec] = await Promise.all([getGuide(), getChamps(), augRecords().catch(() => ({}))]);
   const ids = [...new Set([champSel.mine, ...(champSel.bench || [])].filter(x => x > 0))];
-  const [ggs, dts, tps] = await Promise.all([Promise.all(ids.map(id => ggChamp(id).catch(() => null))), Promise.all(ids.map(id => destinyTip(id).catch(() => null))), Promise.all(ids.map(id => champTipView(id).catch(() => null)))]);
+  const [dts, tps] = await Promise.all([Promise.all(ids.map(id => destinyTip(id).catch(() => null))), Promise.all(ids.map(id => champTipView(id).catch(() => null)))]);
   const list = ids.map((id, i) => {
-    const f = guideFor(id, guide[id], ggs[i]), guideC = f.guide, r = {};
-    for (const a of [...(guideC.plans || []).flatMap(p => p.augs), ...((guideC.top && guideC.top.augs) || []).map(x => x.id), ...(guideC.avoid || [])]) { const x = rec[id + ':' + a]; if (x) r[a] = x; }
+    const f = guideFor(id, guide[id]), guideC = f.guide, r = {};
+    for (const a of (guideC.plans || []).flatMap(p => p.augs)) { const x = rec[id + ':' + a]; if (x) r[a] = { g: x.g }; }   // 판 수만(승 수 = 승률이라 안 보냄)
     return { id, name: (champs[id] && champs[id].name) || '', mine: id === champSel.mine, guide: guideC, draft: f.draft, src: f.src, rec: r, destiny: dts[i], honey: tps[i] };
   });
   return { active: true, list };
 }
 async function pushAugGuide() { const v = await augGuideView(); broadcast('augguide', v); }
 ipcMain.handle('augguide', () => augGuideView());
-ipcMain.handle('augguide-gg', async (_e, champId) => { const id = Number(champId) || 0; const [guide, gg] = await Promise.all([getGuide(), ggChamp(id).catch(() => null)]); return guideFor(id, guide[id], gg); });   // ✎ 편집 시작 = 보이는 것(aramgg 조합)부터
+ipcMain.handle('augguide-gg', async (_e, champId) => { const id = Number(champId) || 0; const [guide] = await Promise.all([getGuide(), augRecords().catch(() => null)]); return guideFor(id, guide[id]); });   // ✎ 편집 시작 = 보이는 것(우리 기록 짝)부터
 // 📰 v0.1.144 패치 노트(사장님: aramgg 「새 증강」 페이지처럼 · 증강 아래 「패치」 탭) = tools/aramgg-fetch.cjs가 하루 한 번 받은 docs/data/aramgg/patches.json + 우리 기록(그 증강 우리 n판 m승)
 let _ggPatch = null, _ggPatchAt = 0;
 ipcMain.handle('aug-patches', async () => {
   if (!_ggPatch || Date.now() - _ggPatchAt > GG_TTL) { const j = await getJson(`${GG_URL}/patches.json`).catch(() => null); if (j && Array.isArray(j.patches)) { _ggPatch = j; _ggPatchAt = Date.now(); } }
   if (!_ggPatch) return null;
   const rec = await augRecords().catch(() => ({})), ours = {};
-  for (const k of Object.keys(rec)) { const a = k.split(':')[1]; if (isTrait(a)) continue; const o = ours[a] = ours[a] || { g: 0, w: 0 }; o.g += rec[k].g; o.w += rec[k].w; }
+  for (const k of Object.keys(rec)) { const a = k.split(':')[1]; if (isTrait(a)) continue; const o = ours[a] = ours[a] || { g: 0 }; o.g += rec[k].g; }   // 판 수만
   return Object.assign({}, _ggPatch, { ours });
 });
 // 🧪 증강 연구(2026-11-11 · 사장님: 오른쪽 창에서 롤처럼 증강 3장 뽑아 보기) — 뽑을 증강 = 지금 시즌 아수라장 증강(aramgg 전체 등급에 있는 것 · 못 받으면 1000번대 전부) · 특성(헤드라이너) 뺌
@@ -3809,7 +3481,7 @@ async function ggDesc() {   // 📝 v0.1.209 증강 설명 글(docs/data/aramgg/
 }
 ipcMain.handle('auglab-pool', async () => {   // v0.1.209: 실제 규칙대로 뽑기만(등급 T·승률·우리 기록 = 채점 자료는 안 보냄 · 사장님: 정답 맞히기가 아님)
   const [augs, idx, desc] = await Promise.all([getAugments().catch(() => ({})), ggIndex().catch(() => null), ggDesc().catch(() => ({}))]);
-  const g = (idx && idx.g) || null, list = [];
+  const g = idx ? (Array.isArray(idx.ids) ? Object.fromEntries(idx.ids.map(x => [x, 1])) : idx.g || null) : null, list = [];
   for (const [id, a] of Object.entries(augs)) {
     if (!(+id >= 1000) || a.trait || !/^(silver|gold|prismatic)$/.test(a.rarity)) continue;
     if (g && !g[id]) continue;
@@ -3845,11 +3517,12 @@ ipcMain.on('auglab-done', (_e, r) => { try { if (leftWin && !leftWin.isDestroyed
 ipcMain.on('augguide-link', (_e, url) => { if (guideLinkOk(url)) shell.openExternal(url); });   // 플랜 원문 보기(기본 브라우저)
 // 편집(오른쪽 창 「증강」 탭) — 누구나 채울 수 있음 · 저장 = 그 챔피언 칸 통째로 교체(마지막 저장이 이김)
 ipcMain.handle('augguide-all', async () => {
-  const [guide, champs, augs, rec, idx] = await Promise.all([getGuide(true), getChamps(), getAugments(), augRecords().catch(() => ({})), ggIndex().catch(() => null)]);
+  const [guide, champs, augs, rec] = await Promise.all([getGuide(true), getChamps(), getAugments(), augRecords().catch(() => ({}))]);
   const seen = {}, ours = {};
-  for (const k of Object.keys(rec)) { const a = k.split(':')[1]; if (isTrait(a)) continue; seen[a] = (seen[a] || 0) + rec[k].g; const o = ours[a] = ours[a] || { g: 0, w: 0 }; o.g += rec[k].g; o.w += rec[k].w; }   // 우리 기록에 나온 증강(편집 목록 위로 · v0.1.135 「우리가 많이 고른 증강」)
+  for (const k of Object.keys(rec)) { const a = k.split(':')[1]; if (isTrait(a)) continue; seen[a] = (seen[a] || 0) + rec[k].g; const o = ours[a] = ours[a] || { g: 0 }; o.g += rec[k].g; }   // 판 수만   // 우리 기록에 나온 증강(편집 목록 위로 · v0.1.135 「우리가 많이 고른 증강」)
   const champsA = {}; for (const [k, v] of Object.entries(champs || {})) if (+k > 0 && +k < 10000) champsA[k] = v;   // v0.1.140: 특수 모드 챔피언(Jade_ 60000번대 · 이름 같음)이 목록에 두 번씩 나오던 것
-  return { guide, champs: champsA, augs, seen, ours, gg: idx && idx.g ? { p: idx.p, d: idx.d, g: idx.g } : null, planMax: PLAN_MAX, planAugs: PLAN_AUGS, titleMax: TITLE_MAX, whyMax: WHY_MAX };
+  const G = {}; for (const [k, v] of Object.entries(guide || {})) if (v && !v.draft) G[k] = v;   // 옛 자료 초안(arammayhem)은 안 보임
+  return { guide: G, champs: champsA, augs, seen, ours, planMax: PLAN_MAX, planAugs: PLAN_AUGS, titleMax: TITLE_MAX, whyMax: WHY_MAX };
 });
 // ✍️ 위키 방식 편집(v0.1.76) — 누구나 고침 · 고친 사람·시각이 플랜마다 남음 · 편집마다 기록(전/후) → 「되돌리기」 · 남이 먼저 고쳤으면 덮어쓰지 않고 알림(편집 충돌)
 //   기록 = today/augGuide/hist/{championId}/{키} = {at, by, sum, before:[플랜], after:[플랜]} (챔피언당 최근 30개) · 최근 고친 것 = today/augGuide/recent/{키} = {champ, at, by, sum} (최근 50개)
@@ -3875,11 +3548,9 @@ async function augGuideWrite(id, guide, opt) {   // opt = {baseAt?, sum?, force?
     after = (want.plans || []).map(p => { const o = prevBySig[planSig(p)]; return o ? { ...p, by: o.by, at: o.at } : opt.restore ? { ...p } : { ...p, by: me, at: now }; });   // 안 바뀐 플랜은 원래 고친 사람 그대로 · 되돌리기는 그 버전의 고친 사람 그대로(되돌린 사람은 기록에)
     for (const p of after) if (!p.by) delete p.by;
     const v = { plans: after, at: now, by: me };
-    const top = cleanTop(cur.top), av = cleanAvoid(cur.avoid), tiers = cleanTiers(cur.tiers);   // 이번 패치 등급·함정 표시는 자료에서만
-    if (top) v.top = top; if (av) v.avoid = av; if (tiers) v.tiers = tiers;
     if (cur.src) v.src = cur.src;
     if (!opt.force && JSON.stringify(before) === JSON.stringify(after)) return { err: 'same' };
-    return { value: after.length || top || av || tiers ? v : null };
+    return { value: after.length ? v : null };
   });
   if (!r.ok) {
     if (r.err === 'conflict') return { ok: false, conflict: true, by: (r.info && r.info.by) || '', err: '그사이 다른 사람이 먼저 고쳤어요' };
@@ -4059,7 +3730,7 @@ async function getProfile(arg) {
   }
   P.days = days.size;
   P.champs = Object.values(champs).sort((x, y) => y.games - x.games || y.wins - x.wins).slice(0, 5);
-  P.augs = Object.values(augs).filter(x => !isTrait(x.id)).sort((x, y) => y.games - x.games || y.wins - x.wins).slice(0, 6);   // 🧩 많이 고른 증강(🎸 헤드라이너 특성 빼고)
+  P.augs = Object.values(augs).filter(x => !isTrait(x.id)).sort((x, y) => y.games - x.games).slice(0, 6).map(x => ({ id: x.id, games: x.games }));   // 🧩 많이 고른 증강(v0.1.246: 판 수만 — 증강 승률 표시 금지)(🎸 헤드라이너 특성 빼고)
   P.recent = P.recent.slice(-10).reverse();
   const rate = x => x.wins / x.games;
   const MIN = 2;   // 2판 이상 같이(또는 상대로) 한 사람만
@@ -4451,7 +4122,7 @@ ipcMain.handle('discord-unlink', () => { config.discordGuild = null; saveConfig(
 const dcRoomView = () => { if (!room) return null; try { const i = dcRoomInfo(lobbyView().members); return i ? { gid: i.id, name: i.name, code: i.inv || null, ch: (_dcMember && _dcMember.g === i.id && _dcMember.lobby) || null } : null; } catch (_) { return null; } };   // ⚙ 「이 방 디스코드」(v0.1.157 · 칩을 ✕로 닫아도 여기서)
 const dcView = () => ({ room: dcRoomView(), invite: dcInvOf(), app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null, guild: dcGuildOf() ? dcGuildOf().name || '서버' : null, connecting: !!_dcConn });
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
-const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, augRank: !!config.augRank, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, lolRemake: config.lolRemake !== false, lolAutoAccept: config.lolAutoAccept !== false, lolPing: config.lolPing !== false, chatFilter: config.chatFilter !== false, chatMute: Array.isArray(config.chatMute) ? config.chatMute : [], hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
+const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, lolRemake: config.lolRemake !== false, lolAutoAccept: config.lolAutoAccept !== false, lolPing: config.lolPing !== false, chatFilter: config.chatFilter !== false, chatMute: Array.isArray(config.chatMute) ? config.chatMute : [], hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
 ipcMain.handle('settings-get', () => settingsView());
 // 🧭 v0.1.228 홈 화면(롤 없이 켬)에서도 사용법을 볼 수 있게 — 홈 「사용법 둘러보기」 = 숨겨 둔 왼쪽 창만 홈 가운데 위에 띄움(_tutHome) · 닫으면(tutorial-done · 창 ✕/–) 다시 숨기고 합친 자리로
@@ -4494,11 +4165,6 @@ ipcMain.handle('settings-set', (_e, { key, value }) => {
   else if (key === 'lolAutoAccept') config.lolAutoAccept = !!value;   // 🎮 방장 롤 초대 자동 수락
   else if (key === 'lolPing') { config.lolPing = !!value; try { if (_lastRect && !_floating && clientFg) cpingSync(_lastRect); else cpingSync(null); } catch (_) {} }   // 📍 v0.1.221 롤 화면 핑(끄면 마우스 훅도 끔)
   else if (key === 'autoSeat') { config.autoSeat = !!value; if (value) { _seatDone = null; _seatKey = null; autoSeat(); } }   // 🪑
-  else if (key === 'augRank') {   // 🎯 증강 순위(베타) — 게임 위에 떠야 해서 테두리 없는 창도 같이
-    config.augRank = !!value;
-    if (!config.augRank) { hideAugRank(); ocrStop(); try { globalShortcut.unregister(AUG_SHOT_KEY); } catch (_) {} if (!inGame) borderlessOff(); }
-    else { regAugShot(); if (lobbyPhase === 'ChampSelect') borderlessOn(); }
-  }
   else return settingsView();
   saveConfig(); broadcastSettings();
   return settingsView();
@@ -4697,8 +4363,6 @@ else {
     setInterval(pollGame, 2500);
     setInterval(autoLobbyMode, 3000);
     setInterval(() => { lolInvTick().catch(() => {}); lolRemakeTick().catch(() => {}); }, 3000);   // 🎮 v0.1.185 방장 롤 초대 받기 · v0.1.188 팀 정해지면 롤 방 새 다리로   // 🔀 v0.1.82: 대기방을 먼저 감지하고 방장이 나중에 된 경우(앱 재시작·방장 이어받기)도 판단 — 대기방 종류가 바뀐 때만 실제로 바꿈
-    setInterval(() => { augTick().catch(() => {}); }, 400);   // 🎯 증강 순위(켠 사람만 · 게임 중에만 실제로 읽음)
-    if (config.augRank) regAugShot();
     runSession = coalesce(pollSession);
     setInterval(runSession, 3000);                       // 화면·방장 일 3초마다(📡 v0.1.63: 데이터는 스트림 사본 — 끊긴 노드만 서버에서 읽음)
     discord = makeDiscord({ pipe: !app.isPackaged && process.env.TN_DISCORD_PIPE ? (i => `\\\\?\\pipe\\${process.env.TN_DISCORD_PIPE}-${i}`) : undefined, log: m => { try { console.log(m); } catch (_) {} }, onUser: (u) => { if (u) _dcLinked = null; dcLink(); broadcastSettings(); dcPresence(); } });   // 🎧 v0.1.130
@@ -4723,7 +4387,8 @@ else {
       try { for (const f of fs.readdirSync(dir)) { if (!/\.(webm|mp4)$/i.test(f)) continue; const p = path.join(dir, f); try { if (Date.now() - fs.statSync(p).mtimeMs > 6 * 3600e3) { fs.unlinkSync(p); n++; } } catch (_) {} } } catch (_) {}
       if (n) console.log('[replay] 지난 녹화 파일 정리', n); };
     setTimeout(pruneRec, 30000); setInterval(pruneRec, 30 * 60e3);
-    setTimeout(() => { if (!inGame && lobbyPhase !== 'ChampSelect') borderlessOff(); }, 15000);   // 🖥️ 지난번 게임 중 앱이 꺼졌으면 화면 모드 원래대로(롤이 게임 중이면 기다림)
+    setTimeout(() => { if (!inGame && lobbyPhase !== 'ChampSelect') borderlessOff(); }, 15000);   // 🖥️ 옛 증강 순위가 바꿔 둔 화면 모드가 남아 있으면 원래대로(롤이 게임 중이면 기다림)
+    if (config.augRank) { delete config.augRank; saveConfig(); }   // v0.1.246 증강 순위 없앰
     rating = makeRating({ userData: app.getPath('userData'), log: m => { try { console.log(m); } catch (_) {} },
       lcuGet: async p => { const r = await bridge.lcuRaw('GET', p); return r && r.status >= 200 && r.status < 300 ? r.data : null; } });
     setInterval(() => ratingUpdate(false), 30 * 60e3);

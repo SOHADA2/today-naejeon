@@ -7,7 +7,7 @@
   const $ = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstChild; };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   let invEdit = false;   // 🎧 v0.1.138 초대 링크 입력 중
-  let S = { discordRpc: true, discordMove: true, discord: null, autoSeat: true, lolPing: true, augRank: false, sfxOn: true, sfxVol: 1, dock: true, sidePanel: true, closeAsk: true, autoLaunch: true, hotkey: 'Shift+F7' }, U = { state: 'idle' }, hideStrip = false;
+  let S = { discordRpc: true, discordMove: true, discord: null, autoSeat: true, lolPing: true, sfxOn: true, sfxVol: 1, dock: true, sidePanel: true, closeAsk: true, autoLaunch: true, hotkey: 'Shift+F7' }, U = { state: 'idle' }, hideStrip = false;
   const applyVol = () => { window.__tnVol = S.sfxOn ? S.sfxVol : 0; };
   applyVol();
   const header = document.querySelector('#bar, #sbar'), minBtn = document.querySelector('#ov-min, #s-min');
@@ -50,8 +50,6 @@
     else if (inst) { tx.innerHTML = `<span>🔄 <b>v${esc(U.version || '')}</b> 설치 중 · 끄지 마세요</span>`; tx.title = '몇 초 뒤 다시 켜져요'; }
     else if (done) { tx.innerHTML = `<span>✅ <b>v${esc(U.cur || '')}</b>로 업데이트됐어요</span>`; tx.title = U.from ? `v${U.from}에서` : ''; }
   }
-  // ⚠️ 2026-11-09 배포 위험 점검 #5: 증강 순위를 켤 때 한 번 더 확인(라이엇이 따로 승인한 기능이 아님)
-  const AUG_ASK = '증강 순위는 라이엇이 따로 승인한 기능이 아닙니다.\n게임 화면에 보이는 증강 이름만 읽고 게임 파일이나 메모리는 건드리지 않지만, 라이엇 정책이 바뀌면 문제가 될 수 있습니다.\n\n켤까요?';
   const tog = (key, label, sub) => `<label class="tn-row"><span class="tn-row-tx"><b>${label}</b>${sub ? `<small>${sub}</small>` : ''}</span><input type="checkbox" class="tn-sw" data-k="${key}" ${S[key] ? 'checked' : ''}></label>`;
   function renderPanel() {
     if (!ui || panel.style.display === 'none') return;
@@ -81,8 +79,6 @@
           : `<div class="tn-row tn-dc"><span class="tn-row-tx"><b>초대 링크</b><small>${S.discord.invite ? `discord.gg/${esc(S.discord.invite)} · 서버에 없는 방 사람에게 「들어가기」` : '방장이 넣으면 서버에 없는 친구에게 「들어가기」 버튼'}</small></span><button class="tn-btn" data-act="dcinv">${S.discord.invite ? '바꾸기' : '넣기'}</button></div>`) : ''}
         ${tog('discordRpc', '디스코드에 내 상태 보이기 <span class=\"tn-tip\" data-tip=\"디스코드 프로필에 「투데이 내전 · 대기실 · 방 이름 · 6명 모임」처럼 지금 하고 있는 걸 보여 줘요(디스코드 설정 「활동 상태」가 켜져 있어야 보여요)\">ⓘ</span>', '대기실·드래프트·내전 중')}
         ${tog('discordMove', '음성 채널 자동 나누기 <span class=\"tn-tip\" data-tip=\"내가 방장일 때 팀이 정해지면 디스코드 음성 채널 「1팀」「2팀」으로 옮기고, 게임이 끝나면 원래 채널로 모아요. 서버에 투데이 내전 봇과 「1팀」「2팀」 음성 채널이 있어야 하고, 음성 채널에 들어와 있고 디스코드 앱을 켠 사람만 옮겨요\">ⓘ</span>', '방장일 때 · 1팀/2팀 채널로')}
-        <div class="tn-sec">게임 중</div>
-        ${tog('augRank', '증강 순위 <span class=\"tn-tip\" data-tip=\"증강 3개가 뜨면 게임 화면에서 이름을 읽어(Windows 글자 읽기) 내 챔피언 기준 1·2·3위를 카드 위에 띄워요. 리롤하면 바로 다시 매겨요. 화면을 보기만 하고 게임 파일은 안 건드리지만, 라이엇 정책상 위험할 수 있어요. 게임 중 Shift+F8 = 그 화면을 개발용으로 보내기\">ⓘ</span>', '뜬 증강에 1·2·3위 · 베타 · 라이엇 승인 기능 아님')}
         <div class="tn-sec">창</div>
         ${tog('dock', '롤 클라이언트 옆에 붙이기', '끄면 두 창이 따로 떠 있어요')}
         ${tog('sidePanel', '오른쪽 창 보이기', '홈·기록·프로필·증강')}
@@ -98,7 +94,7 @@
         <button class="tn-quit" data-act="quit">투데이 내전 완전히 종료</button>
       </div>`;
     panel.querySelector('.tn-set-x').onclick = closePanel;
-    panel.querySelectorAll('.tn-sw').forEach(c => c.onchange = async () => { if (c.dataset.k === 'augRank' && c.checked && !(await tnConfirm(AUG_ASK, { ok: '켜기' }))) { c.checked = false; return; } api.setSetting(c.dataset.k, c.checked).then(v => { if (v) { S = v; applyVol(); renderPanel(); } }); });
+    panel.querySelectorAll('.tn-sw').forEach(c => c.onchange = async () => { api.setSetting(c.dataset.k, c.checked).then(v => { if (v) { S = v; applyVol(); renderPanel(); } }); });
     const r = panel.querySelector('.tn-range'), n = panel.querySelector('.tn-vol-n');
     if (r) { r.oninput = () => { n.textContent = r.value; S.sfxVol = r.value / 100; applyVol(); }; r.onchange = () => api.setSetting('sfxVol', r.value / 100); }
     { const ii = panel.querySelector('.tn-inv-in'); if (ii) ii.onkeydown = e => { if (e.key === 'Enter') panel.querySelector('[data-act=dcinvsave]').click(); }; }

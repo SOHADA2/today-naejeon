@@ -415,12 +415,6 @@ module.exports = function makePotg(d) {
       return id;
     } catch (e) { log('GitHub 영상 올리기 실패 ' + e.message); return null; }
   }
-  async function uploadShot(file, buf) {   // 🎯 증강 순위 개발용(Shift+F8) — 중계가 같은 비공개 저장소 aug-shots 릴리스에 → true/false
-    try {
-      const name = String(file).split('/').pop().replace(/[^\w.-]/g, '_');
-      return !!(await pxUpload('/shot', name, buf, /\.json$/.test(name) ? 'application/json' : 'image/jpeg', 60000));
-    } catch (e) { log('화면 보내기 실패 ' + e.message); return false; }
-  }
   // ⏱️ v0.1.117: 중계(→ GitHub)가 가끔 아주 느림(실측 2026-11-04: 0.5MB 9초 · 3MB 77초 · 9MB 9초 · 실제 판 9MB는 3분 시간 초과 → 99%에서 4분 멈춤)
   //   → 중계가 40초 안에 안 끝나면 Firebase 예비 조각도 **같이** 올려 먼저 끝난 쪽을 씀(늦게 끝난 쪽은 버려져도 3일 정리로 지워짐)
   const GH_WAIT = 40000;
@@ -504,5 +498,5 @@ module.exports = function makePotg(d) {
     return cdPath(s.splashPath || s.uncenteredSplashPath);
   }
 
-  return { myFinal: gid => lastFinal && String(lastFinal.gameId) === String(gid) ? lastFinal : null, splashFor, startCollect, stopCollect, pickPotg, pickHero, heroStats, readRaws, uploadClip, uploadShot, getClip, prepUpload, cleanup, extOf, pxJson, _pick: pickPotg };
+  return { myFinal: gid => lastFinal && String(lastFinal.gameId) === String(gid) ? lastFinal : null, splashFor, startCollect, stopCollect, pickPotg, pickHero, heroStats, readRaws, uploadClip, getClip, prepUpload, cleanup, extOf, pxJson, _pick: pickPotg };
 };

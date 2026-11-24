@@ -18,7 +18,7 @@ const local = url => { const rest = String(url || '').replace(/^https:\/\/raw\.c
     const list = await (await fetch('https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1/cherry-augments.json')).json();
     map = {}; for (const a of list) map[a.id] = { name: String(a.nameTRA || '').trim(), rarity: String(a.rarity || '').replace(/^k/, '').toLowerCase(), icon: a.augmentSmallIconPath ? 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default' + a.augmentSmallIconPath.replace('/lol-game-data/assets', '').toLowerCase() : '' };
   }
-  const desc = JSON.parse(fs.readFileSync(path.join(R, 'docs/data/aramgg/desc.json'), 'utf8')).d, g = JSON.parse(fs.readFileSync(path.join(R, 'docs/data/aramgg/index.json'), 'utf8')).g;
+  const desc = JSON.parse(fs.readFileSync(path.join(R, 'docs/data/aramgg/desc.json'), 'utf8')).d, gi = JSON.parse(fs.readFileSync(path.join(R, 'docs/data/aramgg/index.json'), 'utf8')), g = Array.isArray(gi.ids) ? Object.fromEntries(gi.ids.map(x => [x, 1])) : gi.g;
   const list = Object.keys(g).filter(id => map[id] && /^(silver|gold|prismatic)$/.test(map[id].rarity)).map(id => ({ id: +id, name: map[id].name, icon: local(map[id].icon), rarity: map[id].rarity, desc: desc[id] || '' }));
   const penta = [[3170, '헤비', 'Q'], [3171, '파워', 'W'], [3172, '스래시', 'E'], [3173, '둠', 'R']].map(([id, name, key]) => ({ id, name, key, icon: local((map[id] || {}).icon) }));
   const POOL = { patch: '26.22', list, penta };
