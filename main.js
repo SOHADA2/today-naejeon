@@ -1575,10 +1575,20 @@ const pwHash = (id, pw) => require('crypto').createHash('sha256').update(`${id}:
 //   세는 것 = today/conns/{기기} = 마지막 신호 시각(롤 로그인 안 한 앱도 연결은 쓰니 접속 표시 대신 기기 단위) · 기준 = config/connCap(기본 30 · 동시에 켜는 사람 여유)
 const CONN_CAP = 80, CONN_MS = 20000, CONN_STALE_MS = 10 * 60 * 1000;   // v0.1.110: 앱당 실시간 연결 1개 → 80(동시에 켜는 여유 20)
 let seatFull = null, _live = false, _connN = 0;   // seatFull = { n, cap } = 꽉 차서 기다리는 중
+// 🧹 v0.1.247 오래된 기기 정리 = 평균 한 대만(예전 = 연결된 기기가 전부 5분마다 conns 전체를 받아 정리 → 기기 수 × 기기 수로 늘어남)
+//   5분마다 「1 / 연결 기기 수」 확률로만 정리 · 기기 수 = 자리 확인·정리 때 센 값(서버 규칙·새 칸 없이) · 정리를 늦게 해도 자리 계산은 1분 안 신호만 세서 상관없음
+const GC_EVERY = (!app.isPackaged && Number(process.env.TN_GC_EVERY)) || 15;   // 🧪 개발용 TN_GC_EVERY(신호 몇 번마다)
+let _seatN = 1;
 function connBeat() {
   fbSet(`${T}/conns/${config.deviceId}`, Date.now()).catch(() => {});
-  if (++_connN % 15) return;   // 5분마다 오래된 기기 정리(앱이 갑자기 꺼진 것)
-  getJson(`${FIREBASE_DB}/${T}/conns.json`).then(c => { for (const [k, v] of Object.entries(c || {})) if (!(Date.now() - v < CONN_STALE_MS)) fbSet(`${T}/conns/${k}`, null).catch(() => {}); }).catch(() => {});
+  if (++_connN % GC_EVERY) return;   // 5분마다
+  if (Math.random() >= 1 / Math.max(1, _seatN)) return;   // 평균 한 대만
+  getJson(`${FIREBASE_DB}/${T}/conns.json`).then(c => {
+    const now = Date.now(); let on = 0, gone = 0;
+    for (const [k, v] of Object.entries(c || {})) { if (now - v < ONLINE_MS) on++; if (!(now - v < CONN_STALE_MS)) { gone++; fbSet(`${T}/conns/${k}`, null).catch(() => {}); } }
+    _seatN = Math.max(1, on);
+    console.log(`[conns] 정리 · 연결 ${on}대 · 지움 ${gone}`);
+  }).catch(() => {});
 }
 let _liveAt = 0;   // 🚀 v0.1.227 실시간 연결을 시작한 때 — SLOW_MS 넘게 방 목록을 못 받으면 「서버에 연결하지 못했습니다」(roomsView.slow)
 const SLOW_MS = 12000;
@@ -1627,6 +1637,7 @@ async function seatGate() {
     if (_live) return;
     const cap = Number.isInteger(capRaw) && capRaw > 0 ? capRaw : CONN_CAP, now = Date.now();
     const n = Object.entries(c || {}).filter(([k, v]) => k !== config.deviceId && now - v < ONLINE_MS).length;   // 나는 빼고(업데이트로 다시 켠 건 내 자리 그대로)
+    _seatN = n + 1;   // 🧹 정리 확률에 씀
     if (n >= cap) { seatFull = { n, cap }; _gateNext = Date.now() + 30000; broadcastRooms(); return; }   // 30초 뒤 다시(필요할 때만 · liveTick)
     seatFull = null; startLive(); broadcastRooms();
   } finally { _gateBusy = false; }
