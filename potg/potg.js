@@ -548,16 +548,25 @@ async function saveWithFx(hero) {
   if (b.disabled) return;
   const est = Math.round(hero ? 2.4 + (card.hero.clipTo - card.hero.clipFrom) * 1.25 + 3 : 3.2 + (card.clipTo - card.clipFrom) * 1.25 + 3);
   b.disabled = true; const t0 = b.textContent; b.textContent = '저장 중…';
-  m.textContent = `효과 넣어 영상 만드는 중 · 약 ${est}초(화면 밖에서 한 번 재생하며 녹화해요)`;
+  m.textContent = `영상 파일을 만드는 중이에요 · 약 ${est}초 걸려요`;   // v0.1.250: 「효과 넣어 · 화면 밖에서 녹화」 같은 개발 용어 뺌(사장님)
   try {
     const r = await window.api.potgExport(card, !!hero).catch(e => ({ ok: false, err: String(e && e.message || e) }));
-    if (r && r.ok) { m.textContent = `저장했어요 · ${r.path}`; return; }
+    if (r && r.ok) return savedMsg(m, r.path, '');
     if (r && r.canceled) { m.textContent = ''; return; }
-    if (await tnConfirm('효과를 넣은 영상을 만들지 못했어요' + (r && r.err ? ` (${r.err})` : '') + '.\n리플레이 원본 영상만이라도 저장할까요?', { ok: '원본 저장' })) {
+    if (r && r.busy) { m.textContent = '다른 영상을 저장하는 중이에요 · 끝나면 다시 눌러 주세요'; return; }
+    if (r && r.err) console.log('[potg] 영상 만들기 실패', r.err);
+    if (await tnConfirm('자막과 음악을 넣은 영상을 만들지 못했어요.\n게임 장면만 있는 영상으로 저장할까요? (자막·음악 없음)', { ok: '장면만 저장' })) {
       const o = await window.api.potgSave(hero ? card.hero.clip : card.clip, hero ? card.hero.name : card.name, !!hero).catch(() => null);
-      m.textContent = o && o.ok ? `원본을 저장했어요 · ${o.path}` : o && o.canceled ? '' : '저장하지 못했어요';
+      if (o && o.ok) savedMsg(m, o.path, ' (자막·음악 없음)'); else m.textContent = o && o.canceled ? '' : '저장하지 못했어요 · 다시 눌러 주세요';
     } else m.textContent = '';
   } finally { b.disabled = false; b.textContent = t0; }
+}
+function savedMsg(m, p, note) {   // 「저장했어요 · 파일 이름 [폴더 열기]」(긴 경로 대신 이름만 · 전체 경로는 마우스 올림)
+  const name = String(p || '').split(/[\\/]/).pop();
+  m.textContent = ''; m.title = p || '';
+  const t = document.createElement('span'); t.className = 'pg-msg-t'; t.textContent = `저장했어요${note} · ${name}`;   // 이름이 길면 이 칸만 …줄임 · 버튼은 늘 보임
+  const a = document.createElement('button'); a.className = 'pg-open'; a.textContent = '폴더 열기';
+  a.onclick = () => window.api.potgReveal(p); m.append(t, a);
 }
 el('pg-save').onclick = () => saveWithFx(false);
 el('pg-save2').onclick = () => saveWithFx(true);

@@ -146,6 +146,7 @@ contextBridge.exposeInMainWorld('api', {
   potgClip: (meta) => ipcRenderer.invoke('potg-clip', meta),
   potgSave: (meta, name, hero) => ipcRenderer.invoke('potg-save', { meta, name, hero: !!hero }),
   potgExport: (card, hero) => ipcRenderer.invoke('potg-export', { card, hero: !!hero }),   // 🎞️ v0.1.212 효과 넣어 저장(mp4)
+  potgReveal: (p) => ipcRenderer.send('potg-reveal', p),   // 📂 v0.1.250 저장한 영상 폴더 열기
   potgClose: () => ipcRenderer.send('potg-close'),
   onPotgWait: (cb) => ipcRenderer.on('potg-wait', (_e, d) => cb(d)),           // ⏳ 팟지 기다림 화면
   onPotgWaitProg: (cb) => ipcRenderer.on('potg-wait-prog', (_e, d) => cb(d)),

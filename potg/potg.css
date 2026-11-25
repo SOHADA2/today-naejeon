@@ -116,6 +116,10 @@ html, body { height:100%; background:var(--bg-0); color:var(--ink); overflow:hid
 .pg-btns { display:flex; gap:8px; }
 .pg-btns button { flex:1; min-width:0; padding:10px 8px; white-space:nowrap; }
 .pg-msg { min-height:16px; font-size:12px; color:var(--teal); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pg-msg:has(.pg-open) { display:flex; align-items:center; gap:6px; }
+.pg-msg-t { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pg-open { flex:none; margin-left:4px; padding:1px 8px; font:inherit; font-size:11px; color:var(--gold, #c8aa6e); background:transparent; border:1px solid currentColor; cursor:pointer; }
+.pg-open:hover { background:rgba(200,170,110,.14); }
 
 /* 🛡️ 숨은 영웅(v0.1.44) — 체력 막대(버티기·세이브) · 한꺼번에 맞은 적(광역 이니시) · 어시스트 피드(한타 설계) · 정지 화면 판 전체 지표 */
 .pg.hero .pg-tag { max-width:52%; }

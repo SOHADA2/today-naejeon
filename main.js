@@ -4271,14 +4271,16 @@ ipcMain.handle('potg-save', async (_e, { meta, name, hero }) => {   // 🎬 「�
   const p = potg && await potg.getClip(meta); if (!p) return { ok: false };
   const safe = String(name || '팟지').replace(/[\\/:*?"<>|]/g, '_');
   const ext = potg.extOf(meta.mime);
-  const r = await dialog.showSaveDialog(potgWin && !potgWin.isDestroyed() ? potgWin : undefined, { title: '팟지 영상 저장', defaultPath: path.join(app.getPath('videos'), `투데이내전_${hero ? '숨은영웅' : '팟지'}_${meta.day}_${safe}.${ext}`), filters: [{ name: '영상', extensions: [ext] }] });
+  const r = await dialog.showSaveDialog(potgWin && !potgWin.isDestroyed() ? potgWin : undefined, { title: '팟지 영상 저장', defaultPath: path.join(app.getPath('videos'), `투데이내전_${hero ? '숨은영웅' : '팟지'}_${meta.day}_${safe}.${ext}`), filters: [{ name: ext === 'webm' ? 'WebM 영상' : 'MP4 영상', extensions: [ext] }] });
   if (r.canceled || !r.filePath) return { ok: false, canceled: true };
-  try { fs.copyFileSync(p, r.filePath); return { ok: true, path: r.filePath }; } catch (_) { return { ok: false }; }
+  try { fs.copyFileSync(p, r.filePath); _savedPaths.add(r.filePath); return { ok: true, path: r.filePath }; } catch (_) { return { ok: false }; }
 });
 // 🎞️ v0.1.212 「효과 넣어 저장」(사장님: 받은 영상엔 카메라 연출만 있음) — 저장 위치를 고르면 화면 밖(offscreen) 1280×720 내보내기 창에서
 //   팟지 화면(potg.html?export=…)을 한 번 더 재생하며 그 창의 화면+소리를 탭 녹화(getDisplayMedia · 아래 setDisplayMediaRequestHandler가 이 창만 허락)
 //   → MediaRecorder mp4(H.264+AAC · 안 되면 webm) → 파일 · 영상 변환 프로그램 없이 · 실제 재생 시간만큼 걸림 · 동시에 하나만
 let _exportWin = null;
+const _savedPaths = new Set();   // 📂 v0.1.250 「폴더 열기」 = 이번에 저장한 파일만(창이 아무 경로나 못 열게)
+ipcMain.on('potg-reveal', (_e, p) => { if (typeof p === 'string' && _savedPaths.has(p) && fs.existsSync(p)) shell.showItemInFolder(p); });
 function exportMediaHandler(req, cb) {
   const w = _exportWin;
   if (w && !w.isDestroyed() && req.frame && req.frame === w.webContents.mainFrame) cb({ video: req.frame, audio: req.frame });
@@ -4286,10 +4288,10 @@ function exportMediaHandler(req, cb) {
 }
 ipcMain.handle('potg-export', async (_e, { card, hero }) => {
   if (!card) return { ok: false, err: '팟지 정보 없음' };
-  if (_exportWin && !_exportWin.isDestroyed()) return { ok: false, err: '다른 영상을 만드는 중이에요' };
+  if (_exportWin && !_exportWin.isDestroyed()) return { ok: false, busy: true, err: '다른 영상을 만드는 중' };
   const who = hero ? (card.hero && card.hero.name) : card.name, day = (card.clip && card.clip.day) || (card.hero && card.hero.clip && card.hero.clip.day) || dayKey();
   const safe = String(who || '팟지').replace(/[\\/:*?"<>|]/g, '_');
-  const r = await dialog.showSaveDialog(potgWin && !potgWin.isDestroyed() ? potgWin : undefined, { title: hero ? '숨은 영웅 영상 저장' : '팟지 영상 저장', defaultPath: path.join(app.getPath('videos'), `투데이내전_${hero ? '숨은영웅' : '팟지'}_${day}_${safe}.mp4`), filters: [{ name: '영상', extensions: ['mp4', 'webm'] }] });
+  const r = await dialog.showSaveDialog(potgWin && !potgWin.isDestroyed() ? potgWin : undefined, { title: hero ? '숨은 영웅 영상 저장' : '팟지 영상 저장', defaultPath: path.join(app.getPath('videos'), `투데이내전_${hero ? '숨은영웅' : '팟지'}_${day}_${safe}.mp4`), filters: [{ name: 'MP4 영상', extensions: ['mp4'] }] });
   if (r.canceled || !r.filePath) return { ok: false, canceled: true };
   const w = _exportWin = new BrowserWindow({ width: 1280, height: 720, show: false, frame: false, skipTaskbar: true, backgroundColor: '#000000',
     webPreferences: { offscreen: true, preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, autoplayPolicy: 'no-user-gesture-required', backgroundThrottling: false } });
@@ -4304,7 +4306,7 @@ ipcMain.handle('potg-export', async (_e, { card, hero }) => {
     let buf = Buffer.from(out.data);
     if (ext === '.mp4') { try { const fx = require('./mp4fix').fixAnnexB(buf); console.log('[potg] mp4 바로잡음', JSON.stringify(fx)); } catch (e) { console.log('[potg] mp4 바로잡기 실패', e && e.message); } }   // 크롬 mp4의 영상 프레임 구분 방식을 mp4 규칙대로(엄격한 재생기용)
     if (ext === '.mp4') { try { const fl = require('./mp4flat').flatten(buf); if (fl.changed) { buf = fl.buf; console.log('[potg] 일반 mp4로', JSON.stringify(fl.tracks)); } } catch (e) { console.log('[potg] 일반 mp4로 바꾸기 실패(조각난 그대로 저장)', e && e.message); } }   // 🎞️ v0.1.249 조각난 mp4 → 목차 앞 일반 mp4(윈도우·휴대폰·카톡 재생)
-    fs.writeFileSync(file, buf);
+    fs.writeFileSync(file, buf); _savedPaths.add(file);
     console.log('[potg] 효과 넣어 저장', file, (out.data.byteLength / 1048576).toFixed(1) + 'MB');
     return { ok: true, path: file };
   } catch (e) { return { ok: false, err: String(e && e.message || e).slice(0, 80) }; }
