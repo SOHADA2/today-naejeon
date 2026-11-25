@@ -2565,7 +2565,7 @@ async function normalPotg(rec) {
   const s = { teamA: rec.us, teamB: [] }, opt = { only: rec.us };
   const card = n ? potg.pickPotg(raws, s, rec.stats, opt) : null;
   if (!card) { await fbUpdate(path, { potg: { none: true, gameId: rec.gameId } }); return; }
-  card.gameId = rec.gameId; card.normal = { queue: rec.queue, win: rec.win, us: rec.us, day: rec.day };
+  card.gameId = rec.gameId; card.normal = { queue: rec.queue, win: rec.win, us: rec.us, day: rec.day, queueId: rec.queueId || null, gameMode: rec.gameMode || null };   // 🎥 v0.1.252 큐·모드도(연출 카메라 = 칼바람 맵만 · 예전엔 없어서 아수라장 일반 판도 협곡으로 봐 연출이 꺼졌음)
   try { card.splash = await potg.splashFor(card.championId, card.skin); } catch (_) {}
   try {
     const hero = heroAllowed(rec.us.length * 2) ? potg.pickHero(raws, s, rec.stats, card.name, Object.assign({ avoid: [card.clipFrom, card.clipTo] }, opt)) : null;   // 팟지와 같은 한타는 숨은 영웅으로 안 고름 · 일반 판은 우리 팀 앱 인원 ×2로 셈(3명+)
@@ -2763,7 +2763,10 @@ async function recordPotgClip(card, g) {   // g = { id: 게임 번호, path: 녹
   const victims = (card.kills || []).map(k => ({ name: k.victim, alias: alias(k.championId), t: k.t })).filter(v => v.name && Number.isFinite(v.t));
   const kts = (card.kills && card.kills.length ? card.kills.map(k => k.t) : [card.obj ? card.obj.t : card.t1]).filter(Number.isFinite);   // potg/potg.js killsAt과 같은 킬 시각
   // 🗺️ v0.1.232 연출 카메라는 칼바람 다리 지도(replayrec LANE12) 기준 → 협곡(내전 lolGame 'sr' · 일반 CLASSIC 등) 판은 연출 없이 주인공 따라가기
-  const aramMap = card.normal ? ['ARAM', 'KIWI'].includes(card.normal.gameMode) || [450, 2400].includes(Number(card.normal.queueId)) : !(sessionData && sessionData.lolGame === 'sr');
+  // 🎥 v0.1.252: 협곡으로 **확실한** 판만 연출 끔(모드 CLASSIC · 협곡 큐 · 큐 이름) — 예전 = 칼바람으로 확실해야 켬 → 일반 판 카드엔 모드·큐가 없어 11/19(v0.1.232)부터 일반 판 연출이 전부 꺼져 있었음(사장님: 주인공 시점이 잘 안 됨)
+  const SRQ = [400, 420, 430, 440, 480, 490, 3100, 3110, 3120, 3130], nm = card.normal;
+  const aramMap = nm ? !(nm.gameMode === 'CLASSIC' || SRQ.includes(Number(nm.queueId)) || /협곡|랭크|신속|빠른|교차/.test(nm.queue || '')) : !(sessionData && sessionData.lolGame === 'sr');
+  if (!aramMap) console.log('[potg] 협곡 판 → 연출 카메라 없이 주인공 따라가기');
   const parts = [{ from: Math.max(0, card.clipFrom - 2), to: card.clipTo, focus: card.name, champ: alias(card.championId), fov: await fov(card.championId), direct: aramMap ? { victims } : null, speed: slowKeys(potgSlow(kts), kts.flatMap(m => [m - 0.7, m - 0.45, m + 0.3, m + FREEZE_AFTER])) }]
     .concat(H ? [{ from: H.clipFrom, to: H.clipTo, focus: H.name, champ: alias(H.championId), fov: await fov(H.championId), direct: aramMap ? { victims: [] } : null, speed: slowKeys(heroSlow(H.peak), [H.peak - 0.6, H.peak + 0.35]) }] : []);
   recProgStart(parts);
@@ -4286,7 +4289,7 @@ const _savedPaths = new Set();   // 📂 v0.1.250 「폴더 열기」 = 이번�
 ipcMain.on('potg-reveal', (_e, p) => { if (typeof p === 'string' && _savedPaths.has(p) && fs.existsSync(p)) shell.showItemInFolder(p); });
 function exportMediaHandler(req, cb) {
   const w = _exportWin;
-  if (w && !w.isDestroyed() && req.frame && req.frame === w.webContents.mainFrame) cb({ video: req.frame, audio: req.frame });
+  if (w && !w.isDestroyed() && req.frame && req.frame === w.webContents.mainFrame) cb(req.audioRequested ? { video: req.frame, audio: req.frame } : { video: req.frame });   // v0.1.252 소리는 창 안 믹서에서 따로
   else { try { cb({}); } catch (_) {} }
 }
 // 💾 v0.1.251 팟지 영상 파일(사장님: 저장본 = 방장 화면과 같게 · 「기록」에서 진행 막대로 받게 · 다시 만드는 게 오래 걸림)
@@ -4308,6 +4311,7 @@ async function makeFinal(card, onProg) {   // → {ok, buf, ext, w} · 하나씩
     await w.loadFile(path.join(__dirname, 'potg', 'potg.html'), { query: { export: '1' } });
     w.webContents.setZoomFactor(zoom);   // 글자·킬 피드 비율 = 팟지 창과 같게(창 폭 refW로 배치한 것을 1280으로 키움)
     const out = await w.webContents.executeJavaScript(`window.__exportGo(${JSON.stringify({ card })})`, true);   // true = 사용자 동작으로 쳐 줌(녹화 시작 허락)
+    if (out && out.mix) console.log('[potg] 저장 소리 믹서', out.mix);
     if (!out || !out.ok || !out.data) return { ok: false, err: (out && out.err) || '녹화 실패' };
     let buf = Buffer.from(out.data); const mp4 = out.mime === 'video/mp4';
     if (mp4) { try { require('./mp4fix').fixAnnexB(buf); } catch (e) { console.log('[potg] mp4 바로잡기 실패', e && e.message); } }   // 크롬 mp4 프레임 구분 방식을 mp4 규칙대로

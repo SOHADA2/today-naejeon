@@ -31,8 +31,23 @@ function bgmPick(c) {
 }
 bgm.a.preload = 'auto'; bgm.a.preservesPitch = true;   // 박자 맞추느라 속도를 ±10% 바꿔도 음높이는 그대로
 for (const k of Object.keys(SFX)) { const a = new Audio(`../assets/sfx/potg-${k}.ogg`); a.preload = 'auto'; }   // 미리 불러 둠(캐시)
+// 🔊 v0.1.252 저장 영상 소리(사장님: 작거나 기존과 다름) = 화면과 같은 비율 그대로 녹음 직전 믹서에서 전체 +9dB · 리미터(-3dB · 찢어짐 방지) — 화면 재생엔 안 걸림(EXPORT만)
+//   크롬은 audio.volume이 웹오디오로 넘어가기 전에 걸림(실측: 1 → -19.7dB · 0.2 → -33.2dB) → 각 소리의 크기·페이드는 그대로 두고 마지막에만 키움
+const EXPORT_GAIN = 1.8;
+let _mix = null, _mixN = 0, _mixErr = null;
+function mixIn(el) {
+  if (!EXPORT || !el || el._mixed) return el;
+  try {
+    if (!_mix) { const ac = new AudioContext(), g = ac.createGain(), lim = ac.createDynamicsCompressor(), out = ac.createGain();
+      g.gain.value = EXPORT_GAIN; lim.threshold.value = -3; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.15; out.gain.value = 0.92;
+      const dest = ac.createMediaStreamDestination(); g.connect(lim); lim.connect(out); out.connect(dest); _mix = { ac, g, dest }; }   // 녹음 = 이 믹서 출력을 그대로(창 소리 통째 녹음 X)
+    if (_mix.ac.state !== 'running') _mix.ac.resume().catch(() => {});
+    _mix.ac.createMediaElementSource(el).connect(_mix.g); el._mixed = true; _mixN = (_mixN || 0) + 1;
+  } catch (e) { console.log("mixIn " + (e && e.message)); _mixErr = String(e && e.message); }
+  return el;
+}
 function playSfx(name, gain) {
-  try { const a = new Audio(`../assets/sfx/potg-${name}.ogg`); a.volume = Math.min(1, SFX[name].vol * (gain || 1) * VOL()); if (a.volume > 0) a.play().catch(() => {}); } catch (_) {}
+  try { const a = mixIn(new Audio(`../assets/sfx/potg-${name}.ogg`)); a.volume = Math.min(1, SFX[name].vol * (gain || 1) * VOL()); if (a.volume > 0) a.play().catch(() => {}); } catch (_) {}
 }
 function seekPlay(a, t) { const go2 = () => { try { a.currentTime = Math.max(0, t); } catch (_) {} a.play().catch(() => {}); }; if (a.readyState >= 1) go2(); else a.addEventListener('loadedmetadata', go2, { once: true }); }
 function bgmFade(to, ms) {
@@ -554,6 +569,7 @@ el('pg-save').onclick = () => {
 //   팟지 = 소개 → 영상(킬 자막·슬로·정지·끝맺음) 또는 킬 카드 · 숨은 영웅 = 짧은 소개 → 영상 또는 지표 카드 · 끝 화면·버튼은 안 담음
 window.__exportGo = async ({ card: c }) => {   // v0.1.251: 화면에 띄울 때와 같은 runShow(팟지 → 숨은 영웅 · 음악 이어짐) · 진행은 1초마다 main으로
   card = c; touched = true; setTeam(c.team); bgmPick(c);
+  mixIn(bgm.a); mixIn(el('pg-video'));   // 🔊 v0.1.252 음악·게임 소리도 저장용 믹서로
   clipPath = null; heroPath = null;
   clipP = c.clip ? window.api.potgClip(c.clip).then(r => (clipPath = r && r.url)).catch(() => null) : Promise.resolve(null);
   heroP = c.hero && c.hero.clip ? window.api.potgClip(c.hero.clip).then(r => (heroPath = r && r.url)).catch(() => null) : Promise.resolve(null);
@@ -564,10 +580,11 @@ window.__exportGo = async ({ card: c }) => {   // v0.1.251: 화면에 띄울 때
   }
   await sleep(400);   // 글꼴·그림 자리 잡기
   let s;
-  try { s = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 60, width: 1280, height: 720 }, audio: { channelCount: 2 } }); }
+  try { s = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 60, width: 1280, height: 720 }, audio: false }); }
   catch (e) { return { ok: false, err: '녹화 시작 실패 ' + (e && e.name || '') }; }
   const MT = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t));
-  const rec = new MediaRecorder(s, { mimeType: MT, videoBitsPerSecond: 4e6, audioBitsPerSecond: 192e3 }), ch = [];
+  const st = new MediaStream([...s.getVideoTracks(), ...(_mix ? _mix.dest.stream.getAudioTracks() : [])]);   // 🔊 v0.1.252 화면 = 창 녹화 · 소리 = 저장용 믹서 출력
+  const rec = new MediaRecorder(st, { mimeType: MT, videoBitsPerSecond: 4e6, audioBitsPerSecond: 192e3 }), ch = [];
   rec.ondataavailable = e => { if (e.data && e.data.size) ch.push(e.data); };
   rec.start(500);
   await sleep(250);
@@ -580,5 +597,5 @@ window.__exportGo = async ({ card: c }) => {   // v0.1.251: 화면에 띄울 때
   run++; bgmEnd(1200); await sleep(1250);
   rec.stop(); await new Promise(r => { rec.onstop = r; }); s.getTracks().forEach(t => t.stop());
   const buf = await new Blob(ch, { type: MT.split(';')[0] }).arrayBuffer();
-  return { ok: buf.byteLength > 10000, mime: MT.split(';')[0], data: buf, err: buf.byteLength > 10000 ? null : '녹화된 내용이 없음' };
+  return { ok: buf.byteLength > 10000, mime: MT.split(';')[0], data: buf, err: buf.byteLength > 10000 ? null : '녹화된 내용이 없음', mix: (_mix ? _mix.ac.state + ' ' + _mixN : 'none') + (_mixErr ? ' ERR ' + _mixErr : '') };
 };
