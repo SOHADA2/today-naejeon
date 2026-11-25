@@ -1,0 +1,37 @@
+Copyright (c) 2026 SOHADA2. All rights reserved.
+
+Today In-House (투데이 내전) — source code, design, and original assets in this
+repository are the property of SOHADA2.
+
+This repository is publicly visible so the app can be downloaded and updated.
+Visibility does not grant any license. Without prior written permission from
+SOHADA2, you may not copy, modify, merge, publish, distribute, sublicense, sell,
+or create derivative works from any part of this repository, in whole or in part.
+
+You may download and run the official release builds published by SOHADA2 for
+personal use.
+
+Third-party components keep their own licenses and are not covered by this
+notice, including:
+  - Fonts in assets/fonts (see the LICENSE-*.txt files next to them)
+  - Sound sources listed in assets/sfx/CREDITS.txt
+  - npm packages and other libraries (see their own license files)
+
+League of Legends and all related names, artwork, and assets belong to
+Riot Games, Inc. Today In-House was created under Riot Games' "Legal Jibber
+Jabber" policy using assets owned by Riot Games. Riot Games does not endorse
+or sponsor this project.
+
+---
+
+저작권 (c) 2026 SOHADA2. 모든 권리 보유.
+
+이 저장소의 소스 코드, 디자인, 직접 만든 자료는 SOHADA2의 것입니다.
+앱을 내려받고 자동 업데이트하기 위해 저장소를 공개해 두었을 뿐, 사용을 허락하는 것은
+아닙니다. SOHADA2의 사전 서면 허락 없이 이 저장소의 전부 또는 일부를 복사, 수정,
+재배포, 판매하거나 이를 바탕으로 다른 프로그램을 만들 수 없습니다.
+
+SOHADA2가 배포한 공식 설치 파일을 내려받아 개인적으로 쓰는 것은 괜찮습니다.
+
+글꼴, 효과음 재료, npm 패키지 등 다른 사람이 만든 구성 요소는 각자의 라이선스를 따릅니다.
+리그 오브 레전드 관련 이름, 그림, 자료는 Riot Games, Inc.의 것입니다.
