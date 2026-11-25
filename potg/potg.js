@@ -73,25 +73,30 @@ window.api.onPotg(async ({ card: c, manual }) => {
 });
 
 async function play() {
-  const my = ++run, c = card;
+  const my = ++run;
   clearTimeout(idleTimer);
-  el('pg-end').style.display = 'none'; el('pg-msg').textContent = '';
+  el('pg-msg').textContent = '';
+  if (await runShow(my, card)) end(my);
+}
+// 🎬 팟지 한 편(소개 → 장면 → 숨은 영웅) — 화면에 띄울 때와 영상 파일로 저장할 때가 **같은 함수**(v0.1.251 · 사장님: 저장본과 방장 화면이 달랐음)
+async function runShow(my, c) {
+  el('pg-end').style.display = 'none';
   el('pg-stage').style.display = 'none'; el('pg-card').style.display = 'none'; el('pg-wait').style.display = 'none';
   const v = el('pg-video'); v.pause(); v.removeAttribute('src'); v.load(); resetFx();
   // ① 소개
   bgmStart(3.2 + (c.clip ? 0.25 + realToFreeze(c) : cardDropAt(c)));   // 영상이면 정지 화면, 카드면 마지막 킬 칸에서 「터짐」
-  if (!await showIntro(my, c, { eyebrow: 'PLAY OF THE GAME', en: enLabel(c.label), ko: c.label, tags: c.tags, dur: 3200 })) return;
+  if (!await showIntro(my, c, { eyebrow: 'PLAY OF THE GAME', en: enLabel(c.label), ko: c.label, tags: c.tags, dur: 3200 })) return false;
   // ② 장면
   let shown = false;
   if (c.clip) {
-    if (!clipPath) { el('pg-wait').style.display = ''; await Promise.race([clipP, sleep(20000)]); if (my !== run) return; el('pg-wait').style.display = 'none'; }
+    if (!clipPath) { el('pg-wait').style.display = ''; await Promise.race([clipP, sleep(20000)]); if (my !== run) return false; el('pg-wait').style.display = 'none'; }
     if (clipPath && await playVideo(my)) shown = true;
-    else if (my !== run) return;
+    else if (my !== run) return false;
   }
-  if (!shown) { await showCard(my); if (my !== run) return; }
+  if (!shown) { await showCard(my); if (my !== run) return false; }
   // ③ 숨은 영웅(v0.1.44) — 킬 아닌 서포터·탱커 장면
   if (c.hero) await playHero(my);
-  end(my);
+  return true;
 }
 
 // 소개 화면(팟지·숨은 영웅 공용) — 스킨 일러스트 배경 + 머리글 + 이름 + 큰 영문/한글 띠 · dur 뒤 섬광과 함께 빠짐 → 장면 무대
@@ -530,8 +535,7 @@ function end(my) {
   el('pg-sum').innerHTML = `<b>${esc(c.name)}</b>${c.champ ? ' · ' + esc(c.champ) : ''} · ${esc(c.label)} · <span class="num">${mmss(c.t0)}</span>`
     + (c.hero ? `<br><span class="hs">숨은 영웅</span> <b>${esc(c.hero.name)}</b> · ${esc(c.hero.label)} · <span class="num">${mmss(c.hero.peak)}</span>` : '')
     + (c.guess && c.guess.n ? `<br><span class="hs">🔮 예측</span> ${c.guess.right.length ? `맞힌 사람 <b>${c.guess.right.map(esc).join(', ')}</b>` : '아무도 못 맞혔어요'} · ${c.guess.right.length}/${c.guess.n}명` : '');   // ⏳ 기다림 화면 예측 결과
-  el('pg-save').style.display = clipPath ? '' : 'none';
-  el('pg-save2').style.display = heroPath ? '' : 'none';
+  el('pg-save').style.display = EXPORT ? 'none' : '';   // 💾 v0.1.251 영상 저장 = 오른쪽 창 「기록」에서(진행 막대)
   el('pg-end').style.display = '';
   bgm.timers.push(setTimeout(() => bgmEnd(2500), 2500));   // 터진 뒤 조금 더 들려주고 서서히
   if (!touched) idleTimer = setTimeout(() => window.api.potgClose(), 15000);   // 아무도 안 누르면 15초 뒤 닫힘
@@ -540,73 +544,40 @@ function end(my) {
 document.addEventListener('pointerdown', () => { touched = true; clearTimeout(idleTimer); });
 el('pg-x').onclick = el('pg-close').onclick = () => { bgmStop(); window.api.potgClose(); };
 el('pg-again').onclick = () => play();
-// 🎞️ v0.1.212 저장 = 효과 넣은 영상(사장님: 받은 영상엔 카메라 연출만 있음 — 소개·킬 자막·슬로·정지 화면·BGM이 빠짐)
-//   main이 화면 밖 창에서 이 화면을 한 번 더 재생하며 그대로 녹화(mp4) → 고른 곳에 저장 · 실제 재생 시간만큼 걸림(보통 20~40초)
-//   효과 넣기가 안 되면 원본(리플레이 영상만)으로 저장할지 물음
-async function saveWithFx(hero) {
-  const b = el(hero ? 'pg-save2' : 'pg-save'), m = el('pg-msg');
-  if (b.disabled) return;
-  const est = Math.round(hero ? 2.4 + (card.hero.clipTo - card.hero.clipFrom) * 1.25 + 3 : 3.2 + (card.clipTo - card.clipFrom) * 1.25 + 3);
-  b.disabled = true; const t0 = b.textContent; b.textContent = '저장 중…';
-  m.textContent = `영상 파일을 만드는 중이에요 · 약 ${est}초 걸려요`;   // v0.1.250: 「효과 넣어 · 화면 밖에서 녹화」 같은 개발 용어 뺌(사장님)
-  try {
-    const r = await window.api.potgExport(card, !!hero).catch(e => ({ ok: false, err: String(e && e.message || e) }));
-    if (r && r.ok) return savedMsg(m, r.path, '');
-    if (r && r.canceled) { m.textContent = ''; return; }
-    if (r && r.busy) { m.textContent = '다른 영상을 저장하는 중이에요 · 끝나면 다시 눌러 주세요'; return; }
-    if (r && r.err) console.log('[potg] 영상 만들기 실패', r.err);
-    if (await tnConfirm('자막과 음악을 넣은 영상을 만들지 못했어요.\n게임 장면만 있는 영상으로 저장할까요? (자막·음악 없음)', { ok: '장면만 저장' })) {
-      const o = await window.api.potgSave(hero ? card.hero.clip : card.clip, hero ? card.hero.name : card.name, !!hero).catch(() => null);
-      if (o && o.ok) savedMsg(m, o.path, ' (자막·음악 없음)'); else m.textContent = o && o.canceled ? '' : '저장하지 못했어요 · 다시 눌러 주세요';
-    } else m.textContent = '';
-  } finally { b.disabled = false; b.textContent = t0; }
-}
-function savedMsg(m, p, note) {   // 「저장했어요 · 파일 이름 [폴더 열기]」(긴 경로 대신 이름만 · 전체 경로는 마우스 올림)
-  const name = String(p || '').split(/[\\/]/).pop();
-  m.textContent = ''; m.title = p || '';
-  const t = document.createElement('span'); t.className = 'pg-msg-t'; t.textContent = `저장했어요${note} · ${name}`;   // 이름이 길면 이 칸만 …줄임 · 버튼은 늘 보임
-  const a = document.createElement('button'); a.className = 'pg-open'; a.textContent = '폴더 열기';
-  a.onclick = () => window.api.potgReveal(p); m.append(t, a);
-}
-el('pg-save').onclick = () => saveWithFx(false);
-el('pg-save2').onclick = () => saveWithFx(true);
+// 💾 v0.1.251 영상 저장 = 오른쪽 창 「기록」 탭에서(사장님: 기록에서 저장하게 안내 · 진행 막대) — 이 버튼은 기록 탭의 그 판을 열고 「영상 저장」을 밝혀 줌
+el('pg-save').onclick = () => {
+  const c = card || {}, day = (c.clip && c.clip.day) || (c.normal && c.normal.day) || c.day || '';
+  window.api.potgToRecord({ day, gameId: String(c.gameId || (c.clip && c.clip.gameId) || '') });
+  el('pg-msg').textContent = '오른쪽 창 「기록」에서 「영상 저장」을 누르면 진행 막대와 함께 받아져요';
+};
 // 내보내기 창(main이 executeJavaScript로 부름 · 사용자 동작으로 쳐 줌) — 자기 화면+소리를 탭 녹화(main setDisplayMediaRequestHandler가 이 창만 허락)
 //   팟지 = 소개 → 영상(킬 자막·슬로·정지·끝맺음) 또는 킬 카드 · 숨은 영웅 = 짧은 소개 → 영상 또는 지표 카드 · 끝 화면·버튼은 안 담음
-window.__exportGo = async ({ card: c, hero }) => {
+window.__exportGo = async ({ card: c }) => {   // v0.1.251: 화면에 띄울 때와 같은 runShow(팟지 → 숨은 영웅 · 음악 이어짐) · 진행은 1초마다 main으로
   card = c; touched = true; setTeam(c.team); bgmPick(c);
   clipPath = null; heroPath = null;
-  if (!hero) { clipP = c.clip ? window.api.potgClip(c.clip).then(r => (clipPath = r && r.url)).catch(() => null) : Promise.resolve(null); await clipP; }
-  else { heroP = c.hero && c.hero.clip ? window.api.potgClip(c.hero.clip).then(r => (heroPath = r && r.url)).catch(() => null) : Promise.resolve(null); await heroP; }
+  clipP = c.clip ? window.api.potgClip(c.clip).then(r => (clipPath = r && r.url)).catch(() => null) : Promise.resolve(null);
+  heroP = c.hero && c.hero.clip ? window.api.potgClip(c.hero.clip).then(r => (heroPath = r && r.url)).catch(() => null) : Promise.resolve(null);
+  await Promise.all([clipP, heroP]);   // 녹화 전에 영상 둘 다 받아 둠(화면에선 소개 동안 받음 = 저장본엔 「영상 받는 중」이 안 끼게)
   { // 소개에 쓰는 스킨 일러스트·챔피언 얼굴을 녹화 전에 미리 받아 둠(안 하면 영상 첫 1초가 빈 소개 화면)
-    const who = hero ? c.hero : c, pre = u => new Promise(r => { if (!u) return r(); const i = new Image(); i.onload = i.onerror = () => r(); i.src = u; setTimeout(r, 5000); });
-    await Promise.all([pre(who && who.splash), pre(who && who.championId ? champUrl(who.championId) : null)]);
+    const pre = u => new Promise(r => { if (!u) return r(); const i = new Image(); i.onload = i.onerror = () => r(); i.src = u; setTimeout(r, 5000); });
+    await Promise.all([c, c.hero].filter(Boolean).flatMap(w => [pre(w.splash), pre(w.championId ? champUrl(w.championId) : null)]));
   }
   await sleep(400);   // 글꼴·그림 자리 잡기
   let s;
-  try { s = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30, width: 1280, height: 720 }, audio: { channelCount: 2 } }); }
+  try { s = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 60, width: 1280, height: 720 }, audio: { channelCount: 2 } }); }
   catch (e) { return { ok: false, err: '녹화 시작 실패 ' + (e && e.name || '') }; }
   const MT = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t));
-  const rec = new MediaRecorder(s, { mimeType: MT, videoBitsPerSecond: 7e6, audioBitsPerSecond: 192e3 }), ch = [];
+  const rec = new MediaRecorder(s, { mimeType: MT, videoBitsPerSecond: 4e6, audioBitsPerSecond: 192e3 }), ch = [];
   rec.ondataavailable = e => { if (e.data && e.data.size) ch.push(e.data); };
   rec.start(500);
   await sleep(250);
-  const my = ++run;
-  const guard = sleep(150000);   // 아무리 길어도 2분 반
-  const job = (async () => {
-    el('pg-end').style.display = 'none'; el('pg-stage').style.display = 'none'; el('pg-card').style.display = 'none'; el('pg-wait').style.display = 'none';
-    const v = el('pg-video'); v.pause(); v.removeAttribute('src'); v.load(); resetFx();
-    if (!hero) {
-      bgmStart(3.2 + (c.clip && clipPath ? 0.25 + realToFreeze(c) : cardDropAt(c)));
-      if (!await showIntro(my, c, { eyebrow: 'PLAY OF THE GAME', en: enLabel(c.label), ko: c.label, tags: c.tags, dur: 3200 })) return;
-      if (!(clipPath && await playVideo(my))) await showCard(my);
-    } else {
-      bgmStart(2.4 + 2.5);   // 숨은 영웅만 저장할 땐 BGM을 새로(소개 뒤 곧 「터짐」)
-      await playHero(my);
-    }
-    await sleep(700);   // 마지막 장면 조금 더
-  })();
+  const my = ++run, t0 = performance.now();
+  const tick = setInterval(() => { try { window.api.potgExportTick((performance.now() - t0) / 1000); } catch (_) {} }, 1000);
+  const guard = sleep(240000);   // 아무리 길어도 4분
+  const job = (async () => { await runShow(my, c); await sleep(2500); })();   // 끝 장면 = 화면에서 끝 화면이 뜬 뒤 음악이 2.5초 더 들리는 것과 같게
   await Promise.race([job, guard]);
-  run++; bgmEnd(400); await sleep(450);
+  clearInterval(tick);
+  run++; bgmEnd(1200); await sleep(1250);
   rec.stop(); await new Promise(r => { rec.onstop = r; }); s.getTracks().forEach(t => t.stop());
   const buf = await new Blob(ch, { type: MT.split(';')[0] }).arrayBuffer();
   return { ok: buf.byteLength > 10000, mime: MT.split(';')[0], data: buf, err: buf.byteLength > 10000 ? null : '녹화된 내용이 없음' };

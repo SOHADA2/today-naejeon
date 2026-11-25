@@ -1243,6 +1243,7 @@ async function pollGame() {
     inGame = nowIn;
     // 게임 중(전체화면)만 위로, 로비/클라에선 같은 층위(클라 활성 시에만 evalRaise가 올림)
     try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setAlwaysOnTop(inGame, inGame ? 'screen-saver' : 'normal'); } catch (_) {}
+    if (inGame && _exportWin && !_exportWin.isDestroyed()) { try { _exportWin.destroy(); } catch (_) {} console.log('[potg] 게임 시작 → 영상 만들기 그만'); }   // 💾 v0.1.251
     if (inGame) { hideOverlay(); hideLeftPanel(); hideHome(200); _slotDoneFormed = lastFormed; hideSlotMarker(); closePotg(); closeAugLab(); if (potg) { const q = bridge.getQueue && bridge.getQueue(); if (!q || potgMapOk(q.mode, q.id)) potg.startCollect(bridge.getGameId()); else console.log('[potg] 칼바람 맵이 아님 → 게임 중 수집 안 함', q.mode, q.id); } }   // 🎬 팟지 수집 시작   // 게임 시작 → 양쪽 패널 완전히 숨김(전투 중 정보 미노출, 새 폼 재설계 예정) · 좌측 내 정보 패널도 숨김(클라 창 사라지며 floatPanels가 잠깐 띄우는 레이스 차단) · applyRaise/floatPanels가 inGame return이라 재등장 없음
     else { setTimeout(tryInstallUpdate, 90000); hideOverlay(); userHid = false; latestPlayers = []; _lastRaise = null; evalRaise(); recGameEnded(); if (potg) potg.stopCollect(bridge.getGameId()).catch(() => {}); }   // 🎬 수집 올림   // 게임 종료 → 로비 층위 재적용 · 📼 「기록 저장 중」 시작
     broadcast('state', { inGame, label: inGame ? '게임 중' : '대기' });
@@ -2494,6 +2495,7 @@ async function hostPotg(s) {
       await potgWaitFinish(card, `${T}/days/${s.game.day}/matches/${s.game.id}`).catch(() => {});   // 🔮 예측 결과
       card.pending = null; card.pendingAt = null; card.showAt = Date.now() + 1500;
       await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: card });
+      bakeFinal(card, `${T}/days/${s.game.day}/matches/${s.game.id}`, s.game.day);   // 💾 v0.1.251 저장용 완성본(뒤에서 한 번)
       const cur = sessionData && sessionData.game;   // 녹화하는 사이 다음 판이 기록됐으면 지금 판 팟지를 덮지 않음(경기 기록에만 남김)
       if (!cur || String(cur.id) === card.gameId) await fbUpdate(`${RP()}/session`, { potg: card });
     };
@@ -2575,6 +2577,7 @@ async function normalPotg(rec) {
     card.pending = null; card.pendingAt = null; card.showAt = Date.now() + 1500;
     await fbUpdate(path, { potg: card });
     await fbSet(`${RP()}/normalLive`, card);
+    bakeFinal(card, path, rec.day);   // 💾 v0.1.251 저장용 완성본(뒤에서 한 번)
   };
   if (!app.isPackaged && process.env.TN_FAKE_CLIP) {
     try { card.clip = await potg.uploadClip(rec.gameId, fs.readFileSync(process.env.TN_FAKE_CLIP), /\.mp4$/i.test(process.env.TN_FAKE_CLIP) ? 'video/mp4' : 'video/webm'); } catch (_) {}
@@ -4286,31 +4289,93 @@ function exportMediaHandler(req, cb) {
   if (w && !w.isDestroyed() && req.frame && req.frame === w.webContents.mainFrame) cb({ video: req.frame, audio: req.frame });
   else { try { cb({}); } catch (_) {} }
 }
-ipcMain.handle('potg-export', async (_e, { card, hero }) => {
-  if (!card) return { ok: false, err: '팟지 정보 없음' };
-  if (_exportWin && !_exportWin.isDestroyed()) return { ok: false, busy: true, err: '다른 영상을 만드는 중' };
-  const who = hero ? (card.hero && card.hero.name) : card.name, day = (card.clip && card.clip.day) || (card.hero && card.hero.clip && card.hero.clip.day) || dayKey();
-  const safe = String(who || '팟지').replace(/[\\/:*?"<>|]/g, '_');
-  const r = await dialog.showSaveDialog(potgWin && !potgWin.isDestroyed() ? potgWin : undefined, { title: hero ? '숨은 영웅 영상 저장' : '팟지 영상 저장', defaultPath: path.join(app.getPath('videos'), `투데이내전_${hero ? '숨은영웅' : '팟지'}_${day}_${safe}.mp4`), filters: [{ name: 'MP4 영상', extensions: ['mp4'] }] });
-  if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+// 💾 v0.1.251 팟지 영상 파일(사장님: 저장본 = 방장 화면과 같게 · 「기록」에서 진행 막대로 받게 · 다시 만드는 게 오래 걸림)
+//   만들기 = 화면에 띄울 때와 같은 runShow(팟지 → 숨은 영웅 · 음악 이어짐)를 화면 밖 창에서 그대로 녹화 · 배치 = 이 PC 팟지 창 크기(refW)를 1280×720으로 키운 것(zoomFactor) · 60장
+//   ① 방장 PC = 팟지가 다 나온 뒤 뒤에서 한 번 만들어 GitHub에 올림(bakeFinal → 경기 기록 potg.final) · 게임이 시작되면 그만둠
+//   ② 「기록」 탭 「영상 저장」 = 완성본이 있으면 받기(받는 중 n%) · 방장 PC가 만드는 중이면 기다림 · 없으면 이 PC에서 만들기(만드는 중 n%)
+const potgEst = c => 3.2 + Math.max(0, (c.clipTo || 0) - (c.clipFrom || 0)) * 1.25 + 3 + (c.hero ? 2.4 + Math.max(0, (c.hero.clipTo || 0) - (c.hero.clipFrom || 0)) * 1.25 + 3 : 0) + 1;   // 대략 걸리는 초(진행 막대용)
+let _exportProg = null;
+ipcMain.on('potg-export-tick', (e, sec) => { if (_exportWin && !_exportWin.isDestroyed() && e.sender === _exportWin.webContents && _exportProg) _exportProg(Number(sec) || 0); });
+async function makeFinal(card, onProg) {   // → {ok, buf, ext, w} · 하나씩만
+  if (_exportWin && !_exportWin.isDestroyed()) return { ok: false, busy: true };
+  const refW = Math.max(560, Math.min(960, potgBounds().width)) - 2, zoom = 1280 / refW, est = potgEst(card);
   const w = _exportWin = new BrowserWindow({ width: 1280, height: 720, show: false, frame: false, skipTaskbar: true, backgroundColor: '#000000',
-    webPreferences: { offscreen: true, preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, autoplayPolicy: 'no-user-gesture-required', backgroundThrottling: false } });
+    webPreferences: { offscreen: true, preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, autoplayPolicy: 'no-user-gesture-required', backgroundThrottling: false, zoomFactor: zoom } });
+  _exportProg = sec => { try { onProg && onProg(Math.min(0.99, sec / est)); } catch (_) {} };
   try {
     w.webContents.setAudioMuted(true);   // 스피커로는 안 나감(녹음은 됨)
-    w.webContents.setFrameRate(30);
-    await w.loadFile(path.join(__dirname, 'potg', 'potg.html'), { query: { export: hero ? 'hero' : 'potg' } });
-    const out = await w.webContents.executeJavaScript(`window.__exportGo(${JSON.stringify({ card, hero: !!hero })})`, true);   // true = 사용자 동작으로 쳐 줌(녹화 시작 허락)
+    w.webContents.setFrameRate(60);
+    await w.loadFile(path.join(__dirname, 'potg', 'potg.html'), { query: { export: '1' } });
+    w.webContents.setZoomFactor(zoom);   // 글자·킬 피드 비율 = 팟지 창과 같게(창 폭 refW로 배치한 것을 1280으로 키움)
+    const out = await w.webContents.executeJavaScript(`window.__exportGo(${JSON.stringify({ card })})`, true);   // true = 사용자 동작으로 쳐 줌(녹화 시작 허락)
     if (!out || !out.ok || !out.data) return { ok: false, err: (out && out.err) || '녹화 실패' };
-    let file = r.filePath; const ext = out.mime === 'video/mp4' ? '.mp4' : '.webm';
-    if (path.extname(file).toLowerCase() !== ext) file = file.replace(/\.[^.\\/]*$/, '') + ext;
-    let buf = Buffer.from(out.data);
-    if (ext === '.mp4') { try { const fx = require('./mp4fix').fixAnnexB(buf); console.log('[potg] mp4 바로잡음', JSON.stringify(fx)); } catch (e) { console.log('[potg] mp4 바로잡기 실패', e && e.message); } }   // 크롬 mp4의 영상 프레임 구분 방식을 mp4 규칙대로(엄격한 재생기용)
-    if (ext === '.mp4') { try { const fl = require('./mp4flat').flatten(buf); if (fl.changed) { buf = fl.buf; console.log('[potg] 일반 mp4로', JSON.stringify(fl.tracks)); } } catch (e) { console.log('[potg] 일반 mp4로 바꾸기 실패(조각난 그대로 저장)', e && e.message); } }   // 🎞️ v0.1.249 조각난 mp4 → 목차 앞 일반 mp4(윈도우·휴대폰·카톡 재생)
-    fs.writeFileSync(file, buf); _savedPaths.add(file);
-    console.log('[potg] 효과 넣어 저장', file, (out.data.byteLength / 1048576).toFixed(1) + 'MB');
-    return { ok: true, path: file };
+    let buf = Buffer.from(out.data); const mp4 = out.mime === 'video/mp4';
+    if (mp4) { try { require('./mp4fix').fixAnnexB(buf); } catch (e) { console.log('[potg] mp4 바로잡기 실패', e && e.message); } }   // 크롬 mp4 프레임 구분 방식을 mp4 규칙대로
+    if (mp4) { try { const fl = require('./mp4flat').flatten(buf); if (fl.changed) buf = fl.buf; } catch (e) { console.log('[potg] 일반 mp4로 바꾸기 실패', e && e.message); } }   // 🎞️ v0.1.249 목차 앞 일반 mp4
+    console.log('[potg] 영상 파일 만듦', (buf.length / 1048576).toFixed(1) + 'MB', mp4 ? 'mp4' : 'webm', 'refW', refW);
+    return { ok: true, buf, ext: mp4 ? 'mp4' : 'webm', w: refW };
   } catch (e) { return { ok: false, err: String(e && e.message || e).slice(0, 80) }; }
-  finally { try { w.destroy(); } catch (_) {} _exportWin = null; }
+  finally { try { w.destroy(); } catch (_) {} _exportWin = null; _exportProg = null; }
+}
+if (!app.isPackaged) global.__potgDev = { makeFinal, dialog, save: (p, b) => fs.writeFileSync(p, b), getFinal: (meta, on) => potg.getFinal(meta, on), rec: (day, kind, gid) => getJson(`${FIREBASE_DB}/${T}/days/${day}/${kind}/${gid}.json`) };   // 🧪 개발용(배포본엔 없음)
+const finalKey = (day, gid) => `${day}:${gid}`;
+function filePush(key, x) { try { if (leftWin && !leftWin.isDestroyed()) leftWin.webContents.send('potg-file-prog', Object.assign({ key }, x)); } catch (_) {} }
+const _bake = {};   // 방장 PC가 만드는 중인 완성본 {key: {p, go, started}}
+function bakeFinal(card, recPath, day) {   // 방장 PC: 팟지가 다 나온 뒤 뒤에서 한 번 만들어 올림
+  if (!card || card.none || card.skipped || card.final || !(card.clip || card.hero) || !potg) return;
+  const key = finalKey(day, card.gameId); if (_bake[key]) return;
+  const job = _bake[key] = { started: false };
+  const wait = Math.max(0, (card.showAt || Date.now()) - Date.now()) + (potgEst(card) + 6) * 1000;   // 방장 화면의 팟지가 끝날 때까지
+  job.p = (async () => {
+    await Promise.race([new Promise(r => setTimeout(r, wait)), new Promise(r => { job.go = r; })]);
+    if (inGame || replayBusy) { console.log('[potg] 완성본 만들기 건너뜀(게임·녹화 중)'); return null; }
+    job.started = true;
+    const r = await makeFinal(card, f => filePush(key, { pct: Math.round(f * 100), stage: 'make' }));
+    if (!r.ok) { console.log('[potg] 완성본 못 만듦', r.err || (r.busy ? '다른 영상 만드는 중' : '')); return null; }
+    if (r.ext === 'mp4') {
+      const meta = await potg.uploadFinal(card.gameId + 'v', r.buf, 'video/mp4').catch(() => null);
+      if (meta) { meta.w = r.w; card.final = meta; await fbUpdate(`${recPath}/potg`, { final: meta }).catch(() => {}); console.log('[potg] 완성본 올림', (r.buf.length / 1048576).toFixed(1) + 'MB'); }
+    }
+    return r;
+  })().catch(e => { console.log('[potg] 완성본 오류', e && e.message); return null; }).finally(() => { setTimeout(() => { if (_bake[key] === job) delete _bake[key]; }, 120000); });
+}
+const _files = {};
+ipcMain.handle('potg-file', async (_e, { card, day, key: uiKey }) => {   // 「기록」 탭 「영상 저장」
+  if (!card || card.none || !potg) return { ok: false, err: '팟지가 없는 판이에요' };
+  day = /^\d{4}-\d{2}-\d{2}$/.test(day || '') ? day : (card.clip && card.clip.day) || dayKey();
+  if (!card.gameId) card.gameId = (card.clip && card.clip.gameId) || '';
+  const key = finalKey(day, card.gameId), pk = typeof uiKey === 'string' && uiKey ? uiKey : key;   // pk = 화면이 쓰는 열쇠(진행 표시)
+  if (_files[key]) return { ok: false, busy: true };
+  const safe = String(card.name || '팟지').replace(/[\\/:*?"<>|]/g, '_');
+  const r = await dialog.showSaveDialog(leftWin && !leftWin.isDestroyed() ? leftWin : undefined, { title: '팟지 영상 저장', defaultPath: path.join(app.getPath('videos'), `투데이내전_팟지_${day}_${safe}.mp4`), filters: [{ name: 'MP4 영상', extensions: ['mp4'] }] });
+  if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+  _files[key] = true;
+  try {
+    let buf = null, ext = 'mp4';
+    // ① 방장 PC가 만들어 올린 완성본(기록이 늦게 왔을 수 있어 서버에서 한 번 더 봄)
+    let fin = card.final;
+    if (!fin) { try { fin = await getJson(`${FIREBASE_DB}/${T}/days/${day}/${card.normal ? 'normals' : 'matches'}/${card.gameId}/potg/final.json`); } catch (_) {} }
+    if (fin && fin.gh) { filePush(pk, { pct: 0, stage: 'down' }); buf = await potg.getFinal(fin, f => filePush(pk, { pct: Math.round(f * 100), stage: 'down' })).catch(() => null); }
+    // ② 이 PC(방장)가 지금 만드는 중이거나 만들 차례면 그걸 씀
+    if (!buf && _bake[key]) { if (_bake[key].go) _bake[key].go(); filePush(pk, { pct: 0, stage: 'make' }); const x = await _bake[key].p; if (x && x.ok) { buf = x.buf; ext = x.ext; } }
+    // ③ 이 PC에서 만들기
+    if (!buf) {
+      filePush(pk, { pct: 0, stage: 'make' });
+      const m = await makeFinal(card, f => filePush(pk, { pct: Math.round(f * 100), stage: 'make' }));
+      if (m.busy) return { ok: false, busy: true };
+      if (!m.ok) { console.log('[potg] 영상 파일 실패', m.err); return { ok: false, err: '영상을 만들지 못했어요' }; }
+      buf = m.buf; ext = m.ext;
+    }
+    let file = r.filePath; if (path.extname(file).toLowerCase() !== '.' + ext) file = file.replace(/\.[^.\\/]*$/, '') + '.' + ext;
+    fs.writeFileSync(file, buf); _savedPaths.add(file);
+    console.log('[potg] 영상 저장', file, (buf.length / 1048576).toFixed(1) + 'MB');
+    return { ok: true, path: file };
+  } catch (e) { console.log('[potg] 영상 저장 오류', e && e.message); return { ok: false, err: '저장하지 못했어요' }; }
+  finally { delete _files[key]; }
+});
+ipcMain.on('potg-to-record', (_e, arg) => {   // 팟지 끝 화면 「영상 저장 ›」 → 오른쪽 창 「기록」의 그 판
+  try { showMainPanel(); } catch (_) {}
+  try { if (leftWin && !leftWin.isDestroyed()) leftWin.webContents.send('open-record', arg || {}); } catch (_) {}
 });
 ipcMain.on('potg-close', () => { if (_potgMode === 'wait' && potgWaitRaw) _waitClosed = potgWaitRaw.gameId; closePotg(); });   // ⏳ 기다림 화면을 닫으면 그 판엔 다시 안 띄움
 ipcMain.on('potg-guess', (_e, i) => {   // 🔮 팟지 예측 한 표(바꿀 수 있음)

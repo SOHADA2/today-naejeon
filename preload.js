@@ -145,7 +145,11 @@ contextBridge.exposeInMainWorld('api', {
   onPotg: (cb) => ipcRenderer.on('potg', (_e, d) => cb(d)),
   potgClip: (meta) => ipcRenderer.invoke('potg-clip', meta),
   potgSave: (meta, name, hero) => ipcRenderer.invoke('potg-save', { meta, name, hero: !!hero }),
-  potgExport: (card, hero) => ipcRenderer.invoke('potg-export', { card, hero: !!hero }),   // 🎞️ v0.1.212 효과 넣어 저장(mp4)
+  potgFile: (card, day, key) => ipcRenderer.invoke('potg-file', { card, day, key }),   // 💾 v0.1.251 기록 탭 「영상 저장」(완성본 받기 · 없으면 만들기)
+  onPotgFileProg: (cb) => ipcRenderer.on('potg-file-prog', (_e, d) => cb(d)),   // 진행(받는 중·만드는 중 %)
+  potgToRecord: (arg) => ipcRenderer.send('potg-to-record', arg),   // 팟지 끝 화면 → 기록 탭 그 판
+  onOpenRecord: (cb) => ipcRenderer.on('open-record', (_e, d) => cb(d)),
+  potgExportTick: (sec) => ipcRenderer.send('potg-export-tick', sec),   // 영상 만드는 창 → 진행 초
   potgReveal: (p) => ipcRenderer.send('potg-reveal', p),   // 📂 v0.1.250 저장한 영상 폴더 열기
   potgClose: () => ipcRenderer.send('potg-close'),
   onPotgWait: (cb) => ipcRenderer.on('potg-wait', (_e, d) => cb(d)),           // ⏳ 팟지 기다림 화면

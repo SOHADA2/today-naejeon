@@ -254,14 +254,14 @@ async function renderToday() {
     return `<tr class="${nn(p.name) === nn(_myName) ? 'me' : ''}"><td class="r">${p.rank}</td><td class="n"><a class="pf-link" data-name="${escH(p.name)}">${escH(p.name)}</a></td><td>${p.wins}-${p.losses}</td><td>${pct(p.wins, p.games)}%</td>${zero(p.mvp)}${zero(p.manner)}<td>${kda}</td></tr>`;
   }).join('');
   const games = t.matches.map((m, i) => `<div class="rc-g"><div class="rc-gh"><b>${t.matches.length - i}판</b><span class="num">${hhmm(m.ts)}</span>${m.source === 'manual' ? '<span class="rc-tag">직접 기록</span>' : ''}`
-    + `${m.potg && !m.potg.none ? `<button class="rc-pg" data-pg="m${i}" title="팟지 다시 보기">팟지</button>` : m.potg && m.potg.skipped ? pgSkipTag(m.potg.by) : ''}</div>${teamRows(m, m.winner)}${awardRow(m)}</div>`).join('');
+    + `${m.potg && !m.potg.none ? `<button class="rc-pg" data-pg="m${i}" title="팟지 다시 보기">팟지</button>${dlBtn('m' + i, t.day, m.potg)}` : m.potg && m.potg.skipped ? pgSkipTag(m.potg.by) : ''}</div>${m.potg && !m.potg.none ? dlRow(t.day, m.potg) : ''}${teamRows(m, m.winner)}${awardRow(m)}</div>`).join('');
   // 🎮 같이 한 일반 판(v0.1.48) — 내전 순위와 따로 · 우리 팀(앱 켠 사람)만 · 재미 지표 · 팟지 다시 보기
   const nwin = normals.filter(m => m.win).length;
   const ngames = normals.map((m, i) => {
     const ps = (m.players || []).map(p => `<span class="nm-p">${champIcon(p.champId)}<span class="nm-pn"><a class="pf-link" data-name="${escH(p.name)}">${escH(p.name)}</a><small>${p.k}/${p.d}/${p.a}</small></span></span>`).join('');
     const fun = (m.fun || []).map(x => `<span class="nm-f ${x.k}"><em>${escH(x.label)}</em><span class="nm-fn">${escH(x.name)}</span>${x.v ? `<small>${escH(x.v)}</small>` : ''}</span>`).join('');
-    return `<div class="rc-g nm"><div class="rc-gh"><span class="nm-res ${m.win ? 'w' : 'l'}">${m.win ? '승' : '패'}</span><b>${escH(m.queue || '일반 게임')}</b><span class="num">${hhmm(m.ts)}</span>${m.gameTime ? `<span class="nm-len num">${Math.round(m.gameTime / 60)}분</span>` : ''}${m.potg && !m.potg.none ? `<button class="rc-pg" data-pg="n${i}" title="팟지·숨은 영웅 다시 보기">팟지</button>` : m.potgSkip ? pgSkipTag(m.potgSkip) : ''}</div>`
-      + `<div class="nm-ps">${ps}</div>${fun ? `<div class="nm-fun">${fun}</div>` : ''}</div>`;
+    return `<div class="rc-g nm"><div class="rc-gh"><span class="nm-res ${m.win ? 'w' : 'l'}">${m.win ? '승' : '패'}</span><b>${escH(m.queue || '일반 게임')}</b><span class="num">${hhmm(m.ts)}</span>${m.gameTime ? `<span class="nm-len num">${Math.round(m.gameTime / 60)}분</span>` : ''}${m.potg && !m.potg.none ? `<button class="rc-pg" data-pg="n${i}" title="팟지·숨은 영웅 다시 보기">팟지</button>${dlBtn('n' + i, t.day, m.potg)}` : m.potgSkip ? pgSkipTag(m.potgSkip) : ''}</div>`
+      + `${m.potg && !m.potg.none ? dlRow(t.day, m.potg) : ''}<div class="nm-ps">${ps}</div>${fun ? `<div class="nm-fun">${fun}</div>` : ''}</div>`;
   }).join('');
   body.innerHTML = (t.matches.length ? `<div class="td-sec">순위<small>${t.matches.length}판</small></div>`
     + `<table class="td-table"><thead><tr><th>#</th><th class="n">이름</th><th>전적</th><th>승률</th><th>MVP</th><th>매너</th><th>KDA</th></tr></thead><tbody>${rows}</tbody></table>`
@@ -269,7 +269,42 @@ async function renderToday() {
     + (normals.length ? `<div class="td-sec">같이 한 일반 판<small>${nwin}승 ${normals.length - nwin}패 · 내전 순위와 따로</small></div>${ngames}` : '');
   body.querySelectorAll('.pf-link').forEach(a => a.onclick = () => openProfile({ name: a.textContent }));
   body.querySelectorAll('.rc-pg').forEach(b => b.onclick = () => { const k = b.dataset.pg, m = (k[0] === 'm' ? t.matches : normals)[+k.slice(1)]; if (m && m.potg) window.api.potgOpen(m.potg); });
+  body.querySelectorAll('.rc-dl').forEach(b => b.onclick = () => { const k = b.dataset.dl, m = (k[0] === 'm' ? t.matches : normals)[+k.slice(1)]; if (m && m.potg) dlStart(t.day, m.potg); });
+  body.querySelectorAll('.rc-dlrow .rc-open').forEach(b => b.onclick = () => window.api.potgReveal(b.dataset.p));
+  if (_dlFocus && _dlFocus.day === t.day) { const b = body.querySelector(`.rc-dl[data-key="${_dlFocus.day}:${_dlFocus.gid}"]`); _dlFocus = null; if (b) { b.scrollIntoView({ block: 'center' }); b.classList.remove('hl'); void b.offsetWidth; b.classList.add('hl'); } }
 }
+// 💾 v0.1.251 「영상 저장」(사장님: 저장은 기록에서 · 진행 막대) — 방장 PC가 만들어 둔 완성본이 있으면 받기(받는 중 n%) · 없으면 이 PC에서 만들기(만드는 중 n%)
+//   저장본 = 팟지 창에서 본 것과 같은 영상(팟지 → 숨은 영웅) · 상태는 판마다 _dl[날짜:게임] (다시 그려도 유지)
+const _dl = {}; let _dlFocus = null;
+const dlKey = (day, c) => `${day}:${c.gameId || (c.clip && c.clip.gameId) || c.t0 || ""}`;
+function dlBtn(id, day, c) { const k = dlKey(day, c), s = _dl[k]; return `<button class="rc-dl" data-dl="${id}" data-key="${escH(k)}" title="이 판 팟지를 영상 파일(mp4)로 저장해요"${s && s.busy ? ' disabled' : ''}>${s && s.busy ? '저장 중' : '영상 저장'}</button>`; }
+function dlRow(day, c) { return `<div class="rc-dlrow" data-key="${escH(dlKey(day, c))}">${dlInner(_dl[dlKey(day, c)])}</div>`; }
+function dlInner(s) {
+  if (!s) return '';
+  if (s.busy) return `<div class="rc-bar"><i style="width:${Math.max(2, s.pct || 0)}%"></i></div><span class="rc-dlt">${s.stage === 'down' ? '받는 중' : '영상 만드는 중'} <b class="num">${s.pct || 0}%</b></span>`;
+  if (s.path) return `<span class="rc-dlt ok" title="${escH(s.path)}">저장했어요 · ${escH(String(s.path).split(/[\\/]/).pop())}</span><button class="rc-open" data-p="${escH(s.path)}">폴더 열기</button>`;
+  if (s.err) return `<span class="rc-dlt err">${escH(s.err)}</span>`;
+  return '';
+}
+function dlPaint(k) {   // 그 판의 진행 줄·버튼만 다시 그림
+  const row = document.querySelector(`.rc-dlrow[data-key="${k}"]`); if (row) { row.innerHTML = dlInner(_dl[k]); const o = row.querySelector('.rc-open'); if (o) o.onclick = () => window.api.potgReveal(o.dataset.p); }
+  const b = document.querySelector(`.rc-dl[data-key="${k}"]`); if (b) { const s = _dl[k]; b.disabled = !!(s && s.busy); b.textContent = s && s.busy ? '저장 중' : '영상 저장'; }
+}
+async function dlStart(day, c) {
+  const k = dlKey(day, c); if (_dl[k] && _dl[k].busy) return;
+  _dl[k] = { busy: true, pct: 0, stage: c.final ? 'down' : 'make' }; dlPaint(k);
+  const r = await window.api.potgFile(c, day, k).catch(() => null);
+  if (r && r.ok) _dl[k] = { path: r.path };
+  else if (r && r.canceled) delete _dl[k];
+  else _dl[k] = { err: r && r.busy ? '다른 영상을 저장하는 중이에요 · 끝나면 다시 눌러 주세요' : ((r && r.err) || '저장하지 못했어요') + ' · 다시 눌러 주세요' };
+  dlPaint(k);
+}
+window.api.onPotgFileProg(p => { const s = _dl[p.key]; if (!s || !s.busy) return; s.pct = Math.max(0, Math.min(100, p.pct | 0)); if (p.stage) s.stage = p.stage; dlPaint(p.key); });
+window.api.onOpenRecord(arg => {   // 팟지 끝 화면 「영상 저장 ›」 → 이 탭의 그 판(「영상 저장」을 밝혀 줌)
+  _dlFocus = arg && arg.day ? { day: arg.day, gid: String(arg.gameId || '') } : null;
+  if (arg && arg.day) _day = arg.day;
+  switchCat('today'); renderToday();
+});
 
 // ── 👤 개인 내전 프로필 ─────────────────────────────────────────────────────
 // 지금까지 모든 날의 기록을 사람별로 모음: 전적·연승·수상·KDA·챔피언·최고 기록·찰떡 팀원·천적·최근 10판

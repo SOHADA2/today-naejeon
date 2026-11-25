@@ -449,6 +449,26 @@ module.exports = function makePotg(d) {
     if (!res.ok) { log(`영상 받기 실패 ${res.status}`); return null; }
     return Buffer.from(await res.arrayBuffer());
   }
+  // 💾 v0.1.251 저장용 완성본(방장 PC가 한 번 만든 mp4) — GitHub만(Firebase 예비 조각은 한도 때문에 안 씀) · 받을 때 진행 막대
+  async function uploadFinal(gameId, buf, mime) {
+    const day = d.dayKey(), id = await uploadGh(gameId, buf, mime, day);
+    return id ? { day, gameId: String(gameId), n: 0, size: buf.length, mime, at: Date.now(), gh: id } : null;
+  }
+  async function getFinal(meta, onProg) {   // → Buffer(크기 확인) · onProg(0~1)
+    if (!meta || !meta.gh) return null;
+    const base = await proxy(); if (!base) return null;
+    let res = await fetch(`${base}/clip/${Number(meta.gh)}`, { headers: await pxHead(), redirect: 'manual', signal: AbortSignal.timeout(30000) });
+    const to = res.status >= 300 && res.status < 400 && res.headers.get('location');
+    if (to) res = await fetch(to, { signal: AbortSignal.timeout(180000) });
+    if (!res.ok || !res.body) { log(`완성본 받기 실패 ${res.status}`); return null; }
+    const total = Number(meta.size) || Number(res.headers.get('content-length')) || 0, parts = []; let got = 0, last = 0;
+    const rd = res.body.getReader();
+    for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(Buffer.from(value)); got += value.length; if (total && onProg && Date.now() - last > 200) { last = Date.now(); onProg(Math.min(0.99, got / total)); } }
+    const buf = Buffer.concat(parts);
+    if (meta.size && buf.length !== meta.size) { log(`완성본 크기 불일치 ${buf.length}/${meta.size}`); return null; }
+    if (onProg) onProg(1);
+    return buf;
+  }
   const clipDir = () => path.join(d.userData, 'clips');
   const extOf = mime => /mp4/.test(mime || '') ? 'mp4' : 'webm';
   async function getClip(meta) {   // → 내 PC 임시 파일 경로(한 번 받으면 재사용)
@@ -498,5 +518,5 @@ module.exports = function makePotg(d) {
     return cdPath(s.splashPath || s.uncenteredSplashPath);
   }
 
-  return { myFinal: gid => lastFinal && String(lastFinal.gameId) === String(gid) ? lastFinal : null, splashFor, startCollect, stopCollect, pickPotg, pickHero, heroStats, readRaws, uploadClip, getClip, prepUpload, cleanup, extOf, pxJson, _pick: pickPotg };
+  return { myFinal: gid => lastFinal && String(lastFinal.gameId) === String(gid) ? lastFinal : null, splashFor, startCollect, stopCollect, pickPotg, pickHero, heroStats, readRaws, uploadClip, uploadFinal, getFinal, getClip, prepUpload, cleanup, extOf, pxJson, _pick: pickPotg };
 };

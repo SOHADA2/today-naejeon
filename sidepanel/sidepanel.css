@@ -170,6 +170,21 @@ button.sp-card:hover { border-color:var(--gold-line); }
 .rc-tag { flex:none; padding:0 5px; font-size:10.5px; font-weight:700; color:var(--dim); border:1px solid var(--hair); }
 .rc-pg { -webkit-app-region:no-drag; flex:none; margin-left:auto; padding:2px 8px; font-size:11px; font-weight:700; color:var(--gold-hi); background:var(--gold-soft); border:1px solid var(--gold-line); cursor:pointer; white-space:nowrap; }
 .rc-pg:hover { background:rgba(200,170,110,0.2); }
+/* 💾 v0.1.251 영상 저장 버튼 · 진행 줄 */
+.rc-dl { -webkit-app-region:no-drag; flex:none; padding:2px 8px; font-size:11px; font-weight:700; color:var(--ink); background:transparent; border:1px solid var(--hair); cursor:pointer; white-space:nowrap; }
+.rc-pg + .rc-dl { margin-left:0; }
+.rc-dl:hover:not(:disabled) { border-color:var(--gold-line); color:var(--gold-hi); }
+.rc-dl:disabled { opacity:.6; cursor:default; }
+.rc-dl.hl { animation:rcHl 1.6s ease-out 1; }
+@keyframes rcHl { 0%, 40% { border-color:var(--gold-hi); color:var(--gold-hi); box-shadow:0 0 0 2px rgba(200,170,110,.45); } 100% { box-shadow:0 0 0 0 rgba(200,170,110,0); } }
+.rc-dlrow { display:flex; align-items:center; gap:8px; min-width:0; margin:4px 0 2px; font-size:11px; }
+.rc-dlrow:empty { display:none; }
+.rc-bar { flex:1; min-width:40px; height:4px; background:rgba(255,255,255,.08); }
+.rc-bar i { display:block; height:100%; background:var(--gold-hi); transition:width .3s linear; }
+.rc-dlt { flex:none; color:var(--dim); white-space:nowrap; }
+.rc-dlt.ok { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; color:var(--teal, #4fc1b0); }
+.rc-dlt.err { color:#e8344a; white-space:normal; }
+.rc-open { flex:none; padding:1px 8px; font-size:11px; color:var(--gold-hi); background:transparent; border:1px solid var(--gold-line); cursor:pointer; }
 .rc-g .hm-team { font-size:12px; }
 .rc-g .hm-team:not(.win) span { color:var(--ink-soft); }
 /* 같이 한 일반 판 */
