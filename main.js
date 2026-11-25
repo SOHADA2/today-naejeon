@@ -4301,8 +4301,9 @@ ipcMain.handle('potg-export', async (_e, { card, hero }) => {
     if (!out || !out.ok || !out.data) return { ok: false, err: (out && out.err) || '녹화 실패' };
     let file = r.filePath; const ext = out.mime === 'video/mp4' ? '.mp4' : '.webm';
     if (path.extname(file).toLowerCase() !== ext) file = file.replace(/\.[^.\\/]*$/, '') + ext;
-    const buf = Buffer.from(out.data);
+    let buf = Buffer.from(out.data);
     if (ext === '.mp4') { try { const fx = require('./mp4fix').fixAnnexB(buf); console.log('[potg] mp4 바로잡음', JSON.stringify(fx)); } catch (e) { console.log('[potg] mp4 바로잡기 실패', e && e.message); } }   // 크롬 mp4의 영상 프레임 구분 방식을 mp4 규칙대로(엄격한 재생기용)
+    if (ext === '.mp4') { try { const fl = require('./mp4flat').flatten(buf); if (fl.changed) { buf = fl.buf; console.log('[potg] 일반 mp4로', JSON.stringify(fl.tracks)); } } catch (e) { console.log('[potg] 일반 mp4로 바꾸기 실패(조각난 그대로 저장)', e && e.message); } }   // 🎞️ v0.1.249 조각난 mp4 → 목차 앞 일반 mp4(윈도우·휴대폰·카톡 재생)
     fs.writeFileSync(file, buf);
     console.log('[potg] 효과 넣어 저장', file, (out.data.byteLength / 1048576).toFixed(1) + 'MB');
     return { ok: true, path: file };
