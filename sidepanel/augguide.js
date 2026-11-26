@@ -151,20 +151,6 @@ function srcNote(plans) {
   if (plans.length && plans.every(p => p.src === 'ours')) return `<div class="ag-src">아직 사람이 쓴 플랜이 없어 <b>우리 기록</b>(이 챔피언으로 두 증강을 같이 고른 판 · 2판 이상)으로 보여 줘요 · 「✎ 고치기」로 채워 주세요</div>`;
   return plans.some(p => p.link) ? `<div class="ag-src">「설명 ↗」= 원문(브라우저)</div>` : '';
 }
-// 🍯 v0.1.145 챔피언 꿀팁(aramgg 가이드 정리 · main champTipView) — 빌드 이름 · 핵심 증강(우선순위 번호) · 템 순서 · 한 줄 팁 · 피할 증강 · 이 챔피언과 잘 맞는/안 맞는 증강
-function honeyH(h) {
-  if (!h) return '';
-  const aug = (id, n) => `<span class="ag-pchip">${n ? `<span class="hn-n num">${n}</span>` : ''}${ageAug(id, 'ag-ic')}<span class="ag-pt"><b>${escH(ageName(id))}</b></span></span>`;
-  const its = (h.items || []).map((i, k) => `${k ? '<i class="hn-ar">→</i>' : ''}<span class="hn-it" title="${escH(i.name)}">${i.icon ? `<img src="${i.icon}" alt="" onerror="this.remove()">` : ''}<small>${escH(i.short || i.name)}</small></span>`).join('');
-  const good = (h.augTips || []).filter(x => x.good && !(h.core || []).includes(x.id)), bad = (h.augTips || []).filter(x => !x.good);
-  return `<div class="ag-top hn"><div class="ag-top-hd"><b>🍯 꿀팁</b>${h.build ? `<span class="ag-patch hn-b">${escH(h.build)}</span>` : ''}</div>`
-    + (h.tip ? `<div class="hn-tip">${escH(h.tip)}</div>` : '')
-    + ((h.core || []).length ? `<div class="hn-l">핵심 증강</div><div class="ag-pa">${h.core.map((id, k) => aug(id, k + 1)).join('')}</div>` : '')
-    + (its ? `<div class="hn-l">템 순서</div><div class="hn-its">${its}</div>` : '')
-    + (good.length ? `<div class="hn-l">이것도 잘 맞아요</div><div class="ag-pa">${good.map(x => aug(x.id)).join('')}</div>` : '')
-    + ((h.avoid || []).length || bad.length ? `<div class="hn-l bad">피하기</div><div class="ag-pa">${[...(h.avoid || []), ...bad.map(x => x.id)].map(id => aug(id)).join('')}</div>` : '')
-    + `<div class="ag-src">aramgg.com 가이드를 짧게 정리</div></div>`;
-}
 // 🗡️ v0.1.141 「운명의 무기」가 뜨면 첫 템(챔피언 유형별 · 유저 가이드 기준 · main destinyTip)
 function destinyH(d) {
   if (!d) return '';
@@ -183,7 +169,7 @@ function ageLive() {
   else {
     const plans = (c.guide && c.guide.plans) || [], rec = c.rec || {};
     const head = `<div class="ag-champ"><img src="${ageIc(c.id)}" alt="" onerror="this.remove()"><span class="ag-cn"><b>${escH(c.name || '')}</b><small>${c.mine ? '내 챔피언' : '벤치 · 바꾸면 이런 증강'}</small></span></div>`;
-    body = head + honeyH(c.honey) + destinyH(c.destiny) + (!plans.length ? '<div class="ag-empty">이 챔피언은 아직 준비 중이에요<small>위 「✎ 고치기」로 채우면 모두에게 바로 보여요</small></div>'
+    body = head + destinyH(c.destiny) + (!plans.length ? '<div class="ag-empty">이 챔피언은 아직 준비 중이에요<small>위 「✎ 고치기」로 채우면 모두에게 바로 보여요</small></div>'
       : plans.map((p, i) => `<div class="ag-plan"><div class="ag-ph"><span class="ag-pn num">${i + 1}</span><b>${escH(p.title || (p.src === 'ours' ? '우리가 같이 고른 짝' : '추천 플랜'))}</b>${planSrc(p)}${p.link ? `<button class="ag-link" data-u="${escH(p.link)}" title="원문에서 설명 보기(브라우저)">설명 ↗</button>` : ''}</div>` +
         `<div class="ag-pa">${p.augs.map(a => { const r = rec[a]; return `<span class="ag-pchip">${ageAug(a, 'ag-ic')}<span class="ag-pt"><b>${escH(ageName(a))}</b>${r && r.g ? `<small>우리 ${r.g}판</small>` : ''}</span></span>`; }).join('')}</div>` +
         (p.why ? `<div class="ag-why">${escH(p.why)}</div>` : '') + planFoot(p) + '</div>').join('')) + srcNote(plans);

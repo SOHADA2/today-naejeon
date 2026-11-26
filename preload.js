@@ -129,7 +129,6 @@ contextBridge.exposeInMainWorld('api', {
   getAugGuideHist: (champId) => ipcRenderer.invoke('augguide-hist', champId),            // ✍️ 그 챔피언 고친 기록
   getAugGuideRecent: () => ipcRenderer.invoke('augguide-recent'),                        // ✍️ 최근 고친 것(모든 챔피언)
   restoreAugGuide: (champId, k, which) => ipcRenderer.invoke('augguide-restore', { champId, k, which }),   // ✍️ 되돌리기
-  getAugPatches: () => ipcRenderer.invoke('aug-patches'),                   // 📰 v0.1.144 패치 노트
   getAugLab: () => ipcRenderer.invoke('auglab-pool'),   // 🧪 증강 연구(뽑을 증강 목록)
   auglabOpen: () => ipcRenderer.send('auglab-open'),    // 🧪 v0.1.175 가운데 창 열기(이미 떠 있으면 새 판)
   auglabClose: () => ipcRenderer.send('auglab-close'),

@@ -28,9 +28,9 @@
     </nav>
 
     <main class="sp-main">
-      <!-- 증강 묶음(가이드 · 패치 노트 · 뽑아 보기)일 때만 보이는 작은 갈래 줄 -->
+      <!-- 증강 묶음(가이드 · 뽑아 보기)일 때만 보이는 작은 갈래 줄 -->
       <div class="sp-seg" id="sp-seg" style="display:none;">
-        <button data-cat="aug">가이드</button><button data-cat="patch">패치 노트</button><button data-cat="lab">뽑아 보기</button>
+        <button data-cat="aug">가이드</button><button data-cat="lab">뽑아 보기</button>
       </div>
 
       <!-- 홈(첫 화면) -->
@@ -54,10 +54,6 @@
       <section class="cat-view" id="cat-aug" style="display:none;">
         <div id="ag-ed" class="cat-scroll ui-scroll"></div>
       </section>
-      <!-- 증강: 패치 노트 -->
-      <section class="cat-view" id="cat-patch" style="display:none;">
-        <div id="pn-body" class="cat-scroll ui-scroll"></div>
-      </section>
       <!-- 증강: 뽑아 보기 -->
       <section class="cat-view" id="cat-lab" style="display:none;">
         <div id="al-body" class="cat-scroll ui-scroll"></div>
@@ -69,7 +65,6 @@
   <script src="../desktop/settings.js"></script>
   <script src="sidepanel.js"></script>
   <script src="augguide.js"></script>
-  <script src="patchnotes.js"></script>
   <script src="auglab.js"></script>
   <script src="../overlay/tierreveal.js"></script>
 </body>

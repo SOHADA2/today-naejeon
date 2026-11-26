@@ -3318,6 +3318,7 @@ const AUG_URL = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-
 const AUG_ICON_BASE = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default';
 let _aug = null, _augAt = 0, _augBusy = null;
 function augCachePath() { return path.join(app.getPath('userData'), 'augments-cache.json'); }
+const AUG_TAG = { kDamage: '피해', kResilience: '생존', kAlly: '아군 지원', kSpeed: '이동 속도', kUtility: '유틸', kEconomy: '골드', kQuest: '퀘스트', kQuestline: '퀘스트', kStatAnvil: '능력치', kGeneral: '일반' };
 async function getAugments() {
   if (_aug && Date.now() - _augAt < 12 * 3600e3) return _aug;
   if (_augBusy) return _augBusy;
@@ -3333,6 +3334,7 @@ async function getAugments() {
         icon: a.augmentSmallIconPath ? AUG_ICON_BASE + a.augmentSmallIconPath.replace('/lol-game-data/assets', '').toLowerCase() : '',
         rarity: String(a.rarity || '').replace(/^k/, '').toLowerCase(),   // silver / gold / prismatic
         desc: String(a.descriptionTRA || a.desc || '').replace(/<[^>]+>/g, '').slice(0, 300),   // 설명(있으면 · 증강 가이드 편집 화면용)
+        tags: (Array.isArray(a.augmentDisplayTags) ? a.augmentDisplayTags : []).map(t => AUG_TAG[t]).filter(Boolean),   // ⚖️ v0.1.260 증강 분류(라이엇 게임 자료 · 설명 글 대신)
       }; }
       _aug = map; _augAt = Date.now();
       try { fs.writeFileSync(augCachePath(), JSON.stringify({ at: _augAt, map })); } catch (_) {}
@@ -3367,7 +3369,7 @@ async function fetchAllDays() {
 // 데이터 = today/augGuide/champs/{championId} = {plans:[{title, augs:[증강 id…], why, tier?, patch?, date?, link?}], top?:{patch, augs:[{id,tier}]}, avoid?:[증강 id], draft?(초안 표시), src?, at, by}
 //   앱 업데이트 없이 오른쪽 창 「증강」 탭에서 채우면 모두에게 바로 반영 · 증강 이름·아이콘은 getAugments(패치되면 자동 최신)
 const PLAN_MAX = 6, PLAN_AUGS = 6, TITLE_MAX = 20, WHY_MAX = 80;
-const GUIDE_LINKS = ['https://aramgg.com/', 'https://arammayhem.com/'];   // 플랜 원문 링크로 열 수 있는 곳(이 주소로 시작할 때만)
+const GUIDE_LINKS = ['https://aramgg.com/', 'https://arammayhem.com/', 'https://www.leagueoflegends.com/ko-kr/news/tags/patch-notes'];   // ⚖️ v0.1.260 + 라이엇 공식 패치 노트(홈 「패치 노트」 칸)   // 플랜 원문 링크로 열 수 있는 곳(이 주소로 시작할 때만)
 const guideLinkOk = u => typeof u === 'string' && u.length < 200 && GUIDE_LINKS.some(p => u.startsWith(p));
 const CHAMP_URL = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1/champion-summary.json';
 let _champs = null, _champsAt = 0;
@@ -3392,14 +3394,15 @@ async function getGuide(force) {   // 2분 캐시(챔피언 선택 1~2분 동안
   try { const g = await getJson(`${FIREBASE_DB}/${T}/augGuide/champs.json`); _guide = g || {}; _guideAt = Date.now(); } catch (_) { if (!_guide) _guide = {}; }
   return _guide;
 }
-// 🧭 증강 목록용 aramgg 자료(지금 시즌 증강이 무엇인지만 · v0.1.246부터 등급·승률은 안 씀 — 라이엇 정책: 증강 승률 표시 금지)
-const GG_URL = 'https://sohada2.github.io/today-naejeon/data/aramgg', GG_TTL = 3 * 3600e3;
-const _gg = { idx: null, idxAt: 0 };
-async function ggIndex() {
-  if (_gg.idx && Date.now() - _gg.idxAt < GG_TTL) return _gg.idx;
-  const j = await getJson(`${GG_URL}/index.json`).catch(() => null);
-  if (j && (j.g || j.ids)) { _gg.idx = j; _gg.idxAt = Date.now(); }
-  return _gg.idx;
+// ⚖️ v0.1.260 aramgg 자료를 안 씀(라이엇 등록 전 정리 · 사장님: 해당 안내는 빼도 됨) — 패치 노트 탭·증강 설명 글·챔피언 꿀팁·매일 받기를 지움
+//   「뽑아 보기」 증강 목록 = 홈페이지 docs/data/augpool.json(이번 시즌 아수라장 증강 번호 · 손으로 고침) + 우리 기록에 나온 1000번 이상 증강
+const POOL_URL = 'https://sohada2.github.io/today-naejeon/data/augpool.json', POOL_TTL = 3 * 3600e3;
+const _pool = { j: null, at: 0 };
+async function augPool() {
+  if (_pool.j && Date.now() - _pool.at < POOL_TTL) return _pool.j;
+  const j = await getJson(POOL_URL).catch(() => null);
+  if (j && Array.isArray(j.ids)) { _pool.j = j; _pool.at = Date.now(); }
+  return _pool.j;
 }
 // 가이드 한 챔피언(v0.1.246) = 사람이 쓴 플랜 → 없으면 우리 기록 짝(이 챔피언으로 두 증강을 같이 고른 판 · 2판+ · 판 수만)
 //   예전 aramgg 상위 증강·조합 승률·피하기(T5)·arammayhem 초안은 뺌(라이엇 정책: 증강 승률 표시 금지 · 등급도 승률에서 나온 것)
@@ -3481,23 +3484,6 @@ async function destinyTip(champId) {   // → {kind, label, items:[{id,name,icon
   const D = DESTINY[k];
   return { kind: k, label: D.label, line: D.line, src: D.src, items: D.items.map(id => Object.assign({ id, short: shortOf(items[id]) }, items[id] || { name: '#' + id, icon: '' })) };
 }
-// 🍯 v0.1.145 챔피언 꿀팁(사장님: aramgg 가이드를 정리해 게임 중에 — 복잡하지 않게 · 증강 순위 표시는 방해 X · 조합은 반영 OK · 내가 하는 챔피언의 꿀정보)
-//   자료 = docs/data/tips.json(tools/champ-tips.src.json을 사람이 정리 → champ-tips-build.cjs가 번호로 · 홈페이지로 읽어 앱 업데이트 없이 고침 · 3시간 보관)
-//   쓰는 곳: ① 증강 순위 점수(핵심 +·비추천 −) ② 게임 중 배지 오른쪽 칸(그 챔피언 핵심 증강이면 「🍯 빌드」+ 템) ③ 챔피언 선택 증강 탭 「🍯 꿀팁」 카드
-let _tips = null, _tipsAt = 0;
-async function tipsData() {
-  if (_tips && Date.now() - _tipsAt < 3 * 3600e3) return _tips;
-  const j = await getJson('https://sohada2.github.io/today-naejeon/data/tips.json').catch(() => null);
-  if (j && j.champs) { _tips = j; _tipsAt = Date.now(); }
-  return _tips || { champs: {}, augs: {} };
-}
-async function champTipView(champId) {   // 화면용 {build, tip, core, avoid, items:[{id,name,icon}], augTips:[{id, tip, good}]}
-  const T = await tipsData(), c = T.champs[champId];
-  const augTips = Object.entries(T.augs || {}).filter(([, x]) => (x.good || []).includes(+champId) || (x.bad || []).includes(+champId)).map(([a, x]) => ({ id: +a, tip: x.tip, good: (x.good || []).includes(+champId) }));
-  if (!c && !augTips.length) return null;
-  const items = c && (c.items || []).length ? await destinyItems() : {};
-  return Object.assign({ augTips }, c ? { build: c.build, tip: c.tip, core: c.core || [], avoid: c.avoid || [], items: (c.items || []).map(id => Object.assign({ id, short: shortOf(items[id]) }, items[id] || { name: '#' + id, icon: '' })) } : {});
-}
 const isTrait = id => !!(_aug && _aug[id] && _aug[id].trait);   // 🎸 헤드라이너 특성(증강 아님)
 let _augPairs = {};   // 🧩 v0.1.140 챔피언 → {'a,b': {g, w}} = 이 챔피언으로 두 증강을 같이 고른 판(조합 자료 없는 챔피언용)
 async function augRecords() {
@@ -3528,45 +3514,30 @@ async function augGuideView() {
   if (!champSel || lobbyPhase !== 'ChampSelect') return { active: false };
   const [guide, champs, rec] = await Promise.all([getGuide(), getChamps(), augRecords().catch(() => ({}))]);
   const ids = [...new Set([champSel.mine, ...(champSel.bench || [])].filter(x => x > 0))];
-  const [dts, tps] = await Promise.all([Promise.all(ids.map(id => destinyTip(id).catch(() => null))), Promise.all(ids.map(id => champTipView(id).catch(() => null)))]);
+  const dts = await Promise.all(ids.map(id => destinyTip(id).catch(() => null)));
   const list = ids.map((id, i) => {
     const f = guideFor(id, guide[id]), guideC = f.guide, r = {};
     for (const a of (guideC.plans || []).flatMap(p => p.augs)) { const x = rec[id + ':' + a]; if (x) r[a] = { g: x.g }; }   // 판 수만(승 수 = 승률이라 안 보냄)
-    return { id, name: (champs[id] && champs[id].name) || '', mine: id === champSel.mine, guide: guideC, draft: f.draft, src: f.src, rec: r, destiny: dts[i], honey: tps[i] };
+    return { id, name: (champs[id] && champs[id].name) || '', mine: id === champSel.mine, guide: guideC, draft: f.draft, src: f.src, rec: r, destiny: dts[i] };
   });
   return { active: true, list };
 }
 async function pushAugGuide() { const v = await augGuideView(); broadcast('augguide', v); }
 ipcMain.handle('augguide', () => augGuideView());
 ipcMain.handle('augguide-gg', async (_e, champId) => { const id = Number(champId) || 0; const [guide] = await Promise.all([getGuide(), augRecords().catch(() => null)]); return guideFor(id, guide[id]); });   // ✎ 편집 시작 = 보이는 것(우리 기록 짝)부터
-// 📰 v0.1.144 패치 노트(사장님: aramgg 「새 증강」 페이지처럼 · 증강 아래 「패치」 탭) = tools/aramgg-fetch.cjs가 하루 한 번 받은 docs/data/aramgg/patches.json + 우리 기록(그 증강 우리 n판 m승)
-let _ggPatch = null, _ggPatchAt = 0;
-ipcMain.handle('aug-patches', async () => {
-  if (!_ggPatch || Date.now() - _ggPatchAt > GG_TTL) { const j = await getJson(`${GG_URL}/patches.json`).catch(() => null); if (j && Array.isArray(j.patches)) { _ggPatch = j; _ggPatchAt = Date.now(); } }
-  if (!_ggPatch) return null;
-  const rec = await augRecords().catch(() => ({})), ours = {};
-  for (const k of Object.keys(rec)) { const a = k.split(':')[1]; if (isTrait(a)) continue; const o = ours[a] = ours[a] || { g: 0 }; o.g += rec[k].g; }   // 판 수만
-  return Object.assign({}, _ggPatch, { ours });
-});
 // 🧪 증강 연구(2026-11-11 · 사장님: 오른쪽 창에서 롤처럼 증강 3장 뽑아 보기) — 뽑을 증강 = 지금 시즌 아수라장 증강(aramgg 전체 등급에 있는 것 · 못 받으면 1000번대 전부) · 특성(헤드라이너) 뺌
 //   돌려주는 것 = [{id, name, icon, rarity, t(aramgg T1~T5), wr(승률), g·w(우리 기록)}] · 확률·뽑기는 화면(sidepanel/auglab.js)이 함
-let _ggDesc = null, _ggDescAt = 0;
-async function ggDesc() {   // 📝 v0.1.209 증강 설명 글(docs/data/aramgg/desc.json = tools/aramgg-fetch.cjs가 매일 · 3시간 보관)
-  if (_ggDesc && Date.now() - _ggDescAt < GG_TTL) return _ggDesc;
-  const j = await getJson(`${GG_URL}/desc.json`).catch(() => null);
-  if (j && j.d) { _ggDesc = j.d; _ggDescAt = Date.now(); }
-  return _ggDesc || {};
-}
 ipcMain.handle('auglab-pool', async () => {   // v0.1.209: 실제 규칙대로 뽑기만(등급 T·승률·우리 기록 = 채점 자료는 안 보냄 · 사장님: 정답 맞히기가 아님)
-  const [augs, idx, desc] = await Promise.all([getAugments().catch(() => ({})), ggIndex().catch(() => null), ggDesc().catch(() => ({}))]);
-  const g = idx ? (Array.isArray(idx.ids) ? Object.fromEntries(idx.ids.map(x => [x, 1])) : idx.g || null) : null, list = [];
+  const [augs, pool, rec] = await Promise.all([getAugments().catch(() => ({})), augPool().catch(() => null), augRecords().catch(() => ({}))]);
+  const g = pool ? Object.fromEntries(pool.ids.map(x => [x, 1])) : null, list = [];
+  if (g) for (const k of Object.keys(rec || {})) { const a = +k.split(':')[1]; if (a >= 1000) g[a] = 1; }   // 새 패치 증강 = 우리 기록에 나오면 들어감
   for (const [id, a] of Object.entries(augs)) {
     if (!(+id >= 1000) || a.trait || !/^(silver|gold|prismatic)$/.test(a.rarity)) continue;
     if (g && !g[id]) continue;
-    list.push({ id: +id, name: a.name, icon: a.icon, rarity: a.rarity, desc: desc[id] || '' });
+    list.push({ id: +id, name: a.name, icon: a.icon, rarity: a.rarity, desc: (a.tags || []).length ? '분류 · ' + a.tags.join(' · ') : '' });   // 설명 글 대신 라이엇 게임 자료의 분류
   }
   const penta = [[3170, '헤비', 'Q'], [3171, '파워', 'W'], [3172, '스래시', 'E'], [3173, '둠', 'R']].map(([id, name, key]) => ({ id, name, key, icon: (augs[id] && augs[id].icon) || '' }));   // 펜타킬 헤드라이너의 스킬 강화
-  return { patch: idx ? idx.p : '', list, penta };
+  return { patch: pool ? pool.p : '', list, penta };
 });
 // 🧪 v0.1.175(사장님: 오른쪽 창이 아니라 가운데에서 진짜 아수라장처럼 카드 3장) — 가운데 창 auglab/ · 롤 클라가 붙어 있으면 클라 자리 그대로(16:9), 없으면 화면 가운데 16:9
 //   카드 배치는 창 높이 기준(실제 증강 화면 실측 비율) · 게임이 시작되면 닫음 · 한 판 결과는 오른쪽 창 「연구」 탭에 남김(auglab-result)

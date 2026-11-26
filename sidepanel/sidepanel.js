@@ -1,8 +1,8 @@
-// ── 투데이 내전 · 오른쪽 창 — 홈(첫 화면) · 기록 · 프로필 · 증강(가이드·패치 노트·뽑아 보기) ───────────────
+// ── 투데이 내전 · 오른쪽 창 — 홈(첫 화면) · 기록 · 프로필 · 증강(가이드·뽑아 보기) ───────────────
 //   v0.1.197 다시 설계(사장님: 왼쪽 창의 새 레이아웃·디자인을 오른쪽에도 · 시인성 · 처음 켰을 때 보여 줄 화면 · 글 줄이기)
 //   · 왼쪽 레일(이모지 6칸) → 위쪽 글자 탭 4개 · 「진행」(방장 조작) 탭 → 홈의 「이번 판」 카드 · 「패치」「연구」 → 증강 탭 안 갈래
 //   · 롤 로그인 전에도 탭은 그대로(홈 = 시작 안내 · 증강·패치는 로그인 없이 봄)
-//   ⚠️ 이 창의 다른 스크립트(settings.js·augguide.js·patchnotes.js·auglab.js)와 최상위 이름이 겹치지 않게
+//   ⚠️ 이 창의 다른 스크립트(settings.js·augguide.js·auglab.js)와 최상위 이름이 겹치지 않게
 const $ = id => document.getElementById(id);
 const nn = s => String(s || '').trim().replace(/\s+/g, ' ');
 const escH = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -64,8 +64,8 @@ function applyHost(d) {
 window.api.onHost(applyHost);
 
 // ── 탭 ──────────────────────────────────────────────────────────────────
-//   탭 = home · today · profile · aug(묶음: aug 가이드 · patch 패치 노트 · lab 뽑아 보기) — 다른 스크립트는 switchCat('aug') 등 예전 이름 그대로 부름
-const CAT_GROUP = { aug: 'aug', patch: 'aug', lab: 'aug' };
+//   탭 = home · today · profile · aug(묶음: aug 가이드 · lab 뽑아 보기 · ⚖️ v0.1.260 패치 노트 탭 없앰 = 홈 칸이 라이엇 공식 사이트로) — 다른 스크립트는 switchCat('aug') 등 예전 이름 그대로 부름
+const CAT_GROUP = { aug: 'aug', lab: 'aug' };
 let _augSub = 'aug';   // 증강 탭에서 마지막으로 본 갈래
 function tabDot() {   // 방장이 이긴 팀을 골라야 하는데 홈이 아닌 탭을 보고 있으면 「홈」에 점
   const t = document.querySelector('.sp-tab[data-cat="home"]');
@@ -83,7 +83,6 @@ function switchCat(cat) {
   if (cat === 'home') renderHome();
   else if (cat === 'profile') renderProfile();
   else if (cat === 'aug') renderAugEdit();
-  else if (cat === 'patch') renderPatch();   // 📰 v0.1.144 (patchnotes.js)
   else if (cat === 'lab') renderAugLab();    // 🧪 증강 연구 (auglab.js)
   else renderToday();
 }
@@ -122,10 +121,7 @@ async function renderHome() {
   if (seq !== _hm.seq) return;
   _hm.P = P && P.ok ? P : null; _hm.T = T && T.ok ? T : null; _hm.loaded = true;
   drawHome();
-  if (!_hm.patch && !_hm.patchAsked) {   // 바로 가기 「패치 노트」 칸의 최신 패치 번호(받을 때까지 · 메인이 3시간 보관)
-    _hm.patchAsked = true;
-    window.api.getAugPatches().then(p => { _hm.patch = (p && (p.patches || [])[0]) || null; if (_curCat === 'home') drawHome(); }).catch(() => {}).finally(() => { _hm.patchAsked = false; });
-  }
+
 }
 // 보여 줄 티어 하나: 내전(티어 있음) → 일반(티어 있음) → 배치 중(내전 → 일반)
 function hmTierPick(R) {   // 🔤 v0.1.255 내전 등급만(아수라장 일반 점수는 화면에 안 보임 · 팀 밸런스에만 · 라이엇 「공식 랭크 대체 금지」)
@@ -190,10 +186,9 @@ function hmToday() {
   return `<div class="sp-card hm-today">${hd(n ? `오늘 <span class="num">${n}</span>판` : '오늘', true)}${stats}${rank}${n ? '' : norm}</div>`;
 }
 function hmTiles() {
-  const p = _hm.patch;
   const tiles = [
     ['aug', 'GUIDE', '증강 가이드', '챔피언별 추천'],
-    ['patch', 'PATCH', '패치 노트', p ? `<b>${escH(p.patch)}</b>${(p.added || []).length ? ` · 신규 ${p.added.length}` : (p.changes || []).length ? ` · 조정 ${p.changes.length}` : ''}` : '증강 변경점'],
+    ['patch', 'PATCH', '패치 노트', '롤 공식 사이트 ↗'],   // ⚖️ v0.1.260 라이엇 공식 패치 노트(브라우저)
     ['draw', 'DRAW', '증강 뽑아 보기', '실제처럼 카드 3장'],
     ['help', 'HELP', '사용법', '처음이라면'],
   ];
@@ -207,7 +202,7 @@ function drawHome() {
   body.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { if (b.dataset.go === 'profile') _pfArg = { me: true }; switchCat(b.dataset.go); });
   body.querySelectorAll('[data-tile]').forEach(b => b.onclick = () => {
     const k = b.dataset.tile;
-    if (k === 'draw') window.api.auglabOpen(); else if (k === 'help') window.api.openTutorial(); else switchCat(k);
+    if (k === 'draw') window.api.auglabOpen(); else if (k === 'help') window.api.openTutorial(); else if (k === 'patch') window.api.openAugLink('https://www.leagueoflegends.com/ko-kr/news/tags/patch-notes/'); else switchCat(k);
   });
   body.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
     const k = b.dataset.act, w = b.dataset.w;

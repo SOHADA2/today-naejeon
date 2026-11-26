@@ -3,7 +3,7 @@
 //   node tools/ui-scenes-auglab.cjs <장면.json>
 //   ./node_modules/electron/dist/electron.exe tools/ui-shot.cjs <장면.json> <출력 폴더>      ← PNG + 글자 겹침·잘림 검사
 //   ./node_modules/electron/dist/electron.exe tools/ui-errcheck.cjs <장면.json>              ← 실행 오류
-// 증강 이름·등급·그림 주소 = 이 PC에 앱이 받아 둔 %APPDATA%/today-naejeon/augments-cache.json(없으면 CommunityDragon에서 받음 · 느림) · 설명 = docs/data/aramgg/desc.json
+// 증강 이름·등급·그림 주소 = 이 PC에 앱이 받아 둔 %APPDATA%/today-naejeon/augments-cache.json(없으면 CommunityDragon에서 받음 · 느림) · 설명 = 분류 줄(가짜 · v0.1.260)
 // 그림 = assets/imgpack(앱에 넣어 둔 증강 그림 · imgcache.js packName 규칙)에 있으면 그 파일로 → 인터넷 없이 찍힘
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const out = process.argv[2];
@@ -18,7 +18,8 @@ const local = url => { const rest = String(url || '').replace(/^https:\/\/raw\.c
     const list = await (await fetch('https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1/cherry-augments.json')).json();
     map = {}; for (const a of list) map[a.id] = { name: String(a.nameTRA || '').trim(), rarity: String(a.rarity || '').replace(/^k/, '').toLowerCase(), icon: a.augmentSmallIconPath ? 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default' + a.augmentSmallIconPath.replace('/lol-game-data/assets', '').toLowerCase() : '' };
   }
-  const desc = JSON.parse(fs.readFileSync(path.join(R, 'docs/data/aramgg/desc.json'), 'utf8')).d, gi = JSON.parse(fs.readFileSync(path.join(R, 'docs/data/aramgg/index.json'), 'utf8')), g = Array.isArray(gi.ids) ? Object.fromEntries(gi.ids.map(x => [x, 1])) : gi.g;
+  const gi = JSON.parse(fs.readFileSync(path.join(R, 'docs/data/augpool.json'), 'utf8')), g = Object.fromEntries(gi.ids.map(x => [x, 1])), desc = {};   // ⚖️ v0.1.260 설명 글 없음 = 분류 줄(가장 긴 것 = 분류 3개)
+  const TAGS = ['분류 · 피해', '분류 · 피해 · 생존', '분류 · 아군 지원 · 이동 속도 · 유틸']; Object.keys(g).forEach((id, i) => { desc[id] = TAGS[i % 3]; });
   const list = Object.keys(g).filter(id => map[id] && /^(silver|gold|prismatic)$/.test(map[id].rarity)).map(id => ({ id: +id, name: map[id].name, icon: local(map[id].icon), rarity: map[id].rarity, desc: desc[id] || '' }));
   const penta = [[3170, '헤비', 'Q'], [3171, '파워', 'W'], [3172, '스래시', 'E'], [3173, '둠', 'R']].map(([id, name, key]) => ({ id, name, key, icon: local((map[id] || {}).icon) }));
   const POOL = { patch: '26.22', list, penta };

@@ -42,13 +42,11 @@ const profileNew = (i, me) => ({ ok: true, key: 'p:p' + i, name: NM[i], tag: 'KR
 const augs = { 1001: { name: '검을 뽑아라', icon: '', rarity: 'silver' }, 1002: { name: '마법 미사일', icon: '', rarity: 'gold' }, 1003: { name: '거인 학살자', icon: '', rarity: 'prismatic' }, 1004: { name: '열여섯 글자짜리 아주 긴 증강 이름', icon: '', rarity: 'gold' } };
 const guideAll = { guide: { 498: { plans: [{ title: '', augs: [1001, 1003], why: '' }], draft: true, by: '초안', at: TS } }, champs: { 498: { name: '자야', alias: 'Xayah' }, 99: { name: '럭스', alias: 'Lux' }, 54: { name: '말파이트', alias: 'Malphite' }, 22: { name: '애쉬', alias: 'Ashe' }, 16: { name: '소라카', alias: 'Soraka' } },
   augs, seen: { 1001: 6, 1002: 4 }, ours: { 1001: { g: 6, w: 4 }, 1002: { g: 4, w: 1 }, 1004: { g: 3, w: 2 } }, gg: { p: '26.22', d: '2026-11-12', g: { 1001: [1, 0.561], 1002: [2, 0.52], 1003: [1, 0.548] } }, planMax: 6, planAugs: 6, titleMax: 20, whyMax: 80 };
-const patches = { patches: [{ patch: '26.22', date: '2026-11-04', link: 'https://aramgg.com/', added: [{ id: 1003, name: '거인 학살자', rarity: 'prismatic', desc: '체력이 더 많은 적에게 추가 피해를 줍니다.' }, { id: 1004, name: '열여섯 글자짜리 아주 긴 증강 이름', rarity: 'gold', desc: '' }], changes: [{ id: 1001, name: '검을 뽑아라', lines: [{ k: '기본 피해량', from: '50–125', to: '25–125' }] }], notes: [{ title: '버그 수정', items: ['일부 증강 설명이 잘못 나오던 문제를 고쳤습니다.'] }] },
-  { patch: '26.21', date: '2026-10-21', link: '', added: [], changes: [], notes: [] }], ours: { 1001: { g: 6, w: 4 } } };
 const labResult = { head: 'K/DA', picks: [{ id: 1001, name: '검을 뽑아라', icon: '', rarity: 'silver', at: '3레벨' }, { id: 1002, name: '마법 미사일', icon: '', rarity: 'gold', at: '7레벨' }, { id: 1238, name: '전환: 프리즘', icon: '', rarity: 'gold', at: 'K/DA' }, { id: 1003, name: '거인 학살자', icon: '', rarity: 'prismatic', at: '전환: 프리즘', bonus: true }, { id: 1004, name: '열여섯 글자짜리 아주 긴 증강 이름', icon: '', rarity: 'gold', at: '11레벨' }, { id: 1005, name: '운명의 무기', icon: '', rarity: 'gold', at: '15레벨' }] };
 const sess = (phase, extra) => Object.assign({ phase, teamA: [NM[0], NM[2], NM[5]], teamB: [NM[1], NM[3], NM[4]], spectators: [NM[6]], mode: 'draft', teamsFormedAt: TS }, extra || {});
 const set = { tutorialSeen: true, tutorialDc: true, sfxOn: true, sfxVol: 1, dock: true, sidePanel: true, closeAsk: true, hotkey: 'Shift+F7' };
 const J = JSON.stringify, wait = ' await new Promise(r=>setTimeout(r,450)); ';
-const baseStub = { getAugments: augs, getAugGuideAll: guideAll, getAugGuideRecent: [], getAugPatches: patches, getSettings: set, getUpdate: { state: 'latest' } };
+const baseStub = { getAugments: augs, getAugGuideAll: guideAll, getAugGuideRecent: [], getSettings: set, getUpdate: { state: 'latest' } };
 // me = 내 번호 · host = 내가 방장 · session = 판 상태 · cat = 열 탭 · stub = 가짜 api 값 · more = 그린 뒤 실행할 JS
 const sc = (name, w, o) => ({ name: name + '-' + w, page: 'sidepanel', w, h: o.h || 720, audit: 1, wait: 900, stub: Object.assign({}, baseStub, o.stub || {}),
   js: (o.me == null ? '' : `__emit('account', ${J({ account: acct(o.me), isHost: !!o.host })}); __emit('host', ${J({ host: { name: NM[o.hostIdx == null ? 0 : o.hostIdx], alive: true, mine: !!o.host }, isHost: !!o.host })});`)
@@ -76,7 +74,6 @@ for (const w of [300, 400]) {
   S.push(sc('pf-new', w, { me: 0, cat: 'profile', stub: { getToday: todayEmpty, getProfile: profileNew(0, true) } }));
   // 증강(가이드 · 패치 · 뽑기)
   S.push(sc('ag-guide', w, { me: 0, cat: 'aug', stub: full }));
-  S.push(sc('ag-patch', w, { me: 0, cat: 'patch', stub: full }));
   S.push(sc('ag-lab', w, { me: 0, cat: 'lab', stub: full }));
   S.push(sc('ag-lab-done', w, { me: 0, cat: 'lab', stub: full, more: `__emit('auglabResult', ${J(labResult)});` + wait }));
   // 그 밖

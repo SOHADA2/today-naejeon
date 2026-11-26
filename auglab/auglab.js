@@ -6,7 +6,7 @@
 //    · 헤드라이너(26.21~ · 판마다 무작위 하나): K/DA = 카드 4장을 모으면 증강 한 번 더 · 커맨드 라인 = 실버·골드만 나오고 화면마다 다시 뽑기 한 번이 한 등급 위로 · 펜타킬 = 게임 시작·18레벨에 스킬 하나 강화
 //      나머지(HEARTSTEEL·True Damage·디스코·귀염둥이 카페·꿀벌)는 증강을 고르는 방식과 상관없어 이름·설명만 띄움
 //    · 「전환: 골드/프리즘/혼돈」 = 고르면 무작위 증강을 더 얻음(그 증강도 내 증강 칸에)
-//   카드 설명 = aramgg 증강 목록의 설명 글(docs/data/aramgg/desc.json · main auglab-pool)
+//   카드 설명 = 라이엇 게임 자료의 증강 분류(피해·생존… · main auglab-pool · ⚖️ v0.1.260 aramgg 설명 글은 안 씀)
 //   ⚠️ 등급 확률은 라이엇 비공개 → 우리 경기 기록 실측(ODDS · 다시 재기 = node tools/aug-flow-report.cjs) · 펜타킬 18레벨 선택지는 추정(아직 안 고른 스킬 + 둠)
 //   ⚠️ 효과는 전부 한 번만(무한 애니메이션 금지)
 const LV = [3, 7, 11, 15];
@@ -140,7 +140,7 @@ function headHtml() { const h = G.head; return `<span class="lh-k">헤드라이�
 // 화면 그리기 — anim: 카드가 뒤집히며 나타남(새로 떴을 때만) · onlyIdx: 그 한 장만
 function render(anim, onlyIdx) {
   $('lab-state').textContent = '';
-  $('lab-src').textContent = `패치 ${G.patch || '-'} · 증강 ${G.pool.length}개 · 실제 아수라장 규칙(3·7·11·15레벨 · 카드마다 다시 뽑기 한 번) · 등급 확률은 우리 경기 기록 기준 · 설명 aramgg.com`;
+  $('lab-src').textContent = `패치 ${G.patch || '-'} · 증강 ${G.pool.length}개 · 실제 아수라장 규칙(3·7·11·15레벨 · 카드마다 다시 뽑기 한 번) · 등급 확률은 우리 경기 기록 기준 · 분류 = 라이엇 게임 자료`;
   $('lab-head').innerHTML = headHtml();
   if (!G.offer) return renderDone();
   const st = G.steps[G.si];
