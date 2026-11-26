@@ -6,9 +6,10 @@
 //     (Windows PowerShell이면 npx.cmd · 진행 글은 stderr로만 나옴)
 //   ⚠️ 이 계정에 역할(roles)을 붙이지 말 것 · DB 관리자 계정(firebase-adminsdk) 키를 중계에 넣지 말 것
 //   ⚠️ 옛 키는 Google에 남음 — 지우려면 IAM 「서비스 계정 → tn-riot-auth → 키」에서(또는 gapi DELETE …/keys/{id})
+//   🏘️ 커뮤니티 전용 서버(v0.1.259) = 프로젝트를 인자로: node ../tools/riot-auth-key.cjs today-naejeon-queue | npx wrangler@3 secret put RIOT_AUTH_SA_TODAY_NAEJEON_QUEUE
 //   계정이 없으면 만듦(처음 한 번 · IAM API가 꺼져 있으면 gapi로 serviceusage …/iam.googleapis.com:enable)
 const fs = require('fs'), path = require('path'), { execSync } = require('child_process');
-const P = 'today-naejeon-sohada', ID = 'tn-riot-auth', EMAIL = `${ID}@${P}.iam.gserviceaccount.com`;
+const P = process.argv[2] || 'today-naejeon-sohada', ID = 'tn-riot-auth', EMAIL = `${ID}@${P}.iam.gserviceaccount.com`;
 const say = m => process.stderr.write(m + '\n');
 function cliApi() {
   const roots = [process.env.FIREBASE_TOOLS_DIR, (() => { try { return path.join(execSync('npm root -g', { encoding: 'utf8' }).trim(), 'firebase-tools'); } catch (_) { return null; } })()].filter(Boolean);

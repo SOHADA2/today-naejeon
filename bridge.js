@@ -56,8 +56,8 @@ function httpReq(method, url, body, extraHeaders) {
 // ── Firebase (인증 없는 PUT/GET — 실브릿지와 동일) ───────────────────────────
 let fbOk = null, fbErrorLogged = false;
 // 🔐 v0.1.98: 익명 로그인 표식(main.js fbToken) — start(opts.getToken)로 받음 · 없거나 실패면 표식 없이(규칙이 아직 공개)
-let _getToken = async () => null;
-const fbUrl = async p => { const t = await _getToken().catch(() => null); return `${FIREBASE_URL}/${p}.json${t && t !== 'noauth' ? `?auth=${t}` : ''}`; };
+let _getToken = async () => null, _route = null;   // 🏘️ v0.1.259 _route(경로) = 커뮤니티 전용 서버면 {base, tok}
+const fbUrl = async p => { const r = _route ? _route(p) : null; const t = await (r ? r.tok() : _getToken()).catch(() => null); return `${r ? r.base : FIREBASE_URL}/${p}.json${t && t !== 'noauth' ? `?auth=${t}` : ''}`; };
 async function fbSet(p, data) {
   const u = await fbUrl(p);
   const r = await httpReq('PUT', u + (u.includes('?') ? '&' : '?') + 'print=silent', typeof data === 'string' ? JSON.stringify(data) : data);   // 문자열도 JSON으로(안 하면 HTTP 400 — gamePhase가 계속 실패했음) · 💤 v0.1.246 print=silent = 쓴 내용을 되돌려 받지 않음(204 · 내려받기 전송량 절약)
@@ -703,6 +703,7 @@ async function start(opts) {
   _getOpName = (opts && opts.getOperatorName) || (() => null);
   _appVer    = (opts && opts.appVer)          || '';
   if (opts && opts.getToken) _getToken = opts.getToken;
+  if (opts && opts.route) _route = opts.route;
   _onAccount = (opts && opts.onAccount)       || (() => {});
   _fakeLcu   = (opts && opts.fakeLcu)         || null;
   _onEog     = (opts && opts.onEog)           || (() => {});

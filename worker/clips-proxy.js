@@ -97,10 +97,13 @@ async function verifyRiotToken(tok) {   // 맞으면 puuid · 아니면 null
   const key = await crypto.subtle.importKey('jwk', { kty: jwk.kty, n: jwk.n, e: jwk.e }, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
   return (await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64u(sig), new TextEncoder().encode(`${h}.${p}`))) ? P.sub : null;
 }
-let _sa = null;
-async function customToken(env, uid) {   // Firebase 커스텀 로그인 증표(1시간 · 앱이 accounts:signInWithCustomToken으로 바꿈)
-  if (!_sa) { const c = JSON.parse(env.RIOT_AUTH_SA); const der = Uint8Array.from(atob(String(c.private_key).replace(/-----[^-]+-----/g, '').replace(/\s+/g, '')), x => x.charCodeAt(0));
-    _sa = { email: c.client_email, key: await crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']) }; }
+// 🏘️ v0.1.259 커뮤니티 전용 서버 = 그 Firebase 프로젝트의 서명 키(비밀값 RIOT_AUTH_SA_{프로젝트 대문자·_}) · 없으면 501 · 기본 = RIOT_AUTH_SA(today-naejeon-sohada)
+const _sas = {};
+const saName = p => p ? 'RIOT_AUTH_SA_' + String(p).toUpperCase().replace(/[^A-Z0-9]/g, '_') : 'RIOT_AUTH_SA';
+async function customToken(env, uid, p) {   // Firebase 커스텀 로그인 증표(1시간 · 앱이 accounts:signInWithCustomToken으로 바꿈)
+  const nm = saName(p); let _sa = _sas[nm];
+  if (!_sa) { const c = JSON.parse(env[nm]); const der = Uint8Array.from(atob(String(c.private_key).replace(/-----[^-]+-----/g, '').replace(/\s+/g, '')), x => x.charCodeAt(0));
+    _sa = _sas[nm] = { email: c.client_email, key: await crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']) }; }
   const now = Math.floor(Date.now() / 1000), head = b64uStr(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const pay = b64uStr(JSON.stringify({ iss: _sa.email, sub: _sa.email, aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit', iat: now, exp: now + 3600, uid, claims: { riot: true } }));
   const sig = new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', _sa.key, new TextEncoder().encode(`${head}.${pay}`)));
@@ -112,11 +115,13 @@ async function route(req, env) {
   if (req.headers.get('x-tn-app') !== 'today-naejeon') return json({ err: 'forbidden' }, 403);
   if (req.method === 'POST' && u.pathname === '/riot-auth') {   // 🔐 롤 계정 로그인(위 verifyRiotToken) — 익명 표식 없이도 받음(이 증표 자체가 확인 수단) · IP당 1분 10번
     if (env.UP_LIMIT && !(await env.UP_LIMIT.limit({ key: `ra:${req.headers.get('cf-connecting-ip') || ''}` })).success) return json({ err: 'too many' }, 429);
-    if (!env.RIOT_AUTH_SA) return json({ err: 'no signer' }, 501);
     const b = await req.json().catch(() => null);
+    const p = b && b.p && b.p !== 'today-naejeon-sohada' ? String(b.p) : null;   // 🏘️ 커뮤니티 전용 서버
+    if (p && !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(p)) return json({ err: 'bad project' }, 400);
+    if (!env[saName(p)]) return json({ err: 'no signer' }, 501);
     const puuid = await verifyRiotToken(b && b.token);
     if (!puuid) return json({ err: 'bad riot token' }, 401);
-    return json({ token: await customToken(env, puuid), uid: puuid });
+    return json({ token: await customToken(env, puuid, p), uid: puuid });
   }
   const auth = req.headers.get('authorization') || '';
   const uid = auth.startsWith('Bearer ') ? await verifyIdToken(auth.slice(7)) : null;

@@ -29,7 +29,23 @@ const T = 'today';                  // ⚠️ 이 앱의 모든 쓰기 루트 �
 //   들어가기 = 초대 코드(today/communityCodes/{코드} = id → today/communities/{id} = {name}) · config.community = {id, name}
 //   바꾸면 앱을 다시 켬(실시간 연결·캐시를 깨끗이) · 정지 = 기본 커뮤니티 정지(today/bans)는 모든 커뮤니티에 · 커뮤니티 정지는 그 커뮤니티만
 let CT = T, community = null;
-function setCommunity(c) { community = c && /^[a-z0-9_-]{2,24}$/.test(String(c.id || '')) ? { id: String(c.id), name: String(c.name || c.id).slice(0, 20) } : null; CT = community ? `${T}/c/${community.id}` : T; }
+// 🏘️ v0.1.259 **커뮤니티 전용 서버** — today/communities/{id}.db = {url, key, proj}가 있으면 그 커뮤니티 칸(CT 아래)과 자리(today/conns · config/connCap)는
+//   그 Firebase 프로젝트 DB에(경로는 같음 = today/c/{id}/… · 규칙도 같은 database.rules.json) → 동시 접속 자리·전송량을 커뮤니티가 따로 씀
+//   같이 쓰는 칸(계정·점수·디스코드·설정·증강·팟지·영상·커뮤니티 목록)은 그대로 기본 서버 · 로그인 표식도 서버마다 따로(cAuth · 롤 로그인 = 중계 /riot-auth {p: 프로젝트})
+//   db가 없으면 예전 그대로(기본 서버 안 today/c/{id})
+const cdbOk = d => d && /^https:\/\/[a-z0-9-]+\.(asia-southeast1\.firebasedatabase\.app|firebaseio\.com)$/.test(String(d.url || '')) && /^AIza[0-9A-Za-z_-]{30,40}$/.test(String(d.key || '')) && /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(String(d.proj || '')) ? { url: String(d.url), key: String(d.key), proj: String(d.proj) } : null;
+let CDB = null, cAuth = null;
+function setCommunity(c) {
+  community = c && /^[a-z0-9_-]{2,24}$/.test(String(c.id || '')) ? { id: String(c.id), name: String(c.name || c.id).slice(0, 20), db: cdbOk(c.db) } : null; CT = community ? `${T}/c/${community.id}` : T;
+  CDB = community && community.db || null; cAuth = CDB ? mkAuth(CDB) : null;
+}
+// 이 경로가 커뮤니티 전용 서버로 가는지 · 서버 주소 · 표식
+const onC = p => !!CDB && (p === CT || p.startsWith(CT + '/') || p === `${T}/conns` || p.startsWith(`${T}/conns/`) || p === `${T}/config/connCap`);
+const baseFor = p => onC(p) ? CDB.url : FIREBASE_DB;
+const tokFor = p => onC(p) ? cAuth.token() : fbToken();
+const uidFor = p => onC(p) ? cAuth.uid() : fbUid();
+const dropFor = p => { if (onC(p)) cAuth.drop(); else _fbTok = null; };
+const urlPath = u => String(u).slice(FIREBASE_DB.length + 1).replace(/\.json([?].*)?$/, '');   // 기본 서버 주소(…/경로.json?…) → 경로
 const { buildTeams, normName } = require('./teams');   // ⚔️ 홈페이지 makeTeams 1:1 이식(랜덤 팀 짜기에 씀)
 const { balanceTeams, playerScore } = require('./balance');   // ⚖️ v0.1.174 티어 점수로 밸런스 팀 짜기
 const bridge = require('./bridge');                    // 🔌 내장 브릿지(LCU EOG 캡처 → today/bridge)
@@ -776,7 +792,7 @@ function stopDockStream() { if (dockProc) { try { dockProc.kill(); } catch (_) {
 // ── HTTPS GET (JSON) ────────────────────────────────────────────────────
 // 🔐 우리 Firebase 주소(문자열)면 로그인 표식을 붙여 읽음(v0.1.98)
 function getJson(opts) {
-  if (typeof opts === 'string' && opts.startsWith(FIREBASE_DB + '/')) return fbToken().then(tok => getJsonRaw(withAuth(opts, tok))).then(x => x && typeof x === 'object' && x.error === 'Permission denied' ? null : x);   // 🔐 v0.1.243 읽기가 막힌 칸 = 없음으로
+  if (typeof opts === 'string' && opts.startsWith(FIREBASE_DB + '/')) { const p = urlPath(opts); if (onC(p)) opts = CDB.url + opts.slice(FIREBASE_DB.length); return tokFor(p).then(tok => getJsonRaw(withAuth(opts, tok))).then(x => x && typeof x === 'object' && x.error === 'Permission denied' ? null : x); }   // 🔐 v0.1.243 읽기가 막힌 칸 = 없음으로
   return getJsonRaw(opts);
 }
 const withAuth = (url, tok) => !tok || tok === NOAUTH ? url : `${url}${url.includes('?') ? '&' : '?'}auth=${tok}`;
@@ -794,7 +810,7 @@ function getJsonRaw(opts) {
 //   끊기면 자동 재연결(1→30초 백오프). 폴링은 안전망으로 그대로 유지.
 function fbStream(pathStr, onChange, onDown) {   // onChange(ev, {path, data}) · onDown() = 끊김(다시 연결하면 처음에 전체가 'put /'로 다시 옴) · 반환 = { close() }(🚪 방 바꿀 때)
   let retry = 1000, closed = false, cur = null;
-  const start = () => fbToken().then(tok => open(withAuth(`${FIREBASE_DB}/${pathStr}.json`, tok), 0));   // 🔐 표식 1시간 → 만료되면 서버가 auth_revoked → 다시 연결하며 새 표식
+  const start = () => tokFor(pathStr).then(tok => open(withAuth(`${baseFor(pathStr)}/${pathStr}.json`, tok), 0));   // 🔐 표식 1시간 → 만료되면 서버가 auth_revoked → 다시 연결하며 새 표식
   const open = (url, hops) => {
     if (app._quitting || closed) return;
     let lastBeat = Date.now(), buf = '', done = false;
@@ -911,9 +927,9 @@ async function riotLogin(puuid) {   // → {tok, rt} | null
   if (!tok || (jwtPay(tok) || {}).user_id !== puuid) { _riotFailAt = Date.now(); return null; }
   return { tok, rt };
 }
-async function riotPost(accessToken) {   // 중계 /riot-auth(앱 표시 머리말 필요) → {token, uid} | {err}
+async function riotPost(accessToken, proj) {   // 중계 /riot-auth(앱 표시 머리말 필요) → {token, uid} | {err} · 🏘️ proj = 커뮤니티 전용 서버 프로젝트(그 프로젝트 서명)
   try {
-    const r = await fetch(`${RIOT_AUTH_URL}/riot-auth`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-tn-app': 'today-naejeon' }, body: JSON.stringify({ token: accessToken }), signal: AbortSignal.timeout(15000) });
+    const r = await fetch(`${RIOT_AUTH_URL}/riot-auth`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-tn-app': 'today-naejeon' }, body: JSON.stringify(proj ? { token: accessToken, p: proj } : { token: accessToken }), signal: AbortSignal.timeout(15000) });
     return await r.json().catch(() => ({ err: 'http ' + r.status }));
   } catch (e) { return { err: e.message }; }
 }
@@ -938,29 +954,68 @@ async function fbToken() {
   })().catch(() => null).finally(() => { _fbTokP = null; });
   return (await _fbTokP) || (_fbTok && Date.now() - _fbTokAt < 55 * 60 * 1000 ? _fbTok : NOAUTH);   // 실패하면 아직 안 끝난 옛 표식, 그것도 없으면 표식 없이(규칙이 공개인 동안 앱이 멈추지 않게 · 만료 표식은 공개 규칙에서도 401)
 }
+// 🏘️ v0.1.259 커뮤니티 전용 서버의 로그인 표식 — 위 fbToken과 같은 순서(롤 계정 → 안 되면 익명) · 갱신 증표 = config.cAuth[프로젝트] = {anon, riot:{puuid: 증표}}
+function mkAuth(o) {
+  const S = { tok: null, at: 0, p: null, who: null, fail: 0, anonFail: 0 };
+  const st = () => { config.cAuth = config.cAuth || {}; return (config.cAuth[o.proj] = config.cAuth[o.proj] || {}); };
+  const refresh = async rt => { const r = await reqJson('POST', `https://securetoken.googleapis.com/v1/token?key=${o.key}`, { grant_type: 'refresh_token', refresh_token: rt }); return { tok: r.json && r.json.id_token, rt: r.json && r.json.refresh_token }; };
+  async function riot(puuid) {
+    const keep = (st().riot || {})[puuid];
+    if (keep) { const g = await refresh(keep); if (g.tok && (jwtPay(g.tok) || {}).user_id === puuid) return g; }
+    if (Date.now() - S.fail < 60000) return null;
+    const e = await bridge.lcuRaw('GET', '/entitlements/v1/token').catch(() => null);
+    const at = e && e.status === 200 && e.data && e.data.accessToken;
+    if (!at || (jwtPay(at) || {}).sub !== puuid) { S.fail = Date.now(); return null; }
+    const c = await riotPost(at, o.proj);
+    if (!c || !c.token || c.uid !== puuid) { S.fail = Date.now(); console.log('[riot-auth]', o.proj, '실패', c && c.err); return null; }
+    const x = await reqJson('POST', `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${o.key}`, { token: c.token, returnSecureToken: true });
+    const tok = x.json && x.json.idToken, rt = x.json && x.json.refreshToken;
+    if (!tok || (jwtPay(tok) || {}).user_id !== puuid) { S.fail = Date.now(); console.log('[riot-auth]', o.proj, '로그인 실패', x.status); return null; }
+    return { tok, rt };
+  }
+  async function token() {
+    const who = fbWant();
+    if (S.tok && S.who === who && Date.now() - S.at < 50 * 60 * 1000) return S.tok;
+    if (S.tok && S.who === 'anon' && who !== 'anon' && Date.now() - S.fail < 60000 && Date.now() - S.at < 50 * 60 * 1000) return S.tok;
+    if (!S.p) S.p = (async () => {
+      let tok = null, rt = null, got = 'anon'; const s = st();
+      if (who !== 'anon') { const g = await riot(who).catch(() => null); if (g && g.tok) { tok = g.tok; rt = g.rt; got = who; } }
+      if (tok) { s.riot = s.riot || {}; if (rt && s.riot[who] !== rt) { s.riot[who] = rt; const ks = Object.keys(s.riot); if (ks.length > 12) delete s.riot[ks[0]]; saveConfig(); } }
+      else {
+        if (s.anon) { const g = await refresh(s.anon); tok = g.tok; rt = g.rt; }
+        if (!tok && Date.now() - S.anonFail > 60000) { const r = await reqJson('POST', `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${o.key}`, { returnSecureToken: true }); tok = r.json && r.json.idToken; rt = r.json && r.json.refreshToken; if (!tok) S.anonFail = Date.now(); }   // 익명 로그인이 꺼진 프로젝트 = 1분에 한 번만 다시
+        if (tok && rt && rt !== s.anon) { s.anon = rt; saveConfig(); }
+      }
+      if (tok) { if (S.who !== got) console.log('[auth]', o.proj, got === 'anon' ? '익명' : '롤 계정', '로그인'); S.tok = tok; S.at = Date.now(); S.who = got; }
+      return tok;
+    })().catch(() => null).finally(() => { S.p = null; });
+    return (await S.p) || (S.tok && Date.now() - S.at < 55 * 60 * 1000 ? S.tok : NOAUTH);
+  }
+  return { token, uid: () => { try { return S.tok ? (jwtPay(S.tok) || {}).user_id || null : null; } catch (_) { return null; } }, drop: () => { S.tok = null; } };
+}
 // 🔐 v0.1.236 이 기기의 익명 로그인 번호(uid) — 표식(JWT) 안의 user_id · 서버 규칙이 「이 기기가 누구인지」 보는 값
 function fbUid() { try { return _fbTok ? JSON.parse(Buffer.from(_fbTok.split('.')[1], 'base64url').toString()).user_id || null : null; } catch (_) { return null; } }
 // session 등 노드 전체 교체(set) — 홈페이지 set(ref(db,'session'), ...)과 동일 시맨틱
 async function fbSet(pathStr, value) {
-  const tok = await fbToken();
+  const tok = await tokFor(pathStr);
   if (!tok) return { ok: false, err: '인증 실패(네트워크 확인)' };
-  const r = await reqJson('PUT', `${FIREBASE_DB}/${pathStr}.json${authQ(tok)}`, value);
+  const r = await reqJson('PUT', `${baseFor(pathStr)}/${pathStr}.json${authQ(tok)}`, value);
   if (r.status === 200) return { ok: true };
-  if (r.status === 401 || r.status === 403) { _fbTok = null; }   // 토큰 만료/거부 → 다음 시도에 재발급
+  if (r.status === 401 || r.status === 403) { dropFor(pathStr); }   // 토큰 만료/거부 → 다음 시도에 재발급
   return { ok: false, err: `쓰기 실패(HTTP ${r.status})` };
 }
 async function fbDelete(pathStr) {   // 특정 키 삭제 — 홈페이지 remove()와 동일(투표 취소용)
-  const tok = await fbToken();
+  const tok = await tokFor(pathStr);
   if (!tok) return { ok: false };
-  const r = await reqJson('DELETE', `${FIREBASE_DB}/${pathStr}.json${authQ(tok)}`);
-  if (r.status === 401 || r.status === 403) { _fbTok = null; }
+  const r = await reqJson('DELETE', `${baseFor(pathStr)}/${pathStr}.json${authQ(tok)}`);
+  if (r.status === 401 || r.status === 403) { dropFor(pathStr); }
   return { ok: r.status === 200 };
 }
 async function fbUpdate(pathStr, value) {   // 노드 일부 필드만 갱신(PATCH) — 홈페이지 update()와 동일. items_s2만 덮어씀(다른 필드 유실 방지).
-  const tok = await fbToken();
+  const tok = await tokFor(pathStr);
   if (!tok) return { ok: false, err: '인증 실패' };
-  const r = await reqJson('PATCH', `${FIREBASE_DB}/${pathStr}.json${authQ(tok)}`, value);
-  if (r.status === 401 || r.status === 403) { _fbTok = null; }
+  const r = await reqJson('PATCH', `${baseFor(pathStr)}/${pathStr}.json${authQ(tok)}`, value);
+  if (r.status === 401 || r.status === 403) { dropFor(pathStr); }
   return { ok: r.status === 200, err: r.status === 200 ? null : `쓰기 실패(HTTP ${r.status})` };
 }
 
@@ -1416,8 +1471,8 @@ function roomStreams() {   // 방 바뀜 → 방 스트림 다시(예전 방 데
 //   롤 계정 로그인이면 uid = puuid · 표식을 먼저 받아(계정이 막 바뀐 때 익명 uid로 쓰지 않게) 씀 · 실패하면 방에 안 들어감(나중에 써도 다른 쓰기가 다 막힘)
 async function roomUidPut(id) {
   if (!account) return { ok: true };
-  await fbToken().catch(() => null);
-  const uid = fbUid(); if (!uid) return { ok: true };
+  await tokFor(`${CT}/rooms`).catch(() => null);
+  const uid = uidFor(`${CT}/rooms`); if (!uid) return { ok: true };
   const k = id + '|' + account.puuid + '|' + uid; if (_roomUidKey === k) return { ok: true };
   const w = await fbSet(`${CT}/rooms/${id}/uids/${uid}`, account.puuid).catch(() => null);
   if (!w || !w.ok) { console.log('[room] 방 기기 칸 못 씀', w && w.status); return { ok: false, err: '롤 계정 확인이 안 돼서 방에 못 들어갔어요 · 잠시 뒤 다시 해 주세요' }; }
@@ -1499,7 +1554,7 @@ async function roomLeave(quiet) {
     const next = roomMembers(id).filter(m => !account || m.key !== account.puuid).sort((a, b) => a.key.localeCompare(b.key))[0];
     if (next) await handHost(next.key).catch(() => {}); else await releaseHost().catch(() => {});
   }
-  const uid = fbUid(), dels = account ? ['lobby/join', 'lobby/chat', 'lobby/ping', 'lobby/cping', 'members', 'dc'].map(k => fbSet(`${CT}/rooms/${id}/${k}/${account.puuid}`, null).catch(() => {})) : [];   // 💬 내 한마디·📍 핑·📦 방 사람 칸·디스코드 사본
+  const uid = uidFor(`${CT}/rooms`), dels = account ? ['lobby/join', 'lobby/chat', 'lobby/ping', 'lobby/cping', 'members', 'dc'].map(k => fbSet(`${CT}/rooms/${id}/${k}/${account.puuid}`, null).catch(() => {})) : [];   // 💬 내 한마디·📍 핑·📦 방 사람 칸·디스코드 사본
   room = null; config.lastRoom = null; saveConfig(); _roomUidKey = null; _dcRoomKey = null;   // 먼저 방을 비움(지우는 사이 접속 신호가 방 사람 칸을 다시 쓰지 않게)
   await Promise.all(dels);
   if (uid) fbSet(`${CT}/rooms/${id}/uids/${uid}`, null).catch(() => {});   // 🔐 v0.1.236 · v0.1.243 = 다른 칸을 다 지운 뒤에(먼저 지우면 2단계 규칙에서 나머지가 막힘)
@@ -1626,8 +1681,9 @@ function privacyTick() {
   const ok = account.puuid + '|' + uid;
   if (_ownKey !== ok) { _ownKey = ok; fbSet(`${T}/owners/${account.puuid}/${uid}`, Date.now()).then(w => { if (!w || !w.ok) _ownKey = null; }).catch(() => { _ownKey = null; }); }
   if (!room) return;
-  const rk = room.id + '|' + ok;
-  if (_roomUidKey !== rk) { _roomUidKey = rk; fbSet(`${RP()}/uids/${uid}`, account.puuid).then(w => { if (!w || !w.ok) _roomUidKey = null; }).catch(() => { _roomUidKey = null; }); }
+  const ru = uidFor(RP()); if (!ru) return;
+  const rk = room.id + '|' + account.puuid + '|' + ru;
+  if (_roomUidKey !== rk) { _roomUidKey = rk; fbSet(`${RP()}/uids/${ru}`, account.puuid).then(w => { if (!w || !w.ok) _roomUidKey = null; }).catch(() => { _roomUidKey = null; }); }
   dcRoomCopy();
 }
 function dcRoomCopy() {
@@ -1867,8 +1923,8 @@ ipcMain.handle('report-send', async (_e, o) => {
   const why = REPORT_WHY.includes(o && o.why) ? o.why : Object.values(lines).some(l => /●/.test(l.text)) ? '욕설·비하' : '기타';   // 가려진 말이 있으면 욕설
   const rep = { at: now, by: account.puuid, byName: String(account.gameName || '').slice(0, 60), target: key, name: String(mm ? mm.name : (o && o.name) || '?').slice(0, 60), room: room.id, roomName: String(room.name || '').slice(0, 40), why, memo, st: 'open' };
   if (Object.keys(lines).length) rep.lines = lines;
-  const tok = await fbToken().catch(() => null);
-  const r = await new Promise(res => { const req = https.request(withAuth(`${FIREBASE_DB}/${CT}/reports.json`, tok), { method: 'POST', headers: { 'Content-Type': 'application/json' } }, x => { x.resume(); x.on('end', () => res(x.statusCode)); }); req.on('error', () => res(0)); req.end(JSON.stringify(rep)); });
+  const tok = await tokFor(`${CT}/reports`).catch(() => null);
+  const r = await new Promise(res => { const req = https.request(withAuth(`${baseFor(`${CT}/reports`)}/${CT}/reports.json`, tok), { method: 'POST', headers: { 'Content-Type': 'application/json' } }, x => { x.resume(); x.on('end', () => res(x.statusCode)); }); req.on('error', () => res(0)); req.end(JSON.stringify(rep)); });
   if (r !== 200) return { ok: false, err: '신고를 보내지 못했어요 · 잠시 뒤 다시 해 주세요' };
   _reportAt = now; _reportedAt.set(key, now);
   console.log('[report] 신고 보냄', why);
@@ -2216,9 +2272,9 @@ async function lobbyReopen() {   // 👑 지금 판을 접고 대기실로(팀�
 // 🛡️ v0.1.97: 새 경기 기록엔 서버 시각 sv — 규칙이 sv 6시간 안에만 투표·팟지 칸 쓰기 허용(지난 경기 결과 못 바꿈 · PC 시계가 틀려도 정확)
 const withSv = rec => Object.assign({}, rec, { sv: { '.sv': 'timestamp' } });
 async function fbPutIfAbsent(pathStr, value) {
-  const tok = await fbToken();
+  const tok = await tokFor(pathStr);
   if (!tok) return { ok: false, err: '인증 실패(네트워크 확인)' };
-  const u = new URL(`${FIREBASE_DB}/${pathStr}.json${authQ(tok)}`);
+  const u = new URL(`${baseFor(pathStr)}/${pathStr}.json${authQ(tok)}`);
   const data = JSON.stringify(value);
   const status = await new Promise(resolve => {
     const req = https.request({ hostname: u.hostname, path: u.pathname + u.search, method: 'PUT',
@@ -2229,7 +2285,7 @@ async function fbPutIfAbsent(pathStr, value) {
   });
   if (status === 200) return { ok: true };
   if (status === 412) return { ok: false, conflict: true };
-  if (status === 401 || status === 403) _fbTok = null;
+  if (status === 401 || status === 403) dropFor(pathStr);
   return { ok: false, err: `쓰기 실패(HTTP ${status})` };
 }
 
@@ -3082,9 +3138,9 @@ const DRAFT_TURN_MS = 30000;
 // ETag 조건부 갱신(읽고→바꾸고→그 사이 아무도 안 바꿨을 때만 저장) — 팀장 픽과 방장 자동 픽이 동시에 들어와도 한 번만 반영
 async function fbCas(pathStr, mutate, tries = 5) {
   for (let i = 0; i < tries; i++) {
-    const tok = await fbToken();
+    const tok = await tokFor(pathStr);
     if (!tok) return { ok: false, err: '인증 실패(네트워크 확인)' };
-    const url = new URL(`${FIREBASE_DB}/${pathStr}.json${authQ(tok)}`);
+    const url = new URL(`${baseFor(pathStr)}/${pathStr}.json${authQ(tok)}`);
     const cur = await new Promise(resolve => {
       const req = https.get({ hostname: url.hostname, path: url.pathname + url.search, headers: { 'X-Firebase-ETag': 'true' } }, res => {
         let d = ''; res.setEncoding('utf8'); res.on('data', c => d += c);
@@ -3105,7 +3161,7 @@ async function fbCas(pathStr, mutate, tries = 5) {
       req.write(body); req.end();
     });
     if (status === 200) return { ok: true, value: m.value, info: m.info };
-    if (status !== 412) { if (status === 401 || status === 403) _fbTok = null; return { ok: false, err: `쓰기 실패(HTTP ${status})` }; }
+    if (status !== 412) { if (status === 401 || status === 403) dropFor(pathStr); return { ok: false, err: `쓰기 실패(HTTP ${status})` }; }
     // 412 = 그 사이 다른 기기가 바꿈 → 최신으로 다시 시도
   }
   return { ok: false, err: '다른 기기와 동시에 바뀌어서 실패했어요 — 다시 눌러주세요' };
@@ -4252,16 +4308,28 @@ async function communityJoin(code) {
     if (!id || typeof id !== 'string') return { ok: false, err: '없는 초대 코드예요' };
     const info = await getJson(`${FIREBASE_DB}/${T}/communities/${id}.json`).catch(() => null);
     if (!info || !info.name) return { ok: false, err: '없는 커뮤니티예요' };
-    next = { id, name: String(info.name).slice(0, 20) };
+    next = { id, name: String(info.name).slice(0, 20) }; const db = cdbOk(info.db); if (db) next.db = db;   // 🏘️ v0.1.259 전용 서버
   }
   config.community = next; config.commAsked = true; saveConfig();
-  const same = (next ? next.id : null) === (community ? community.id : null);
+  const same = (next ? next.id : null) === (community ? community.id : null) && JSON.stringify((next && next.db) || null) === JSON.stringify((community && community.db) || null);
   console.log(`[community] ${next ? next.name + '(' + next.id + ')' : '기본 커뮤니티'}${same ? ' · 그대로' : ' · 다시 켬'}`);
   if (same) { broadcastRooms(); sendHome(); try { broadcastSettings(); } catch (_) {} return { ok: true, community: next, restart: false }; }
   setTimeout(() => { app.relaunch({ args: process.argv.slice(1).filter(a => a !== '--autostart') }); app._quitting = true; app.quit(); }, 1000);
   return { ok: true, community: next, restart: true };
 }
 ipcMain.handle('community-join', (_e, code) => communityJoin(code));
+// 🏘️ v0.1.259 켤 때 내 커뮤니티의 전용 서버 정보가 바뀌었는지(운영자가 전용 서버를 붙이거나 뗌) → 바뀌었으면 저장하고 다시 켬(한 번)
+async function communityRefresh() {
+  if (!community) return;
+  const info = await getJson(`${FIREBASE_DB}/${T}/communities/${community.id}.json`).catch(() => undefined);
+  if (info === undefined || (info && !info.name)) return;   // 못 읽음 = 그대로
+  if (info === null) return;   // 커뮤니티가 없어짐 = 그대로(초대 코드로 다시 고르게 둠)
+  const db = cdbOk(info.db);
+  if (JSON.stringify(db) === JSON.stringify(community.db || null)) return;
+  config.community = Object.assign({ id: community.id, name: String(info.name).slice(0, 20) }, db ? { db } : {}); saveConfig();
+  console.log('[community] 전용 서버', db ? db.proj : '없음', '→ 다시 켬');
+  app.relaunch({ args: process.argv.slice(1).filter(a => a !== '--autostart') }); app._quitting = true; app.quit();
+}
 ipcMain.handle('pub-set', (_e, on) => pubSet(!!on));   // 🔒 v0.1.253 기록 공개 동의/철회
 ipcMain.handle('privacy-wipe', async () => {
   if (!account) return { ok: false, err: '롤에 로그인한 뒤에 지울 수 있어요(어느 계정인지 알아야 해서)' };
@@ -4487,6 +4555,7 @@ else {
     config = loadConfig();
     if (config.commAsked == null) { config.commAsked = !!(config.deviceId || config.tutorialSeen); }   // 🏘️ 이미 쓰던 사람 = 기본 커뮤니티 그대로(묻지 않음) · 새로 설치 = 방 목록에서 한 번 물음
     setCommunity(config.community);
+    setTimeout(() => communityRefresh().catch(() => {}), 2500);
     // 🧪 개발용: TN_HIDDEN=1 → 창을 화면에 한 번도 안 띄우고 테스트(CDP로만 조작 · 배포본에선 무시)
     if (!app.isPackaged && process.env.TN_HIDDEN) app.on('browser-window-created', (_e, w) => {
       w.show = w.showInactive = w.focus = w.moveTop = () => {};
@@ -4545,7 +4614,7 @@ else {
     setInterval(() => ratingUpdate(false), 30 * 60e3);
     potg = makePotg({ T, FIREBASE_DB, fbSet, fbDelete, getJson, getToken: fbToken, dayKey, normName, userData: app.getPath('userData'), getPlayers: () => latestPlayers, log: (m) => { try { console.log(m); } catch (_) {} } });
     setTimeout(() => { if (_live) potg.cleanup().catch(() => {}); }, 8000); setInterval(() => { if (_live) potg.cleanup().catch(() => {}); }, 30 * 60 * 1000);   // 🎬 3일 지난 영상·수집 지우기
-    bridge.start({ getToken: fbToken, getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, onLobbySeat, onChampSelect, onNormal: (e) => recordNormal(e).catch(err => console.log('[normal] 오류', err && err.message)), fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
+    bridge.start({ getToken: fbToken, route: p => onC(p) ? { base: CDB.url, tok: () => cAuth.token() } : null, getOperatorName: () => config.myName || null, isHost: () => !!config.isHost, appVer: app.getVersion(), onAccount: setAccount, onEog: onBridgeEog, onLobbySeat, onChampSelect, onNormal: (e) => recordNormal(e).catch(err => console.log('[normal] 오류', err && err.message)), fakeLcu: (!app.isPackaged && process.env.TN_FAKE_LCU) || null, log: (m) => { try { console.log(m); } catch (_) {} } });
     // 🧪 개발용: 롤 없이 테스트 — TN_FAKE_ACCOUNT="이름#태그" (배포본에선 안 씀) · TN_FAKE_DELAY=ms(기본 1500 · 50이면 창 로딩 도중 계정이 잡히는 경우 재현)
     if (!app.isPackaged && process.env.TN_FAKE_ACCOUNT) { const [g, t] = process.env.TN_FAKE_ACCOUNT.split('#'); setTimeout(() => setAccount({ puuid: 'fake-' + g, gameName: g, tagLine: t || 'KR1', iconId: 29 }), +(process.env.TN_FAKE_DELAY || 1500)); }
   });

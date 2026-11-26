@@ -247,12 +247,24 @@ let ME = null, S = {};   // S = 받은 자료
 let CT = 'today', COMM = null, COMMS = {};
 const CQ = (new URLSearchParams(location.search).get('c') || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 24) || null;
 const ADM = () => COMM ? `${CT}/admins` : 'today/admins';
-function setComm(id) { COMM = id || null; CT = COMM ? `today/c/${COMM}` : 'today'; const sel = $('comm'); if (sel) sel.value = COMM || ''; document.title = `운영 보드${COMM ? ' · ' + ((COMMS[COMM] || {}).name || COMM) : ''}`; }
+// 🏘️ v0.1.259 커뮤니티 전용 서버 — today/communities/{id}.db = {url, key, proj}면 그 커뮤니티 칸(CT 아래)·자리(today/conns·config/connCap)는 그 서버
+//   그 서버 로그인은 따로(같은 구글 계정이어도 서버마다 운영자 번호가 다름) · 운영자 = 그 서버의 today/admins/{번호}(전체) 또는 today/c/{id}/admins/{번호}
+let CDB = null, CAUTH = null; const CAPPS = {};
+const cdbOf = id => { const d = id && COMMS[id] && COMMS[id].db; return d && d.url && d.key && d.proj ? d : null; };
+const onC = p => !!CDB && (p === CT || p.startsWith(CT + '/') || p === 'today/conns' || p.startsWith('today/conns/') || p === 'today/config/connCap');
+function useCdb(d) {
+  CDB = d || null; CAUTH = null; if (!CDB) return;
+  if (!CAPPS[CDB.proj]) CAPPS[CDB.proj] = initializeApp({ apiKey: CDB.key, authDomain: CDB.proj + '.firebaseapp.com', projectId: CDB.proj }, 'c_' + CDB.proj);
+  CAUTH = getAuth(CAPPS[CDB.proj]);
+}
+function setComm(id) { COMM = id || null; CT = COMM ? `today/c/${COMM}` : 'today'; useCdb(cdbOf(COMM)); const sel = $('comm'); if (sel) sel.value = COMM || ''; document.title = `운영 보드${COMM ? ' · ' + ((COMMS[COMM] || {}).name || COMM) : ''}`; }
 
 // ── 서버 읽기·쓰기(운영자 표식) ──
-async function api(method, path, body) {
-  const tok = await auth.currentUser.getIdToken();
-  const r = await fetch(`${DB}/${path}.json?auth=${tok}`, { method, body: body === undefined ? undefined : JSON.stringify(body) });
+async function api(method, path, body, q) {
+  const c = onC(path), a = c ? CAUTH : auth;   // 🏘️ 전용 서버 칸이면 그 서버 · 그 서버 표식
+  if (!a || !a.currentUser) throw new Error(c ? '커뮤니티 서버에 로그인해 주세요' : '로그인해 주세요');
+  const tok = await a.currentUser.getIdToken();
+  const r = await fetch(`${c ? CDB.url : DB}/${path}.json?auth=${tok}${q ? '&' + q : ''}`, { method, body: body === undefined ? undefined : JSON.stringify(body) });
   const j = await r.json().catch(() => null);
   if (!r.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
   return j;
@@ -270,16 +282,22 @@ const vcmp = (a, b) => { const x = String(a).split('.').map(Number), y = String(
 
 // ── 로그인 ──
 $('login').onclick = () => signInWithPopup(auth, new GoogleAuthProvider()).catch(e => toast('로그인 실패 · ' + (e.code || e.message), true));
-onAuthStateChanged(auth, async u => {
+onAuthStateChanged(auth, u => onAuthUser(u));
+async function onAuthUser(u) {
   if (!u) { gate('운영자로 등록된 구글 계정으로 들어갑니다', true); $('who').innerHTML = ''; return; }
   $('who').innerHTML = `<span>${esc(u.displayName || u.email || '')}</span><button class="btn sm" id="out">로그아웃</button>`;
   $('out').onclick = () => signOut(auth);
   let a = null, ca = null; try { a = await get(`today/admins/${u.uid}`); } catch (_) {}
-  if (!a && CQ) try { ca = await get(`today/c/${CQ}/admins/${u.uid}`); } catch (_) {}   // 🏘️ 커뮤니티 운영자
+  if (!a && CQ) {   // 🏘️ 커뮤니티 운영자
+    const ci = await get(`today/communities/${CQ}`).catch(() => null);
+    if (ci && ci.db) { COMMS = { [CQ]: ci }; CT = `today/c/${CQ}`; COMM = CQ; useCdb(cdbOf(CQ)); await CAUTH.authStateReady(); if (!CAUTH.currentUser) { cGate(ci.name || CQ, () => onAuthUser(u)); return; } }
+    try { ca = await get(`today/c/${CQ}/admins/${CDB ? CAUTH.currentUser.uid : u.uid}`); } catch (_) {}
+  }
   if (!a && !ca) {
     gate('');
-    $('gate').innerHTML = `<div class="en">NOT AN OPERATOR</div><h1>운영자로 등록되지 않은 계정입니다</h1><p>아래 운영자 번호를 관리자에게 전달하면 등록해 줍니다</p><div class="uid">${esc(u.uid)}</div><button class="btn" id="cp">번호 복사</button>`;
-    $('cp').onclick = () => navigator.clipboard.writeText(u.uid).then(() => toast('복사했습니다'));
+    const nu = CDB && CAUTH && CAUTH.currentUser ? CAUTH.currentUser.uid : u.uid;   // 🏘️ 전용 서버 = 그 서버 번호
+    $('gate').innerHTML = `<div class="en">NOT AN OPERATOR</div><h1>운영자로 등록되지 않은 계정입니다</h1><p>아래 운영자 번호를 관리자에게 전달하면 등록해 줍니다</p><div class="uid">${esc(nu)}</div><button class="btn" id="cp">번호 복사</button>`;
+    $('cp').onclick = () => navigator.clipboard.writeText(nu).then(() => toast('복사했습니다'));
     return;
   }
   ME = { uid: u.uid, name: (a || ca).name || u.displayName || '운영자', owner: !!(a && a.owner === true), global: !!a };
@@ -289,7 +307,13 @@ onAuthStateChanged(auth, async u => {
   setComm(ME.global ? (CQ && COMMS[CQ] ? CQ : null) : CQ);
   $('gate').classList.add('hide'); $('app').classList.remove('hide'); $('tabs').classList.remove('hide');
   load();
-});
+}
+// 🏘️ 전용 서버 로그인 화면(그 서버에 구글로 한 번 더 · 다음부터는 이 브라우저가 기억)
+function cGate(name, then) {
+  $('app').classList.add('hide'); $('tabs').classList.add('hide'); $('gate').classList.remove('hide');
+  $('gate').innerHTML = `<div class="en">COMMUNITY SERVER</div><h1>${esc(name)} 전용 서버</h1><p>이 커뮤니티는 따로 쓰는 서버가 있습니다 · 그 서버에도 같은 구글 계정으로 한 번 로그인합니다</p><button class="btn gold" id="clogin">${esc(name)} 서버에 Google로 로그인</button>`;
+  $('clogin').onclick = () => signInWithPopup(CAUTH, new GoogleAuthProvider()).then(() => then()).catch(e => toast('로그인 실패 · ' + (e.code || e.message), true));
+}
 function gate(msg, showBtn) {
   $('app').classList.add('hide'); $('tabs').classList.add('hide'); $('gate').classList.remove('hide');
   if (!showBtn) return;
@@ -303,6 +327,14 @@ $('tabs').onclick = e => { const b = e.target.closest('button[data-t]'); if (!b)
 
 // ── 자료 받기 ──
 async function load() {
+  if (CDB) {   // 🏘️ 전용 서버 = 그 서버 로그인 · 그 서버 운영자인지
+    await CAUTH.authStateReady();
+    if (!CAUTH.currentUser) { cGate((COMMS[COMM] || {}).name || COMM, () => { $('gate').classList.add('hide'); $('app').classList.remove('hide'); $('tabs').classList.remove('hide'); load(); }); return; }
+    const cu = CAUTH.currentUser.uid; let ok = null;
+    try { ok = (await api('GET', `${CT}/admins/${cu}`)); } catch (_) {}
+    if (!ok) try { const r = await fetch(`${CDB.url}/today/admins/${cu}.json?auth=${await CAUTH.currentUser.getIdToken()}`); ok = r.ok ? await r.json() : null; } catch (_) {}
+    if (!ok) { $('loaded').innerHTML = `이 커뮤니티 서버의 운영자로 등록되지 않았습니다 · 운영자 번호(이 서버) <b>${esc(cu)}</b>를 관리자에게 전달해 주세요`; return; }
+  }
   $('loaded').textContent = '불러오는 중…';
   try {
     const [presence, accounts, roomList, rooms, bans, modlog, reports, warns, mutes, notice, conns, connCap, admins] = await Promise.all([`${CT}/presence`, 'today/accounts', `${CT}/roomList`, `${CT}/rooms`, `${CT}/bans`, `${CT}/modlog`, `${CT}/reports`, `${CT}/warns`, `${CT}/mutes`, `${CT}/notice`, 'today/conns', 'today/config/connCap', ADM()].map(p => get(p).catch(() => null)));
@@ -318,8 +350,7 @@ async function load() {
 $('reload2').onclick = load;
 async function loadDays() {   // 최근 14일 판 수(내전·일반) — 날짜 칸마다 얕게 읽어 셈
   const keys = []; for (let i = 13; i >= 0; i--) keys.push(dayKey(Date.now() - i * 86400e3));
-  const tok = await auth.currentUser.getIdToken();
-  const cnt = async (d, k) => { const r = await fetch(`${DB}/today/days/${d}/${k}.json?shallow=true&auth=${tok}`); const j = await r.json().catch(() => null); return j && !j.error ? Object.keys(j).length : 0; };
+  const cnt = async (d, k) => { const j = await api('GET', `${CT}/days/${d}/${k}`, undefined, 'shallow=true').catch(() => null); return j && !j.error ? Object.keys(j).length : 0; };
   S.days = await Promise.all(keys.map(async d => ({ d, m: await cnt(d, 'matches'), n: await cnt(d, 'normals') })));
   renderDays(); renderKpis();
 }
@@ -612,7 +643,7 @@ async function renderComms() {
   let codes = {}; try { codes = (await get('today/communityCodes')) || {}; } catch (_) {}
   const byId = {}; for (const [c, id] of Object.entries(codes)) (byId[id] = byId[id] || []).push(c);
   const link = id => `${location.origin}${location.pathname}?c=${encodeURIComponent(id)}`;
-  $('cms').innerHTML = Object.entries(COMMS).map(([id, c]) => `<tr><td><b>${esc((c && c.name) || id)}</b> <span class="mute">${esc(id)}</span></td><td>${(byId[id] || []).map(x => `<span class="tag gold">${esc(x)}</span>`).join(' ') || '<span class="mute">코드 없음</span>'}</td><td><button class="btn sm" data-cmlink="${esc(id)}">운영자 링크 복사</button> <button class="btn sm" data-cmcode="${esc(id)}">코드 새로</button></td></tr>`).join('') || '<tr><td class="mute">아직 없음 · 기본 커뮤니티만 있음</td></tr>';
+  $('cms').innerHTML = Object.entries(COMMS).map(([id, c]) => `<tr><td><b>${esc((c && c.name) || id)}</b> <span class="mute">${esc(id)}</span>${c && c.db ? ` <span class="tag">전용 서버 ${esc(c.db.proj)}</span>` : ''}</td><td>${(byId[id] || []).map(x => `<span class="tag gold">${esc(x)}</span>`).join(' ') || '<span class="mute">코드 없음</span>'}</td><td><button class="btn sm" data-cmlink="${esc(id)}">운영자 링크 복사</button> <button class="btn sm" data-cmcode="${esc(id)}">코드 새로</button></td></tr>`).join('') || '<tr><td class="mute">아직 없음 · 기본 커뮤니티만 있음</td></tr>';
   $('cm-add').innerHTML = `<div class="row" style="margin-top:12px"><input class="in" id="cm-nm" maxlength="20" placeholder="커뮤니티 이름(앱에 보임 · 예: 큐)" style="flex:1;min-width:0"><input class="in" id="cm-id" maxlength="24" placeholder="영문 이름표(예: que)" style="width:150px"><button class="btn gold" id="cm-go">만들기</button></div>`;
   const newCode = () => { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let x = ''; const r = crypto.getRandomValues(new Uint8Array(6)); for (const v of r) x += A[v % A.length]; return x; };
   const addCode = async id => { const code = newCode(); await api('PUT', `today/communityCodes/${code}`, id); await logIt({ act: 'commcode', target: id, reason: code }); return code; };
