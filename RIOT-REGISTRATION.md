@@ -10,7 +10,29 @@
 | 라이엇 연결 | 웹 API(account-v1·spectator·match-v5) + API 키 | **각자 PC의 롤 클라이언트(LCU)·게임 중 정보(2999)·리플레이** · API 키 안 씀 |
 | 범위 | 우리끼리 | 「큐」 커뮤니티 공개 사용 → 나중에 유료(구독) |
 
-라이엇 문서에서 확인한 것(2026-11-26):
+## 📅 최신 규정 확인 (2026-11-26 · 원문을 그날 다시 읽음 — ⚠️ 신청서를 내기 직전·기능을 바꿀 때마다 다시 확인할 것 · 사장님: 예전 규정에 맞추면 절대 안 됨)
+| 페이지 | 표시된 날짜 |
+|---|---|
+| https://developer.riotgames.com/policies/general (일반 정책) | **LAST UPDATED: MAY 29, 2025** (예전 메모의 2025-03-11은 옛 판) |
+| https://developer.riotgames.com/policies/game-specific (게임별 정책 목록) | LAST UPDATED: AUGUST 21, 2026 · 링크만 있음 → 롤 = /docs/lol#game-policy |
+| https://developer.riotgames.com/docs/lol (롤 Game Policy · LCU · Replay API · RSO) | 날짜 표시 없음 · 2026-11-26 원문 기준 |
+| https://developer.riotgames.com/terms (API 약관) | LAST UPDATED: DECEMBER 9, 2013 · /policies/terms는 404 |
+
+최신 원문과 우리 상태 대조:
+- 증강 승률 = 「Products cannot display win rates for Augments or Arena Mode items. This applies to all websites, applications and overlays.」 → ✅ v0.1.248 뺌 · 아수라장(Mayhem) 이름은 어디에도 없음(증강이라 같은 규칙으로 봄)
+- 공식 랭크 대체·MMR/ELO 계산기 금지 → ✅ v0.1.255 「내전 등급」 D~SSS
+- 숨긴 플레이어 = 롤: 「cannot identify or analyze players who are deliberately hidden by the game」 · 일반(2025-05-29): 「cannot de-anonymize players who cannot reasonably be identified from visible information」 → ✅ v0.1.254
+- 커스텀 전적 = 「may not publicly display a player's match history from the custom match queue unless the player opts in」 · 아니면 RSO로 본인에게만 → ✅ v0.1.253 동의(옵트인) · 같은 판 사람끼리 보는 판 화면은 공개 표시가 아니라고 봄
+- LCU = 「not officially supported for use with third party applications」 · 「We need to know which endpoints you're using and how you're using them」 · LCU를 쓰면 등록 필수 → 신청서 「APIs used」 목록 · 클라 자동 조작(방 만들기·초대·수락·자리·큐)은 롤 문서에 따로 금지 문구 없음 → 질문으로 적음
+- 리플레이 API = 공식 문서에 켜는 법(game.cfg EnableReplayApi=1)·녹화(/replay/recording)가 있음 · 녹화를 막는 문구 없음
+- 자료 = Data Dragon·프레스 킷·게임별 정적 자료만 허용 목록 · 「cannot closely resemble Riot's games or products in style or function」 → ✅ v0.1.255·256(게임 파일 그림·소리 지움 · 손그림)
+- 다른 자료 = 일반(2025-05-29) 「Products should use supported services from Riot Games for data ingestion」 · 롤 「No apps serving as a "data broker"」 → ✅ v0.1.260·261 aramgg·커뮤니티 가이드 글 뺌
+- RSO = Production 키만 · 계정 주인 확인 = /riot/account/v1/accounts/me · LCU 증표로 확인하는 건 언급 없음 → 질문(④)
+- 돈 = 무료 범위 필수 · 상태 Approved 또는 Acknowledged · 유료면 「transformative」 · 구독·후원·크라우드펀딩·참가비·현금 안 되는 화폐 · 도박 금지 · 광고 = 게임 안·로딩·라이엇 클라 금지 · **대회(일반 정책) = 참가비의 70% 이상 상금 · 참가자 20명 이상 · 도박 없음**(리그 계획 때 다시 확인)
+- 등록 = 모든 제품 등록·심사 · 「If your product serves players, you must register it」 · Personal = 작은 개인 프로젝트 · Production = 큰 공개 프로젝트 · 승인 전 공개 사용(오픈 베타) 문구는 이번 원문에서 못 찾음 → 큐 시범은 등록 신청 뒤에
+- 고지문 = 일반 정책 최신 문구와 우리 문구(홈페이지 꼬리·앱 ⚙)가 같음 · 「readily visible to players」
+
+라이엇 문서에서 확인한 것(2026-11-26 · 첫 정리):
 - LCU를 쓰는 제품 = **개발자 포털에 등록** · 「어떤 주소를 어떻게 쓰는지 알려 달라」(docs/lol · League Client API)
 - 모든 제품 = 포털에서 **등록 + 심사** · 새 기능도 심사(일반 정책) · 개인용(Personal)으로는 **공개 사용 금지(오픈 베타 포함)**
 - 유료 = 상태 **Approved 또는 Acknowledged** · **무료 범위 필수** · 돈 받는 콘텐츠는 원작에 새 가치를 더한 것(transformative) · 도박·암호화폐 금지 · 롤 게임 안·로딩·라이엇 클라 광고 금지
@@ -31,7 +53,7 @@
 - [x] ③ **이름 숨긴 사람 찾아내기**(v0.1.122 팟지 기록 바로잡기 · 「cannot identify or analyze players who are deliberately hidden」) → v0.1.254: 우리 앱에 들어온 사람만 바로잡고, 모르는 사람은 챔피언 이름 그대로
 - [x] ⑧ **게임 파일에서 꺼낸 자료**(핑 그림·핑 소리·감정표현·랭크 문장) → v0.1.255 랭크 문장 지움 · v0.1.256 핑 그림·소리·감정표현 지움 = 직접 그린 스케치 그림 + Kenney CC0 소리 · 꺼내던 도구(lol-wad·lol-bnk-pings·emote-img·rank-emblems)도 지움 · ℹ️ 남은 라이엇 그림 = 챔피언·스킨·아이템·증강 아이콘(Data Dragon·CommunityDragon = 허용 범위로 봄)
 - [x] ⑨ **롤 화면과 너무 닮은 디자인**(핑 바퀴 · 「cannot closely resemble Riot's games or products」) → v0.1.256 손그림 바퀴 + 대기실용 뜻(준비 완료·가자!·좋아요·ㅋㅋ·잠깐만·미안·?·고마워 · 롤 핑 뜻 안 씀)
-- [ ] ⑦ **롤 클라 조작**(방 만들기·초대·자동 수락·자리 이동·내보내기·큐 시작·리플레이 열기·game.cfg·리플레이 창 숨기기·Alt+클릭 핑용 마우스 훅) → 신청서에 목록으로 적고 허용되는지 질문
+- [x] ⑦ **롤 클라 조작**(방 만들기·초대·자동 수락·자리 이동·내보내기·큐 시작·리플레이 열기·game.cfg·리플레이 창 숨기기·Alt+클릭 핑용 마우스 훅) → LCU 동작은 신청서 「APIs used」 목록 + 질문 · 2026-11-26 사장님: **롤 화면 위 핑(마우스 훅)은 우리 프로그램 자체 기능이라 그대로 · 따로 적지 않음**(Claude 의견 = 공개 리포라 심사자가 볼 수 있어 한 줄 적는 쪽을 권했음 · 결정은 사장님)
 - [x] ④ **롤 로그인 증표를 우리 중계로 보냄**(LCU `/entitlements/v1/token` → Cloudflare에서 서명만 확인 · 저장 안 함) → 2026-11-26 사장님: **그대로 + 신청서 질문**(아래 「Questions for Riot」 둘째 · 승인 뒤 RSO로 옮길 수 있다고 적음) · v0.1.259부터 커뮤니티 전용 서버(Firebase 프로젝트)마다 같은 방식
 - [x] ⑤ aramgg 자료(패치 노트·증강 설명·꿀팁) → 2026-11-26 사장님: **빼기** → v0.1.260: 패치 노트 탭 없앰(홈 「패치 노트」 칸 = 라이엇 공식 패치 노트 사이트 열기) · 증강 설명 글 없앰(뽑아 보기 카드 = 라이엇 게임 자료의 증강 분류) · 챔피언 꿀팁 없앰 · 매일 받던 GitHub 작업·도구·홈페이지 자료(docs/data/aramgg·tips.json) 지움 · 뽑아 보기 증강 목록 = 우리 파일 docs/data/augpool.json(번호만) + 우리 기록 · ℹ️ 남은 것 = 「운명의 무기」 첫 템 한 줄(출처 표시 「칼바람 갤러리 가이드 · aramgg 가이드」 · 사장님 확인 대기)
 - [x] ⑥ Suno 음악 → 2026-11-26 사장님 확인: **만들 때 유료 플랜**(상업 이용 가능)

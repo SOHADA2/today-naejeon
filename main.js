@@ -3430,60 +3430,7 @@ function cleanGuideEntry(c) {   // 저장 전에 모양·길이 정리(누가 �
 }
 // 우리 기록 = 지금까지 내전·같이 한 일반 판에서 그 챔피언으로 그 증강을 고른 판 수·승 (프로필과 같은 30초 캐시)
 let _augRec = null, _augRecAt = 0;
-// 🗡️ v0.1.141 「운명의 무기」(3081 · 첫 전설 템이 처치 관여마다 200골드어치 성장 · 팔 수 없음)가 뜨면 첫 템 추천(사장님: 실제 유저 추천 기준)
-//   근거(2026-11-07 조사): 칼바람 나락 갤러리 「운명의 무기 아이템 선택 가이드」(11/2 · 26.22 관통 너프 반영) · aramgg 「Weapon of Destiny first item」 가이드 ·
-//   arammayhem 증강·조합 자료(케이틀린 「첫 전설 도미닉」 · 진·유나라 도미닉 · 파이크 관통) · 탱커·서포터는 정리된 추천 없음(가이드 작성자도 「잘 모르겠음」)
-//   챔피언 유형 = Data Dragon 태그·공격/마법 수치(champMeta) — 탱커 먼저 → AP(마법 > 공격) → 치명타(원딜·야스오 계열) → 암살자 → 브루저
-const DESTINY_ID = 3081;
-const DESTINY = {
-  lethal: { label: 'AD 암살자', items: [6695, 3036], line: '첫 템 독사의 송곳니 → 2코어 도미닉 경의 인사', src: '칼바람 갤러리 가이드 · aramgg 가이드' },
-  crit: { label: 'AD 원딜', items: [3036], line: '첫 전설은 도미닉 경의 인사로 고정', src: 'arammayhem 조합(케이틀린·진·유나라)' },
-  mage: { label: 'AP', items: [4645, 3135], line: '첫 템 그림자불꽃(+마법사의 신발) · 상대 마법 저항력이 높으면 공허의 지팡이', src: '칼바람 갤러리 가이드 · aramgg 가이드' },
-  bruiser: { label: '브루저', items: [], line: '정리된 추천은 적어요 · 히드라가 좋았다는 유저 평', src: '칼바람 갤러리' },
-  tank: { label: '탱커·서포터', items: [], line: '유저 추천 정리가 아직 없어요 · 원래 가던 첫 템으로', src: '' },
-};
-const ITEM_SHORT = { '독사의 송곳니': '독사', '도미닉 경의 인사': '도미닉', '공허의 지팡이': '공허', '라바돈의 죽음모자': '라바돈', '몰락한 왕의 검': '몰왕', '무한의 대검': '무대', '리안드리의 고통': '리안드리', '어둠불꽃 횃불': '횃불', '내셔의 이빨': '내셔', '발걸음 분쇄기': '분쇄기', '쇼진의 창': '쇼진', '징수의 총': '징수', '고속 연사포': '고연포', '정령의 형상': '정령', '지배자의 피갑옷': '피갑옷', '가시 갑옷': '가시', '제국의 명령': '제국', '크라켄 학살자': '크라켄', '불멸의 철갑궁': '철갑궁', '원칙의 원형낫': '원형낫', '스태틱의 단검': '스태틱', '황혼과 새벽': '황혼새벽', '영겁의 지팡이': '영겁', '그림자불꽃': '그림자불꽃' };   // 배지 칸이 좁아 유저들이 부르는 짧은 이름(v0.1.142~ · 이름으로 찾음)
-const shortOf = it => (it && ITEM_SHORT[it.name]) || null;
-const CRIT_FIGHTERS = new Set([157, 777, 23]);   // 야스오·요네·트린다미어 = 치명타
-// 태그·수치로 어긋나는 챔피언(2026-11-07 전체 확인): 키아나 = AD 암살자 · 벨베스 = 브루저 · 세라핀·벡스 = AP · 피오라·이렐리아·카밀·바이·비에고·암베사·브라이어 = 브루저 · 마스터 이 = 치명타
-const DESTINY_FIX = { 246: 'lethal', 200: 'bruiser', 147: 'mage', 711: 'mage', 114: 'bruiser', 39: 'bruiser', 164: 'bruiser', 254: 'bruiser', 234: 'bruiser', 799: 'bruiser', 233: 'bruiser', 11: 'crit' };
-let _cmeta = null, _cmetaAt = 0, _ditems = null, _ditemsAt = 0;
-async function champMeta() {   // 챔피언 번호 → {tags, info}(Data Dragon · 12시간)
-  if (_cmeta && Date.now() - _cmetaAt < 12 * 3600e3) return _cmeta;
-  try {
-    const v = ((await getJson('https://ddragon.leagueoflegends.com/api/versions.json')) || [])[0];
-    const d = v ? await getJson(`https://ddragon.leagueoflegends.com/cdn/${v}/data/en_US/champion.json`) : null, m = {};
-    for (const c of Object.values((d && d.data) || {})) m[Number(c.key)] = { tags: c.tags || [], info: c.info || {} };
-    if (Object.keys(m).length) { _cmeta = m; _cmetaAt = Date.now(); }
-  } catch (_) {}
-  return _cmeta || {};
-}
-async function destinyItems() {   // 아이템 번호 → {name, icon}(CommunityDragon 한국어 · 12시간)
-  if (_ditems && Date.now() - _ditemsAt < 12 * 3600e3) return _ditems;
-  try {
-    const list = await getJson('https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1/items.json'), m = {};
-    for (const i of Array.isArray(list) ? list : []) if (i && i.id < 10000) m[i.id] = { name: i.name || '', icon: i.iconPath ? 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/' + i.iconPath.replace('/lol-game-data/assets/', '').toLowerCase() : '' };
-    if (Object.keys(m).length) { _ditems = m; _ditemsAt = Date.now(); }
-  } catch (_) {}
-  return _ditems || {};
-}
-function destinyKind(id, meta) {
-  if (DESTINY_FIX[Number(id)]) return DESTINY_FIX[Number(id)];
-  const c = meta[Number(id)]; if (!c) return null;
-  const t = c.tags, i = c.info, ap = (i.magic || 0) > (i.attack || 0);
-  if (t[0] === 'Tank' || (t[0] === 'Support' && ap)) return 'tank';
-  if (ap) return 'mage';
-  if (t.includes('Marksman') || CRIT_FIGHTERS.has(Number(id))) return 'crit';
-  if (t.includes('Assassin')) return 'lethal';
-  return 'bruiser';
-}
-async function destinyTip(champId) {   // → {kind, label, items:[{id,name,icon}], line, src} · 모르면 null
-  if (!(champId > 0)) return null;
-  const [meta, items] = await Promise.all([champMeta(), destinyItems()]);
-  const k = destinyKind(champId, meta); if (!k) return null;
-  const D = DESTINY[k];
-  return { kind: k, label: D.label, line: D.line, src: D.src, items: D.items.map(id => Object.assign({ id, short: shortOf(items[id]) }, items[id] || { name: '#' + id, icon: '' })) };
-}
+// ⚖️ v0.1.260 「운명의 무기」 첫 템 안내(v0.1.141 · 커뮤니티 가이드 정리)도 뺌(사장님 · 남의 가이드 글)
 const isTrait = id => !!(_aug && _aug[id] && _aug[id].trait);   // 🎸 헤드라이너 특성(증강 아님)
 let _augPairs = {};   // 🧩 v0.1.140 챔피언 → {'a,b': {g, w}} = 이 챔피언으로 두 증강을 같이 고른 판(조합 자료 없는 챔피언용)
 async function augRecords() {
@@ -3514,11 +3461,10 @@ async function augGuideView() {
   if (!champSel || lobbyPhase !== 'ChampSelect') return { active: false };
   const [guide, champs, rec] = await Promise.all([getGuide(), getChamps(), augRecords().catch(() => ({}))]);
   const ids = [...new Set([champSel.mine, ...(champSel.bench || [])].filter(x => x > 0))];
-  const dts = await Promise.all(ids.map(id => destinyTip(id).catch(() => null)));
-  const list = ids.map((id, i) => {
+  const list = ids.map(id => {
     const f = guideFor(id, guide[id]), guideC = f.guide, r = {};
     for (const a of (guideC.plans || []).flatMap(p => p.augs)) { const x = rec[id + ':' + a]; if (x) r[a] = { g: x.g }; }   // 판 수만(승 수 = 승률이라 안 보냄)
-    return { id, name: (champs[id] && champs[id].name) || '', mine: id === champSel.mine, guide: guideC, draft: f.draft, src: f.src, rec: r, destiny: dts[i] };
+    return { id, name: (champs[id] && champs[id].name) || '', mine: id === champSel.mine, guide: guideC, draft: f.draft, src: f.src, rec: r };
   });
   return { active: true, list };
 }
