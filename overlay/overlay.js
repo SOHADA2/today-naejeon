@@ -1208,12 +1208,12 @@ window.api.onUpdate(u => { _upd = u; if (lobbyData) render(); });
 // ── 💬 대기실 채팅(v0.1.202 · 사장님: 말풍선이 창 안에 우겨 넣어져 닉네임을 가림 → 글은 입력 칸 위 줄 · 말풍선 대신 이모티콘이 그 사람 자리에서) ──────────
 //   글 = 아래 고정 구역 입력 칸 바로 위에 「얼굴 · 이름 · 글」로 최근 CHAT_ROWS줄(2분 지나면 사라짐 · 기록은 안 남음) — 자리·닉네임을 덮지 않음
 //   이모티콘 = 입력 칸 위 버튼 줄 → 누르면 그 사람 자리의 얼굴에서 한 번 톡 떴다 사라짐(모두에게) · 그 이모티콘 하나만 글로 써서 보내도 같음(서버엔 글과 같은 칸 · 규칙 그대로)
-//   그림 = 롤 감정표현(v0.1.203 · 사장님: 롤과 관련된 이모티콘) — 앱에 넣어 둔 assets/emote/{번호}.png(tools/emote-img.cjs) · 서버로 보내는 글자는 그대로 그림 글자(👍 …)라
+//   그림 = v0.1.256부터 핑과 같은 스케치 그림(assets/ping/{이름}.png · tools/ping-sketch.cjs · 예전 롤 감정표현 그림은 지움) · 서버로 보내는 글자는 그대로 그림 글자(👍 …)라
 //     옛 앱(v0.1.202 = 그림 글자가 뜸 · v0.1.201 = 말풍선)과도 통하고 규칙도 그대로 · 그림을 못 읽으면 그 글자로
 //   채팅을 접으면(▾) 한 줄만 남음 — 창이 낮고 사람이 많아 자리가 밀릴 때 · 접힌 동안 누가 쓰면 그 줄이 반짝이고 「새 말 n」 · 접힘은 이 PC에 기억
 //   말한 사람 자리는 몇 초 테두리가 밝아짐 · 움직임은 전부 한 번만(무한 애니메이션 없음) · 글은 textContent로만 넣음(태그·스크립트가 와도 글자 그대로)
-const EMO = [['👋', '인사', 1505], ['👍', '좋아요', 1459], ['✅', '준비 완료', 3159], ['⏳', '잠깐만요', 3173], ['😂', 'ㅋㅋ', 3177], ['😭', 'ㅠㅠ', 3155], ['🔥', '가자', 1474], ['❓', '?', 1468]];   // [보내는 글자(옛 윈도우에도 있는 그림 글자만) · 뜻 · 롤 감정표현 번호] — M'Pengu · Nice · Okay · Snoozy Poro · Wahaha · Bee Sad · Let's Do This · Does Not Compute
-const EMO_IMG = Object.fromEntries(EMO.map(e => [e[0], '../assets/emote/' + e[2] + '.png']));
+const EMO = [['👋', '인사', 'hi'], ['👍', '좋아요', 'good'], ['✅', '준비 완료', 'ready'], ['⏳', '잠깐만요', 'wait'], ['😂', 'ㅋㅋ', 'lol'], ['😭', 'ㅠㅠ', 'cry'], ['🔥', '가자', 'go'], ['❓', '?', 'ask']];   // [보내는 글자(옛 윈도우에도 있는 그림 글자만) · 뜻 · 롤 감정표현 번호] — M'Pengu · Nice · Okay · Snoozy Poro · Wahaha · Bee Sad · Let's Do This · Does Not Compute
+const EMO_IMG = Object.fromEntries(EMO.map(e => [e[0], '../assets/ping/' + e[2] + '.png']));   // ✏️ v0.1.256 핑과 같은 스케치 그림(롤 감정표현 그림 안 씀)
 const EMO_SET = new Set(EMO.map(e => e[0]));
 const CHAT_ROWS = 3, CHAT_ROW_MS = 120000, CHAT_TALK_MS = 3500, CHAT_POP_MS = 2200;
 const CHAT = { seen: {}, rows: [], pops: {}, talk: {}, fold: false, unread: 0, room: null };   // seen = 사람 키 → 마지막으로 띄운 {at, text} · rows = 최근 말 줄 · pops = 떠 있는 이모티콘 · talk = 테두리 밝힐 때까지
@@ -1381,23 +1381,23 @@ window.addEventListener('resize', () => { chatPlace(); pingPlace(); });
 if (window.api.onChat) window.api.onChat(chatShow);
 
 // 📍 v0.1.220 대기실 핑 = 롤 핑 그대로(사장님: 내 얼굴이 아니라 마우스로 찍은 곳에 · 롤처럼 도배 제한 · 생김새도 최대한 롤처럼)
-//   바퀴 = 롤 스마트 핑 8방향 + 가운데(2023~ 롤과 같은 자리): 위 후퇴 · 오른쪽 위 밀어붙이기 · 오른쪽 가는 중 · 오른쪽 아래 올인 · 아래 도움 요청 · 왼쪽 아래 시야 필요 · 왼쪽 적 실종(?) · 왼쪽 위 적 시야 · 끌지 않으면 기본 핑
-//   그림·색 = 롤 게임 안 핑 아이콘 그대로(v0.1.222 · CommunityDragon game/assets/ux/lol/offscreenping_atlas.png 64px 칸 · assets/ping · 가운데 = 인게임과 같은 노란 「주의」 ⊖)
+//   ✏️ v0.1.256(사장님: 스케치 느낌으로 귀엽게 · 대기실용 뜻으로) — 롤 핑 그림·소리·뜻 안 씀 · 그림 = tools/ping-sketch.cjs가 그린 분필 스케치 PNG(assets/ping) · 소리 = Kenney CC0(tools/ping-sfx.py)
+//   바퀴 = 가운데 여기 봐요 + 위에서 시계 방향 준비 완료 · 가자! · 좋아요 · ㅋㅋ · 잠깐만 · 미안 · ? · 고마워 · 판 = 손그림 원(assets/ping/wheel.png)
 //   찍는 곳 = 마우스 자리 → 다른 PC 창 크기가 달라도 같은 곳에 뜨게 「무엇 위에 찍었는지」로 보냄: 자리 칸(s · 몇 번째 칸 + 칸 안 비율) · 관전 칩(c · 사람 + 비율) · 그 밖(v · 대기실 창 비율)
 //   모양 = 찍은 곳에 핑 그림이 위에서 떨어져 박히고 바닥에 물결(타원) 두 번 + 아래 작게 보낸 사람 · 2.6초 · 여러 개 동시에 · 무한 애니메이션 없음
 //   도배 제한(롤과 비슷하게) = 같은 핑 6초에 3번 · 모든 핑 5초에 6번 넘으면 10초 못 찍음 → main ping-send가 막고 남은 초를 알려 줌
 const PING = {
-  look: { t: '신호', c: '#22a7f0', img: 'ping' },
-  retreat: { t: '후퇴', c: '#e8344a', img: 'retreat' },
-  push: { t: '밀어붙이기', c: '#20c97a', img: 'push' },
-  omw: { t: '가는 중', c: '#22a7f0', img: 'omw' },
-  allin: { t: '올인', c: '#f5b400', img: 'all_in' },
-  assist: { t: '도움 요청', c: '#20c97a', img: 'assist' },
-  vision: { t: '시야 필요', c: '#20c97a', img: 'vision' },
-  missing: { t: '적 실종', c: '#f5b400', img: 'missing' },
-  enemy: { t: '적 시야', c: '#e8344a', img: 'enemy' },
+  look: { t: '여기 봐요', c: '#7cc6ff', img: 'look' },
+  ready: { t: '준비 완료', c: '#7be0b0', img: 'ready' },
+  go: { t: '가자!', c: '#ff9f5a', img: 'go' },
+  good: { t: '좋아요', c: '#a7e36b', img: 'good' },
+  lol: { t: 'ㅋㅋ', c: '#ffd56b', img: 'lol' },
+  wait: { t: '잠깐만', c: '#b9a4ff', img: 'wait' },
+  sorry: { t: '미안', c: '#9fd8ff', img: 'sorry' },
+  ask: { t: '?', c: '#ffc24d', img: 'ask' },
+  thanks: { t: '고마워', c: '#ff9ccc', img: 'thanks' },
 };
-const PING_DIR = ['retreat', 'push', 'omw', 'allin', 'assist', 'vision', 'missing', 'enemy'];   // 위에서 시계 방향 45°씩
+const PING_DIR = ['ready', 'go', 'good', 'lol', 'wait', 'sorry', 'ask', 'thanks'];   // 위에서 시계 방향 45°씩
 const PING_MS = 2600, PW_R = 68;
 const pingImg = k => `../assets/ping/${(PING[k] || PING.look).img}.png`;
 const PINGS = [];   // 떠 있는 핑 {el, a, until}
@@ -1430,7 +1430,7 @@ function pingPlace() {
     if (pt) { p.el.style.left = pt.x + 'px'; p.el.style.top = pt.y + 'px'; }
   }
 }
-// 🔊 v0.1.224 핑 소리 = 롤 게임 안 핑 소리 그대로(이 PC 롤 설치 파일 hud_global_audio.bnk에서 꺼냄 · 두 겹 섞음 · assets/ping/sfx) · ⚙ 효과음 크기
+// 🔊 핑 소리 = v0.1.256부터 Kenney 「Interface Sounds」(CC0 · tools/ping-sfx.py · assets/ping/sfx · 약 -15~-17 LUFS) · ⚙ 효과음 크기
 // 크기(v0.1.226 실측): 핑 파일 평균 −14.7 LUFS(라이엇 원래 비율 그대로 — 신호는 조용하고 후퇴는 큼) × 0.14 ≈ −32 LUFS = 드래프트 픽 소리(−16 LUFS × 0.2 ≈ −30)보다 살짝 작게(자주 울려서) · 예전 0.55는 픽 소리보다 13dB 컸음
 const PING_SFX = {}, PING_VOL = 0.14;
 function pingSound(k) {
@@ -1459,7 +1459,7 @@ function pingShow(d) {
 if (window.api.onPing) window.api.onPing(pingShow);
 // 바퀴 — 롤처럼: 어두운 원 + 8칸 · 끄는 쪽 칸이 핑 색으로 밝아짐 · 가운데 = 기본 핑 · 아래에 고른 이름
 const PW = { on: false, x: 0, y: 0, a: null, sel: 'look' };
-const PING_MUTE = ["push","allin","vision","enemy"], PW_CR = 38;   // 가운데 원 반지름(이 안 = 신호)
+const PING_MUTE = [], PW_CR = 38;   // 가운데 원 반지름(이 안 = 신호)
 function pingWheel() {   // 인게임 바퀴 모양(사장님 캡처): 큰 반투명 원판을 가는 선 8개가 나눔 · 가운데 금색 테두리 어두운 원 = 고른 핑 그림·이름 + 「🖱 뒤로」
   let w = el('lb-pw');
   if (!w) {

@@ -29,8 +29,8 @@
 심사에서 걸릴 수 있는 순. 고치거나, 고치지 않으면 신청서에 사실대로 적음.
 - [x] ② **우리끼리 티어** = 브론즈~챌린저 이름 + 롤 랭크 문장 그림 → 공식 랭크 대체처럼 보임(「cannot create alternatives for official skill ranking systems」) → v0.1.255: **「내전 등급」 D~SSS + 직접 그린 방패**(롤 문장 그림·승급 영상 지움) · 아수라장 **일반 판(매칭 큐) 점수는 화면에서 뺌**(팀 밸런스 계산에만)
 - [x] ③ **이름 숨긴 사람 찾아내기**(v0.1.122 팟지 기록 바로잡기 · 「cannot identify or analyze players who are deliberately hidden」) → v0.1.254: 우리 앱에 들어온 사람만 바로잡고, 모르는 사람은 챔피언 이름 그대로
-- [ ] ⑧ **게임 파일에서 꺼낸 자료**(핑 그림·핑 소리·감정표현·랭크 문장) → Data Dragon·프레스 킷 자료나 직접 만든 것으로
-- [ ] ⑨ **롤 화면과 너무 닮은 디자인**(핑 바퀴 · 「cannot closely resemble Riot's games or products」)
+- [x] ⑧ **게임 파일에서 꺼낸 자료**(핑 그림·핑 소리·감정표현·랭크 문장) → v0.1.255 랭크 문장 지움 · v0.1.256 핑 그림·소리·감정표현 지움 = 직접 그린 스케치 그림 + Kenney CC0 소리 · 꺼내던 도구(lol-wad·lol-bnk-pings·emote-img·rank-emblems)도 지움 · ℹ️ 남은 라이엇 그림 = 챔피언·스킨·아이템·증강 아이콘(Data Dragon·CommunityDragon = 허용 범위로 봄)
+- [x] ⑨ **롤 화면과 너무 닮은 디자인**(핑 바퀴 · 「cannot closely resemble Riot's games or products」) → v0.1.256 손그림 바퀴 + 대기실용 뜻(준비 완료·가자!·좋아요·ㅋㅋ·잠깐만·미안·?·고마워 · 롤 핑 뜻 안 씀)
 - [ ] ⑦ **롤 클라 조작**(방 만들기·초대·자동 수락·자리 이동·내보내기·큐 시작·리플레이 열기·game.cfg·리플레이 창 숨기기·Alt+클릭 핑용 마우스 훅) → 신청서에 목록으로 적고 허용되는지 질문
 - [ ] ④ **롤 로그인 증표를 우리 중계로 보냄**(LCU `/entitlements/v1/token` → Cloudflare에서 서명만 확인 · 저장 안 함) → 적고 질문(공식 방법 = RSO는 Production 승인 뒤)
 - [ ] ⑤ aramgg 자료(패치 노트·증강 설명·꿀팁) → 허락 받거나 빼기

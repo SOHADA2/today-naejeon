@@ -878,36 +878,33 @@ body.rm-forming #rm-new2 { display:none; }   /* 방 만드는 칸이 열려 있�
 /* 📍 v0.1.220 대기실 핑 = 롤 핑 그대로 — 바퀴(8칸 + 가운데 · Alt + 누른 채 끌기) · 찍은 곳에 뜨는 핑(그림이 떨어져 박힘 + 바닥 물결 타원 두 번 + 빛기둥) */
 .lb-pw { position:absolute; left:0; top:0; width:0; height:0; z-index:60; pointer-events:none; display:none; --pc:#22a7f0; --R:104px; --cr:38px; }
 .lb-pw.open { display:block; }
-.lb-pw .pw-bg { position:absolute; left:calc(var(--R) * -1); top:calc(var(--R) * -1); width:calc(var(--R) * 2); height:calc(var(--R) * 2); border-radius:50%;
-  background:repeating-conic-gradient(from 22.5deg, rgba(225,205,160,.42) 0 .7deg, transparent .7deg 45deg), radial-gradient(circle, rgba(6,10,18,.86) 0 62%, rgba(6,10,18,.72) 82%, rgba(6,10,18,.3) 100%);   /* 대기실은 뒤가 글자라 인게임보다 진하게 */
-  -webkit-mask:radial-gradient(circle, transparent 0 calc(var(--cr) - 1px), #000 var(--cr) 74%, rgba(0,0,0,.35) 90%, transparent 100%); }
+.lb-pw .pw-bg { position:absolute; left:calc(var(--R) * -1); top:calc(var(--R) * -1); width:calc(var(--R) * 2); height:calc(var(--R) * 2); background:url(../assets/ping/wheel.png) center / 100% 100% no-repeat; }   /* ✏️ v0.1.256 손그림 원·점선 칸(tools/ping-sketch.cjs) */
 .lb-pw .pw-s { position:absolute; left:calc(var(--R) * -1); top:calc(var(--R) * -1); width:calc(var(--R) * 2); height:calc(var(--R) * 2); border-radius:50%; opacity:0;
-  background:conic-gradient(from calc(var(--r) - 22.5deg), rgba(255,255,255,.10) 0 45deg, transparent 45deg), conic-gradient(from calc(var(--r) - 22.5deg), color-mix(in srgb, var(--pc) 22%, transparent) 0 45deg, transparent 45deg);
-  -webkit-mask:radial-gradient(circle, transparent 0 var(--cr), #000 calc(var(--cr) + 1px) 70%, transparent 100%); }
+  background:repeating-linear-gradient(-35deg, rgba(255,255,255,.16) 0 1.5px, transparent 1.5px 5px), conic-gradient(from calc(var(--r) - 22.5deg), color-mix(in srgb, var(--pc) 34%, transparent) 0 45deg, transparent 45deg);
+  -webkit-mask:conic-gradient(from calc(var(--r) - 22.5deg), #000 0 45deg, transparent 45deg), radial-gradient(circle closest-side, transparent 0 calc(var(--cr) + 2px), #000 calc(var(--cr) + 3px) 93%, transparent 94%); -webkit-mask-composite:source-in; }
 .lb-pw .pw-s.on { opacity:1; }
-.lb-pw .pw-i { position:absolute; width:26px; height:26px; margin:-13px 0 0 -13px; opacity:.9; filter:drop-shadow(0 1px 2px rgba(0,0,0,.9)); transition:transform .08s; }
+.lb-pw .pw-i { position:absolute; width:28px; height:28px; margin:-14px 0 0 -14px; opacity:.92; transition:transform .08s; }
 .lb-pw .pw-i.mute { filter:grayscale(1) sepia(.5) brightness(1.35) drop-shadow(0 1px 2px rgba(0,0,0,.9)); opacity:.85; }
-.lb-pw .pw-i.on { opacity:1; transform:scale(1.3); filter:drop-shadow(0 0 5px var(--pc)) drop-shadow(0 1px 2px rgba(0,0,0,.9)); }
+.lb-pw .pw-i.on { opacity:1; transform:scale(1.35) rotate(-6deg); }
 .lb-pw .pw-ctr { position:absolute; left:calc(var(--cr) * -1); top:calc(var(--cr) * -1); width:calc(var(--cr) * 2); height:calc(var(--cr) * 2); border-radius:50%;
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
-  background:radial-gradient(circle, rgba(10,22,32,.94) 0 70%, rgba(6,14,22,.96)); border:1.5px solid #c8aa6e; box-shadow:0 0 0 1px rgba(0,0,0,.6), inset 0 0 0 2px rgba(0,0,0,.35); }
-.lb-pw .pw-ci { width:20px; height:20px; filter:drop-shadow(0 1px 2px #000); }
+  background:none; }   /* 가운데 원 = wheel.png 안 그림 */
+.lb-pw .pw-ci { width:24px; height:24px; }
 .lb-pw .pw-ctr small { display:flex; align-items:center; gap:2px; font-size:8.5px; color:#8b8f94; }
 .lb-pw .pw-ctr .ms { width:6px; height:9px; }
 .lb-pw .pw-t { font-size:10.5px; font-weight:700; white-space:nowrap; color:var(--pc); line-height:1.15; text-shadow:0 1px 2px #000; }
 body.pw-drag, body.pw-drag * { cursor:crosshair !important; user-select:none; }
 .lb-wp { position:absolute; left:0; top:0; width:0; height:0; z-index:55; pointer-events:none; --pc:#3aa0ff; }
-.lb-wp .g { position:absolute; left:-26px; top:-11px; width:52px; height:22px; border-radius:50%; border:2px solid var(--pc); opacity:0;
-  box-shadow:0 0 8px var(--pc), inset 0 0 6px var(--pc); animation:wpG .8s ease-out forwards; }
+.lb-wp .g { position:absolute; left:-26px; top:-11px; width:52px; height:22px; border-radius:50%; border:2px dashed #f4efe4; opacity:0; animation:wpG .8s ease-out forwards; }
+.lb-wp .g2 { border-color:var(--pc); }
 .lb-wp .g2 { animation-delay:.32s; }
-.lb-wp .s { position:absolute; left:-1.5px; top:-38px; width:3px; height:38px; opacity:0;
-  background:linear-gradient(0deg, var(--pc), transparent); filter:drop-shadow(0 0 3px var(--pc)); animation:wpS .55s .05s ease-out forwards; }
-.lb-wp .ic { position:absolute; left:-22px; top:-52px; width:44px; height:44px; filter:drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000) drop-shadow(0 3px 4px rgba(0,0,0,.75)); animation:wpI .5s cubic-bezier(.3,1.5,.55,1) both; }
+.lb-wp .s { display:none; }   /* ✏️ v0.1.256 빛기둥 없앰(롤 핑 연출) */
+.lb-wp .ic { position:absolute; left:-22px; top:-50px; width:44px; height:44px; filter:drop-shadow(0 2px 3px rgba(0,0,0,.6)); animation:wpI .55s cubic-bezier(.3,1.6,.5,1) both; }
 .lb-wp .nm { position:absolute; left:50%; top:13px; transform:translateX(-50%); padding:0 5px; font-size:10.5px; font-weight:800; white-space:nowrap; color:var(--pc);
-  background:rgba(4,9,15,.78); text-shadow:0 1px 2px #000; animation:wpN .3s .25s ease-out both; }
+  background:rgba(4,9,15,.85); border:1px dashed rgba(244,239,228,.45); animation:wpN .3s .25s ease-out both; }
 @keyframes wpG { 0% { opacity:1; transform:scale(.25); } 100% { opacity:0; transform:scale(1.45); } }
 @keyframes wpS { 0% { opacity:0; transform:scaleY(.2); transform-origin:bottom; } 30% { opacity:.9; } 100% { opacity:0; transform:scaleY(1.2); transform-origin:bottom; } }
-@keyframes wpI { 0% { opacity:0; transform:translateY(-26px) scale(1.4); } 55% { opacity:1; } 100% { transform:none; } }
+@keyframes wpI { 0% { opacity:0; transform:translateY(-22px) scale(.6) rotate(-12deg); } 55% { opacity:1; transform:translateY(2px) scale(1.12) rotate(5deg); } 100% { transform:none; } }
 @keyframes wpN { from { opacity:0; } }
 
 /* 💬 v0.1.236 채팅 줄 「숨기기」 = 마우스 올렸을 때만 */

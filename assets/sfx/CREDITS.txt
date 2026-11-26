@@ -19,3 +19,9 @@ firstpick.ogg (v0.1.230 선픽 줄다리기, 4.2초, 봉우리 -1dBFS, 앱 재�
 v0.1.40 팟지 효과음 potg-intro·hit·slow·slam.ogg — 사장님이 Suno로 만든 효과음 묶음 「Impact Sequence」(24초, 틈 없이 이어짐)에서 스펙트로그램으로 타격 지점을 찾아 잘라냄(tools/potg-audio.py)
   intro = 1.00~4.60초(「쿵」+금속 울림, 타격 0.17초) · hit = 12.30~13.40초(타격 0.12초) · slow = 5.15~7.00초(점점 느려지는 떨림 → 타격 1.03초) · slam = 20.30~23.90초(가장 큰 타격 0.07초+잔향)
 v0.1.42: 효과음 묶음 원곡의 16.5·18·19.5kHz 「삐-」 음(기계음) → 15kHz 위 10차 저역통과 · 15.5kHz 위 -51 → -68~-83dB
+
+assets/ping/sfx/*.ogg (v0.1.256 대기실 핑 소리 9개 · 롤 게임 파일 소리 대신) — Kenney 「Interface Sounds」 1.0 (CC0 · www.kenney.nl)
+  https://opengameart.org/content/interface-sounds · 만드는 법 = tools/ping-sfx.py(크기 약 -16 LUFS · 짧은 소리 두 개는 겹쳐 섞음)
+  look = bong_001 · ready = confirmation_002 · go = maximize_004 · good = select_003 · lol = pluck_001 + pluck_002(0.13초 뒤)
+  wait = tick_002 + tick_004(0.2초 뒤) · sorry = minimize_005 · ask = question_002 · thanks = glass_004
+assets/ping/*.png (핑·이모티콘 그림 · 바퀴 판) = 직접 그린 스케치(tools/ping-sketch.cjs · 롤 그림 안 씀)

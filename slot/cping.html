@@ -7,41 +7,39 @@
     * { margin:0; box-sizing:border-box; }
     html, body { width:100%; height:100%; background:transparent; overflow:hidden; -webkit-user-select:none; font-family:var(--f-body); }
     /* 📍 v0.1.221 롤 클라이언트 화면 위 핑(사장님: 클라이언트 쪽도) — 롤 클라 창 전체를 덮는 클릭 통과 투명 창
-       좌표 = 롤 기준 1280×720(main이 zoom = 클라 폭/1280 으로 키움) · 바퀴·핑 모양은 왼쪽 대기실 핑(v0.1.220)과 같음(롤 스마트 핑 8방향 + 가운데 · 그림 = 롤 핑 그림)
+       좌표 = 롤 기준 1280×720(main이 zoom = 클라 폭/1280 으로 키움) · 바퀴·핑 모양은 왼쪽 대기실 핑과 같음(v0.1.256 스케치 그림 · 대기실용 뜻 8방향 + 가운데)
        main → cping {type:'wheel'(x,y) | 'move'(x,y,sel) | 'end' | 'show'(k,fx,fy,name) | 'err'(x,y,text)}
        ⚠️ 무한 애니메이션 금지(투명 창) — 핑·바퀴 효과는 한 번만 */
     #root { position:absolute; inset:0; }
     .pw { position:absolute; left:0; top:0; width:0; height:0; display:none; --pc:#22a7f0; --R:216px; --cr:76px; }
     .pw.open { display:block; }
-    .pw .bg { position:absolute; left:calc(var(--R) * -1); top:calc(var(--R) * -1); width:calc(var(--R) * 2); height:calc(var(--R) * 2); border-radius:50%;
-      background:repeating-conic-gradient(from 22.5deg, rgba(225,205,160,.42) 0 .45deg, transparent .45deg 45deg), radial-gradient(circle, rgba(6,10,18,.45) 0 55%, rgba(6,10,18,.28) 80%, transparent 100%);
-      -webkit-mask:radial-gradient(circle, transparent 0 calc(var(--cr) - 1px), #000 var(--cr) 72%, rgba(0,0,0,.35) 90%, transparent 100%); }
+    .pw .bg { position:absolute; left:calc(var(--R) * -1); top:calc(var(--R) * -1); width:calc(var(--R) * 2); height:calc(var(--R) * 2); background:url(../assets/ping/wheel.png) center / 100% 100% no-repeat; opacity:.92; }   /* ✏️ v0.1.256 손그림 바퀴 */
     .pw .s { position:absolute; left:calc(var(--R) * -1); top:calc(var(--R) * -1); width:calc(var(--R) * 2); height:calc(var(--R) * 2); border-radius:50%; opacity:0;
-      background:conic-gradient(from calc(var(--r) - 22.5deg), rgba(255,255,255,.10) 0 45deg, transparent 45deg), conic-gradient(from calc(var(--r) - 22.5deg), color-mix(in srgb, var(--pc) 22%, transparent) 0 45deg, transparent 45deg);
-      -webkit-mask:radial-gradient(circle, transparent 0 var(--cr), #000 calc(var(--cr) + 1px) 68%, transparent 100%); }
+      background:repeating-linear-gradient(-35deg, rgba(255,255,255,.16) 0 2px, transparent 2px 7px), conic-gradient(from calc(var(--r) - 22.5deg), color-mix(in srgb, var(--pc) 34%, transparent) 0 45deg, transparent 45deg);
+      -webkit-mask:conic-gradient(from calc(var(--r) - 22.5deg), #000 0 45deg, transparent 45deg), radial-gradient(circle closest-side, transparent 0 calc(var(--cr) + 3px), #000 calc(var(--cr) + 4px) 93%, transparent 94%); -webkit-mask-composite:source-in; }
     .pw .s.on { opacity:1; }
-    .pw .i { position:absolute; width:34px; height:34px; margin:-17px 0 0 -17px; opacity:.9; filter:drop-shadow(0 1px 2px rgba(0,0,0,.9)); transition:transform .08s; }
+    .pw .i { position:absolute; width:40px; height:40px; margin:-20px 0 0 -20px; opacity:.92; transition:transform .08s; }
     .pw .i.mute { filter:grayscale(1) sepia(.5) brightness(1.35) drop-shadow(0 1px 2px rgba(0,0,0,.9)); opacity:.85; }
-    .pw .i.on { opacity:1; transform:scale(1.28); filter:drop-shadow(0 0 6px var(--pc)) drop-shadow(0 1px 2px rgba(0,0,0,.9)); }
+    .pw .i.on { opacity:1; transform:scale(1.32) rotate(-6deg); }
     .pw .ctr { position:absolute; left:calc(var(--cr) * -1); top:calc(var(--cr) * -1); width:calc(var(--cr) * 2); height:calc(var(--cr) * 2); border-radius:50%;
       display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
-      background:radial-gradient(circle, rgba(10,22,32,.94) 0 70%, rgba(6,14,22,.96)); border:2px solid #c8aa6e; box-shadow:0 0 0 1px rgba(0,0,0,.6), inset 0 0 0 3px rgba(0,0,0,.35); }
-    .pw .ci { width:32px; height:32px; filter:drop-shadow(0 1px 2px #000); }
+      background:none; }
+    .pw .ci { width:40px; height:40px; }
     .pw .t { font-size:16px; font-weight:700; white-space:nowrap; color:var(--pc); text-shadow:0 1px 2px #000; }
     .pw .ctr small { display:flex; align-items:center; gap:4px; font-size:12px; color:#8b8f94; }
     .pw .ms { width:9px; height:13px; }
     .wp { position:absolute; width:0; height:0; --pc:#3aa0ff; }
-    .wp .g { position:absolute; left:-32px; top:-13px; width:64px; height:26px; border-radius:50%; border:2px solid var(--pc); opacity:0;
-      box-shadow:0 0 9px var(--pc), inset 0 0 7px var(--pc); animation:wpG .8s ease-out forwards; }
+    .wp .g { position:absolute; left:-32px; top:-13px; width:64px; height:26px; border-radius:50%; border:2px dashed #f4efe4; opacity:0; animation:wpG .8s ease-out forwards; }
+    .wp .g2 { border-color:var(--pc); }
     .wp .g2 { animation-delay:.32s; }
-    .wp .sb { position:absolute; left:-1.5px; top:-46px; width:3px; height:46px; opacity:0; background:linear-gradient(0deg, var(--pc), transparent); animation:wpS .55s .05s ease-out forwards; }
-    .wp .ic { position:absolute; left:-28px; top:-64px; width:56px; height:56px; filter:drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000) drop-shadow(0 3px 4px rgba(0,0,0,.75)); animation:wpI .5s cubic-bezier(.3,1.5,.55,1) both; }
+    .wp .sb { display:none; }
+    .wp .ic { position:absolute; left:-28px; top:-62px; width:56px; height:56px; filter:drop-shadow(0 2px 3px rgba(0,0,0,.6)); animation:wpI .55s cubic-bezier(.3,1.6,.5,1) both; }
     .wp .nm { position:absolute; left:50%; top:15px; transform:translateX(-50%); padding:0 6px; font-size:11.5px; font-weight:800; white-space:nowrap; color:var(--pc);
-      background:rgba(4,9,15,.8); text-shadow:0 1px 2px #000; animation:wpN .3s .25s ease-out both; }
+      background:rgba(4,9,15,.85); border:1px dashed rgba(244,239,228,.45); animation:wpN .3s .25s ease-out both; }
     .er { position:absolute; transform:translate(-50%, 18px); padding:2px 9px; font-size:12px; font-weight:800; white-space:nowrap; color:#ff8a8a; background:rgba(4,9,15,.9); border:1px solid rgba(255,90,110,.6); }
     @keyframes wpG { 0% { opacity:1; transform:scale(.25); } 100% { opacity:0; transform:scale(1.45); } }
     @keyframes wpS { 0% { opacity:0; transform:scaleY(.2); transform-origin:bottom; } 30% { opacity:.9; } 100% { opacity:0; transform:scaleY(1.2); transform-origin:bottom; } }
-    @keyframes wpI { 0% { opacity:0; transform:translateY(-30px) scale(1.4); } 55% { opacity:1; } 100% { transform:none; } }
+    @keyframes wpI { 0% { opacity:0; transform:translateY(-26px) scale(.6) rotate(-12deg); } 55% { opacity:1; transform:translateY(2px) scale(1.12) rotate(5deg); } 100% { transform:none; } }
     @keyframes wpN { from { opacity:0; } }
   </style>
 </head>
@@ -49,17 +47,17 @@
   <div id="root"></div>
   <script>
     const PING = {
-      look: { t: '신호', c: '#22a7f0', img: 'ping' },
-      retreat: { t: '후퇴', c: '#e8344a', img: 'retreat' },
-      push: { t: '밀어붙이기', c: '#20c97a', img: 'push' },
-      omw: { t: '가는 중', c: '#22a7f0', img: 'omw' },
-      allin: { t: '올인', c: '#f5b400', img: 'all_in' },
-      assist: { t: '도움 요청', c: '#20c97a', img: 'assist' },
-      vision: { t: '시야 필요', c: '#20c97a', img: 'vision' },
-      missing: { t: '적 실종', c: '#f5b400', img: 'missing' },
-      enemy: { t: '적 시야', c: '#e8344a', img: 'enemy' },
+      look: { t: '여기 봐요', c: '#7cc6ff', img: 'look' },
+      ready: { t: '준비 완료', c: '#7be0b0', img: 'ready' },
+      go: { t: '가자!', c: '#ff9f5a', img: 'go' },
+      good: { t: '좋아요', c: '#a7e36b', img: 'good' },
+      lol: { t: 'ㅋㅋ', c: '#ffd56b', img: 'lol' },
+      wait: { t: '잠깐만', c: '#b9a4ff', img: 'wait' },
+      sorry: { t: '미안', c: '#9fd8ff', img: 'sorry' },
+      ask: { t: '?', c: '#ffc24d', img: 'ask' },
+      thanks: { t: '고마워', c: '#ff9ccc', img: 'thanks' },
     };
-    const DIR = ['retreat', 'push', 'omw', 'allin', 'assist', 'vision', 'missing', 'enemy'], R = 116, MS = 2600, MUTE = ["push","allin","vision","enemy"];
+    const DIR = ['ready', 'go', 'good', 'lol', 'wait', 'sorry', 'ask', 'thanks'], R = 116, MS = 2600, MUTE = [];   // ✏️ v0.1.256 대기실용 스케치 핑(overlay.js PING과 같음)
     const img = k => `../assets/ping/${(PING[k] || PING.look).img}.png`;
     const root = document.getElementById('root');
     for (const k of Object.keys(PING)) { const i = new Image(); i.src = img(k); }   // 미리 읽어 둠(첫 핑이 늦게 안 뜨게)
@@ -103,8 +101,8 @@
     if (window.api && window.api.onCping) window.api.onCping(onMsg);
     else {   // 🎨 목업(브라우저 직접 열기)
       document.body.style.background = '#0a1712';
-      onMsg({ type: 'show', k: 'missing', fx: .3, fy: .45, name: '애긔반달곰' });
-      onMsg({ type: 'wheel', x: 800, y: 380 }); onMsg({ type: 'move', sel: 'missing', x: 750, y: 382 });
+      onMsg({ type: 'show', k: 'ask', fx: .3, fy: .45, name: '애긔반달곰' });
+      onMsg({ type: 'wheel', x: 800, y: 380 }); onMsg({ type: 'move', sel: 'ask', x: 750, y: 382 });
     }
   </script>
 </body>

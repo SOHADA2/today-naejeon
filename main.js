@@ -1882,7 +1882,7 @@ ipcMain.handle('chat-send', async (_e, text) => {
 //   k = 롤 스마트 핑 8개 + 기본(look) · a = 찍은 곳 {t:'s' 자리 칸 i | 'c' 관전 칩 pk | 'v' 대기실 창, fx, fy(0~1)} → 받는 PC가 자기 창에서 같은 곳을 찾음
 //   도배 제한(롤과 비슷하게 · 인터넷 정리 기준 — 같은 종류 6초에 3번 · 연달아 5초에 6번이면 잠깐 막힘) = 같은 핑 6초에 3번 · 모든 핑 5초에 6번 넘으면 10초 못 찍음
 //   받는 쪽 = 방 스트림에서 바뀐 것만 왼쪽 창으로('ping') · 내 것은 화면이 바로 띄움 · v0.1.219 앱(얼굴에 띄우던 것)은 모르는 종류라 안 띄움
-const PING_K = ['look', 'retreat', 'push', 'omw', 'allin', 'assist', 'vision', 'missing', 'enemy'];
+const PING_K = ['look', 'ready', 'go', 'good', 'lol', 'wait', 'sorry', 'ask', 'thanks'];   // ✏️ v0.1.256 대기실용 스케치 핑(overlay.js PING과 같음 · 옛 앱은 모르는 핑을 안 띄움)
 let _pingLog = [], _pingLock = 0;
 function pingAnchor(a) {
   if (!a || typeof a !== 'object') return null;
@@ -1954,7 +1954,7 @@ public static class TnCp {
 [TnCp]::Run()
 `;
 let _cpProc = null, cpingWin = null, _cpReady = false, _cpSig = '', _cpDrag = null;
-const PING_DIR8 = ['retreat', 'push', 'omw', 'allin', 'assist', 'vision', 'missing', 'enemy'];
+const PING_DIR8 = ['ready', 'go', 'good', 'lol', 'wait', 'sorry', 'ask', 'thanks'];
 function cpingWant() { return config.lolPing !== false && process.platform === 'win32' && !!room && !!account && !inGame && !!_lastRect; }
 function cpingHookStart() {
   if (_cpProc) return;
