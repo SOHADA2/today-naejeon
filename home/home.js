@@ -36,6 +36,7 @@ function render(d) {
   // 방 목록 — 롤 로그인한 사람이 방 밖이면 여기서 바로 들어가거나 만듦(대기실 창이 열림 · v0.1.227)
   const rooms = d.rooms || [], canJoin = !!d.me && !d.room;
   $('rooms-n').textContent = rooms.length ? rooms.length : '';
+  { const cm = $('rooms-comm'); if (cm) cm.textContent = d.comm && d.comm.name ? ' · ' + d.comm.name : ''; }   // 🏘️ v0.1.258
   if (d.ban) {   // 🚫 v0.1.244 운영 정지
     const B = d.ban, dt = new Date(B.until), when = B.perm ? '기간 없이 정지되었습니다' : `${dt.getMonth() + 1}월 ${dt.getDate()}일 ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}에 풀립니다`;
     $('rooms-n').textContent = '';

@@ -144,13 +144,15 @@ textarea{width:100%;min-height:62px;resize:vertical}
 .toast.err{border-color:var(--t2)}
 .x{position:absolute;right:14px;top:12px;background:none;border:0;color:var(--ink-2);font-size:22px;cursor:pointer}
 .hide{display:none!important}
+  .comm { margin-left:auto; margin-right:10px; padding:5px 8px; background:#0f1824; color:inherit; border:1px solid #2a3a4d; font:inherit; }
+  .comm.hide { display:none; }
 </style>
 </head>
 <body>
 <header>
   <div class="hd">
     <div class="brand"><span class="brand-en">TODAY IN-HOUSE</span><b>운영 보드</b></div>
-    <div class="who" id="who"></div>
+    <select id="comm" class="comm hide" title="커뮤니티"></select><div class="who" id="who"></div>
   </div>
   <nav class="tabs hide" id="tabs">
     <button data-t="now" class="on">현황</button>
@@ -220,7 +222,8 @@ textarea{width:100%;min-height:62px;resize:vertical}
     <!-- 설정 -->
     <section data-p="admin" class="hide">
       <div class="sec card"><div class="sec-h"><span class="en">SEATS</span><h2>동시 접속 한도</h2><span class="sp">무료 서버 = 동시 연결 100개까지</span></div><div id="cap"></div></div>
-      <div class="sec card tw"><div class="sec-h"><span class="en">OPERATORS</span><h2>운영자</h2><span class="sp" id="adm-sp"></span></div><table><tbody id="adms"></tbody></table><div id="adm-add"></div></div>
+      <div class="sec card tw"><div class="sec-h"><span class="en">OPERATORS</span><h2 id="adm-h">운영자</h2><span class="sp" id="adm-sp"></span></div><table><tbody id="adms"></tbody></table><div id="adm-add"></div></div>
+      <div class="sec card tw" id="cm-sec"><div class="sec-h"><span class="en">COMMUNITIES</span><h2>커뮤니티</h2><span class="sp">초대 코드를 넣은 사람만 그 커뮤니티로 들어감 · 기록·순위·운영이 따로</span></div><table><tbody id="cms"></tbody></table><div id="cm-add"></div></div>
     </section>
   </main>
 </div>
@@ -239,6 +242,12 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const PERM = 9e15, ONLINE_MS = 60000, DAY_START_HOUR = 6;
 let ME = null, S = {};   // S = 받은 자료
+// 🏘️ v0.1.258 커뮤니티 공간 — CT = 고른 커뮤니티 칸(기본 = today · 다른 커뮤니티 = today/c/{id}) · 같이 쓰는 칸(계정·점수·디스코드·자리·설정·전체 운영자)은 today 그대로
+//   주인·전체 운영자 = 모든 커뮤니티 · 커뮤니티 운영자 = 주인이 준 링크(…/admin/?c={id})로만 들어옴(자기 커뮤니티만)
+let CT = 'today', COMM = null, COMMS = {};
+const CQ = (new URLSearchParams(location.search).get('c') || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 24) || null;
+const ADM = () => COMM ? `${CT}/admins` : 'today/admins';
+function setComm(id) { COMM = id || null; CT = COMM ? `today/c/${COMM}` : 'today'; const sel = $('comm'); if (sel) sel.value = COMM || ''; document.title = `운영 보드${COMM ? ' · ' + ((COMMS[COMM] || {}).name || COMM) : ''}`; }
 
 // ── 서버 읽기·쓰기(운영자 표식) ──
 async function api(method, path, body) {
@@ -265,14 +274,19 @@ onAuthStateChanged(auth, async u => {
   if (!u) { gate('운영자로 등록된 구글 계정으로 들어갑니다', true); $('who').innerHTML = ''; return; }
   $('who').innerHTML = `<span>${esc(u.displayName || u.email || '')}</span><button class="btn sm" id="out">로그아웃</button>`;
   $('out').onclick = () => signOut(auth);
-  let a = null; try { a = await get(`today/admins/${u.uid}`); } catch (_) {}
-  if (!a) {
+  let a = null, ca = null; try { a = await get(`today/admins/${u.uid}`); } catch (_) {}
+  if (!a && CQ) try { ca = await get(`today/c/${CQ}/admins/${u.uid}`); } catch (_) {}   // 🏘️ 커뮤니티 운영자
+  if (!a && !ca) {
     gate('');
     $('gate').innerHTML = `<div class="en">NOT AN OPERATOR</div><h1>운영자로 등록되지 않은 계정입니다</h1><p>아래 운영자 번호를 관리자에게 전달하면 등록해 줍니다</p><div class="uid">${esc(u.uid)}</div><button class="btn" id="cp">번호 복사</button>`;
     $('cp').onclick = () => navigator.clipboard.writeText(u.uid).then(() => toast('복사했습니다'));
     return;
   }
-  ME = { uid: u.uid, name: a.name || u.displayName || '운영자', owner: a.owner === true };
+  ME = { uid: u.uid, name: (a || ca).name || u.displayName || '운영자', owner: !!(a && a.owner === true), global: !!a };
+  COMMS = {}; if (ME.global) { try { COMMS = (await get('today/communities')) || {}; } catch (_) {} } else COMMS = { [CQ]: (await get(`today/communities/${CQ}`).catch(() => null)) || { name: CQ } };
+  $('comm').innerHTML = (ME.global ? '<option value="">기본 커뮤니티</option>' : '') + Object.entries(COMMS).map(([id, c]) => `<option value="${esc(id)}">${esc((c && c.name) || id)}</option>`).join('');
+  $('comm').classList.toggle('hide', Object.keys(COMMS).length === 0);
+  setComm(ME.global ? (CQ && COMMS[CQ] ? CQ : null) : CQ);
   $('gate').classList.add('hide'); $('app').classList.remove('hide'); $('tabs').classList.remove('hide');
   load();
 });
@@ -283,6 +297,7 @@ function gate(msg, showBtn) {
   $('login2').onclick = () => signInWithPopup(auth, new GoogleAuthProvider()).catch(e => toast('로그인 실패 · ' + (e.code || e.message), true));
 }
 
+$('comm').onchange = () => { setComm($('comm').value || null); S = {}; load(); };   // 🏘️ 커뮤니티 바꾸면 다시 받음
 // ── 탭 ──
 $('tabs').onclick = e => { const b = e.target.closest('button[data-t]'); if (!b) return; for (const x of $('tabs').children) x.classList.toggle('on', x === b); for (const s of document.querySelectorAll('section[data-p]')) s.classList.toggle('hide', s.dataset.p !== b.dataset.t); };
 
@@ -290,7 +305,7 @@ $('tabs').onclick = e => { const b = e.target.closest('button[data-t]'); if (!b)
 async function load() {
   $('loaded').textContent = '불러오는 중…';
   try {
-    const [presence, accounts, roomList, rooms, bans, modlog, reports, warns, mutes, notice, conns, connCap, admins] = await Promise.all(['today/presence', 'today/accounts', 'today/roomList', 'today/rooms', 'today/bans', 'today/modlog', 'today/reports', 'today/warns', 'today/mutes', 'today/notice', 'today/conns', 'today/config/connCap', 'today/admins'].map(p => get(p).catch(() => null)));
+    const [presence, accounts, roomList, rooms, bans, modlog, reports, warns, mutes, notice, conns, connCap, admins] = await Promise.all([`${CT}/presence`, 'today/accounts', `${CT}/roomList`, `${CT}/rooms`, `${CT}/bans`, `${CT}/modlog`, `${CT}/reports`, `${CT}/warns`, `${CT}/mutes`, `${CT}/notice`, 'today/conns', 'today/config/connCap', ADM()].map(p => get(p).catch(() => null)));
     Object.assign(S, { presence: presence || {}, accounts: accounts || {}, roomList: roomList || {}, rooms: rooms || {}, bans: bans || {}, modlog: modlog || {}, reports: reports || {}, warns: warns || {}, mutes: mutes || {}, notice: notice || null, conns: conns || {}, connCap: Number.isInteger(connCap) ? connCap : null, admins: admins || {} });
     S.allDays = null;   // 경기 기록은 다시 받음
     S.at = Date.now();
@@ -310,7 +325,7 @@ async function loadDays() {   // 최근 14일 판 수(내전·일반) — 날짜
 }
 async function loadAllDays(fresh) {   // 사람 카드용 — 기록 전체(한 번만 · 크면 몇 MB)
   if (S.allDays && !fresh) return S.allDays;
-  S.allDays = (await get('today/days').catch(() => null)) || {};
+  S.allDays = (await get(`${CT}/days`).catch(() => null)) || {};
   return S.allDays;
 }
 
@@ -408,7 +423,7 @@ document.querySelector('section[data-p="reports"]').onclick = async e => {
 };
 async function resolveReport(id, res) {
   const r = S.reports[id] || {};
-  try { await api('PATCH', `today/reports/${id}`, { st: 'done', res, doneBy: ME.name.slice(0, 40), doneAt: Date.now() }); await logIt({ act: 'report', target: r.target || '', name: String(r.name || '').slice(0, 60), reason: res }); toast('처리했습니다'); await load(); }
+  try { await api('PATCH', `${CT}/reports/${id}`, { st: 'done', res, doneBy: ME.name.slice(0, 40), doneAt: Date.now() }); await logIt({ act: 'report', target: r.target || '', name: String(r.name || '').slice(0, 60), reason: res }); toast('처리했습니다'); await load(); }
   catch (e) { toast('처리하지 못했습니다 · ' + e.message, true); }
 }
 // 📢 공지
@@ -421,12 +436,12 @@ $('ntc-go').onclick = async () => {
   const text = $('ntc-tx').value.trim(), h = Number($('ntc-h').value), lv = $('ntc-lv').value;
   if (!text) { toast('공지 글을 적어 주세요', true); return; }
   if (!confirm(`모든 앱에 이 공지를 ${h >= 24 ? h / 24 + '일' : h + '시간'} 띄울까요?\n\n${text}`)) return;
-  try { await api('PUT', 'today/notice', { id: 'n' + Date.now().toString(36), text: text.slice(0, 200), at: Date.now(), until: Date.now() + h * 3600e3, by: ME.name.slice(0, 40), lv }); await logIt({ act: 'notice', reason: text.slice(0, 200), until: Date.now() + h * 3600e3 }); $('ntc-tx').value = ''; toast('공지를 올렸습니다 · 1분 안에 모든 앱에 뜹니다'); await load(); }
+  try { await api('PUT', `${CT}/notice`, { id: 'n' + Date.now().toString(36), text: text.slice(0, 200), at: Date.now(), until: Date.now() + h * 3600e3, by: ME.name.slice(0, 40), lv }); await logIt({ act: 'notice', reason: text.slice(0, 200), until: Date.now() + h * 3600e3 }); $('ntc-tx').value = ''; toast('공지를 올렸습니다 · 1분 안에 모든 앱에 뜹니다'); await load(); }
   catch (e) { toast('올리지 못했습니다 · ' + e.message, true); }
 };
 async function noticeDown() {
   if (!confirm('지금 공지를 내릴까요?')) return;
-  try { await api('DELETE', 'today/notice'); await logIt({ act: 'unnotice' }); toast('공지를 내렸습니다'); await load(); }
+  try { await api('DELETE', `${CT}/notice`); await logIt({ act: 'unnotice' }); toast('공지를 내렸습니다'); await load(); }
   catch (e) { toast('내리지 못했습니다 · ' + e.message, true); }
 }
 function renderLog() {
@@ -480,13 +495,13 @@ $('dr').onclick = e => { if (e.target.closest('[data-close]')) $('dr').classList
 document.addEventListener('keydown', e => { if (e.key === 'Escape') $('dr').classList.remove('on'); });
 
 // ── 조작 ──
-const logIt = o => api('POST', 'today/modlog', Object.assign({ at: Date.now(), by: ME.name }, o));
+const logIt = o => api('POST', `${CT}/modlog`, Object.assign({ at: Date.now(), by: ME.name }, o));
 async function kick(key, name, rid, alone) {   // ① 내보냄 표시(앱 v0.1.217+가 보고 스스로 방을 나가며 안내 · v0.1.244+는 방장이어도) ② 들어왔음·방 사람·참가 칸을 지움(옛 앱도 방 안 쓰기가 바로 막힘)
   if (alone && !confirm(`${name}님을 방에서 내보낼까요?`)) return;
   try {
-    await api('PUT', `today/rooms/${rid}/lobby/kick/${key}`, { at: Date.now(), by: '운영자', admin: true });
+    await api('PUT', `${CT}/rooms/${rid}/lobby/kick/${key}`, { at: Date.now(), by: '운영자', admin: true });
     await new Promise(r => setTimeout(r, 2500));   // 그 사람 앱이 표시를 보고 나갈 틈
-    for (const p of [`uids/${key}`, `members/${key}`, `lobby/join/${key}`, `lobby/chat/${key}`]) await api('DELETE', `today/rooms/${rid}/${p}`);
+    for (const p of [`uids/${key}`, `members/${key}`, `lobby/join/${key}`, `lobby/chat/${key}`]) await api('DELETE', `${CT}/rooms/${rid}/${p}`);
     if (alone) { await logIt({ act: 'kick', target: key, name, room: String((S.roomList[rid] || {}).name || rid).slice(0, 40) }); toast('내보냈습니다'); await load(); openPerson(key); }
   } catch (e) { toast('내보내지 못했습니다 · ' + e.message, true); }
 }
@@ -495,9 +510,9 @@ async function ban(key, name, days, reason) {
   const u = days ? Date.now() + days * 86400e3 : PERM;
   if (!confirm(`${name}님을 ${days ? days + '일' : '영구'} 정지할까요?\n사유: ${reason}`)) return;
   try {
-    await api('PUT', `today/bans/${key}`, { until: u, at: Date.now(), reason: reason.slice(0, 200), by: ME.name.slice(0, 40), name: String(name).slice(0, 60) });
+    await api('PUT', `${CT}/bans/${key}`, { until: u, at: Date.now(), reason: reason.slice(0, 200), by: ME.name.slice(0, 40), name: String(name).slice(0, 60) });
     const rid = roomOf(key); if (rid) await kick(key, name, rid, false);
-    await api('DELETE', `today/presence/${key}`).catch(() => {});
+    await api('DELETE', `${CT}/presence/${key}`).catch(() => {});
     await logIt({ act: 'ban', target: key, name: String(name).slice(0, 60), reason: reason.slice(0, 200), until: u });
     toast('정지했습니다'); await load(); openPerson(key);
   } catch (e) { toast('정지하지 못했습니다 · ' + e.message, true); }
@@ -505,19 +520,19 @@ async function ban(key, name, days, reason) {
 async function warn(key, name, reason) {
   if (!reason) { toast('사유를 적어 주세요', true); return; }
   if (!confirm(`${name}님에게 경고를 줄까요?\n사유: ${reason}`)) return;
-  try { await api('POST', `today/warns/${key}`, { at: Date.now(), reason: reason.slice(0, 200), by: ME.name.slice(0, 40) }); await logIt({ act: 'warn', target: key, name: String(name).slice(0, 60), reason: reason.slice(0, 200) }); toast('경고했습니다 · 그 사람 앱에 1분 안에 뜹니다'); await load(); openPerson(key); }
+  try { await api('POST', `${CT}/warns/${key}`, { at: Date.now(), reason: reason.slice(0, 200), by: ME.name.slice(0, 40) }); await logIt({ act: 'warn', target: key, name: String(name).slice(0, 60), reason: reason.slice(0, 200) }); toast('경고했습니다 · 그 사람 앱에 1분 안에 뜹니다'); await load(); openPerson(key); }
   catch (e) { toast('경고하지 못했습니다 · ' + e.message, true); }
 }
 async function mute(key, name, hours, reason) {
   if (!reason) { toast('사유를 적어 주세요', true); return; }
   if (!confirm(`${name}님을 ${hours >= 24 ? hours / 24 + '일' : hours + '시간'} 채팅 금지할까요?\n사유: ${reason}`)) return;
   const u = Date.now() + hours * 3600e3;
-  try { await api('PUT', `today/mutes/${key}`, { until: u, at: Date.now(), reason: reason.slice(0, 200), by: ME.name.slice(0, 40), name: String(name).slice(0, 60) }); await logIt({ act: 'mute', target: key, name: String(name).slice(0, 60), reason: reason.slice(0, 200), until: u }); toast('채팅 금지했습니다'); await load(); openPerson(key); }
+  try { await api('PUT', `${CT}/mutes/${key}`, { until: u, at: Date.now(), reason: reason.slice(0, 200), by: ME.name.slice(0, 40), name: String(name).slice(0, 60) }); await logIt({ act: 'mute', target: key, name: String(name).slice(0, 60), reason: reason.slice(0, 200), until: u }); toast('채팅 금지했습니다'); await load(); openPerson(key); }
   catch (e) { toast('채팅 금지하지 못했습니다 · ' + e.message, true); }
 }
 async function unmute(key, name) {
   if (!confirm(`${name}님 채팅 금지를 풀까요?`)) return;
-  try { await api('DELETE', `today/mutes/${key}`); await logIt({ act: 'unmute', target: key, name: String(name).slice(0, 60) }); toast('채팅 금지를 풀었습니다'); await load(); openPerson(key); }
+  try { await api('DELETE', `${CT}/mutes/${key}`); await logIt({ act: 'unmute', target: key, name: String(name).slice(0, 60) }); toast('채팅 금지를 풀었습니다'); await load(); openPerson(key); }
   catch (e) { toast('풀지 못했습니다 · ' + e.message, true); }
 }
 // 🧾 경기 기록(날짜별 · 이긴 팀 바꾸기 · 지우기)
@@ -529,7 +544,7 @@ function renderGameDays() {
 $('gm-days').onclick = e => { const b = e.target.closest('[data-d]'); if (b) loadGames(b.dataset.d); };
 async function loadGames(d) {
   GD = d; renderGameDays(); $('gm-h').textContent = d + ' 경기 기록'; $('gm-list').innerHTML = '<div class="empty">불러오는 중…</div>';
-  const day = (await get(`today/days/${d}`).catch(() => null)) || {};
+  const day = (await get(`${CT}/days/${d}`).catch(() => null)) || {};
   const rows = [];
   for (const [kind, set] of Object.entries(day)) for (const [gid, g] of Object.entries(set || {})) if (g) rows.push({ kind, gid, g });
   rows.sort((a, b) => (b.g.ts || 0) - (a.g.ts || 0));
@@ -543,9 +558,9 @@ async function loadGames(d) {
   $('gm-list').onclick = async e => {
     const fl = e.target.closest('[data-flip]'), dl = e.target.closest('[data-gdel]');
     if (fl) { const g = (day.matches || {})[fl.dataset.flip]; if (!g) return; const to = g.winner === 'teamA' ? 'teamB' : 'teamA', why = prompt(`이긴 팀을 ${to === 'teamA' ? '1팀' : '2팀'}으로 바꿀까요?\nMVP·SVP는 그대로 남습니다. 이유를 적어 주세요`, ''); if (why === null) return;
-      try { await api('PATCH', `today/days/${d}/matches/${fl.dataset.flip}`, { winner: to }); await logIt({ act: 'gamefix', target: fl.dataset.flip, room: String(g.roomName || '').slice(0, 40), reason: `${d} 이긴 팀 → ${to === 'teamA' ? '1팀' : '2팀'}${why ? ' · ' + why : ''}`.slice(0, 200) }); toast('바꿨습니다'); loadGames(d); } catch (er) { toast('바꾸지 못했습니다 · ' + er.message, true); } }
+      try { await api('PATCH', `${CT}/days/${d}/matches/${fl.dataset.flip}`, { winner: to }); await logIt({ act: 'gamefix', target: fl.dataset.flip, room: String(g.roomName || '').slice(0, 40), reason: `${d} 이긴 팀 → ${to === 'teamA' ? '1팀' : '2팀'}${why ? ' · ' + why : ''}`.slice(0, 200) }); toast('바꿨습니다'); loadGames(d); } catch (er) { toast('바꾸지 못했습니다 · ' + er.message, true); } }
     if (dl) { const [kind, gid] = dl.dataset.gdel.split('/'), g = (day[kind] || {})[gid] || {}; const why = prompt(`${d} ${fmt(g.ts || 0)} 기록을 지울까요? 되돌릴 수 없습니다.\n이유를 적어 주세요`, ''); if (why === null) return;
-      try { await api('DELETE', `today/days/${d}/${kind}/${gid}`); await logIt({ act: 'gamedel', target: gid, room: String(g.roomName || '').slice(0, 40), reason: `${d}${why ? ' · ' + why : ''}`.slice(0, 200) }); toast('지웠습니다'); loadGames(d); loadDays().catch(() => {}); } catch (er) { toast('지우지 못했습니다 · ' + er.message, true); } }
+      try { await api('DELETE', `${CT}/days/${d}/${kind}/${gid}`); await logIt({ act: 'gamedel', target: gid, room: String(g.roomName || '').slice(0, 40), reason: `${d}${why ? ' · ' + why : ''}`.slice(0, 200) }); toast('지웠습니다'); loadGames(d); loadDays().catch(() => {}); } catch (er) { toast('지우지 못했습니다 · ' + er.message, true); } }
   };
 }
 // 🧹 개인정보 지우기 — 내 칸들 지우고 경기 기록 속 이름·계정 번호를 「지운 이름 ○○○○」으로(판 결과는 그대로)
@@ -564,9 +579,9 @@ async function wipe(key, name) {
       const hit = new Set([key]), keyed = new Set(); for (const nm of names) if (nm) { hit.add(nm); keyed.add(fbKey(nm)); }
       const subs = [...names].filter(x => x && x.length >= 2);
       const tr = v => typeof v === 'string' ? (hit.has(v) ? label : subs.reduce((t, x) => t.split(x).join(label), v)) : Array.isArray(v) ? v.map(tr) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [hit.has(k) ? label : keyed.has(k) ? fbKey(label) : k, tr(x)])) : v;
-      await api('PUT', `today/days/${day}/${kind}/${gid}`, tr(g)); n++;
+      await api('PUT', `${CT}/days/${day}/${kind}/${gid}`, tr(g)); n++;
     }
-    for (const p of [`today/accounts/${key}`, `today/ratings/${key}`, `today/discord/${key}`, `today/presence/${key}`, `today/owners/${key}`]) await api('DELETE', p);
+    for (const p of [`today/accounts/${key}`, `today/ratings/${key}`, `today/discord/${key}`, `${CT}/presence/${key}`, `today/owners/${key}`]) await api('DELETE', p);
     await logIt({ act: 'wipe', target: key, name: label, reason: `경기 기록 ${n}판 이름 바꿈` });
     toast(`지웠습니다 · 경기 기록 ${n}판`); $('dr').classList.remove('on'); await load();
   } catch (e) { toast('지우다 멈췄습니다 · ' + e.message + ' · 다시 누르면 이어서 합니다', true); }
@@ -574,6 +589,9 @@ async function wipe(key, name) {
 // 🚦 자리 한도 · 👥 운영자
 const seatsNow = () => Object.values(S.conns || {}).filter(t => Date.now() - t < 60000).length;
 function renderAdmin() {
+  $('cap').closest('.sec').classList.toggle('hide', !ME.global);   // 자리 한도 = 서버 전체(전체 운영자만)
+  $('adm-h').textContent = COMM ? `운영자 · ${(COMMS[COMM] || {}).name || COMM}` : '운영자(전체)';
+  renderComms();
   const cap = S.connCap || 80;
   $('cap').innerHTML = `<div class="row"><span style="font:700 26px var(--en)">${seatsNow()} <small class="mute" style="font:500 13px var(--sans)">/ ${cap}${S.connCap ? '' : ' (기본값)'}</small></span><span class="mute">지금 앱을 켠 기기 수 / 한도 · 한도가 차면 새로 켠 사람에게 「자리가 꽉 찼어요」</span></div>
     <div class="row" style="margin-top:10px"><input class="in" id="cap-in" type="number" min="10" max="100" value="${cap}" style="width:90px"><button class="btn" id="cap-go">한도 바꾸기</button><span class="mute">10~100 · 앱마다 연결 1개 + 켜는 순간 여유 · 무료 서버 한도 100</span></div>`;
@@ -584,15 +602,40 @@ function renderAdmin() {
   $('adms').innerHTML = L.map(([uid, a]) => `<tr><td><b>${esc(a.name || '?')}</b>${a.owner ? ' <span class="tag gold">주인</span>' : ''}${uid === ME.uid ? ' <span class="tag">나</span>' : ''}</td><td class="mute">${esc(uid)}</td><td class="mute">${a.at ? fmt(a.at) : ''}</td><td>${ME.owner && uid !== ME.uid ? `<button class="btn sm red" data-opdel="${esc(uid)}">빼기</button>` : ''}</td></tr>`).join('');
   $('adm-add').innerHTML = ME.owner ? `<div class="row" style="margin-top:12px"><input class="in" id="op-uid" placeholder="운영자 번호(그 사람이 보드에 로그인하면 보임)" style="flex:1;min-width:0"><input class="in" id="op-nm" maxlength="40" placeholder="이름" style="width:130px"><button class="btn" id="op-go">운영자 추가</button></div>` : '';
   const og = $('op-go'); if (og) og.onclick = async () => { const uid = $('op-uid').value.trim(), nm = $('op-nm').value.trim(); if (!/^[A-Za-z0-9]{20,40}$/.test(uid) || !nm) { toast('번호와 이름을 확인해 주세요', true); return; } if (!confirm(`${nm}님을 운영자로 추가할까요?\n정지·경고·기록 고치기를 할 수 있게 됩니다.`)) return;
-    try { await api('PUT', `today/admins/${uid}`, { name: nm, at: Date.now() }); await logIt({ act: 'opadd', target: uid, name: nm }); toast('추가했습니다'); load(); } catch (e) { toast('추가하지 못했습니다 · ' + e.message, true); } };
+    try { await api('PUT', `${ADM()}/${uid}`, { name: nm, at: Date.now() }); await logIt({ act: 'opadd', target: uid, name: nm }); toast('추가했습니다'); load(); } catch (e) { toast('추가하지 못했습니다 · ' + e.message, true); } };
   $('adms').onclick = async e => { const b = e.target.closest('[data-opdel]'); if (!b) return; const a = S.admins[b.dataset.opdel] || {}; if (!confirm(`${a.name || '이 운영자'}를 운영자에서 뺄까요?`)) return;
-    try { await api('DELETE', `today/admins/${b.dataset.opdel}`); await logIt({ act: 'opdel', target: b.dataset.opdel, name: String(a.name || '').slice(0, 60) }); toast('뺐습니다'); load(); } catch (er) { toast('빼지 못했습니다 · ' + er.message, true); } };
+    try { await api('DELETE', `${ADM()}/${b.dataset.opdel}`); await logIt({ act: 'opdel', target: b.dataset.opdel, name: String(a.name || '').slice(0, 60) }); toast('뺐습니다'); load(); } catch (er) { toast('빼지 못했습니다 · ' + er.message, true); } };
+}
+// 🏘️ 커뮤니티 목록·만들기(주인만) — today/communities/{id} = {name, at, by} · today/communityCodes/{코드} = id
+async function renderComms() {
+  const sec = $('cm-sec'); sec.classList.toggle('hide', !ME.owner); if (!ME.owner) return;
+  let codes = {}; try { codes = (await get('today/communityCodes')) || {}; } catch (_) {}
+  const byId = {}; for (const [c, id] of Object.entries(codes)) (byId[id] = byId[id] || []).push(c);
+  const link = id => `${location.origin}${location.pathname}?c=${encodeURIComponent(id)}`;
+  $('cms').innerHTML = Object.entries(COMMS).map(([id, c]) => `<tr><td><b>${esc((c && c.name) || id)}</b> <span class="mute">${esc(id)}</span></td><td>${(byId[id] || []).map(x => `<span class="tag gold">${esc(x)}</span>`).join(' ') || '<span class="mute">코드 없음</span>'}</td><td><button class="btn sm" data-cmlink="${esc(id)}">운영자 링크 복사</button> <button class="btn sm" data-cmcode="${esc(id)}">코드 새로</button></td></tr>`).join('') || '<tr><td class="mute">아직 없음 · 기본 커뮤니티만 있음</td></tr>';
+  $('cm-add').innerHTML = `<div class="row" style="margin-top:12px"><input class="in" id="cm-nm" maxlength="20" placeholder="커뮤니티 이름(앱에 보임 · 예: 큐)" style="flex:1;min-width:0"><input class="in" id="cm-id" maxlength="24" placeholder="영문 이름표(예: que)" style="width:150px"><button class="btn gold" id="cm-go">만들기</button></div>`;
+  const newCode = () => { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let x = ''; const r = crypto.getRandomValues(new Uint8Array(6)); for (const v of r) x += A[v % A.length]; return x; };
+  const addCode = async id => { const code = newCode(); await api('PUT', `today/communityCodes/${code}`, id); await logIt({ act: 'commcode', target: id, reason: code }); return code; };
+  $('cm-go').onclick = async () => {
+    const nm = $('cm-nm').value.trim(), id = $('cm-id').value.trim().toLowerCase();
+    if (!nm || !/^[a-z0-9_-]{2,24}$/.test(id)) { toast('이름과 영문 이름표(소문자·숫자 2~24자)를 확인해 주세요', true); return; }
+    if (COMMS[id]) { toast('이미 있는 이름표입니다', true); return; }
+    if (!confirm(`「${nm}」 커뮤니티를 만들까요?\n이름표 ${id} · 초대 코드는 자동으로 만들어집니다`)) return;
+    try { await api('PUT', `today/communities/${id}`, { name: nm, at: Date.now(), by: ME.name.slice(0, 40) }); const code = await addCode(id); await logIt({ act: 'commadd', target: id, name: nm });
+      COMMS[id] = { name: nm }; const o = document.createElement('option'); o.value = id; o.textContent = nm; $('comm').appendChild(o); $('comm').classList.remove('hide');
+      toast(`만들었습니다 · 초대 코드 ${code}`); renderComms(); } catch (e) { toast('만들지 못했습니다 · ' + e.message, true); }
+  };
+  $('cms').onclick = async e => {
+    const l = e.target.closest('[data-cmlink]'), c = e.target.closest('[data-cmcode]');
+    if (l) navigator.clipboard.writeText(link(l.dataset.cmlink)).then(() => toast('복사했습니다 · 그 커뮤니티 운영자에게 전달(운영자 번호는 아래 「운영자」에 추가)'));
+    if (c) { if (!confirm('초대 코드를 하나 더 만들까요? (예전 코드도 그대로 쓸 수 있음)')) return; try { toast('새 코드 ' + await addCode(c.dataset.cmcode)); renderComms(); } catch (er) { toast('만들지 못했습니다 · ' + er.message, true); } }
+  };
 }
 async function unban(key, quiet) {
   const b = S.bans[key] || {}, name = b.name || key.slice(0, 8);
   if (!quiet && !confirm(`${name}님 정지를 풀까요?`)) return;
   try {
-    await api('DELETE', `today/bans/${key}`);
+    await api('DELETE', `${CT}/bans/${key}`);
     if (!quiet) await logIt({ act: 'unban', target: key, name: String(name).slice(0, 60) });
     toast(quiet ? '기록을 지웠습니다' : '정지를 풀었습니다'); await load(); if ($('dr').classList.contains('on')) openPerson(key);
   } catch (e) { toast('풀지 못했습니다 · ' + e.message, true); }
@@ -600,7 +643,7 @@ async function unban(key, quiet) {
 async function roomDelete(id) {
   const r = S.roomList[id] || {};
   if (!confirm(`「${r.name || id}」 방을 지울까요?\n안에 있는 사람은 방 밖으로 나가게 됩니다`)) return;
-  try { await api('DELETE', `today/roomList/${id}`); await api('DELETE', `today/rooms/${id}`); await logIt({ act: 'roomdel', room: String(r.name || id).slice(0, 40) }); toast('방을 지웠습니다'); load(); }
+  try { await api('DELETE', `${CT}/roomList/${id}`); await api('DELETE', `${CT}/rooms/${id}`); await logIt({ act: 'roomdel', room: String(r.name || id).slice(0, 40) }); toast('방을 지웠습니다'); load(); }
   catch (e) { toast('지우지 못했습니다 · ' + e.message, true); }
 }
 </script>

@@ -67,7 +67,8 @@ contextBridge.exposeInMainWorld('api', {
   getNotice: () => ipcRenderer.invoke('notice-get'),   // 📢 v0.1.245 공지
   noticeDismiss: (id) => ipcRenderer.invoke('notice-dismiss', id),
   onNotice: (cb) => ipcRenderer.on('notice', (_e, d) => cb(d)),   // 💬 v0.1.236 이 사람 말 숨기기
-  pubSet: (on) => ipcRenderer.invoke('pub-set', on),   // 🔒 v0.1.253 내전 기록 공개 동의/철회
+  pubSet: (on) => ipcRenderer.invoke('pub-set', on),
+  communityJoin: (code) => ipcRenderer.invoke('community-join', code),   // 🏘️ v0.1.258 초대 코드로 커뮤니티 들어가기(빈 코드 = 기본)   // 🔒 v0.1.253 내전 기록 공개 동의/철회
   privacyWipe: () => ipcRenderer.invoke('privacy-wipe'),   // 🔐 v0.1.236 내 정보 지우기
   openPrivacy: () => ipcRenderer.send('open-privacy'),
   quitConfirm: (yes, noAsk) => ipcRenderer.send('quit-confirm', yes, !!noAsk),

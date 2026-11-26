@@ -137,6 +137,20 @@ function renderFull() {   // 🚦 v0.1.96: 자리 꽉 참(무료 서버 동시 �
   _rmSig = sig;
   el('rm-list').innerHTML = `<div class="rm-empty"><b class="rm-full-t">지금은 자리가 꽉 찼어요</b><span>무료 서버라 한 번에 ${F.cap}명까지 쓸 수 있어요<br>누가 나가면 자동으로 들어가요</span><span class="lb-wait">자리 확인 중</span></div>`;
 }
+// 🏘️ v0.1.258 커뮤니티 — 방 목록 머리 「ROOMS · 큐」 · 새로 설치한 사람은 맨 위에 한 번 고르기(초대 코드 / 기본으로 시작)
+function commHead(C) { const e = el('rm-comm'); if (e) { e.textContent = C && C.name ? ' · ' + C.name : ''; e.title = C && C.name ? `지금 커뮤니티 · ${C.name}(⚙ 설정에서 바꿈)` : ''; } }
+function commCard() {
+  const list = el('rm-list'); if (!list || list.querySelector('.rm-cm')) return;
+  list.insertAdjacentHTML('afterbegin', '<div class="rm-cm"><span class="rm-pub-en">COMMUNITY</span><b>어느 커뮤니티에서 내전하나요?</b>'
+    + '<span>운영진에게 받은 초대 코드를 넣으면 그 커뮤니티의 방·기록·순위만 보입니다</span>'
+    + '<div class="rm-cm-row"><input id="rm-cm-in" class="rm-in" maxlength="12" placeholder="초대 코드" autocomplete="off" spellcheck="false"><button class="ui-btn-gold" id="rm-cm-go">들어가기</button></div>'
+    + '<button class="rm-cm-skip" id="rm-cm-skip">초대 코드 없이 시작</button></div>');
+  const go = async code => { const b = el('rm-cm-go'); if (b) b.disabled = true; const r = await window.api.communityJoin(code).catch(() => null); if (b) b.disabled = false;
+    if (!r || !r.ok) { rmErr((r && r.err) || '잠깐 문제가 생겼어요'); return; } rmErr(r.restart ? `${r.community ? r.community.name : '기본'} 커뮤니티로 다시 켜는 중입니다` : ''); };
+  el('rm-cm-go').onclick = () => go(el('rm-cm-in').value);
+  el('rm-cm-in').addEventListener('keydown', e => { if (e.key === 'Enter') go(el('rm-cm-in').value); });
+  el('rm-cm-skip').onclick = () => go('');
+}
 function pubCard() {   // 🔒 v0.1.253 내전 기록 공개 동의 안 함 = 보기만 · 방 목록 맨 위 카드
   const list = el('rm-list'); if (!list || list.querySelector('.rm-pub')) return;
   list.insertAdjacentHTML('afterbegin', '<div class="rm-pub"><span class="rm-pub-en">RECORD SHARING</span><b>내전 기록 공개 동의가 필요합니다</b>'
@@ -146,12 +160,14 @@ function pubCard() {   // 🔒 v0.1.253 내전 기록 공개 동의 안 함 = �
 function renderRooms() {
   const D = roomData || { rooms: [] }, R = D.rooms || [];
   el('rm-new').style.display = myName && R.length ? '' : 'none';
-  const needPub = !!(myName && D.pub && D.pub.need);
-  const sig = JSON.stringify([myName, R, _pwFor, D.ready, D.slow, needPub]);
+  const needPub = !!(myName && D.pub && D.pub.need), C = D.comm || null;
+  commHead(C);
+  const sig = JSON.stringify([myName, R, _pwFor, D.ready, D.slow, needPub, C]);
   if (sig === _rmSig) return;   // 같은 내용이면 다시 안 그림(입력 중인 비밀번호가 지워지지 않게)
   _rmSig = sig;
   const list = el('rm-list');
   if (needPub) setTimeout(pubCard, 0);   // 🔒 v0.1.253 목록 맨 위 동의 카드(아래 그리기가 끝난 뒤)
+  if (C && C.ask) setTimeout(commCard, 0);   // 🏘️ v0.1.258 새로 설치 = 커뮤니티 고르기(동의 카드보다 위)
   if (!myName) { list.innerHTML = '<div class="rm-empty"><span class="lb-wait">롤 클라이언트에 로그인하면 방에 들어갈 수 있어요</span></div>'; return; }
   if (!R.length) {
     list.innerHTML = D.ready === false ? (D.slow ? '<div class="rm-empty"><b class="rm-empty-t">서버에 연결하지 못했습니다</b><span>인터넷 연결을 확인해 주세요<br>연결되면 자동으로 이어집니다</span></div>' : '<div class="rm-empty">방 목록을 불러오는 중입니다</div>')

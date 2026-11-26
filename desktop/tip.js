@@ -112,7 +112,7 @@ window.tnPubAsk = () => window.tnConfirm('내전에 참가하려면 기록 공�
       + `<p class="tn-mb-m">${esc(msg)}</p><input class="tn-mb-in" maxlength="${Number(o.max) || 40}" placeholder="${esc(o.placeholder || '')}"><div class="tn-mb-btns"><button class="ui-btn-ghost tn-mb-no">${esc(o.cancel || '취소')}</button><button class="ui-btn-gold tn-mb-ok">${esc(o.ok || '확인')}</button></div></div>`;
     const inp = wrap.querySelector('.tn-mb-in');
     const end = v => { document.removeEventListener('keydown', key, true); wrap.remove(); done(v); };
-    const ok = () => { const v = inp.value.trim(); end(v || null); };
+    const ok = () => { const v = inp.value.trim(); end(v || (o.allowEmpty ? '' : null)); };   // allowEmpty = 빈 칸으로 확인하면 ''(v0.1.258 커뮤니티 = 기본으로)
     const key = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); end(null); } else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); ok(); } };
     wrap.addEventListener('mousedown', e => { if (e.target === wrap) end(null); });
     wrap.querySelector('.tn-mb-ok').onclick = ok; wrap.querySelector('.tn-mb-no').onclick = () => end(null);

@@ -591,6 +591,16 @@ body.tg-on .ui-scroll { overflow:hidden !important; }   /* 예시 화면은 스�
 .rm-ban-en { font:700 11px 'Barlow Condensed', var(--f-body); letter-spacing:0.22em; color:#ff9c90; }
 .rm-ban-why { color:var(--ink); font-weight:600; word-break:break-all; }
 .rm-ban small { font-size:11.5px; color:var(--dim); }
+/* 🏘️ v0.1.258 커뮤니티 고르기 카드 · 방 목록 머리 커뮤니티 이름 */
+.rm-comm { display:inline-block; max-width:9.5em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom; color:var(--gold); letter-spacing:0.08em; }
+#view-rooms .lb-head .lb-title { flex:1; min-width:0; } #rm-new { flex:none; white-space:nowrap; }   /* 긴 커뮤니티 이름이 「방 만들기」를 밀지 않게 */
+.rm-cm { display:flex; flex-direction:column; gap:6px; padding:12px 12px 10px; margin-bottom:10px; border:1px solid var(--gold-line); background:linear-gradient(180deg, var(--gold-soft), transparent); clip-path:var(--cut-sm); }
+.rm-cm b { font-size:14px; color:var(--ink); }
+.rm-cm > span:not(.rm-pub-en) { font-size:12px; color:var(--dim); line-height:1.45; word-break:keep-all; }
+.rm-cm-row { display:flex; gap:6px; margin-top:3px; }
+.rm-cm-row .rm-in { flex:1; min-width:0; text-transform:uppercase; letter-spacing:0.1em; }
+.rm-cm-row .ui-btn-gold { flex:none; padding:0 12px; }
+.rm-cm-skip { align-self:flex-start; padding:2px 0; font-size:11.5px; color:var(--dim); background:none; border:0; text-decoration:underline; cursor:pointer; }
 /* 🔒 v0.1.253 기록 공개 동의 카드 */
 .rm-pub { display:flex; flex-direction:column; gap:6px; padding:12px 12px 13px; margin-bottom:10px; border:1px solid var(--gold-line); background:linear-gradient(180deg, var(--gold-soft), transparent); clip-path:var(--cut-sm); }
 .rm-pub-en { font:700 11px 'Barlow Condensed', var(--f-body); letter-spacing:0.22em; color:var(--gold); }

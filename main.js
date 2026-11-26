@@ -22,6 +22,14 @@ const FIREBASE_DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.f
 const FIREBASE_API_KEY = 'AIzaSyDhVbSzNQ306LUTcPo44Ru9G4_RqV9Dl_E';   // 웹 앱 키(공개용 식별자 — 비밀 아님)
 const TOGGLE_HOTKEY = 'Shift+F7';   // 기존 오버레이(Shift+F5)와 겹치지 않게
 const T = 'today';                  // ⚠️ 이 앱의 모든 쓰기 루트 — 사이트 노드(session·lobby·bridge·matches…)에 절대 쓰지 않음
+// 🏘️ v0.1.258 커뮤니티 공간(사장님: 한 프로그램 + 커뮤니티마다 따로 · A안 = 같은 서버 안에서 칸만 나눔)
+//   기본 커뮤니티 = 지금까지의 today/… 그대로(옮기지 않음 · 옛 앱도 여기) · 다른 커뮤니티 = today/c/{id}/… (CT)
+//   커뮤니티마다 따로(CT) = 방 목록·방·접속 중·경기 기록(기록·순위·프로필·내전 등급)·공지·신고·경고·채팅 금지·정지·운영 기록·운영자
+//   같이(T) = 롤 계정·기록 공개 동의·디스코드·기기 등록·일반 판 점수·증강 가이드·팟지 재료/영상·서버 자리(conns·connCap)·설정·브릿지 방 밖 칸
+//   들어가기 = 초대 코드(today/communityCodes/{코드} = id → today/communities/{id} = {name}) · config.community = {id, name}
+//   바꾸면 앱을 다시 켬(실시간 연결·캐시를 깨끗이) · 정지 = 기본 커뮤니티 정지(today/bans)는 모든 커뮤니티에 · 커뮤니티 정지는 그 커뮤니티만
+let CT = T, community = null;
+function setCommunity(c) { community = c && /^[a-z0-9_-]{2,24}$/.test(String(c.id || '')) ? { id: String(c.id), name: String(c.name || c.id).slice(0, 20) } : null; CT = community ? `${T}/c/${community.id}` : T; }
 const { buildTeams, normName } = require('./teams');   // ⚔️ 홈페이지 makeTeams 1:1 이식(랜덤 팀 짜기에 씀)
 const { balanceTeams, playerScore } = require('./balance');   // ⚖️ v0.1.174 티어 점수로 밸런스 팀 짜기
 const bridge = require('./bridge');                    // 🔌 내장 브릿지(LCU EOG 캡처 → today/bridge)
@@ -832,7 +840,7 @@ function mirSet(root, ks, val) {
 }
 function fbMirror(name, onData, pathStr) {   // pathStr 없으면 today/{name} · 🚪 방 노드는 rooms/{방}/{name}(방 바꾸면 close 후 다시)
   const m = MIR[name] = { ready: false, data: null };
-  m.stream = fbStream(pathStr || `${T}/${name}`, (ev, msg) => {
+  m.stream = fbStream(pathStr || `${CT}/${name}`, (ev, msg) => {   // 🏘️ 방 목록 = 커뮤니티 칸
     if (MIR[name] !== m || !msg || typeof msg.path !== 'string') return;
     const ks = msg.path.split('/').filter(Boolean);
     if (ev === 'put') { m.data = mirSet(m.data, ks, msg.data); if (!ks.length) m.ready = true; }
@@ -1087,14 +1095,14 @@ function homeView() {
   // 🎬 v0.1.177 게임 시작 화면에 이번 판 두 팀(내전 · 팀이 짜인 판만) + 오늘 몇 번째 판인지
   const sd = sessionData, match = _homeMode === 'logo' && sd && sd.phase === 'teams' && sd.mode !== 'normal' && Array.isArray(sd.teamA) && Array.isArray(sd.teamB) && sd.teamA.length && sd.teamB.length
     ? { n: _todayGames != null ? _todayGames + 1 : 0 } : null;
-  return { mode: _homeMode, match, day: dayKey(), me: account ? { name: account.gameName, tag: account.tagLine || '' } : null, rooms: rv.rooms, room: rv.room, online: onlineList(), full: rv.full, ban: rv.ban, pub: rv.pub, ready: rv.ready || !!room, slow: rv.slow, start: startView(), ver: app.getVersion() };
+  return { mode: _homeMode, match, day: dayKey(), me: account ? { name: account.gameName, tag: account.tagLine || '' } : null, rooms: rv.rooms, room: rv.room, online: onlineList(), full: rv.full, ban: rv.ban, pub: rv.pub, comm: rv.comm, ready: rv.ready || !!room, slow: rv.slow, start: startView(), ver: app.getVersion() };
 }
 function sendHome() { if (homeWin && !homeWin.isDestroyed() && _homeLoaded) try { homeWin.webContents.send('home', homeView()); } catch (_) {} }
 async function homeRefresh() {   // 홈이 떠 있을 때만 10초마다(접속 표시는 실시간으로 안 받아서 직접 읽음)
   if (!_homeOn || _homeMode !== 'home') return;
   if (_live) {
-    try { _onlineRaw = (await getJson(`${FIREBASE_DB}/${T}/presence.json`)) || {}; } catch (_) {}
-    if (room) try { roomListRaw = (await getJson(`${FIREBASE_DB}/${T}/roomList.json`)) || {}; } catch (_) {}   // 방 안이면 방 목록 스트림이 없음
+    try { _onlineRaw = (await getJson(`${FIREBASE_DB}/${CT}/presence.json`)) || {}; } catch (_) {}
+    if (room) try { roomListRaw = (await getJson(`${FIREBASE_DB}/${CT}/roomList.json`)) || {}; } catch (_) {}   // 방 안이면 방 목록 스트림이 없음
   }
   sendHome();
 }
@@ -1130,7 +1138,7 @@ function hidePanelsQuiet() { for (const w of [overlayWin, leftWin]) if (w && !w.
 // 👤 게스트 접속 표시(롤 로그인 전 · 사장님: 내전을 먼저 켜 두면 게스트로) — today/presence/g_{기기} · 로그인하면 지움
 let _guestOn = false;
 function guestBeat() {
-  const key = `${T}/presence/g_${config.deviceId}`;
+  const key = `${CT}/presence/g_${config.deviceId}`;
   if (!account && !_away && _live) { _guestOn = true; fbSet(key, { name: '게스트', at: Date.now(), app: app.getVersion() }).then(r => { if (process.env.TN_DOCK_SIM) console.log('[guest] 쓰기', JSON.stringify(r)); }).catch(() => {}); }
   else if (_guestOn) { _guestOn = false; if (process.env.TN_DOCK_SIM) console.log('[guest] 지움', !!account, !!_away, _live); fbSet(key, null).catch(() => {}); }
 }
@@ -1284,8 +1292,8 @@ function teamOf(s, name) {
 //     · 「오늘」 = 서버에서 방 이름으로 골라 받음(.indexOn roomName) + 같은 방 번호이거나, 이름만 같으면 지금 방 사람이 그 판에 있었을 때만(sameGroup)
 //   ⚠️ 비공개 = 목록 자물쇠 + 앱의 비밀번호 확인까지(서버 읽기는 누구나 — 규칙 참고)
 let room = null, roomListRaw = null, runSession = null, _autoHostAt = 0, _gcAt = 0;   // room = { id, name, priv, h }
-const RP = () => `${T}/rooms/${room ? room.id : '_none'}`;   // 방 밖이면 쓰지 않음(각 함수가 room 확인 · _none은 규칙상 쓰기 거절)
-const roomGet = name => room ? getJson(`${FIREBASE_DB}/${T}/rooms/${room.id}/${name}.json`) : Promise.resolve(null);
+const RP = () => `${CT}/rooms/${room ? room.id : '_none'}`;   // 방 밖이면 쓰지 않음(각 함수가 room 확인 · _none은 규칙상 쓰기 거절)
+const roomGet = name => room ? getJson(`${FIREBASE_DB}/${CT}/rooms/${room.id}/${name}.json`) : Promise.resolve(null);
 const ROOM_GONE_MS = 90000, ROOM_GRACE_MS = 120000;   // 방 사람 앱이 90초 넘게 소식 없으면 사라짐(업데이트로 다 같이 다시 켜는 30초는 버팀) · 막 만든 방은 2분 봐줌
 const pwHash = (id, pw) => require('crypto').createHash('sha256').update(`${id}:${pw}`).digest('hex');
 // 🚦 v0.1.96: 자리 — 무료 요금제 동시 연결 100개(앱당 실시간 연결 3개 = 약 33명 · 짧은 요청은 안 셈 · 실측) → 켤 때 자리부터 보고 꽉 찼으면 실시간 연결을 아예 안 엶
@@ -1375,7 +1383,7 @@ function roomsView() {
     rooms.push({ id, name: r.name, priv: !!r.priv, host: r.host || null, n: mine ? mem.length : (Number(r.n) || mem.length), members: mem.slice(0, 10), at: r.at || 0, mine });
   }
   rooms.sort((a, b) => b.mine - a.mine || b.n - a.n || b.at - a.at);
-  return { rooms, room: room ? { id: room.id, name: room.name, priv: room.priv } : null, me: config.myName || '', ready: !!(MIR.roomList && MIR.roomList.ready), slow: !room && _live && !(MIR.roomList && MIR.roomList.ready) && now - _liveAt > SLOW_MS, ban: banOn() ? { until: _ban.until, reason: _ban.reason, perm: _ban.until > 9e14 } : null, full: seatFull, pub: pubView() };
+  return { rooms, room: room ? { id: room.id, name: room.name, priv: room.priv } : null, me: config.myName || '', ready: !!(MIR.roomList && MIR.roomList.ready), slow: !room && _live && !(MIR.roomList && MIR.roomList.ready) && now - _liveAt > SLOW_MS, ban: banOn() ? { until: _ban.until, reason: _ban.reason, perm: _ban.until > 9e14 } : null, full: seatFull, pub: pubView(), comm: communityView() };
 }
 const broadcastRooms = () => broadcast('rooms', roomsView());
 // ⚡ v0.1.95: 방 노드 스트림 7개(session·lobby·host·normalLive·potgWait·potgRec·eogStats) → **방 하나에 스트림 1개**(rooms/{방})
@@ -1389,7 +1397,7 @@ function roomStreams() {   // 방 바뀜 → 방 스트림 다시(예전 방 데
   if (room) mirClose('roomList');   // 📦 v0.1.110: 방 안에선 방 목록을 실시간으로 안 받음(방 고르는 화면에서만)
   else if (_live && !MIR.roomList) fbMirror('roomList', d => { roomListRaw = d || null; broadcastRooms(); roomRejoin(); });   // 🚪 방 목록
   onHostRec(null);
-  try { bridge.setRoot(room ? `${RP()}/bridge` : `${T}/bridge`); } catch (_) {}
+  try { bridge.setRoot(room ? `${RP()}/bridge` : `${T}/bridge`); } catch (_) {}   // 🏘️ RP() = 커뮤니티 칸 방
   broadcast('lobby', lobbyView()); broadcast('session', { session: null, myName: config.myName || '' });
   if (!room || !runSession) return;
   fbMirror('room', d => {
@@ -1411,7 +1419,7 @@ async function roomUidPut(id) {
   await fbToken().catch(() => null);
   const uid = fbUid(); if (!uid) return { ok: true };
   const k = id + '|' + account.puuid + '|' + uid; if (_roomUidKey === k) return { ok: true };
-  const w = await fbSet(`${T}/rooms/${id}/uids/${uid}`, account.puuid).catch(() => null);
+  const w = await fbSet(`${CT}/rooms/${id}/uids/${uid}`, account.puuid).catch(() => null);
   if (!w || !w.ok) { console.log('[room] 방 기기 칸 못 씀', w && w.status); return { ok: false, err: '롤 계정 확인이 안 돼서 방에 못 들어갔어요 · 잠시 뒤 다시 해 주세요' }; }
   _roomUidKey = k; return { ok: true };
 }
@@ -1420,7 +1428,7 @@ async function roomJoin(id, pw, hash) {
   if (banOn()) return { ok: false, err: '이용이 정지된 계정이에요' };   // 🚫 v0.1.244
   if (!pubOk()) return { ok: false, err: PUB_ERR, needPub: true };   // 🔒 v0.1.253
   if (!_live) return { ok: false, err: notLiveErr() };
-  const r = (roomListRaw || {})[id] || await getJson(`${FIREBASE_DB}/${T}/roomList/${id}.json`);
+  const r = (roomListRaw || {})[id] || await getJson(`${FIREBASE_DB}/${CT}/roomList/${id}.json`);
   if (!r || !r.name) return { ok: false, err: '없어진 방이에요' };
   let h = null;
   if (r.priv) {
@@ -1432,7 +1440,7 @@ async function roomJoin(id, pw, hash) {
   { const u = await roomUidPut(id); if (!u.ok) return u; }   // 🔐 v0.1.243 맨 먼저
   room = { id, name: r.name, priv: !!r.priv, h };
   config.lastRoom = { id, h }; saveConfig();
-  fbSet(`${T}/rooms/${id}/lobby/kick/${account.puuid}`, null).catch(() => {});   // 🚪 v0.1.217 예전에 내보내졌던 표시는 지움(내가 다시 들어온 것)
+  fbSet(`${CT}/rooms/${id}/lobby/kick/${account.puuid}`, null).catch(() => {});   // 🚪 v0.1.217 예전에 내보내졌던 표시는 지움(내가 다시 들어온 것)
   roomStreams();
   await beatPresence();
   broadcastRooms(); if (runSession) runSession();
@@ -1478,9 +1486,9 @@ async function roomCreate(name, priv, pw) {
   if (priv && !p) return { ok: false, err: '비밀번호를 정해주세요' };
   const id = 'r' + Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 6), now = Date.now();
   const meta = { name: nm, priv: !!priv, pw: priv ? pwHash(id, p) : null, host: account.gameName, at: now, seen: now, by: account.gameName };
-  const w = await fbSet(`${T}/roomList/${id}`, meta); if (!w.ok) return w;
-  { const u = await roomUidPut(id); if (!u.ok) { fbSet(`${T}/roomList/${id}`, null).catch(() => {}); return u; } }   // 🔐 v0.1.243 방장 칸보다 먼저
-  await fbSet(`${T}/rooms/${id}/host`, { puuid: account.puuid, name: account.gameName, at: now });   // 👑 만든 사람 = 방장(방 스트림이 받아 자동으로 방장이 됨)
+  const w = await fbSet(`${CT}/roomList/${id}`, meta); if (!w.ok) return w;
+  { const u = await roomUidPut(id); if (!u.ok) { fbSet(`${CT}/roomList/${id}`, null).catch(() => {}); return u; } }   // 🔐 v0.1.243 방장 칸보다 먼저
+  await fbSet(`${CT}/rooms/${id}/host`, { puuid: account.puuid, name: account.gameName, at: now });   // 👑 만든 사람 = 방장(방 스트림이 받아 자동으로 방장이 됨)
   roomListRaw = Object.assign({}, roomListRaw, { [id]: meta });
   return roomJoin(id, null, meta.pw);
 }
@@ -1491,10 +1499,10 @@ async function roomLeave(quiet) {
     const next = roomMembers(id).filter(m => !account || m.key !== account.puuid).sort((a, b) => a.key.localeCompare(b.key))[0];
     if (next) await handHost(next.key).catch(() => {}); else await releaseHost().catch(() => {});
   }
-  const uid = fbUid(), dels = account ? ['lobby/join', 'lobby/chat', 'lobby/ping', 'lobby/cping', 'members', 'dc'].map(k => fbSet(`${T}/rooms/${id}/${k}/${account.puuid}`, null).catch(() => {})) : [];   // 💬 내 한마디·📍 핑·📦 방 사람 칸·디스코드 사본
+  const uid = fbUid(), dels = account ? ['lobby/join', 'lobby/chat', 'lobby/ping', 'lobby/cping', 'members', 'dc'].map(k => fbSet(`${CT}/rooms/${id}/${k}/${account.puuid}`, null).catch(() => {})) : [];   // 💬 내 한마디·📍 핑·📦 방 사람 칸·디스코드 사본
   room = null; config.lastRoom = null; saveConfig(); _roomUidKey = null; _dcRoomKey = null;   // 먼저 방을 비움(지우는 사이 접속 신호가 방 사람 칸을 다시 쓰지 않게)
   await Promise.all(dels);
-  if (uid) fbSet(`${T}/rooms/${id}/uids/${uid}`, null).catch(() => {});   // 🔐 v0.1.236 · v0.1.243 = 다른 칸을 다 지운 뒤에(먼저 지우면 2단계 규칙에서 나머지가 막힘)
+  if (uid) fbSet(`${CT}/rooms/${id}/uids/${uid}`, null).catch(() => {});   // 🔐 v0.1.236 · v0.1.243 = 다른 칸을 다 지운 뒤에(먼저 지우면 2단계 규칙에서 나머지가 막힘)
   roomStreams();
   await beatPresence();
   broadcastRooms();
@@ -1516,16 +1524,16 @@ async function roomGc() {   // 🧹 아무도 없는 방 지우기(아무 앱이
   for (const [id, r] of Object.entries(roomListRaw || {})) {
     if (room && room.id === id) continue;
     if (r && r.name && Date.now() - Math.max(r.seen || 0, r.at || 0) < ROOM_GONE_MS) continue;   // 방 사람 앱이 90초 안에 소식 있으면 둠
-    await fbSet(`${T}/roomList/${id}`, null).catch(() => {});
-    await fbSet(`${T}/rooms/${id}`, null).catch(() => {});
+    await fbSet(`${CT}/roomList/${id}`, null).catch(() => {});
+    await fbSet(`${CT}/rooms/${id}`, null).catch(() => {});
   }
   if (Date.now() - _orphanAt < 300000) return;   // 🛡️ v0.1.97: 방 목록에 없는 방 데이터(목록 밖에 만든 쓰레기 등) 5분마다 정리
   _orphanAt = Date.now();
-  const all = await getJson(`${FIREBASE_DB}/${T}/rooms.json?shallow=true`).catch(() => null);
+  const all = await getJson(`${FIREBASE_DB}/${CT}/rooms.json?shallow=true`).catch(() => null);
   for (const id of Object.keys(all || {})) {
     if ((roomListRaw || {})[id] || (room && room.id === id)) continue;
-    if (await getJson(`${FIREBASE_DB}/${T}/roomList/${id}.json`).catch(() => 1) !== null) continue;   // 막 만든 방(목록 스트림이 아직 안 옴)은 서버에서 한 번 더 확인
-    await fbSet(`${T}/rooms/${id}`, null).catch(() => {});
+    if (await getJson(`${FIREBASE_DB}/${CT}/roomList/${id}.json`).catch(() => 1) !== null) continue;   // 막 만든 방(목록 스트림이 아직 안 옴)은 서버에서 한 번 더 확인
+    await fbSet(`${CT}/rooms/${id}`, null).catch(() => {});
   }
 }
 let _orphanAt = Date.now();
@@ -1543,7 +1551,7 @@ const fetchPresence  = () => room ? roomGet('members') : Promise.resolve(null); 
 // 📦 그날 기록 중 이 방 것만 — 서버에서 방 이름으로 골라 받음(.indexOn roomName · 방 생기기 전 날은 통째) · 이름만 같은 다른 모임은 sameGroup으로 거름
 const ROOMS_SINCE = '2026-11-02';
 async function fetchDayRoom(kind, day) {
-  const base = `${FIREBASE_DB}/${T}/days/${day}/${kind}.json`;
+  const base = `${FIREBASE_DB}/${CT}/days/${day}/${kind}.json`;
   if (!room || day < ROOMS_SINCE) return getJson(base);
   const r = await getJson(`${base}?orderBy=${encodeURIComponent('"roomName"')}&equalTo=${encodeURIComponent(JSON.stringify(room.name))}`);
   return r && r.error ? getJson(base) : r;   // 서버 규칙에 색인이 없으면(옛 규칙) 통째
@@ -1579,7 +1587,7 @@ let _mute = null, _warnShown = 0;
 const muteOn = () => !!(_mute && _mute.until > Date.now());
 const untilTxt = ms => { if (ms > 9e14) return '기간 없이'; const d = new Date(ms); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}까지`; };
 async function modExtra(a) {
-  const [mu, wa] = await Promise.all([getJson(`${FIREBASE_DB}/${T}/mutes/${a.puuid}.json`).catch(() => null), getJson(`${FIREBASE_DB}/${T}/warns/${a.puuid}.json`).catch(() => null)]);
+  const [mu, wa] = await Promise.all([getJson(`${FIREBASE_DB}/${CT}/mutes/${a.puuid}.json`).catch(() => null), getJson(`${FIREBASE_DB}/${CT}/warns/${a.puuid}.json`).catch(() => null)]);
   if (a !== account) return;
   const nm = mu && typeof mu === 'object' && Number(mu.until) > Date.now() ? { until: Number(mu.until), reason: String(mu.reason || '').slice(0, 200) } : null;
   if (JSON.stringify(nm) !== JSON.stringify(_mute)) { _mute = nm; console.log('[mod] 채팅 금지', nm ? untilTxt(nm.until) : '풀림'); broadcast('lobby', lobbyView()); }
@@ -1592,7 +1600,7 @@ ipcMain.handle('warn-seen', (_e, at) => { if (Number(at) > (config.warnSeen || 0
 let _notice = null;
 async function noticeCheck() {
   if (!_live) return;   // 💤 v0.1.246 쉬는 중엔 안 읽음(연결을 다시 시작할 때 바로 한 번)
-  const x =await getJson(`${FIREBASE_DB}/${T}/notice.json`).catch(() => undefined);
+  const x =await getJson(`${FIREBASE_DB}/${CT}/notice.json`).catch(() => undefined);
   if (x === undefined) return;
   const n = x && typeof x === 'object' && x.id && x.text && Number(x.until) > Date.now() && x.id !== config.noticeSeen ? { id: String(x.id), text: String(x.text).slice(0, 200), lv: x.lv === 'warn' ? 'warn' : 'info', until: Number(x.until) } : null;
   if (JSON.stringify(n) === JSON.stringify(_notice)) return;
@@ -1604,12 +1612,12 @@ setTimeout(() => noticeCheck().catch(() => {}), 6000); setInterval(() => noticeC
 async function banCheck() {
   const a = account;
   let b = null;
-  if (a) { const x = await getJson(`${FIREBASE_DB}/${T}/bans/${a.puuid}.json`).catch(() => null); if (x && typeof x === 'object' && Number(x.until) > Date.now()) b = { until: Number(x.until), reason: String(x.reason || '').slice(0, 200), at: Number(x.at) || 0 }; modExtra(a).catch(() => {}); }
+  if (a) for (const root of community ? [T, CT] : [T]) { if (b) break; const x = await getJson(`${FIREBASE_DB}/${root}/bans/${a.puuid}.json`).catch(() => null); if (x && typeof x === 'object' && Number(x.until) > Date.now()) b = { until: Number(x.until), reason: String(x.reason || '').slice(0, 200), at: Number(x.at) || 0 }; modExtra(a).catch(() => {}); }
   if (a !== account) return;
   const k = b ? JSON.stringify(b) : ''; if (k === _banKey) return;
   _banKey = k; _ban = b;
   console.log('[ban]', b ? `정지됨 · ${new Date(b.until).toLocaleString()}까지` : '정지 풀림');
-  if (b) { if (room) await roomLeave(true).catch(() => {}); if (a) fbSet(`${T}/presence/${a.puuid}`, null).catch(() => {}); }
+  if (b) { if (room) await roomLeave(true).catch(() => {}); if (a) fbSet(`${CT}/presence/${a.puuid}`, null).catch(() => {}); }
   broadcastRooms(); sendHome();
 }
 setInterval(() => { banCheck().catch(() => {}); if (_ban && !banOn()) banCheck().catch(() => {}); }, 60000);
@@ -1634,13 +1642,13 @@ async function beatPresence() {
   }
   if (banOn()) return;   // 🚫 v0.1.244 정지 중 = 접속 표시 안 함
   const pres = { name: account.gameName, tag: account.tagLine || null, icon: account.iconId || null, at: Date.now(), host: !!config.isHost, app: app.getVersion(), room: room ? room.id : null };
-  await fbSet(`${T}/presence/${account.puuid}`, pres).catch(() => {});   // 전역(아무도 실시간으로 안 받음 · 옛 앱 호환·관리용)
+  await fbSet(`${CT}/presence/${account.puuid}`, pres).catch(() => {});   // 전역(아무도 실시간으로 안 받음 · 옛 앱 호환·관리용)
   if (!room) { privacyTick(); return; }
   fbSet(`${RP()}/members/${account.puuid}`, pres).catch(() => {});   // 📦 v0.1.110: 방 사람 = 방 스트림 안(그 방 사람만 받음)
   privacyTick();   // 🔐 v0.1.236 기기 등록 · 방 기기 칸 · 디스코드 방 사본
   if (config.isHost || !hostRec || Date.now() - (hostRec.at || 0) > 40000) {   // 🚪 방 살아있음 + 인원·이름(방 목록에 보임) — 방장 한 명만(방장이 조용하면 남은 사람이)
     const mem = roomMembers(room.id).map(m => m.name); if (!mem.includes(normName(account.gameName))) mem.unshift(normName(account.gameName));
-    fbUpdate(`${T}/roomList/${room.id}`, Object.assign({ name: room.name, priv: !!room.priv, pw: room.priv ? room.h : null, seen: Date.now(), n: mem.length, mem: mem.slice(0, 10).join('\n').slice(0, 400) }, config.isHost ? { host: account.gameName } : {})).catch(() => {});
+    fbUpdate(`${CT}/roomList/${room.id}`, Object.assign({ name: room.name, priv: !!room.priv, pw: room.priv ? room.h : null, seen: Date.now(), n: mem.length, mem: mem.slice(0, 10).join('\n').slice(0, 400) }, config.isHost ? { host: account.gameName } : {})).catch(() => {});
   }
   if (config.isHost) fbCas(`${RP()}/host`, cur => cur && cur.puuid === account.puuid ? { value: { puuid: cur.puuid, name: cur.name, at: Date.now() } } : { err: 'not mine' }).catch(() => {});   // 👑 방장 살아있음 표시
 }
@@ -1649,7 +1657,7 @@ async function beatPresence() {
 const AWAY_GRACE_MS = 2 * 60 * 1000;
 let _away = null, _awayTimer = null;   // 클라 꺼짐으로 잠깐 없는 내 계정
 function releaseAccount(prev) {   // 이전 계정의 접속 표시·방장·대기실 참가 정리
-  fbSet(`${T}/presence/${prev.puuid}`, null).catch(() => {});
+  fbSet(`${CT}/presence/${prev.puuid}`, null).catch(() => {});
   if (room) fbSet(`${RP()}/members/${prev.puuid}`, null).catch(() => {});
   if (config.isHost) { config.isHost = false; fbSet(`${RP()}/host`, null).catch(() => {}); broadcast('account', { account, isHost: false }); broadcast('host', hostView()); }
   fbSet(`${RP()}/lobby/join/${prev.puuid}`, null).catch(() => {});
@@ -1814,7 +1822,7 @@ async function handHost(puuid) {
     ? { value: { puuid, name: normName(p.name), at: Date.now(), from: me.gameName, fromKey: me.puuid } } : { err: '방장이 아니에요' });
   if (!r.ok) return r;
   hostRec = r.value; setHostLocal(false, `${normName(p.name)}님에게 방장을 넘겼어요`);
-  fbUpdate(`${T}/roomList/${room.id}`, { host: normName(p.name) }).catch(() => {});   // 🚪 방 목록 방장 이름 바로
+  fbUpdate(`${CT}/roomList/${room.id}`, { host: normName(p.name) }).catch(() => {});   // 🚪 방 목록 방장 이름 바로
   return { ok: true };
 }
 
@@ -1860,7 +1868,7 @@ ipcMain.handle('report-send', async (_e, o) => {
   const rep = { at: now, by: account.puuid, byName: String(account.gameName || '').slice(0, 60), target: key, name: String(mm ? mm.name : (o && o.name) || '?').slice(0, 60), room: room.id, roomName: String(room.name || '').slice(0, 40), why, memo, st: 'open' };
   if (Object.keys(lines).length) rep.lines = lines;
   const tok = await fbToken().catch(() => null);
-  const r = await new Promise(res => { const req = https.request(withAuth(`${FIREBASE_DB}/${T}/reports.json`, tok), { method: 'POST', headers: { 'Content-Type': 'application/json' } }, x => { x.resume(); x.on('end', () => res(x.statusCode)); }); req.on('error', () => res(0)); req.end(JSON.stringify(rep)); });
+  const r = await new Promise(res => { const req = https.request(withAuth(`${FIREBASE_DB}/${CT}/reports.json`, tok), { method: 'POST', headers: { 'Content-Type': 'application/json' } }, x => { x.resume(); x.on('end', () => res(x.statusCode)); }); req.on('error', () => res(0)); req.end(JSON.stringify(rep)); });
   if (r !== 200) return { ok: false, err: '신고를 보내지 못했어요 · 잠시 뒤 다시 해 주세요' };
   _reportAt = now; _reportedAt.set(key, now);
   console.log('[report] 신고 보냄', why);
@@ -2437,8 +2445,8 @@ async function hostTick() {
   if ((s.phase === 'vote' || s.phase === 'result') && s.game && (!s.potg || s.potg.gameId !== String(s.game.id))) hostPotg(s).catch(() => {});   // 🎬
   if (s.potg && s.potg.pending && !replayBusy && Date.now() - (s.potg.pendingAt || 0) > (s.potg.hero ? 340000 : 260000)) {   // 🎬 녹화하던 방장 앱이 꺼졌거나 넘겨받음 → 카드로라도 보여줌
     const c = Object.assign({}, s.potg, { pending: null, pendingAt: null, showAt: Date.now() + 1500 });
-    if (s.game) await potgWaitFinish(c, `${T}/days/${s.game.day}/matches/${s.game.id}`).catch(() => {});
-    await fbUpdate(`${RP()}/session`, { potg: c }); if (s.game) await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: c });
+    if (s.game) await potgWaitFinish(c, `${CT}/days/${s.game.day}/matches/${s.game.id}`).catch(() => {});
+    await fbUpdate(`${RP()}/session`, { potg: c }); if (s.game) await fbUpdate(`${CT}/days/${s.game.day}/matches/${s.game.id}`, { potg: c });
   }
   if (s.phase === 'vote' && s.game) {
     const voters = [...(s.teamA || []), ...(s.teamB || [])];
@@ -2466,14 +2474,14 @@ async function hostPotg(s) {
   if (!potg || _potgBusy || _potgFor === String(s.game.id) || String(s.game.id).startsWith('m')) return;   // 수동 기록 판은 게임 번호가 없어 수집과 못 이음
   _potgBusy = true;
   try {
-    if (s.lolGame === 'sr') { _potgFor = String(s.game.id); await potgOffSr(`${T}/days/${s.game.day}/matches/${s.game.id}`, s.game.id); await fbUpdate(`${RP()}/session`, { potg: { none: true, gameId: String(s.game.id), off: 'map' } }); return; }   // 🗺️ v0.1.233 협곡 내전
+    if (s.lolGame === 'sr') { _potgFor = String(s.game.id); await potgOffSr(`${CT}/days/${s.game.day}/matches/${s.game.id}`, s.game.id); await fbUpdate(`${RP()}/session`, { potg: { none: true, gameId: String(s.game.id), off: 'map' } }); return; }   // 🗺️ v0.1.233 협곡 내전
     const raws = await potg.readRaws(s.game.id);
     const n = raws ? Object.keys(raws).length : 0, age = Date.now() - (s.game.at || 0);
     const expect = (s.teamA || []).length + (s.teamB || []).length;
     if ((n === 0 && age < 60000) || (n > 0 && n < expect && age < 25000)) return;   // 다른 PC 수집 기다림
     _potgFor = String(s.game.id);
-    const rec = await getJson(`${FIREBASE_DB}/${T}/days/${s.game.day}/matches/${s.game.id}.json`);
-    if (rec && rec.game === 'sr') { await potgOffSr(`${T}/days/${s.game.day}/matches/${s.game.id}`, s.game.id); await fbUpdate(`${RP()}/session`, { potg: { none: true, gameId: String(s.game.id), off: 'map' } }); return; }   // 🗺️ 롤에서 직접 만든 협곡 방 등
+    const rec = await getJson(`${FIREBASE_DB}/${CT}/days/${s.game.day}/matches/${s.game.id}.json`);
+    if (rec && rec.game === 'sr') { await potgOffSr(`${CT}/days/${s.game.day}/matches/${s.game.id}`, s.game.id); await fbUpdate(`${RP()}/session`, { potg: { none: true, gameId: String(s.game.id), off: 'map' } }); return; }   // 🗺️ 롤에서 직접 만든 협곡 방 등
     const card = n ? potg.pickPotg(raws, s, rec && rec.stats) : null;
     if (!card) { await fbUpdate(`${RP()}/session`, { potg: { none: true, gameId: String(s.game.id) } }); return; }
     card.gameId = String(s.game.id);
@@ -2484,14 +2492,14 @@ async function hostPotg(s) {
     } catch (e) { console.log('[potg] 숨은 영웅 고르기 오류', e && e.message); }
     const publish = async () => {   // 모두에게 보여주기(showAt = 다 같이 시작할 시각)
       if (card.skipped) {   // 🚫 녹화한 사람이 건너뜀 → 팟지 없음(카드도 안 띄움)
-        const none = await skipPublish(card, `${T}/days/${s.game.day}/matches/${s.game.id}`), cur = sessionData && sessionData.game;
+        const none = await skipPublish(card, `${CT}/days/${s.game.day}/matches/${s.game.id}`), cur = sessionData && sessionData.game;
         if (!cur || String(cur.id) === card.gameId) await fbUpdate(`${RP()}/session`, { potg: none });
         return;
       }
-      await potgWaitFinish(card, `${T}/days/${s.game.day}/matches/${s.game.id}`).catch(() => {});   // 🔮 예측 결과
+      await potgWaitFinish(card, `${CT}/days/${s.game.day}/matches/${s.game.id}`).catch(() => {});   // 🔮 예측 결과
       card.pending = null; card.pendingAt = null; card.showAt = Date.now() + 1500;
-      await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potg: card });
-      bakeFinal(card, `${T}/days/${s.game.day}/matches/${s.game.id}`, s.game.day);   // 💾 v0.1.251 저장용 완성본(뒤에서 한 번)
+      await fbUpdate(`${CT}/days/${s.game.day}/matches/${s.game.id}`, { potg: card });
+      bakeFinal(card, `${CT}/days/${s.game.day}/matches/${s.game.id}`, s.game.day);   // 💾 v0.1.251 저장용 완성본(뒤에서 한 번)
       const cur = sessionData && sessionData.game;   // 녹화하는 사이 다음 판이 기록됐으면 지금 판 팟지를 덮지 않음(경기 기록에만 남김)
       if (!cur || String(cur.id) === card.gameId) await fbUpdate(`${RP()}/session`, { potg: card });
     };
@@ -2505,12 +2513,12 @@ async function hostPotg(s) {
     if (!teamOf(s, config.myName)) {
       card.noRec = 'host-spec';
       console.log('[potg] 방장이 관전한 판 — 리플레이가 없어 영상 없이 카드로');
-      fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { potgRec: { ok: false, why: '방장 관전 · 리플레이 없음', at: Date.now() } }).catch(() => {});
+      fbUpdate(`${CT}/days/${s.game.day}/matches/${s.game.id}`, { potgRec: { ok: false, why: '방장 관전 · 리플레이 없음', at: Date.now() } }).catch(() => {});
       return publish();
     }
     // 🎬 리플레이 녹화(방장 PC) — 그동안은 「준비 중」(showAt 없음 → 아무 창도 안 뜸) · 3분 넘거나 실패하면 카드로
     await fbUpdate(`${RP()}/session`, { potg: Object.assign({}, card, { pending: true, pendingAt: Date.now() }) });
-    recordPotgClip(card, { id: s.game.id, path: `${T}/days/${s.game.day}/matches/${s.game.id}` }).then(([clip, hclip]) => { if (clip) card.clip = clip; if (hclip && card.hero) card.hero.clip = hclip; }).catch(() => {}).finally(() => publish().catch(() => {}));
+    recordPotgClip(card, { id: s.game.id, path: `${CT}/days/${s.game.day}/matches/${s.game.id}` }).then(([clip, hclip]) => { if (clip) card.clip = clip; if (hclip && card.hero) card.hero.clip = hclip; }).catch(() => {}).finally(() => publish().catch(() => {}));
   } finally { _potgBusy = false; }
 }
 // ── 🎮 같이 한 일반 판(v0.1.48) — 내전이 아닌 일반 게임(칼바람 등)에 앱 켠 친구가 2명+ 같은 팀이면 ──────────────
@@ -2535,7 +2543,7 @@ async function recordNormal(e) {
   const ids = {}; for (const p of us) ids[fbKeyOf(p.summonerName)] = p.puuid;
   const rec = { gameId: gid, day, ts: Date.now(), source: e.source || 'eog', queueId: e.queueId == null ? null : e.queueId, gameMode: e.gameMode || null, queue: queueName(e.queueId, e.gameMode),
     side: Number(side), win, us: us.map(p => p.summonerName), ids, gameTime: e.gameTime || 0, stats: e.players, by: config.myName || '', roomName: room.name, roomId: room.id };
-  const w = await fbPutIfAbsent(`${T}/days/${day}/normals/${gid}`, withSv(rec));
+  const w = await fbPutIfAbsent(`${CT}/days/${day}/normals/${gid}`, withSv(rec));
   if (w.ok) { console.log(`[normal] 같이 한 판 저장 ${rec.queue} ${win ? '승' : '패'} · ${rec.us.join(', ')}`); _profIdx = null; }
   else console.log('[normal] ' + (w.conflict ? '다른 친구 앱이 먼저 저장' : w.err));
   // 🎬 팟지 담당 = 내전처럼 **방장 PC**(그 판에 방장이 있으면) · 방장이 그 판에 없거나 방장이 없으면 기록을 먼저 저장한 앱
@@ -2543,13 +2551,13 @@ async function recordNormal(e) {
   const mine = hostIn ? !!(config.isHost && account && hostRec.puuid === account.puuid) : w.ok;
   if (!mine) return;
   let use = rec;
-  if (!w.ok) { const cur = await getJson(`${FIREBASE_DB}/${T}/days/${day}/normals/${gid}.json`); if (!cur || !Array.isArray(cur.us)) return; if (cur.potg) return; use = cur; }   // 다른 앱이 저장한 기록으로(같은 판)
+  if (!w.ok) { const cur = await getJson(`${FIREBASE_DB}/${CT}/days/${day}/normals/${gid}.json`); if (!cur || !Array.isArray(cur.us)) return; if (cur.potg) return; use = cur; }   // 다른 앱이 저장한 기록으로(같은 판)
   console.log(`[normal] 팟지 담당 = 이 앱(${hostIn ? '방장' : '먼저 저장'})`);
   normalPotg(use).catch(err => console.log('[normal] 팟지 오류', err && err.message));
 }
 async function normalPotg(rec) {
   if (!potg) return;
-  const path = `${T}/days/${rec.day}/normals/${rec.gameId}`, t0 = Date.now();
+  const path = `${CT}/days/${rec.day}/normals/${rec.gameId}`, t0 = Date.now();
   if (!potgMapOk(rec.gameMode, rec.queueId)) return potgOffSr(path, rec.gameId);   // 🗺️ v0.1.233 협곡 일반 판 = 팟지 없음
   let raws = null, n = 0;
   for (;;) {   // 우리 팀 각자 수집이 다 모일 때까지(최대 25초 · 하나도 없으면 60초)
@@ -2992,7 +3000,7 @@ async function recordGame(winner, eog) {
     ids: s.ids || null,   // 👤 이름→puuid(프로필이 닉변해도 같은 사람으로 묶음)
     roomName: room ? room.name : null, roomId: room ? room.id : null,   // 🚪 「오늘」 순위 = 방 이름별
   };
-  const w = await fbPutIfAbsent(`${T}/days/${day}/matches/${gid}`, withSv(rec));
+  const w = await fbPutIfAbsent(`${CT}/days/${day}/matches/${gid}`, withSv(rec));
   _profIdx = null;
   if (!w.ok && !w.conflict) return { ok: false, err: w.err };
   const u = await fbUpdate(`${RP()}/session`, { phase: 'vote', game: { id: gid, day, winner, at: Date.now() }, votes: null, result: null, lastGameId: gid, pendingEog: null, potg: null });
@@ -3018,7 +3026,7 @@ async function closeVote() {
   const byTeam = team => (s[team] || []).map(n => votes[fbKeyOf(n)]).filter(Boolean);
   let statsByName = {};
   try {
-    const rec = await getJson(`${FIREBASE_DB}/${T}/days/${s.game.day}/matches/${s.game.id}.json`);
+    const rec = await getJson(`${FIREBASE_DB}/${CT}/days/${s.game.day}/matches/${s.game.id}.json`);
     for (const p of (rec && rec.stats) || []) statsByName[norm(p.summonerName)] = p;
   } catch (_) {}
   const mvp = tally(byTeam(lose).map(v => v.mvp).filter(n => inTeam(win, n)), statsByName);
@@ -3026,7 +3034,7 @@ async function closeVote() {
   const manner = tally([...byTeam('teamA'), ...byTeam('teamB')].map(v => v.manner), statsByName);
   const result = { mvp: mvp || null, svp: svp || null, manner: manner || null, voteCount: Object.keys(votes).length, closedAt: Date.now() };
   _profIdx = null;
-  await fbUpdate(`${T}/days/${s.game.day}/matches/${s.game.id}`, { mvp: result.mvp, svp: result.svp, manner: result.manner, votes: s.votes || null });
+  await fbUpdate(`${CT}/days/${s.game.day}/matches/${s.game.id}`, { mvp: result.mvp, svp: result.svp, manner: result.manner, votes: s.votes || null });
   const u = await fbUpdate(`${RP()}/session`, { phase: 'result', result });
   return { ok: u.ok, err: u.err };
 }
@@ -3287,12 +3295,12 @@ async function getAugments() {
 // 📦 v0.1.110: 지난 날 기록은 한 번만 받아 둠(경기 6시간 뒤면 투표·팟지도 고정) · 오늘·어제만 매번 · 예전 = 열 때마다 모든 날 통째
 const _pastDays = {};
 async function fetchAllDays() {
-  const keys = await getJson(`${FIREBASE_DB}/${T}/days.json?shallow=true`);
-  if (!keys || typeof keys !== 'object' || keys.error) return getJson(`${FIREBASE_DB}/${T}/days.json`);
+  const keys = await getJson(`${FIREBASE_DB}/${CT}/days.json?shallow=true`);
+  if (!keys || typeof keys !== 'object' || keys.error) return getJson(`${FIREBASE_DB}/${CT}/days.json`);
   const fresh = new Set([dayKey(), dayKey(Date.now() - 86400e3)]), out = {};
   await Promise.all(Object.keys(keys).map(async k => {
     if (!fresh.has(k) && _pastDays[k]) { out[k] = _pastDays[k]; return; }
-    const v = await getJson(`${FIREBASE_DB}/${T}/days/${k}.json`);
+    const v = await getJson(`${FIREBASE_DB}/${CT}/days/${k}.json`);
     if (v && typeof v === 'object' && !v.error) { out[k] = v; if (!fresh.has(k)) _pastDays[k] = v; }
   }));
   return out;
@@ -4175,7 +4183,7 @@ ipcMain.handle('discord-unlink', () => { config.discordGuild = null; saveConfig(
 const dcRoomView = () => { if (!room) return null; try { const i = dcRoomInfo(lobbyView().members); return i ? { gid: i.id, name: i.name, code: i.inv || null, ch: (_dcMember && _dcMember.g === i.id && _dcMember.lobby) || null } : null; } catch (_) { return null; } };   // ⚙ 「이 방 디스코드」(v0.1.157 · 칩을 ✕로 닫아도 여기서)
 const dcView = () => ({ room: dcRoomView(), invite: dcInvOf(), app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null, guild: dcGuildOf() ? dcGuildOf().name || '서버' : null, connecting: !!_dcConn });
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
-const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, lolRemake: config.lolRemake !== false, lolAutoAccept: config.lolAutoAccept !== false, lolPing: config.lolPing !== false, chatFilter: config.chatFilter !== false, chatMute: Array.isArray(config.chatMute) ? config.chatMute : [], hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView(), pub: pubView() });
+const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, lolRemake: config.lolRemake !== false, lolAutoAccept: config.lolAutoAccept !== false, lolPing: config.lolPing !== false, chatFilter: config.chatFilter !== false, chatMute: Array.isArray(config.chatMute) ? config.chatMute : [], hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView(), pub: pubView(), comm: communityView() });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
 ipcMain.handle('settings-get', () => settingsView());
 // 🧭 v0.1.228 홈 화면(롤 없이 켬)에서도 사용법을 볼 수 있게 — 홈 「사용법 둘러보기」 = 숨겨 둔 왼쪽 창만 홈 가운데 위에 띄움(_tutHome) · 닫으면(tutorial-done · 창 ✕/–) 다시 숨기고 합친 자리로
@@ -4233,6 +4241,27 @@ ipcMain.handle('chat-mute', (_e, { key, on }) => {
 });
 // 🔐 v0.1.236 「내 정보 지우기」 — 서버의 내 칸(디스코드 연결·계정·전적 점수·접속 표시·방 안 내 칸)을 지우고 앱을 끔
 //   경기 기록(같이 한 사람들의 기록)은 남음 = 개인정보 처리방침에 적은 대로 요청하면 이름을 지움 · 앱을 다시 켜고 롤에 로그인하면 계정·접속 칸은 다시 생김(안내 글에 적음)
+// 🏘️ v0.1.258 커뮤니티 들어가기(초대 코드) · 빈 코드 = 기본 커뮤니티 · 바뀌면 1초 뒤 앱을 다시 켬
+function communityView() { return { name: community ? community.name : null, id: community ? community.id : null, ask: !config.commAsked }; }
+async function communityJoin(code) {
+  const c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  let next = null;
+  if (c) {
+    if (c.length < 4 || c.length > 12) return { ok: false, err: '초대 코드를 확인해 주세요' };
+    const id = await getJson(`${FIREBASE_DB}/${T}/communityCodes/${c}.json`).catch(() => null);
+    if (!id || typeof id !== 'string') return { ok: false, err: '없는 초대 코드예요' };
+    const info = await getJson(`${FIREBASE_DB}/${T}/communities/${id}.json`).catch(() => null);
+    if (!info || !info.name) return { ok: false, err: '없는 커뮤니티예요' };
+    next = { id, name: String(info.name).slice(0, 20) };
+  }
+  config.community = next; config.commAsked = true; saveConfig();
+  const same = (next ? next.id : null) === (community ? community.id : null);
+  console.log(`[community] ${next ? next.name + '(' + next.id + ')' : '기본 커뮤니티'}${same ? ' · 그대로' : ' · 다시 켬'}`);
+  if (same) { broadcastRooms(); sendHome(); try { broadcastSettings(); } catch (_) {} return { ok: true, community: next, restart: false }; }
+  setTimeout(() => { app.relaunch({ args: process.argv.slice(1).filter(a => a !== '--autostart') }); app._quitting = true; app.quit(); }, 1000);
+  return { ok: true, community: next, restart: true };
+}
+ipcMain.handle('community-join', (_e, code) => communityJoin(code));
 ipcMain.handle('pub-set', (_e, on) => pubSet(!!on));   // 🔒 v0.1.253 기록 공개 동의/철회
 ipcMain.handle('privacy-wipe', async () => {
   if (!account) return { ok: false, err: '롤에 로그인한 뒤에 지울 수 있어요(어느 계정인지 알아야 해서)' };
@@ -4241,7 +4270,7 @@ ipcMain.handle('privacy-wipe', async () => {
     privacyTick();   // 이 기기를 계정에 등록해 둬야 계정 칸을 지울 수 있음(서버 규칙)
     const uid = fbUid(); if (uid) await fbSet(`${T}/owners/${p}/${uid}`, Date.now()).catch(() => {});
     if (room) await roomLeave(true).catch(() => {});
-    const jobs = [`${T}/discord/${p}`, `${T}/ratings/${p}`, `${T}/presence/${p}`, `${T}/accounts/${p}`].map(x => fbSet(x, null).then(w => ({ x, ok: !!(w && w.ok) })).catch(() => ({ x, ok: false })));
+    const jobs = [`${T}/discord/${p}`, `${T}/ratings/${p}`, `${CT}/presence/${p}`, `${T}/accounts/${p}`].map(x => fbSet(x, null).then(w => ({ x, ok: !!(w && w.ok) })).catch(() => ({ x, ok: false })));
     const res = await Promise.all(jobs), bad = res.filter(r => !r.ok).map(r => r.x.split('/')[1]);
     console.log('[privacy] 내 정보 지우기', bad.length ? '일부 실패 ' + bad.join(',') : '완료');
     if (bad.length) return { ok: false, err: '일부를 지우지 못했어요(' + bad.join(', ') + ') · 잠시 뒤 다시 해 주세요' };
@@ -4369,7 +4398,7 @@ async function makeFinal(card, onProg) {   // → {ok, buf, ext, w} · 하나씩
   } catch (e) { return { ok: false, err: String(e && e.message || e).slice(0, 80) }; }
   finally { try { w.destroy(); } catch (_) {} _exportWin = null; _exportProg = null; }
 }
-if (!app.isPackaged) global.__potgDev = { makeFinal, dialog, save: (p, b) => fs.writeFileSync(p, b), getFinal: (meta, on) => potg.getFinal(meta, on), rec: (day, kind, gid) => getJson(`${FIREBASE_DB}/${T}/days/${day}/${kind}/${gid}.json`) };   // 🧪 개발용(배포본엔 없음)
+if (!app.isPackaged) global.__potgDev = { makeFinal, dialog, save: (p, b) => fs.writeFileSync(p, b), getFinal: (meta, on) => potg.getFinal(meta, on), rec: (day, kind, gid) => getJson(`${FIREBASE_DB}/${CT}/days/${day}/${kind}/${gid}.json`) };   // 🧪 개발용(배포본엔 없음)
 const finalKey = (day, gid) => `${day}:${gid}`;
 function filePush(key, x) { try { if (leftWin && !leftWin.isDestroyed()) leftWin.webContents.send('potg-file-prog', Object.assign({ key }, x)); } catch (_) {} }
 const _bake = {};   // 방장 PC가 만드는 중인 완성본 {key: {p, go, started}}
@@ -4406,7 +4435,7 @@ ipcMain.handle('potg-file', async (_e, { card, day, key: uiKey }) => {   // 「�
     let buf = null, ext = 'mp4';
     // ① 방장 PC가 만들어 올린 완성본(기록이 늦게 왔을 수 있어 서버에서 한 번 더 봄)
     let fin = card.final;
-    if (!fin) { try { fin = await getJson(`${FIREBASE_DB}/${T}/days/${day}/${card.normal ? 'normals' : 'matches'}/${card.gameId}/potg/final.json`); } catch (_) {} }
+    if (!fin) { try { fin = await getJson(`${FIREBASE_DB}/${CT}/days/${day}/${card.normal ? 'normals' : 'matches'}/${card.gameId}/potg/final.json`); } catch (_) {} }
     if (fin && fin.gh) { filePush(pk, { pct: 0, stage: 'down' }); buf = await potg.getFinal(fin, f => filePush(pk, { pct: Math.round(f * 100), stage: 'down' })).catch(() => null); }
     // ② 이 PC(방장)가 지금 만드는 중이거나 만들 차례면 그걸 씀
     if (!buf && _bake[key]) { if (_bake[key].go) _bake[key].go(); filePush(pk, { pct: 0, stage: 'make' }); const x = await _bake[key].p; if (x && x.ok) { buf = x.buf; ext = x.ext; } }
@@ -4456,6 +4485,8 @@ else {
     try { require('electron').session.defaultSession.setDisplayMediaRequestHandler(exportMediaHandler); } catch (_) {}   // 🎞️ v0.1.212 효과 넣어 저장 = 내보내기 창만 자기 화면 녹화 허락
     CONFIG_PATH = path.join(app.getPath('userData'), 'today-naejeon-config.json');
     config = loadConfig();
+    if (config.commAsked == null) { config.commAsked = !!(config.deviceId || config.tutorialSeen); }   // 🏘️ 이미 쓰던 사람 = 기본 커뮤니티 그대로(묻지 않음) · 새로 설치 = 방 목록에서 한 번 물음
+    setCommunity(config.community);
     // 🧪 개발용: TN_HIDDEN=1 → 창을 화면에 한 번도 안 띄우고 테스트(CDP로만 조작 · 배포본에선 무시)
     if (!app.isPackaged && process.env.TN_HIDDEN) app.on('browser-window-created', (_e, w) => {
       w.show = w.showInactive = w.focus = w.moveTop = () => {};
@@ -4582,9 +4613,9 @@ app.on('before-quit', (e) => {
   _cleanedUp = true;
   const jobs = [];
   if (_live) jobs.push(fbSet(`${T}/conns/${config.deviceId}`, null));   // 🚦 내 자리 비움
-  if (account) jobs.push(fbSet(`${T}/presence/${account.puuid}`, null));
+  if (account) jobs.push(fbSet(`${CT}/presence/${account.puuid}`, null));
   if (account && _dcLinked && !_dcLinked.endsWith(':off')) jobs.push(fbUpdate(`${T}/discord/${account.puuid}`, { on: false, at: Date.now() }));   // 🎧 대기실 디스코드 표시 내림
-  if (_guestOn) jobs.push(fbSet(`${T}/presence/g_${config.deviceId}`, null));   // 👤 게스트 표시
+  if (_guestOn) jobs.push(fbSet(`${CT}/presence/g_${config.deviceId}`, null));   // 👤 게스트 표시
   if (account && room) jobs.push(fbSet(`${RP()}/members/${account.puuid}`, null));   // 📦 방 사람 칸
   if (account) jobs.push(fbSet(`${RP()}/lobby/join/${account.puuid}`, null));
   // 👑 v0.1.151 업데이트 재시작이면 방장 자리를 비우지 않고 2분 맡아 둠(at = 지금 + 1분 → 살아있음 판정 2분) — 다시 켜지면 onHostRec가 그대로 방장으로 되돌림(받는 사람 없음)
