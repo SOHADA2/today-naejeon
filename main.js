@@ -3700,7 +3700,7 @@ async function ratingUpdate(force) {
     if (idx) tierReveal(me, inhouseOf(idx, 'p:' + me), 'custom');
     if (out.mayhem) {   // 아수라장 일반 = 롤 전적(매칭 큐 2400)
       const w = await fbSet(`${T}/ratings/${me}`, out); if (!w.ok) console.log('[rating] 올리기 실패 ' + w.err);
-      _ratings[me] = { v: out, at: Date.now() }; tierReveal(me, out.mayhem, 'mayhem');
+      _ratings[me] = { v: out, at: Date.now() };   // 🔤 v0.1.255 아수라장 일반 점수 = 팀 밸런스에만(공개 카드 안 띄움 · 화면에 안 보임)
     }
   } catch (e) { console.log('[rating] ' + (e && e.message)); } finally { _ratingBusy = false; }
 }
@@ -3717,7 +3717,7 @@ function tierReveal(puuid, x, kind) {
   const dir = !prev ? 'first' : order.indexOf(t.tier) > order.indexOf(prev) ? 'up' : 'down';
   try { overlayWin.webContents.send('tier-reveal', { kind: kind || 'mayhem', season: `${makeRating.SEASON.name} · ${makeRating.SEASON.patch}~`, tier: t.tier, div: t.div, rank: t.rank, s: x.s, n: x.n, w: x.w, wr: x.wr, kda: x.kda, prev, dir }); } catch (_) { return; }
   config[key] = Object.assign({}, seen, { [puuid]: t.tier }); saveConfig();
-  console.log(`[rating] 🏅 ${kind === 'custom' ? '아수라장 내전' : '아수라장'} 티어 공개 ${prev || '처음'} → ${t.tier} ${t.div || ''} (${x.s}점 · ${x.n}판)`);
+  console.log(`[rating] 🏅 ${kind === 'custom' ? '아수라장 내전' : '아수라장'} 등급 공개 ${prev || '처음'} → ${t.tier} (${x.s}점 · ${x.n}판)`);
 }
 // v0.1.175(사장님 「진행」 · 앱 안 켜는 친구도 같이 한 판은 다른 친구 기록에서 셈): 아수라장 일반 점수 = 그 사람 앱이 올린 요약(롤 전적)과
 //   서버 「같이 한 일반 판」으로 매긴 점수 중 **판 수가 많은 쪽** · 앱을 안 켠 친구는 올린 요약이 없으니 서버 쪽 · srv = 서버 기록으로 매김

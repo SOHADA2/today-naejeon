@@ -218,7 +218,7 @@ function renderTeam() {
     const Q = s.mode === 'balance' ? s.bal : null, b = el('tv-bal');
     b.style.display = Q ? '' : 'none';
     if (Q) b.innerHTML = `<span class="tv-bal-h">밸런스</span><span class="tv-bal-s"><em class="t1">1팀 평균 <b class="num">${Number(Q.a).toFixed(1)}</b></em><em class="t2">2팀 평균 <b class="num">${Number(Q.b).toFixed(1)}</b></em></span>`
-      + (Q.n - Q.known > 0 ? `<small data-tip="${esc((Q.miss || []).join(', '))}">${Q.sr ? '랭크 티어·협곡 기록 없는' : '티어 점수 없는'} ${Q.n - Q.known}명은 50점으로 계산</small>` : '');
+      + (Q.n - Q.known > 0 ? `<small data-tip="${esc((Q.miss || []).join(', '))}">${Q.sr ? '랭크 티어·협곡 기록 없는' : '점수 없는'} ${Q.n - Q.known}명은 50점으로 계산</small>` : '');
   }
   hostSpecNote(el('tv-hspec'), myIsHost && !mt, [...A, ...B], false);
   const pend = el('tv-pending');
@@ -791,13 +791,13 @@ const SR_PICK_KO = { 3130: '토너먼트 교차 선택', 3110: '교차 선택', 
 const NQ_KO = { 2400: '아수라장', 450: '칼바람 나락', 440: '자유 랭크' }, NQ_SHORT = { 2400: '아수라장', 450: '칼바람', 440: '자유 랭크' };   // v0.1.235 많이 하는 큐만(사장님)
 const MODE_DESC = {   // 방식 고르는 창 맨 아래 한 줄(방장)
   random: '무작위로 두 팀을 나눠요',
-  balance: '아수라장 티어 점수로 두 팀을 비슷하게 나눠요',
+  balance: '아수라장 점수(내전 등급·일반 판 기록)로 두 팀을 비슷하게 나눠요',
   balanceSr: '롤 랭크 티어(솔로 · 없으면 자유)와 협곡 내전 기록으로 두 팀을 비슷하게 나눠요',
   draft: '팀장 둘이 번갈아 한 명씩 뽑아요 · 선픽은 줄다리기로 정해요',
   manual: '방장이 1팀·2팀을 직접 정해요',
   normal: '같은 팀으로 일반 게임을 해요 · 롤 파티는 5명까지',
 };
-const MODE_WAIT = { random: '무작위로 팀이 정해져요', balance: '티어 점수로 비슷하게 팀이 정해져요', draft: '팀장 둘이 번갈아 뽑아요' };   // 팀원: 「방장이 시작하면 …」
+const MODE_WAIT = { random: '무작위로 팀이 정해져요', balance: '점수로 비슷하게 팀이 정해져요', draft: '팀장 둘이 번갈아 뽑아요' };   // 팀원: 「방장이 시작하면 …」
 const GAME_PHASES = ['ReadyCheck', 'ChampSelect', 'GameStart', 'InProgress', 'Reconnect'];
 function renderLobby() {
   setTimeout(() => { chatRoom(); chatMark(); chatPlace(); pingPlace(); }, 0);   // 💬 자리를 다시 그린 뒤 방 바뀜 확인·말한 사람 테두리·이모티콘 자리 맞춤(v0.1.202 · ⚠️ 바로 부르면 안 됨 — 켤 때는 아래 CHAT이 아직 안 만들어진 채로 여기가 먼저 돎)

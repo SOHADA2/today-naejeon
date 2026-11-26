@@ -177,8 +177,8 @@ body { -webkit-font-smoothing:antialiased; font-feature-settings:'tnum' 0; lette
 
 /* 🏅 아수라장 티어 공개(v0.1.113 · overlay/tierreveal.js · v0.1.116: 오른쪽 창 프로필에서도 → 공용으로 옮김) — 티어 색 = --tc(sidepanel/today.css .t-* 와 같은 값) · 문장 = 방패 도형 · 움직임은 한 번만 */
 .trv { --tc:#e6bf62; position:fixed; inset:0; z-index:9100; display:flex; align-items:center; justify-content:center; padding:14px; background:rgba(1,6,12,0.86); -webkit-app-region:no-drag; }
-.trv.t-iron { --tc:#a0948f; } .trv.t-bronze { --tc:#c68e66; } .trv.t-silver { --tc:#b7c4ce; } .trv.t-gold { --tc:#e6bf62; } .trv.t-platinum { --tc:#55c9bd; }
-.trv.t-emerald { --tc:#43d27f; } .trv.t-diamond { --tc:#8c9cff; } .trv.t-master { --tc:#cd78e4; } .trv.t-grandmaster { --tc:#ec6157; } .trv.t-challenger { --tc:#f4d987; }
+.trv.t-iron { --tc:#8d939c; } .trv.t-bronze { --tc:#8d939c; } .trv.t-silver { --tc:#b9c6d2; } .trv.t-gold { --tc:#5fb0e8; } .trv.t-platinum { --tc:#3fc8b4; }
+.trv.t-emerald { --tc:#5bd67e; } .trv.t-diamond { --tc:#e6bf62; } .trv.t-master { --tc:#f1974a; } .trv.t-grandmaster { --tc:#ff6464; } .trv.t-challenger { --tc:#c79bff; }   /* 🔤 v0.1.255 내전 등급 색 D C B A A+ S S+ SS SSS(클래스 이름은 내부 값 그대로) */
 .trv-card { width:100%; max-width:320px; display:flex; flex-direction:column; align-items:center; gap:6px; padding:18px 16px 14px; text-align:center;
   background:radial-gradient(120% 70% at 50% 18%, color-mix(in srgb, var(--tc) 22%, transparent), transparent 70%), linear-gradient(160deg, var(--bg-2), var(--bg-1));
   border:1px solid color-mix(in srgb, var(--tc) 55%, transparent); clip-path:var(--cut); }
@@ -189,12 +189,8 @@ body { -webkit-font-smoothing:antialiased; font-feature-settings:'tnum' 0; lette
 .trv-emb::before { content:''; position:absolute; inset:7px; background:linear-gradient(180deg, rgba(0,0,0,0.22), rgba(0,0,0,0.05)); clip-path:polygon(50% 0, 100% 20%, 100% 68%, 50% 100%, 0 68%, 0 20%); }
 .trv-emb i { position:absolute; top:0; bottom:0; left:0; width:40%; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.75), transparent); opacity:0; }
 .trv-emb b { position:relative; font-size:34px; font-weight:700; color:rgba(8,12,20,0.82); }
-/* 🏅 v0.1.146 실제 롤 승급 모션(1280×720 투명 영상 · 가운데 문장만 크게) · 강등 = 실제 문장 그림 */
-.trv-vid { position:relative; width:100%; height:150px; margin:2px 0 0; overflow:hidden; }
-.trv-vid video { position:absolute; left:50%; top:50%; width:520px; transform:translate(-50%,-50%); pointer-events:none; }
-.trv-vid img { position:absolute; }
-.trv-emb.rk { width:120px; height:100px; background:none; clip-path:none; overflow:visible; } .trv-emb.rk::before { display:none; }
-.trv-emb.rk img { position:absolute; }
+/* 🔤 v0.1.255 등급 공개 = 직접 그린 등급 방패(tnEmblem SVG)가 떨어져 박힘 · 빛줄기는 방패 모양 안에서만(롤 승급 영상·문장 그림 안 씀) */
+.trv-emb.rk { width:92px; height:107px; background:none; clip-path:polygon(50% 0, 100% 19%, 100% 70%, 50% 100%, 0 70%, 0 19%); overflow:hidden; } .trv-emb.rk::before { display:none; }
 .trv-name { font-size:26px; font-weight:800; color:var(--tc); line-height:1.2; }
 .trv-name .num { font-size:28px; }
 .trv-sub { font-size:12.5px; color:var(--ink-soft); }
