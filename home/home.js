@@ -47,6 +47,7 @@ function render(d) {
         <div class="rm-mem">${(r.members || []).length ? (r.members || []).map(m => `<span>${esc(m)}</span>`).join(' · ') : '아직 아무도 없습니다'}</div>
       </div>`).join('')
     : `<div class="empty">아직 만들어진 방이 없습니다${canJoin ? '<button class="ui-btn-gold" id="rm-make">방 만들기</button>' : ''}</div>`;
+  if (d.pub && d.pub.need && d.me && !d.ban) $('rooms').insertAdjacentHTML('afterbegin', '<div class="empty pub">내전 기록 공개 동의가 필요합니다<small>방에 들어가면 동의 창이 뜹니다 · 동의하지 않으면 보기만 할 수 있습니다</small></div>');   // 🔒 v0.1.253
   $('rooms').querySelectorAll('.rm.go').forEach(el => el.onclick = () => window.api.homeJoin(el.dataset.rid));
   const mk = $('rm-make'); if (mk) mk.onclick = () => window.api.homeJoin('+new');
   // 접속 중(앱 켠 사람 전체)

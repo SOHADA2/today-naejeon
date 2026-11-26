@@ -6,6 +6,7 @@
   const api = window.api; if (!api || !api.getSettings) return;
   const $ = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstChild; };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const pubDay = t => { const d = new Date(t || 0); return t ? `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}` : ''; };   // 🔒 v0.1.253
   let invEdit = false;   // 🎧 v0.1.138 초대 링크 입력 중
   let S = { discordRpc: true, discordMove: true, discord: null, autoSeat: true, lolPing: true, sfxOn: true, sfxVol: 1, dock: true, sidePanel: true, closeAsk: true, autoLaunch: true, hotkey: 'Shift+F7' }, U = { state: 'idle' }, hideStrip = false;
   const applyVol = () => { window.__tnVol = S.sfxOn ? S.sfxVol : 0; };
@@ -87,6 +88,7 @@
         <div class="tn-sec">단축키</div>
         <div class="tn-row"><span class="tn-row-tx"><b>왼쪽 창 켜기/끄기</b></span><span class="tn-key num">${esc(S.hotkey)}</span></div>
         <div class="tn-sec">개인정보</div>
+        ${S.pub ? `<div class="tn-row"><span class="tn-row-tx"><b>내전 기록 공개 · ${S.pub.need ? '동의 안 함' : '동의함'}</b><small>${S.pub.need ? '동의해야 내전에 참가할 수 있습니다 · 지금은 보기만' : `${pubDay(S.pub.at)} 동의 · 전적이 앱을 쓰는 다른 사람에게 보입니다`}</small></span><button class="tn-btn" data-act="${S.pub.need ? 'pubon' : 'puboff'}">${S.pub.need ? '동의하기' : '동의 철회'}</button></div>` : ''}
         <div class="tn-row"><span class="tn-row-tx"><b>개인정보 처리방침</b><small>무엇을 저장하고 얼마나 두는지 · 지우는 방법</small></span><button class="tn-btn" data-act="privacy">보기</button></div>
         <div class="tn-row"><span class="tn-row-tx"><b>내 정보 지우기</b><small>서버의 내 계정·디스코드·전적 점수</small></span><button class="tn-btn tn-danger" data-act="wipe">지우기</button></div>
         <div class="tn-sec">도움말</div>
@@ -107,6 +109,8 @@
       else if (b.dataset.act === 'dcroom' && api.discordJoin && S.discord && S.discord.room) { const R = S.discord.room; api.discordJoin(R.ch ? { gid: R.gid, ch: R.ch } : { gid: R.gid, code: R.code }); }   // v0.1.157 「이 방 디스코드」
       else if (b.dataset.act === 'dcgo' && api.discordConnect) api.discordConnect().then(r => { if (r && !r.ok && r.err) tnAlert('디스코드 서버 연결 · ' + r.err); else if (r && r.ok && r.lack && r.lack.length) tnAlert(`연결됐어요 · 서버에 음성 채널 ${r.lack.join('·')}을 만들어 주세요`); }).catch(() => {});
       else if (b.dataset.act === 'unmute' && api.chatMute) api.chatMute(null, false).then(v => { if (v) { S = v; renderPanel(); } });
+      else if (b.dataset.act === 'pubon' && api.pubSet) tnPubAsk().then(y => { if (y) api.pubSet(true).catch(() => {}); });
+      else if (b.dataset.act === 'puboff' && api.pubSet) tnConfirm('내전 기록 공개 동의를 철회할까요?\n\n철회하면 내 프로필·순위가 다른 사람에게 안 보이고, 내전에는 참가할 수 없습니다(보기만).\n지금 방에 있으면 방에서 나갑니다. 언제든 다시 동의할 수 있습니다.', { ok: '철회', danger: true }).then(y => { if (y) api.pubSet(false).catch(() => {}); });
       else if (b.dataset.act === 'privacy' && api.openPrivacy) api.openPrivacy();
       else if (b.dataset.act === 'wipe' && api.privacyWipe) tnConfirm('서버에 있는 내 정보를 지우고 앱을 끕니다.\n\n지우는 것: 디스코드 연결 · 계정(이름#태그·아이콘) · 전적 점수 · 접속 표시 · 지금 방의 내 칸\n남는 것: 같이 한 경기 기록(다른 사람 기록이기도 해서 · 이름 지우기는 처리방침의 방법으로 요청)\n\n앱을 다시 켜고 롤에 로그인하면 계정·접속 표시는 다시 생겨요. 완전히 그만두려면 지운 뒤 앱을 삭제해 주세요.', { title: '내 정보 지우기', ok: '지우고 끄기', danger: true }).then(y => { if (!y) return; api.privacyWipe().then(r => { if (r && r.ok) tnAlert('지웠어요. 잠시 뒤 앱이 꺼집니다.'); else tnAlert((r && r.err) || '지우지 못했어요'); }); });
       else if (b.dataset.act === 'quit') tnConfirm('투데이 내전을 완전히 종료할까요?', { ok: '종료', danger: true }).then(y => { if (y) api.quitApp(); });

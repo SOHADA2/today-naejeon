@@ -1087,7 +1087,7 @@ function homeView() {
   // 🎬 v0.1.177 게임 시작 화면에 이번 판 두 팀(내전 · 팀이 짜인 판만) + 오늘 몇 번째 판인지
   const sd = sessionData, match = _homeMode === 'logo' && sd && sd.phase === 'teams' && sd.mode !== 'normal' && Array.isArray(sd.teamA) && Array.isArray(sd.teamB) && sd.teamA.length && sd.teamB.length
     ? { n: _todayGames != null ? _todayGames + 1 : 0 } : null;
-  return { mode: _homeMode, match, day: dayKey(), me: account ? { name: account.gameName, tag: account.tagLine || '' } : null, rooms: rv.rooms, room: rv.room, online: onlineList(), full: rv.full, ban: rv.ban, ready: rv.ready || !!room, slow: rv.slow, start: startView(), ver: app.getVersion() };
+  return { mode: _homeMode, match, day: dayKey(), me: account ? { name: account.gameName, tag: account.tagLine || '' } : null, rooms: rv.rooms, room: rv.room, online: onlineList(), full: rv.full, ban: rv.ban, pub: rv.pub, ready: rv.ready || !!room, slow: rv.slow, start: startView(), ver: app.getVersion() };
 }
 function sendHome() { if (homeWin && !homeWin.isDestroyed() && _homeLoaded) try { homeWin.webContents.send('home', homeView()); } catch (_) {} }
 async function homeRefresh() {   // 홈이 떠 있을 때만 10초마다(접속 표시는 실시간으로 안 받아서 직접 읽음)
@@ -1375,7 +1375,7 @@ function roomsView() {
     rooms.push({ id, name: r.name, priv: !!r.priv, host: r.host || null, n: mine ? mem.length : (Number(r.n) || mem.length), members: mem.slice(0, 10), at: r.at || 0, mine });
   }
   rooms.sort((a, b) => b.mine - a.mine || b.n - a.n || b.at - a.at);
-  return { rooms, room: room ? { id: room.id, name: room.name, priv: room.priv } : null, me: config.myName || '', ready: !!(MIR.roomList && MIR.roomList.ready), slow: !room && _live && !(MIR.roomList && MIR.roomList.ready) && now - _liveAt > SLOW_MS, ban: banOn() ? { until: _ban.until, reason: _ban.reason, perm: _ban.until > 9e14 } : null, full: seatFull };
+  return { rooms, room: room ? { id: room.id, name: room.name, priv: room.priv } : null, me: config.myName || '', ready: !!(MIR.roomList && MIR.roomList.ready), slow: !room && _live && !(MIR.roomList && MIR.roomList.ready) && now - _liveAt > SLOW_MS, ban: banOn() ? { until: _ban.until, reason: _ban.reason, perm: _ban.until > 9e14 } : null, full: seatFull, pub: pubView() };
 }
 const broadcastRooms = () => broadcast('rooms', roomsView());
 // ⚡ v0.1.95: 방 노드 스트림 7개(session·lobby·host·normalLive·potgWait·potgRec·eogStats) → **방 하나에 스트림 1개**(rooms/{방})
@@ -1418,6 +1418,7 @@ async function roomUidPut(id) {
 async function roomJoin(id, pw, hash) {
   if (!account) return { ok: false, err: '롤에 로그인하면 방에 들어갈 수 있어요' };
   if (banOn()) return { ok: false, err: '이용이 정지된 계정이에요' };   // 🚫 v0.1.244
+  if (!pubOk()) return { ok: false, err: PUB_ERR, needPub: true };   // 🔒 v0.1.253
   if (!_live) return { ok: false, err: notLiveErr() };
   const r = (roomListRaw || {})[id] || await getJson(`${FIREBASE_DB}/${T}/roomList/${id}.json`);
   if (!r || !r.name) return { ok: false, err: '없어진 방이에요' };
@@ -1471,6 +1472,7 @@ function kickDiff(prev, cur) {
 async function roomCreate(name, priv, pw) {
   if (!account) return { ok: false, err: '롤에 로그인하면 방을 만들 수 있어요' };
   if (banOn()) return { ok: false, err: '이용이 정지된 계정이에요' };   // 🚫 v0.1.244
+  if (!pubOk()) return { ok: false, err: PUB_ERR, needPub: true };   // 🔒 v0.1.253
   if (!_live) return { ok: false, err: notLiveErr() };
   const nm = normName(String(name || '')).slice(0, 20) || `${account.gameName}의 방`, p = String(pw || '').trim();
   if (priv && !p) return { ok: false, err: '비밀번호를 정해주세요' };
@@ -1675,6 +1677,7 @@ function setAccount(acc) {
     if (!_presenceTimer) _presenceTimer = setInterval(beatPresence, PRESENCE_MS);
     setTimeout(() => ratingUpdate(true), 20000);   // 🏅 롤 로그인 → 전적 점수
     banCheck().catch(() => {}); setTimeout(() => banCheck().catch(() => {}), 8000);   // 🚫 v0.1.244
+    if (!prev || prev.puuid !== acc.puuid) { _myPub = null; pubCheck().catch(() => {}); }   // 🔒 v0.1.253 기록 공개 동의
   }
   broadcast('account', { account, isHost: !!config.isHost, switched: !!(prev && acc && prev.puuid !== acc.puuid) });
   broadcast('myname', config.myName);
@@ -2062,7 +2065,7 @@ function lobbyView() {
     if (!p || !p.name || now - (p.at || 0) >= ONLINE_MS || !room || p.room !== room.id) continue;   // 🚪 이 방 사람만
     members.push({ key: puuid, name: normName(p.name), tag: p.tag || '', icon: p.icon || null, ver: p.app || null, online: true, host: !!(hostRec && hostRec.puuid === puuid && hostAlive(hostRec)), me: !!(account && account.puuid === puuid), dc: dcOn(puuid), st: stOf(puuid) || 'in' });   // 접속하면 바로 자리에(고르는 중 없음) · 관전은 본인/방장이 바꿈
   }
-  if (room) for (const [k, j] of Object.entries(join)) if (j && j.guest && j.day === today && !members.some(m => m.name === normName(j.name))) members.push({ key: k, name: normName(j.name), guest: true, online: false, st: stOf(k) });
+  // 🔒 v0.1.253 앱 없는 사람(g_ 손님) 줄 없앰 — 기록 공개 동의를 받을 수 없어서(옛 앱이 남긴 칸은 무시)
   const ord = { in: 0, null: 1, spec: 2 };
   members.sort((a, b) => (ord[a.st] - ord[b.st]) || (b.online - a.online) || a.name.localeCompare(b.name, 'ko'));
   const caps = L.captains || {};
@@ -2109,13 +2112,6 @@ async function lobbySetFor(key, st) {   // 👑 방장: 다른 사람 상태 바
   const m = lobbyView().members.find(x => x.key === key);
   if (!m) return { ok: false, err: '목록에 없는 사람이에요' };
   return lobbyJoin(key, st, m.guest ? { name: m.name, guest: true } : { name: m.name });
-}
-async function lobbyAddGuest(name) {   // 👑 방장: 앱 없는 사람 추가(바로 참가)
-  if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
-  const n = normName(String(name || '')).slice(0, 24);
-  if (!n) return { ok: false, err: '이름을 적어주세요' };
-  if (lobbyView().members.some(m => m.name === n)) return { ok: false, err: '이미 목록에 있어요' };
-  return lobbyJoin('g_' + fbKeyOf(n), 'in', { name: n, guest: true });
 }
 async function lobbyRemoveGuest(key) {
   if (!config.isHost || !String(key).startsWith('g_')) return { ok: false };
@@ -3233,11 +3229,23 @@ async function getToday(day) {
   const d = day || dayKey();
   const [raw, nraw] = await Promise.all([fetchDay(d), fetchDayRoom('normals', d)]);
   const inRoom = sameGroup;   // 📦 v0.1.110: 같은 방 번호 또는 (같은 이름 + 지금 방 사람이 그 판에) · 이름 없는 옛 기록은 모든 방 · 방 밖이면 전부
-  const raw2 = {}; for (const [k, m] of Object.entries(raw || {})) if (m && inRoom(m)) raw2[k] = m;
+  // 🔒 v0.1.253 기록 공개 동의: 내가 한 판이거나 그 판 사람이 모두 동의한 판만 · 순위표 = 동의한 사람 + 나
+  const accs = (await fetchAccounts().catch(() => null)) || {}, myP = account ? account.puuid : null, pubName = new Set();
+  const pkOf = (m, n) => { const nn = normName(n); const id = (m.ids || {})[fbKeyOf(nn)]; if (id) return id; const st = (m.stats || []).find(p => p && p.puuid && norm(p.summonerName) === norm(nn)); if (st) return st.puuid; for (const [p, a] of Object.entries(accs)) if (a && a.name && normName(a.name) === nn) return p; return null; };
+  const raw2 = {};
+  for (const [k, m] of Object.entries(raw || {})) {
+    if (!m || !inRoom(m) || !m.teamA || !m.teamB) continue;
+    const ps = [...m.teamA, ...m.teamB].map(n => [normName(n), pkOf(m, n)]);
+    const mine = !!myP && ps.some(([, p]) => p === myP);
+    for (const [n, p] of ps) if (pubOf(accs, p) || (myP && p === myP)) pubName.add(n);
+    if (mine || ps.every(([, p]) => pubOf(accs, p))) raw2[k] = m;
+  }
   const normals = Object.values(nraw || {}).filter(m => m && Array.isArray(m.us) && inRoom(m)).sort((a, b) => (b.ts || 0) - (a.ts || 0)).map(m => Object.assign({}, m, {
     fun: normalFun(m), players: (m.stats || []).filter(p => m.us.some(n => norm(n) === norm(p.summonerName))).map(p => ({ name: p.summonerName, champId: p.championId, champ: p.championName, k: p.kills, d: p.deaths, a: p.assists, damage: p.damage })),
     stats: undefined, potg: m.potg && !m.potg.none ? m.potg : null, potgSkip: m.potg && m.potg.none && m.potg.skipped ? (m.potg.by || '방장') : null }));   // v0.1.211 건너뛴 판 = 기록에 「팟지 건너뜀 · 누가」
-  return Object.assign({ ok: true, day: d, today: dayKey(), normals, roomName: room ? room.name : null }, computeToday(raw2));
+  const T2 = computeToday(raw2);
+  T2.standings = T2.standings.filter(p => pubName.has(p.name)); T2.standings.forEach((p, i) => { p.rank = i + 1; });
+  return Object.assign({ ok: true, day: d, today: dayKey(), normals, roomName: room ? room.name : null }, T2);
 }
 
 // ── 🧩 증강 정보 — CommunityDragon latest(사이트와 같은 출처)를 받아 12시간 캐시 + 디스크 보관(오프라인·CDN 장애 대비) ──
@@ -3597,6 +3605,41 @@ ipcMain.handle('augguide-restore', async (_e, arg) => {   // 되돌리기 = 그 
 });
 
 const fetchAccounts = () => getJson(`${FIREBASE_DB}/${T}/accounts.json`);
+// 🔒 v0.1.253 내전 기록 공개 동의(라이엇 규칙: 커스텀 전적은 본인이 동의해야 남에게 보임 · 사장님: 동의해야 내전 참가 · 안 하면 보기만)
+//   서버 = `accounts/{puuid}/pub` = 동의 시각(숫자 · 0 = 철회) · 이 PC = config.pubAt[puuid](서버에 못 쓴 동의를 다음에 다시 씀)
+//   남에게 보이는 것 = 동의한 사람의 프로필 · 「기록」 탭의 판(내가 한 판이거나 그 판 사람이 모두 동의) · 순위표 줄(동의한 사람 + 나)
+//   그 판을 같이 한 사람끼리 보는 화면(팀·투표·결과·팟지)은 그대로 = 공개 표시가 아님
+const pubOf = (accs, puuid) => !!(puuid && accs && accs[puuid] && accs[puuid].pub > 0);
+let _myPub = null;   // 내 동의 시각 · null = 아직 서버에서 안 읽음
+const pubLocal = () => (account && config.pubAt && config.pubAt[account.puuid]) || 0;
+function pubOk() { return !!(account && (_myPub || pubLocal())); }
+function pubView() { return account ? { need: !pubOk(), at: _myPub || pubLocal() || 0 } : null; }
+function pubPush() { _profIdx = null; try { broadcastRooms(); sendHome(); broadcastSettings(); } catch (_) {} }
+async function pubCheck() {
+  if (!account) return;
+  const p = account.puuid;
+  let v; try { v = await getJson(`${FIREBASE_DB}/${T}/accounts/${p}/pub.json`); } catch (_) { return; }
+  if (!account || account.puuid !== p) return;
+  const local = (config.pubAt || {})[p] || 0;
+  if (typeof v === 'number' && v > 0) { _myPub = v; if (local !== v) { (config.pubAt = config.pubAt || {})[p] = v; saveConfig(); } }
+  else if (v === 0) { _myPub = 0; if (local) { delete config.pubAt[p]; saveConfig(); } }   // 다른 PC에서 철회
+  else if (local) { _myPub = local; fbSet(`${T}/accounts/${p}/pub`, local).catch(() => {}); }   // 서버에 못 썼던 동의 → 다시
+  else _myPub = 0;
+  pubPush();
+}
+async function pubSet(on) {
+  if (!account) return { ok: false, err: '롤에 로그인하면 동의할 수 있습니다' };
+  const p = account.puuid, at = on ? Date.now() : 0;
+  const w = await fbSet(`${T}/accounts/${p}/pub`, at).catch(() => null);
+  config.pubAt = config.pubAt || {};
+  if (at) config.pubAt[p] = at; else delete config.pubAt[p];
+  saveConfig(); _myPub = at;
+  if (!at && room) await roomLeave(false).catch(() => {});   // 철회 = 보기만 → 방에서 나감
+  pubPush();
+  console.log(`[pub] 기록 공개 ${at ? '동의' : '철회'} · 서버 ${w && w.ok ? '저장' : '실패(다음에 다시)'}`);
+  return { ok: true, saved: !!(w && w.ok), at };
+}
+const PUB_ERR = '내전에 참가하려면 기록 공개에 동의해야 합니다';
 let _profIdx = null, _profAt = 0;
 async function profileIndex() {
   if (_profIdx && Date.now() - _profAt < 30000) return _profIdx;   // 30초 캐시(탭 오갈 때마다 전체를 다시 받지 않게)
@@ -3698,6 +3741,8 @@ async function getProfile(arg) {
   else if (arg && arg.name) { const n = normName(arg.name), pk = idx.nameToPuuid[n] || idx.statPuuid[n]; key = pk ? 'p:' + pk : 'n:' + n; }
   if (!key) return { ok: false, err: '롤에 로그인하면 내 프로필을 볼 수 있어요' };
   const acc = key.startsWith('p:') ? idx.accounts[key.slice(2)] : null;
+  if (!(account && key === 'p:' + account.puuid) && !pubOf(idx.accounts, key.startsWith('p:') ? key.slice(2) : null))   // 🔒 v0.1.253 동의 안 한 사람(앱 없는 옛 손님 포함) = 비공개
+    return { ok: true, private: true, key, name: (acc && acc.name) || (arg && arg.name) || key.slice(2), tag: (acc && acc.tag) || '', me: false };
   const P = { ok: true, key, name: (acc && acc.name) || (arg && arg.name) || key.slice(2), tag: (acc && acc.tag) || '', me: !!(account && key === 'p:' + account.puuid),
     games: 0, wins: 0, losses: 0, mvp: 0, svp: 0, manner: 0, k: 0, d: 0, a: 0, statGames: 0, damage: 0, gold: 0, cs: 0, time: 0,
     double: 0, triple: 0, quadra: 0, penta: 0, firstBlood: 0, streak: 0, bestStreak: 0, worstStreak: 0, days: 0, first: null, last: null,
@@ -3740,6 +3785,8 @@ async function getProfile(arg) {
   P.recent = P.recent.slice(-10).reverse();
   const rate = x => x.wins / x.games;
   const MIN = 2;   // 2판 이상 같이(또는 상대로) 한 사람만
+  const pubK = k => k.startsWith('p:') && (pubOf(idx.accounts, k.slice(2)) || (account && k === 'p:' + account.puuid));   // 🔒 v0.1.253 찰떡·천적 = 동의한 사람만
+  for (const o of [mates, rivals]) for (const k of Object.keys(o)) if (!pubK(k)) delete o[k];
   P.mates = Object.values(mates).filter(x => x.games >= MIN).sort((x, y) => rate(y) - rate(x) || y.games - x.games).slice(0, 3);
   P.rivals = Object.values(rivals).filter(x => x.games >= MIN).sort((x, y) => rate(x) - rate(y) || y.games - x.games).slice(0, 3);
   for (const x of [...Object.values(mates), ...Object.values(rivals)]) { const pk = idx.nameToPuuid[x.name]; const a = pk && idx.accounts[pk]; if (a && a.name) x.name = normName(a.name); }   // 닉변한 사람은 지금 이름으로
@@ -4128,7 +4175,7 @@ ipcMain.handle('discord-unlink', () => { config.discordGuild = null; saveConfig(
 const dcRoomView = () => { if (!room) return null; try { const i = dcRoomInfo(lobbyView().members); return i ? { gid: i.id, name: i.name, code: i.inv || null, ch: (_dcMember && _dcMember.g === i.id && _dcMember.lobby) || null } : null; } catch (_) { return null; } };   // ⚙ 「이 방 디스코드」(v0.1.157 · 칩을 ✕로 닫아도 여기서)
 const dcView = () => ({ room: dcRoomView(), invite: dcInvOf(), app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null, guild: dcGuildOf() ? dcGuildOf().name || '서버' : null, connecting: !!_dcConn });
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
-const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, lolRemake: config.lolRemake !== false, lolAutoAccept: config.lolAutoAccept !== false, lolPing: config.lolPing !== false, chatFilter: config.chatFilter !== false, chatMute: Array.isArray(config.chatMute) ? config.chatMute : [], hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView() });
+const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, lolRemake: config.lolRemake !== false, lolAutoAccept: config.lolAutoAccept !== false, lolPing: config.lolPing !== false, chatFilter: config.chatFilter !== false, chatMute: Array.isArray(config.chatMute) ? config.chatMute : [], hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView(), pub: pubView() });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }
 ipcMain.handle('settings-get', () => settingsView());
 // 🧭 v0.1.228 홈 화면(롤 없이 켬)에서도 사용법을 볼 수 있게 — 홈 「사용법 둘러보기」 = 숨겨 둔 왼쪽 창만 홈 가운데 위에 띄움(_tutHome) · 닫으면(tutorial-done · 창 ✕/–) 다시 숨기고 합친 자리로
@@ -4186,6 +4233,7 @@ ipcMain.handle('chat-mute', (_e, { key, on }) => {
 });
 // 🔐 v0.1.236 「내 정보 지우기」 — 서버의 내 칸(디스코드 연결·계정·전적 점수·접속 표시·방 안 내 칸)을 지우고 앱을 끔
 //   경기 기록(같이 한 사람들의 기록)은 남음 = 개인정보 처리방침에 적은 대로 요청하면 이름을 지움 · 앱을 다시 켜고 롤에 로그인하면 계정·접속 칸은 다시 생김(안내 글에 적음)
+ipcMain.handle('pub-set', (_e, on) => pubSet(!!on));   // 🔒 v0.1.253 기록 공개 동의/철회
 ipcMain.handle('privacy-wipe', async () => {
   if (!account) return { ok: false, err: '롤에 로그인한 뒤에 지울 수 있어요(어느 계정인지 알아야 해서)' };
   const p = account.puuid;
@@ -4198,6 +4246,7 @@ ipcMain.handle('privacy-wipe', async () => {
     console.log('[privacy] 내 정보 지우기', bad.length ? '일부 실패 ' + bad.join(',') : '완료');
     if (bad.length) return { ok: false, err: '일부를 지우지 못했어요(' + bad.join(', ') + ') · 잠시 뒤 다시 해 주세요' };
     _dcLinked = null; _dcMine = null; _ownKey = null;
+    if (config.pubAt && config.pubAt[p]) { delete config.pubAt[p]; saveConfig(); }   // 🔒 v0.1.253 기록 공개 동의도 지움(다시 켜면 다시 물음)
     setTimeout(() => { app._quitting = true; app.quit(); }, 1500);
     return { ok: true };
   } catch (e) { return { ok: false, err: e && e.message || '지우지 못했어요' }; }
@@ -4213,7 +4262,6 @@ ipcMain.handle('host-info', () => hostView());
 ipcMain.handle('lobby-data', () => lobbyView());
 ipcMain.handle('lobby-me', (_e, { st }) => lobbySetMine(st));
 ipcMain.handle('lobby-set', (_e, { key, st }) => lobbySetFor(key, st));
-ipcMain.handle('lobby-guest', (_e, { name }) => lobbyAddGuest(name));
 ipcMain.handle('lobby-guest-rm', (_e, { key }) => lobbyRemoveGuest(key));
 ipcMain.handle('lobby-kick', (_e, { key }) => lobbyKick(key));   // 🚪 v0.1.217 방장 강퇴
 ipcMain.handle('lobby-mode', (_e, { mode }) => lobbySetMode(mode));

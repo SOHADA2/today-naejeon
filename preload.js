@@ -67,6 +67,7 @@ contextBridge.exposeInMainWorld('api', {
   getNotice: () => ipcRenderer.invoke('notice-get'),   // 📢 v0.1.245 공지
   noticeDismiss: (id) => ipcRenderer.invoke('notice-dismiss', id),
   onNotice: (cb) => ipcRenderer.on('notice', (_e, d) => cb(d)),   // 💬 v0.1.236 이 사람 말 숨기기
+  pubSet: (on) => ipcRenderer.invoke('pub-set', on),   // 🔒 v0.1.253 내전 기록 공개 동의/철회
   privacyWipe: () => ipcRenderer.invoke('privacy-wipe'),   // 🔐 v0.1.236 내 정보 지우기
   openPrivacy: () => ipcRenderer.send('open-privacy'),
   quitConfirm: (yes, noAsk) => ipcRenderer.send('quit-confirm', yes, !!noAsk),
@@ -91,7 +92,6 @@ contextBridge.exposeInMainWorld('api', {
   getLobby: () => ipcRenderer.invoke('lobby-data'),
   lobbyMe: (st) => ipcRenderer.invoke('lobby-me', { st }),                  // 'in' 참가 · 'spec' 관전 · null 취소
   lobbySet: (key, st) => ipcRenderer.invoke('lobby-set', { key, st }),      // 👑 남의 상태
-  lobbyGuest: (name) => ipcRenderer.invoke('lobby-guest', { name }),        // 👑 앱 없는 사람 추가
   lobbyGuestRm: (key) => ipcRenderer.invoke('lobby-guest-rm', { key }),
   lobbyKick: (key) => ipcRenderer.invoke('lobby-kick', { key }),   // 🚪 v0.1.217 방장 강퇴
   onKicked: (cb) => ipcRenderer.on('kicked', (_e, d) => cb(d)),

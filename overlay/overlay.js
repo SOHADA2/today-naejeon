@@ -82,7 +82,13 @@ function applyRooms(d) {
 function rmErr(msg) { const e = el('rm-err'); e.textContent = msg || ''; e.style.display = msg ? '' : 'none'; }
 async function rmAct(fn) {
   rmErr('');
-  const r = await fn().catch(e => ({ ok: false, err: String(e && e.message || e) }));
+  let r = await fn().catch(e => ({ ok: false, err: String(e && e.message || e) }));
+  if (r && r.needPub) {   // 🔒 v0.1.253 기록 공개 동의 → 동의하면 그대로 이어서
+    if (!(await window.tnPubAsk())) { rmErr('기록 공개에 동의하면 내전에 참가할 수 있습니다'); return r; }
+    const w = await window.api.pubSet(true).catch(() => null);
+    if (!w || !w.ok) { rmErr('동의를 저장하지 못했어요 · 잠시 뒤 다시 눌러 주세요'); return r; }
+    r = await fn().catch(e => ({ ok: false, err: String(e && e.message || e) }));
+  }
   if (r && !r.ok) { if (r.needPw) return r; rmErr(r.err || '잠깐 문제가 생겼어요'); }
   return r;
 }
@@ -131,13 +137,21 @@ function renderFull() {   // 🚦 v0.1.96: 자리 꽉 참(무료 서버 동시 �
   _rmSig = sig;
   el('rm-list').innerHTML = `<div class="rm-empty"><b class="rm-full-t">지금은 자리가 꽉 찼어요</b><span>무료 서버라 한 번에 ${F.cap}명까지 쓸 수 있어요<br>누가 나가면 자동으로 들어가요</span><span class="lb-wait">자리 확인 중</span></div>`;
 }
+function pubCard() {   // 🔒 v0.1.253 내전 기록 공개 동의 안 함 = 보기만 · 방 목록 맨 위 카드
+  const list = el('rm-list'); if (!list || list.querySelector('.rm-pub')) return;
+  list.insertAdjacentHTML('afterbegin', '<div class="rm-pub"><span class="rm-pub-en">RECORD SHARING</span><b>내전 기록 공개 동의가 필요합니다</b>'
+    + '<span>동의하면 내전 전적이 앱을 쓰는 다른 사람에게 보이고 내전에 참가할 수 있습니다 · 지금은 보기만</span><button class="ui-btn-gold" id="rm-pubgo">동의하고 참가하기</button></div>');
+  el('rm-pubgo').onclick = async () => { if (await window.tnPubAsk()) { const w = await window.api.pubSet(true).catch(() => null); if (!w || !w.ok) rmErr('동의를 저장하지 못했어요 · 잠시 뒤 다시 눌러 주세요'); } };
+}
 function renderRooms() {
   const D = roomData || { rooms: [] }, R = D.rooms || [];
   el('rm-new').style.display = myName && R.length ? '' : 'none';
-  const sig = JSON.stringify([myName, R, _pwFor, D.ready, D.slow]);
+  const needPub = !!(myName && D.pub && D.pub.need);
+  const sig = JSON.stringify([myName, R, _pwFor, D.ready, D.slow, needPub]);
   if (sig === _rmSig) return;   // 같은 내용이면 다시 안 그림(입력 중인 비밀번호가 지워지지 않게)
   _rmSig = sig;
   const list = el('rm-list');
+  if (needPub) setTimeout(pubCard, 0);   // 🔒 v0.1.253 목록 맨 위 동의 카드(아래 그리기가 끝난 뒤)
   if (!myName) { list.innerHTML = '<div class="rm-empty"><span class="lb-wait">롤 클라이언트에 로그인하면 방에 들어갈 수 있어요</span></div>'; return; }
   if (!R.length) {
     list.innerHTML = D.ready === false ? (D.slow ? '<div class="rm-empty"><b class="rm-empty-t">서버에 연결하지 못했습니다</b><span>인터넷 연결을 확인해 주세요<br>연결되면 자동으로 이어집니다</span></div>' : '<div class="rm-empty">방 목록을 불러오는 중입니다</div>')
@@ -785,10 +799,6 @@ const MODE_DESC = {   // 방식 고르는 창 맨 아래 한 줄(방장)
 };
 const MODE_WAIT = { random: '무작위로 팀이 정해져요', balance: '티어 점수로 비슷하게 팀이 정해져요', draft: '팀장 둘이 번갈아 뽑아요' };   // 팀원: 「방장이 시작하면 …」
 const GAME_PHASES = ['ReadyCheck', 'ChampSelect', 'GameStart', 'InProgress', 'Reconnect'];
-async function addGuestAsk() {   // 방장: 롤 앱이 없는 사람을 이름으로 자리에(방 메뉴 · 빈 자리 누름)
-  const v = await tnPrompt('롤 앱이 없는 사람도 자리에 앉혀 팀에 넣을 수 있어요', { title: '앱 없는 사람 추가', placeholder: '이름', ok: '추가', max: 24 });
-  if (v) lbAct(() => window.api.lobbyGuest(v));
-}
 function renderLobby() {
   setTimeout(() => { chatRoom(); chatMark(); chatPlace(); pingPlace(); }, 0);   // 💬 자리를 다시 그린 뒤 방 바뀜 확인·말한 사람 테두리·이모티콘 자리 맞춤(v0.1.202 · ⚠️ 바로 부르면 안 됨 — 켤 때는 아래 CHAT이 아직 안 만들어진 채로 여기가 먼저 돎)
   const L = lobbyData || { members: [], mode: 'random', captains: {} };
@@ -850,7 +860,7 @@ function renderLobby() {
 
   // ③ 자리 — 참가한 사람 순서대로 · 빈 자리는 한 줄까지만(v0.1.195) · 드래프트 팀장 고르는 중(pick)엔 「팀장」 버튼이 늘 보임
   const capOf = nm => nn(nm) === nn(caps.teamA) ? 1 : nn(nm) === nn(caps.teamB) ? 2 : 0;
-  const pick = myIsHost && draft && capN < 2 && n >= 2, canAdd = myIsHost && !manual;
+  const pick = myIsHost && draft && capN < 2 && n >= 2, canAdd = false;   // 🔒 v0.1.253 앱 없는 사람 추가 없앰(기록 공개 동의를 받을 수 없음)
   const seat = (m, i, side, over) => {   // side = 직접 방식의 팀 열(왼쪽 1팀 · 오른쪽 2팀) · over = 일반판 6번째부터(롤 파티는 5명까지 → 초대 안 됨)
     const no = String(i + 1).padStart(2, '0'), sn = side === 'teamA' ? 1 : side === 'teamB' ? 2 : 0;
     if (!m) return `<div class="seat empty${sn ? ' side' + sn : ''}${canAdd ? ' add' : ''}"${canAdd ? ' data-addguest="1" title="앱 없는 사람 추가 · 롤 앱이 없는 친구도 이름으로 자리에 앉혀 팀에 넣어요"' : ''}><span class="seat-no">${no}</span><span class="seat-av">${canAdd ? '<i>＋</i>' : ''}</span>`
@@ -914,7 +924,6 @@ function renderLobby() {
   root.querySelectorAll('[data-in]').forEach(b => b.onclick = () => lbAct(() => window.api.lobbySet(b.dataset.in, 'in')));
   root.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => lbAct(() => window.api.lobbyGuestRm(b.dataset.rm)));
   root.querySelectorAll('[data-kick]').forEach(b => b.onclick = async e => { e.stopPropagation(); const m = M.find(x => x.key === b.dataset.kick); if (!m) return; if (!(await tnConfirm(`${m.name}님을 방에서 내보낼까요?\n롤 내전 방에 있으면 롤 방에서도 내보내요. 다시 들어오는 건 자유예요.`, { title: '방에서 내보내기', ok: '내보내기', danger: true }))) return; lbAct(() => window.api.lobbyKick(m.key)); });
-  root.querySelectorAll('[data-addguest]').forEach(b => b.onclick = () => addGuestAsk());
   root.querySelectorAll('.lb-nm').forEach(el2 => el2.onclick = () => {
     const m = M.find(x => x.key === el2.dataset.pk); if (!m) return;
     window.api.openProfile(m.guest ? { name: m.name } : { puuid: m.key, name: m.name });
@@ -1114,7 +1123,6 @@ function fillRoomMenu(L) {
   m.innerHTML = (myIsHost
     ? '<div class="lb-hm-hd">👑 방장 넘겨주기</div>'
       + (others.length ? others.map(o => `<button class="lb-hm-item" data-p="${esc(o.key)}">${avatar(o, 'chip-av')}<span>${esc(o.name)}</span></button>`).join('') : '<div class="lb-hm-empty">앱을 켠 다른 사람이 없어요</div>')
-      + '<button class="lb-hm-item" id="lb-hm-guest"><span>＋ 앱 없는 사람 추가</span></button>'
       + '<button class="lb-hm-item stop" id="lb-hm-stop"><span>방장 그만하기</span></button>'
     : `<div class="lb-hm-hd">${hn ? `👑 방장 <b>${esc(hn)}</b>` : '방장 없음'}</div>`)
     + (L.room && others.length ? '<button class="lb-hm-item" id="lb-hm-rep"><span>🚨 신고하기 ›</span></button>' : '')
@@ -1133,7 +1141,6 @@ function fillRoomMenu(L) {
     el('lb-hm-back').onclick = ev => { ev.stopPropagation(); fillRoomMenu(L); };
   };
   const st = el('lb-hm-stop'); if (st) st.onclick = () => { closeRoomMenu(); lbAct(() => window.api.setHost(false)); };
-  const gs = el('lb-hm-guest'); if (gs) gs.onclick = () => { closeRoomMenu(); addGuestAsk(); };
   const lv = el('lb-hm-leave'); if (lv) lv.onclick = async () => { closeRoomMenu(); if (myIsHost && !(await tnConfirm('방에서 나갈까요?\n방장은 방에 남은 사람에게 넘어가요.', { ok: '나가기' }))) return; lbAct(() => window.api.roomLeave()); };
 }
 document.addEventListener('mousedown', e => { if (_rmenu && !(e.target.closest && e.target.closest('#lb-hostmenu, #lb-rbtn'))) closeRoomMenu(); });

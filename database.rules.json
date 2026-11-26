@@ -273,6 +273,9 @@
           "lastSeen": {
             ".validate": "newData.isNumber()"
           },
+          "pub": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
           "$other": {
             ".validate": false
           }

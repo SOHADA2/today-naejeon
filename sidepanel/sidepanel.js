@@ -355,6 +355,12 @@ async function renderProfile() {
     + `<span class="pf-sub">${P.games ? `첫 내전 ${md(P.first)} · 내전 ${P.days}일 · 마지막 ${md(P.last)}` : '아직 내전 기록이 없습니다'}</span></div>${P.me ? '' : '<button class="sp-mini" id="pf-back">내 프로필</button>'}</div>`
     + (P.key && String(P.key).startsWith('p:') ? ratingRow(P.rating, P.me, P.name) : '');   // 🏅 계정이 확인된 사람만(이름만 있는 손님은 전적을 못 읽음)
   const bindHead = () => { const bk = $('pf-back'); if (bk) bk.onclick = () => openProfile({ me: true }); };
+  if (P.private) {   // 🔒 v0.1.253 기록 공개에 동의하지 않은 사람(앱 없는 옛 손님 포함)
+    body.innerHTML = `<div class="sp-card pf-head"><div class="sp-hd-tx"><span class="sp-en">PLAYER</span><b class="pf-nm"><span>${escH(P.name)}</span>${P.tag ? `<small>#${escH(P.tag)}</small>` : ''}</b>`
+      + `<span class="pf-sub">기록 비공개</span></div><button class="sp-mini" id="pf-back">내 프로필</button></div>`
+      + '<div class="td-empty"><b>내전 기록을 공개하지 않은 소환사입니다</b>본인이 기록 공개에 동의하면 전적이 보입니다</div>';
+    bindHead(); return;
+  }
   if (!P.games) { body.innerHTML = head + '<div class="td-empty">내전을 한 판 하면 여기에 기록이 쌓입니다</div>'; bindHead(); return; }
   const streak = P.streak > 0 ? `<b class="w">${P.streak}연승</b>` : `<b class="l">${-P.streak}연패</b>`;
   const big = `<div class="pf-big">`

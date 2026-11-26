@@ -94,6 +94,12 @@ window.tnZipFx = (panel, side, keep) => {   // keep(v0.1.176) = 문짝이 아직
   window.tnConfirm = (msg, o) => q(msg, o, true);
   window.tnAlert = (msg, o) => q(msg, o, false).then(() => undefined);
 })();
+// 🔒 v0.1.253 내전 기록 공개 동의 창(라이엇 규칙: 커스텀 전적은 본인이 동의해야 남에게 보임) — window.tnPubAsk() → Promise<true|false> · 모든 창 같은 문구
+window.tnPubAsk = () => window.tnConfirm('내전에 참가하려면 기록 공개에 동의해야 합니다.\n\n'
+  + '공개되는 것: 내전 전적(승패·KDA·챔피언·피해량), 투표 결과(MVP·매너왕), 내전 티어, 최근 판, 오늘 순위\n'
+  + '보는 사람: 투데이 내전 앱을 쓰는 다른 사람\n'
+  + '철회: ⚙ 설정 → 개인정보 → 동의 철회(철회하면 보기만 가능)\n\n'
+  + '동의하지 않아도 방 목록·기록 보기·증강 가이드는 쓸 수 있습니다.', { title: '내전 기록 공개 동의', ok: '동의합니다', cancel: '나중에' });
 // ✍️ v0.1.195 이름 넣는 창 — window.tnPrompt(글, {title, ok, placeholder, max}) → Promise<글|null> · Enter = 확인 · Esc·바깥 = 취소 (tnConfirm과 같은 모양)
 (() => {
   if (window.tnPrompt) return;

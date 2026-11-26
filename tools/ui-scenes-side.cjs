@@ -72,6 +72,7 @@ for (const w of [300, 400]) {
   // 프로필
   S.push(sc('pf-me', w, { me: 0, cat: 'profile', stub: full }));
   S.push(sc('pf-other', w, { me: 0, cat: 'profile', stub: { getToday: today, getProfile: profile(5, false, rating(88, 31, 63, 12)) }, more: `openProfile({ name: ${J(NM[5])} });` + wait }));
+  S.push(sc('pf-private', w, { me: 0, cat: 'profile', stub: { getToday: today, getProfile: { ok: true, private: true, key: 'p:p5', name: NM[5], tag: 'KR1', me: false } }, more: `openProfile({ name: ${J(NM[5])} });` + wait }));   // 🔒 v0.1.253 기록 비공개
   S.push(sc('pf-new', w, { me: 0, cat: 'profile', stub: { getToday: todayEmpty, getProfile: profileNew(0, true) } }));
   // 증강(가이드 · 패치 · 뽑기)
   S.push(sc('ag-guide', w, { me: 0, cat: 'aug', stub: full }));
