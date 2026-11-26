@@ -25,6 +25,11 @@ const scenes = [
   S('m-rooms', { me: { name: '테스터씨', tag: 'KR1' }, rooms, online: [me].concat(others), start: { lol: 'ok' } }),   // 로그인함 · 방 밖 = 방마다 「들어가기」
   S('m-empty', { me: { name: '테스터씨', tag: 'KR1' }, rooms: [], online: [me], start: { lol: 'ok' } }),              // 로그인함 · 방 없음 = 「방 만들기」
   S('m-inroom', { me: { name: '테스터씨', tag: 'KR1' }, room: { id: 'r1', name: '오늘 내전?' }, rooms: rooms.map((r, k) => Object.assign({}, r, { mine: !k })), online: [Object.assign({}, me, { room: '오늘 내전?' })].concat(others), start: { lol: 'ok' } }),   // 방 안 = 버튼 없음
+  // 🏘️ v0.1.265 커뮤니티 고르기(홈) — 새로 설치(ask = 카드 바로) · 이미 고름(머리 「커뮤니티 바꾸기」 → 누르면 카드) · 긴 이름
+  S('g-comm-ask', { me: null, rooms, online: [guest].concat(others), start: Object.assign({}, OFF, { launch: true }), comm: { name: null, id: null, ask: true } }),
+  S('m-comm-ask', { me: { name: '테스터씨', tag: 'KR1' }, rooms, online: [me].concat(others), start: { lol: 'ok' }, comm: { name: null, id: null, ask: true } }),
+  S('m-comm-btn', { me: { name: '테스터씨', tag: 'KR1' }, rooms, online: [me].concat(others), start: { lol: 'ok' }, comm: { name: '큐', id: 'queue', ask: false } }),
+  (x => (x.js += "document.getElementById('comm-chg').click(); await new Promise(r=>setTimeout(r,200));", x))(S('m-comm-open', { me: { name: '테스터씨', tag: 'KR1' }, rooms, online: [me].concat(others), start: { lol: 'ok' }, comm: { name: '열여섯글자커뮤니티이름열여섯글자', id: 'x', ask: false } })),
 ];
 fs.writeFileSync(out, JSON.stringify(scenes));
 console.log('장면', scenes.length, '개 →', out);

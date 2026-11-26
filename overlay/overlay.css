@@ -922,3 +922,19 @@ body.pw-drag, body.pw-drag * { cursor:crosshair !important; user-select:none; }
 .lb-say-mute { -webkit-app-region:no-drag; position:absolute; right:2px; top:50%; transform:translateY(-50%); display:none; padding:1px 6px; font:700 10.5px var(--f-body); color:var(--dim); background:var(--bg-0); border:1px solid var(--hair); cursor:pointer; }
 .lb-say:hover .lb-say-mute { display:block; }
 .lb-say-mute:hover { color:var(--ink); border-color:var(--gold-line); }
+/* 🚪 v0.1.265 방 줄 「나가기」 버튼 · 방 메뉴 줄마다 오른쪽 하는 일 표시 */
+.lb-head > .lb-leave { -webkit-app-region:no-drag; flex:none; align-self:center; padding:4px 9px; font-size:12px; font-weight:700; white-space:nowrap; cursor:pointer; color:#ff9c90; background:rgba(232,64,87,0.06); border:1px solid rgba(232,64,87,0.42); clip-path:var(--cut-sm); }
+.lb-head > .lb-leave:hover { color:#fff; background:rgba(232,64,87,0.55); }
+.lb-hm-hd small, .lb-hm-item small { display:block; margin-top:1px; font-size:11px; font-weight:500; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lb-hm-hd { padding:9px 12px 6px; color:var(--ink-soft, #c9c3b4); }
+.lb-hm-item > span:not([class]) { flex:1; }
+.lb-hm-item.sep { border-top-color:var(--line-2, rgba(255,255,255,0.14)); }
+.lb-hm-act { flex:none; margin-left:auto; padding:3px 9px; font-style:normal; font-size:11.5px; font-weight:800; white-space:nowrap; color:var(--gold-hi); border:1px solid var(--gold-line); clip-path:var(--cut-sm); transition:background .12s, color .12s; }
+.lb-hm-item:hover .lb-hm-act { color:#1a1206; background:var(--gold); border-color:var(--gold); }
+.lb-hm-act.dim { color:var(--ink-soft, #c9c3b4); border-color:var(--line-2, rgba(255,255,255,0.18)); }
+.lb-hm-item:hover .lb-hm-act.dim { color:var(--ink); background:rgba(255,255,255,0.1); border-color:var(--line-2, rgba(255,255,255,0.25)); }
+.lb-hm-act.red { color:#ff9c90; border-color:rgba(232,64,87,0.5); }
+.lb-hm-item:hover .lb-hm-act.red { color:#fff; background:#e84057; border-color:#e84057; }
+.lb-hm-item:hover { background:rgba(200,170,110,0.07); }
+.lb-rrow i { display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; font-size:11px; line-height:1; border:1px solid var(--gold-line); background:rgba(200,170,110,0.08); }   /* 🧱 v0.1.265 ▾가 점처럼 작아 메뉴인 줄 몰랐음 → 작은 단추 모양 */
+.lb-rbtn:hover .lb-rrow i { background:var(--gold); color:#1a1206; border-color:var(--gold); }

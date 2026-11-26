@@ -2,9 +2,11 @@
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let _last = '';
+let _commOpen = false, _commSig = '', _commMsg = '';   // 🏘️ v0.1.265 커뮤니티 고르기(홈) — 처음 설치 = 자동으로 열림 · 그 밖 = 「커뮤니티 바꾸기」로 열림
 
 function render(d) {
   if (!d) return;
+  _lastD = d;
   const sig = JSON.stringify(d); if (sig === _last) return; _last = sig;   // 같은 내용이면 다시 안 그림
   document.body.classList.toggle('logo', d.mode === 'logo');
   $('h-ver').textContent = d.ver ? 'v' + d.ver : '';
@@ -37,6 +39,7 @@ function render(d) {
   const rooms = d.rooms || [], canJoin = !!d.me && !d.room;
   $('rooms-n').textContent = rooms.length ? rooms.length : '';
   { const cm = $('rooms-comm'); if (cm) cm.textContent = d.comm && d.comm.name ? ' · ' + d.comm.name : ''; }   // 🏘️ v0.1.258
+  commBox(d);
   if (d.ban) {   // 🚫 v0.1.244 운영 정지
     const B = d.ban, dt = new Date(B.until), when = B.perm ? '기간 없이 정지되었습니다' : `${dt.getMonth() + 1}월 ${dt.getDate()}일 ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}에 풀립니다`;
     $('rooms-n').textContent = '';
@@ -65,6 +68,44 @@ function render(d) {
   const ft = $('f-tut'); if (ft) ft.onclick = () => window.api.openTutorial();
   const fp = $('f-panels'); if (fp) fp.onclick = () => window.api.homePanels();
 }
+
+// 🏘️ v0.1.265 커뮤니티 고르기 — 예전엔 롤을 켜야 왼쪽 창 방 목록에서만 고를 수 있었음(사장님: 홈 화면에서도)
+//   새로 설치(comm.ask) = 방 목록 위에 카드가 바로 열림 · 이미 고른 사람 = 머리 「커뮤니티 바꾸기」로 열고 닫음 · 방 안이면 버튼 숨김(바꾸면 앱이 다시 켜짐)
+//   카드는 방 목록과 따로 그림(방 목록이 20초마다 바뀌어도 입력 중인 코드가 안 지워지게)
+function commBox(d) {
+  const C = d.comm || null, box = $('comm-box'), chg = $('comm-chg');
+  if (!box || !chg || d.mode === 'logo') return;
+  const ask = !!(C && C.ask), can = !!C && !d.ban && !d.room;
+  if (!can) _commOpen = false;
+  chg.hidden = !can || ask || _commOpen;
+  const show = can && (ask || _commOpen);
+  const sig = JSON.stringify([show, ask, C && C.name, _commMsg]);
+  if (sig === _commSig) return; _commSig = sig;
+  box.hidden = !show;
+  if (!show) { box.innerHTML = ''; return; }
+  const keep = $('cm-in') ? $('cm-in').value : '';
+  box.innerHTML = `<span class="col-en">COMMUNITY</span><b>${ask ? '어느 커뮤니티에서 내전하나요?' : `커뮤니티 바꾸기 · 지금 「${esc(C.name || '기본')}」`}</b>`
+    + '<small>운영진에게 받은 초대 코드를 넣으면 그 커뮤니티의 방·기록·순위만 보입니다' + (ask ? '' : ' · 바꾸면 앱이 다시 켜집니다') + '</small>'
+    + '<div class="cm-row"><input id="cm-in" maxlength="12" placeholder="초대 코드" autocomplete="off" spellcheck="false"><button class="ui-btn-gold" id="cm-go">들어가기</button></div>'
+    + `<div class="cm-foot">${ask ? '<button class="cm-skip" id="cm-skip">초대 코드 없이 시작</button>' : (C.name ? '<button class="cm-skip" id="cm-skip">기본 커뮤니티로</button>' : '') + '<button class="cm-skip" id="cm-x">취소</button>'}</div>`
+    + (_commMsg ? `<span class="cm-msg">${esc(_commMsg)}</span>` : '');
+  const inp = $('cm-in'); inp.value = keep;
+  const go = async code => {
+    const b = $('cm-go'); if (b) b.disabled = true;
+    const r = await window.api.communityJoin(code).catch(() => null);
+    if (b) b.disabled = false;
+    _commMsg = !r || !r.ok ? ((r && r.err) || '잠깐 문제가 생겼어요') : r.restart ? `${r.community ? r.community.name : '기본'} 커뮤니티로 다시 켜는 중입니다` : '';
+    if (r && r.ok && !r.restart) _commOpen = false;
+    _commSig = ''; commBox(_lastD || d);
+  };
+  $('cm-go').onclick = () => go(inp.value);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(inp.value); });
+  const sk = $('cm-skip'); if (sk) sk.onclick = () => go('');
+  const x = $('cm-x'); if (x) x.onclick = () => { _commOpen = false; _commMsg = ''; _commSig = ''; commBox(_lastD || d); };
+  if (!ask && _commOpen) setTimeout(() => inp.focus(), 0);
+}
+let _lastD = null;
+$('comm-chg').onclick = () => { _commOpen = true; _commMsg = ''; _commSig = ''; if (_lastD) commBox(_lastD); };
 
 // 처음 나타날 때·게임 시작 로고 = 한 번만 움직임(무한 애니메이션 없음)
 function intro(mode) {

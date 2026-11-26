@@ -143,3 +143,18 @@ body.logo .go { display:block; font-family:var(--f-num); font-size:15px; font-we
 /* 🤐 v0.1.167 지퍼 테두리 이어받기(합쳐진 좌우 창 → 홈) */
 .h-zip { position:fixed; inset:0; z-index:9999; pointer-events:none; border:2px solid #f3dca2; box-shadow:0 0 10px 2px rgba(226,196,130,.55), inset 0 0 10px 1px rgba(226,196,130,.35); }
 .rooms-comm { display:inline-block; max-width:14em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom; color:var(--gold); letter-spacing:0.08em; }   /* 🏘️ v0.1.258 지금 커뮤니티 */
+/* 🏘️ v0.1.265 커뮤니티 고르기(홈) — 방 목록 위 카드 · 머리 「커뮤니티 바꾸기」 */
+.comm-chg { -webkit-app-region:no-drag; flex:none; align-self:center; padding:3px 9px; font-size:11.5px; font-weight:700; cursor:pointer; color:var(--gold-hi); background:none; border:1px solid var(--gold-line); clip-path:var(--cut-sm); }
+.comm-chg:hover { background:rgba(200,170,110,0.12); }
+.comm-box { flex:none; display:flex; flex-direction:column; gap:6px; margin:10px 10px 0; padding:12px; border:1px solid var(--gold-line); background:var(--gold-soft); clip-path:var(--cut-sm); -webkit-app-region:no-drag; }
+.comm-box > b { font-size:14px; font-weight:800; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.comm-box > small { font-size:12px; color:var(--ink-soft); line-height:1.5; }
+.cm-row { display:flex; gap:6px; margin-top:2px; }
+.cm-row input { flex:1; min-width:0; padding:8px 10px; font:inherit; font-size:13.5px; font-family:var(--f-num), inherit; letter-spacing:.12em; text-transform:uppercase; color:var(--ink); background:var(--bg-1); border:1px solid var(--line-2); outline:none; }
+.cm-row input:focus { border-color:var(--gold); }
+.cm-row .ui-btn-gold { flex:none; padding:8px 14px; font-size:13px; }
+.cm-foot { display:flex; gap:12px; }
+.cm-skip { padding:2px 0; font-size:12px; font-weight:600; cursor:pointer; color:var(--dim); background:none; border:none; text-decoration:underline; text-underline-offset:3px; }
+.cm-skip:hover { color:var(--ink); }
+.cm-msg { font-size:12px; font-weight:700; color:var(--gold-hi); }
+.comm-box[hidden], .comm-chg[hidden] { display:none; }

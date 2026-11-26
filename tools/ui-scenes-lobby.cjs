@@ -34,6 +34,8 @@ for (const w of [302, 402]) {
   S.push(sc('h-normal-party-' + w, w, 4, 0, 'normal', '', { lol: partyLead }));                                         // 롤 파티 3/5 · 다시 초대 · 「큐 시작」
   S.push(sc('h-normal-pop-' + w, w, 7, 0, 'normal', "document.getElementById('lb-mchip').click();"));                   // 7명(6번째부터 파티 자리 없음) + 고르는 창(일반)
   S.push(sc('h-menu-' + w, w, 4, 0, 'random', "document.getElementById('lb-rbtn').click();"));                          // 방 메뉴
+  S.push(sc('m-menu-' + w, w, 4, 2, 'random', "document.getElementById('lb-rbtn').click();"));                          // 🚪 v0.1.265 팀원 방 메뉴(지금 방장 · 신고 · 나가기)
+  S.push(sc('h-menu-rep-' + w, w, 4, 0, 'random', "document.getElementById('lb-rbtn').click(); await new Promise(r=>setTimeout(r,350)); document.getElementById('lb-hm-rep').click();"));   // 신고할 사람 고르기
   // 🗺️ v0.1.232 소환사의 협곡
   S.push(sc('h-sr-pop-' + w, w, 6, 0, 'draft', "document.getElementById('lb-mchip').click();", { game: 'sr', srPick: 3130 }));                       // 고르는 창(게임 = 협곡 · 픽 방식 줄)
   S.push(sc('h-sr-pop-short-' + w, w, 10, 0, 'balance', "document.getElementById('lb-mchip').click();", { game: 'sr', srPick: 3100 }, false, 576));  // 낮은 창 + 10명

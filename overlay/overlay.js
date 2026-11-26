@@ -849,11 +849,13 @@ function renderLobby() {
   head.style.display = login ? '' : 'none';
   const cntTip = normal ? '롤 파티에 들어갈 사람 · 5명까지(6번째부터는 초대 안 해요)' : '참가 인원(관전은 빼고) · 한 판에 10명까지';
   head.innerHTML = !login ? ''
-    : `<button id="lb-rbtn" class="lb-rbtn${_rmenu ? ' open' : ''}" title="방 메뉴${myIsHost ? ' · 방장 넘겨주기·앱 없는 사람 추가·나가기' : ' · 나가기'}"><span class="lb-en">${L.room && L.room.priv ? 'PRIVATE ROOM' : 'ROOM'}</span><span class="lb-rrow"><b class="lb-rname">${esc(L.room ? L.room.name : '대기실')}</b><i>▾</i></span></button>`
+    : `<button id="lb-rbtn" class="lb-rbtn${_rmenu ? ' open' : ''}" title="방 메뉴 열기 · ${myIsHost ? '방장 넘겨주기·신고·나가기' : '신고·나가기'}"><span class="lb-en">${L.room && L.room.priv ? 'PRIVATE ROOM' : 'ROOM'}</span><span class="lb-rrow"><b class="lb-rname">${esc(L.room ? L.room.name : '대기실')}</b><i>▾</i></span></button>`
+      + (L.room ? '<button id="lb-leave" class="lb-leave" title="이 방에서 나가 방 목록으로 돌아갑니다">나가기</button>' : '')   // 🚪 v0.1.265 방 나가기를 방 줄에 바로(사장님: 방 메뉴 안에 있어서 잘 안 보임)
       + (dcHint ? '<span class="lb-dci-hint" title="디스코드 대기 채널 화면에서 「음성 채널 참가하기」를 눌러 주세요">디스코드 「참가하기」</span>'
         : `<span class="lb-cnt"><span class="lb-en" title="${cntTip}">${normal ? 'PARTY' : 'PLAYERS'}</span><span class="lb-cnt-n">${dcKind ? `<button id="lb-dci" class="lb-dci-b ${dcKind}" title="${esc(dcTip)}" aria-label="${esc(dcTip)}">${DC_LOGO}${dcKind === 'act' ? '<i class="lb-dci-dot"></i>' : ''}</button>` : ''}<span class="lb-cnt-v" title="${cntTip}"><b>${Math.min(n, seatCap)}</b><i>/${seatCap}</i>${n > seatCap ? `<em>+${n - seatCap}</em>` : ''}</span></span></span>`);
   { const rb = el('lb-rbtn'); if (rb) rb.onclick = e => { e.stopPropagation(); toggleRoomMenu(L); };
     const db = el('lb-dci'); if (db) db.onclick = e => { e.stopPropagation(); if (dcGo) dcGo(); };
+    const lv = el('lb-leave'); if (lv) lv.onclick = e => { e.stopPropagation(); closeRoomMenu(); leaveRoom(); };
     if (!login) closeRoomMenu(); else if (_rmenu) fillRoomMenu(L); }
 
   // ② 롤 로그인 전 = 빈 자리 대신 시작하는 법 3단계(처음 온 사람)
@@ -1140,13 +1142,15 @@ function fillRoomMenu(L) {
   const m = el('lb-hostmenu');
   const others = (L.members || []).filter(x => x.online && !x.guest && !x.me);
   const hn = L.hostName;
+  // 🧱 v0.1.265 줄마다 오른쪽에 하는 일(「넘기기」·「그만하기」·「신고」·「나가기」) 버튼 모양 표시 + 구역 제목에 한 줄 설명(사장님: 누르는 건지 아닌지 모르겠음)
+  const act = (t, c) => `<em class="lb-hm-act${c ? ' ' + c : ''}">${t}</em>`;
   m.innerHTML = (myIsHost
-    ? '<div class="lb-hm-hd">👑 방장 넘겨주기</div>'
-      + (others.length ? others.map(o => `<button class="lb-hm-item" data-p="${esc(o.key)}">${avatar(o, 'chip-av')}<span>${esc(o.name)}</span></button>`).join('') : '<div class="lb-hm-empty">앱을 켠 다른 사람이 없어요</div>')
-      + '<button class="lb-hm-item stop" id="lb-hm-stop"><span>방장 그만하기</span></button>'
-    : `<div class="lb-hm-hd">${hn ? `👑 방장 <b>${esc(hn)}</b>` : '방장 없음'}</div>`)
-    + (L.room && others.length ? '<button class="lb-hm-item" id="lb-hm-rep"><span>🚨 신고하기 ›</span></button>' : '')
-    + (L.room ? '<button class="lb-hm-item leave" id="lb-hm-leave"><span>방에서 나가기</span></button>' : '');
+    ? '<div class="lb-hm-hd">👑 방장 넘겨주기<small>누르면 그 사람이 방장이 됩니다</small></div>'
+      + (others.length ? others.map(o => `<button class="lb-hm-item" data-p="${esc(o.key)}">${avatar(o, 'chip-av')}<span>${esc(o.name)}</span>${act('넘기기')}</button>`).join('') : '<div class="lb-hm-empty">앱을 켠 다른 사람이 없어요</div>')
+      + `<button class="lb-hm-item stop" id="lb-hm-stop"><span>방장 그만하기<small>방에 남은 사람이 맡을 수 있습니다</small></span>${act('그만하기', 'dim')}</button>`
+    : `<div class="lb-hm-hd">${hn ? `👑 지금 방장 <b>${esc(hn)}</b>` : '방장 없음'}</div>`)
+    + (L.room && others.length ? `<button class="lb-hm-item sep" id="lb-hm-rep"><span>🚨 신고하기<small>운영자에게만 전달됩니다</small></span>${act('신고 ›', 'dim')}</button>` : '')
+    + (L.room ? `<button class="lb-hm-item leave" id="lb-hm-leave"><span>방에서 나가기<small>방 목록으로 돌아갑니다</small></span>${act('나가기', 'red')}</button>` : '');
   popAnim(m, true);   // 🎞️ v0.1.235 열 때 펼쳐짐(이미 열려 있으면 그대로)
   m.querySelectorAll('[data-p]').forEach(b => b.onclick = async () => {
     const o = others.find(x => x.key === b.dataset.p); if (!o) return;
@@ -1156,13 +1160,15 @@ function fillRoomMenu(L) {
   });
   const rp = el('lb-hm-rep'); if (rp) rp.onclick = e => {   // 🚨 v0.1.245 신고할 사람 고르기
     e.stopPropagation();
-    m.innerHTML = '<div class="lb-hm-hd">🚨 누구를 신고할까요?</div>' + others.map(x => `<button class="lb-hm-item" data-rk="${esc(x.key)}">${avatar(x, 'chip-av')}<span>${esc(x.name)}</span></button>`).join('') + '<button class="lb-hm-item" id="lb-hm-back"><span>‹ 뒤로</span></button>';
+    m.innerHTML = '<div class="lb-hm-hd">🚨 누구를 신고할까요?<small>고른 뒤 무슨 일이 있었는지 한 줄 적습니다</small></div>' + others.map(x => `<button class="lb-hm-item" data-rk="${esc(x.key)}">${avatar(x, 'chip-av')}<span>${esc(x.name)}</span><em class="lb-hm-act dim">신고</em></button>`).join('') + '<button class="lb-hm-item" id="lb-hm-back"><span>‹ 뒤로</span></button>';
     m.querySelectorAll('[data-rk]').forEach(b => b.onclick = () => { const x = others.find(y => y.key === b.dataset.rk); closeRoomMenu(); if (x) reportAsk(x); });
     el('lb-hm-back').onclick = ev => { ev.stopPropagation(); fillRoomMenu(L); };
   };
   const st = el('lb-hm-stop'); if (st) st.onclick = () => { closeRoomMenu(); lbAct(() => window.api.setHost(false)); };
-  const lv = el('lb-hm-leave'); if (lv) lv.onclick = async () => { closeRoomMenu(); if (myIsHost && !(await tnConfirm('방에서 나갈까요?\n방장은 방에 남은 사람에게 넘어가요.', { ok: '나가기' }))) return; lbAct(() => window.api.roomLeave()); };
+  const lv = el('lb-hm-leave'); if (lv) lv.onclick = () => { closeRoomMenu(); leaveRoom(); };
 }
+// 🚪 v0.1.265 방 나가기 = 방 줄 「나가기」·방 메뉴 둘 다 여기로(방장만 확인 창)
+async function leaveRoom() { if (myIsHost && !(await tnConfirm('방에서 나갈까요?\n방장은 방에 남은 사람에게 넘어가요.', { ok: '나가기' }))) return; lbAct(() => window.api.roomLeave()); }
 document.addEventListener('mousedown', e => { if (_rmenu && !(e.target.closest && e.target.closest('#lb-hostmenu, #lb-rbtn'))) closeRoomMenu(); });
 function renderRoster() {
   const has = roster.length > 0;
