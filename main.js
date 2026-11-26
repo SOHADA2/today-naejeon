@@ -1597,7 +1597,7 @@ function roomRejoin() {   // 앱을 다시 켜면(업데이트 등) 있던 방�
   if (room || !account || banOn() || !L || !L.id || !(MIR.roomList && MIR.roomList.ready)) return;
   const r = (roomListRaw || {})[L.id];
   if (!r || !r.name) { config.lastRoom = null; saveConfig(); return; }
-  roomJoin(L.id, null, L.h).then(x => { if (!x.ok) { config.lastRoom = null; saveConfig(); } }).catch(() => {});
+  roomJoin(L.id, null, L.h).then(x => { if (!x.ok && !x.needPub) { config.lastRoom = null; saveConfig(); } }).catch(() => {});   // 🔒 v0.1.263 동의 전이라 막힌 건 기억해 둠 → 동의하면 그 방으로(pubSet)
 }
 const fetchSession   = () => roomGet('session');
 const fetchLobby     = () => roomGet('lobby');
@@ -3587,6 +3587,7 @@ const fetchAccounts = () => getJson(`${FIREBASE_DB}/${T}/accounts.json`);
 //   남에게 보이는 것 = 동의한 사람의 프로필 · 「기록」 탭의 판(내가 한 판이거나 그 판 사람이 모두 동의) · 순위표 줄(동의한 사람 + 나)
 //   그 판을 같이 한 사람끼리 보는 화면(팀·투표·결과·팟지)은 그대로 = 공개 표시가 아님
 const pubOf = (accs, puuid) => !!(puuid && accs && accs[puuid] && accs[puuid].pub > 0);
+let _pubSeq = 0;   // 🔒 v0.1.263 동의/철회할 때마다 +1(pubCheck가 늦게 받은 옛 값으로 덮지 않게)
 let _myPub = null;   // 내 동의 시각 · null = 아직 서버에서 안 읽음
 const pubLocal = () => (account && config.pubAt && config.pubAt[account.puuid]) || 0;
 function pubOk() { return !!(account && (_myPub || pubLocal())); }
@@ -3594,9 +3595,9 @@ function pubView() { return account ? { need: !pubOk(), at: _myPub || pubLocal()
 function pubPush() { _profIdx = null; try { broadcastRooms(); sendHome(); broadcastSettings(); } catch (_) {} }
 async function pubCheck() {
   if (!account) return;
-  const p = account.puuid;
+  const p = account.puuid, seq = _pubSeq;
   let v; try { v = await getJson(`${FIREBASE_DB}/${T}/accounts/${p}/pub.json`); } catch (_) { return; }
-  if (!account || account.puuid !== p) return;
+  if (!account || account.puuid !== p || seq !== _pubSeq) return;   // 🔒 v0.1.263 읽는 사이 동의/철회했으면 옛 값으로 덮지 않음
   const local = (config.pubAt || {})[p] || 0;
   if (typeof v === 'number' && v > 0) { _myPub = v; if (local !== v) { (config.pubAt = config.pubAt || {})[p] = v; saveConfig(); } }
   else if (v === 0) { _myPub = 0; if (local) { delete config.pubAt[p]; saveConfig(); } }   // 다른 PC에서 철회
@@ -3606,13 +3607,14 @@ async function pubCheck() {
 }
 async function pubSet(on) {
   if (!account) return { ok: false, err: '롤에 로그인하면 동의할 수 있습니다' };
-  const p = account.puuid, at = on ? Date.now() : 0;
+  const p = account.puuid, at = on ? Date.now() : 0; _pubSeq++;
   const w = await fbSet(`${T}/accounts/${p}/pub`, at).catch(() => null);
   config.pubAt = config.pubAt || {};
   if (at) config.pubAt[p] = at; else delete config.pubAt[p];
   saveConfig(); _myPub = at;
   if (!at && room) await roomLeave(false).catch(() => {});   // 철회 = 보기만 → 방에서 나감
   pubPush();
+  if (at && !room && config.lastRoom && config.lastRoom.id) setTimeout(() => { try { roomRejoin(); } catch (_) {} }, 300);   // 🔒 v0.1.263 업데이트·재시작 뒤 동의 전이라 못 들어간 방 → 동의하면 바로 그 방으로
   console.log(`[pub] 기록 공개 ${at ? '동의' : '철회'} · 서버 ${w && w.ok ? '저장' : '실패(다음에 다시)'}`);
   return { ok: true, saved: !!(w && w.ok), at };
 }
