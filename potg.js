@@ -88,24 +88,30 @@ module.exports = function makePotg(d) {
   //   롤 설정 「다른 사람 이름 숨기기」를 켠 PC의 라이브 클라이언트는 다른 사람 이름을 챔피언 이름으로 줌 → 사건이 제일 많은 PC가 그 PC면 킬 기록 이름이 전부 챔피언 이름
   //   → 같은 판 다른 PC 선수 목록에서 그 챔피언을 한 사람의 실제 이름으로 바꿈(킬러·상대·어시·선수 목록) · 실제 이름이 아무도 없으면 그대로
   //   ⚠️ 실측: 숨긴 건 「그 상대 본인」 설정이라 모든 PC 기록에 챔피언 이름으로 들어옴 → 정산(eog: summonerName + championName)으로 실제 이름을 찾음
-  function nameFixer(list, eog) {
-    const real = {}, realNames = new Set();
-    for (const r of list) for (const p of r.players || []) if (p && p.name && p.champ && norm(p.name) !== norm(p.champ)) { real[norm(p.champ)] = p.name; realNames.add(norm(p.name)); }
-    for (const p of eog || []) if (p && p.summonerName && p.championName && norm(p.summonerName) !== norm(p.championName)) { real[norm(p.championName)] = p.summonerName; realNames.add(norm(p.summonerName)); }
+  //   ⚖️ v0.1.254 라이엇 정책(「cannot identify or analyze players who are deliberately hidden by the game」) → **우리 앱 사람만** 바로잡음:
+  //   known = 이 판 우리 앱 사람(내전 = 팀 명단 · 일반 판 = opt.only 우리 팀) — 본인이 앱에 로그인해 들어온 사람이라 숨긴 이름을 「찾아내는」 게 아님
+  //   모르는 사람(일반 판 상대 등)이 이름을 숨겼으면 게임처럼 챔피언 이름 그대로 · 카메라는 champId가 챔피언 이름으로 번호를 찾아 영문 이름으로 따라감
+  function nameFixer(list, eog, known) {
+    const real = {}, realNames = new Set(), ok = n => !!known && known.has(norm(String(n).split('#')[0]));
+    for (const r of list) for (const p of r.players || []) if (p && p.name && p.champ && norm(p.name) !== norm(p.champ) && ok(p.name)) { real[norm(p.champ)] = p.name; realNames.add(norm(p.name)); }
+    for (const p of eog || []) if (p && p.summonerName && p.championName && norm(p.summonerName) !== norm(p.championName) && ok(p.summonerName)) { real[norm(p.championName)] = p.summonerName; realNames.add(norm(p.summonerName)); }
     return n => { if (n == null) return n; const b = norm(String(n).split('#')[0]); return !realNames.has(b) && real[b] ? real[b] : n; };
   }
+  const knownOf = (s, opt) => new Set([...((s && s.teamA) || []), ...((s && s.teamB) || []), ...((opt && opt.only) || [])].map(x => norm(String(x).split('#')[0])));
+  // 챔피언 번호 = 이름(정산) → 없으면 챔피언 이름 그대로인 사람(이름 숨김)의 정산 챔피언 이름으로
+  const champIdOf = eog => n => { const p = (eog || []).find(x => norm(x.summonerName) === norm(n)) || (eog || []).find(x => x.championName && norm(x.championName) === norm(String(n).split('#')[0])); return p ? p.championId : null; };
   function fixedPlayers(list, fix) { const players = {}; for (const r of list) for (const p of r.players || []) if (p && p.name) { const n = fix(p.name); if (!players[norm(n)] || norm(p.name) !== norm(p.champ)) players[norm(n)] = Object.assign({}, p, { name: n }); } return players; }
   const fixedEvents = (src, fix) => (src.events || []).map(e => Object.assign({}, e, { k: fix(e.k), v: fix(e.v), a: Array.isArray(e.a) ? e.a.map(fix) : e.a })).sort((a, b) => a.t - b.t);
   function pickPotg(raws, s, eog, opt) {
     const list = Object.values(raws || {}).filter(Boolean);
     if (!list.length) return null;
     const src = list.slice().sort((a, b) => (b.events || []).length - (a.events || []).length)[0];   // 사건이 제일 많이 남은 PC(모두 같은 사건)
-    const fix = nameFixer(list, eog), players = fixedPlayers(list, fix);   // 🙈
+    const fix = nameFixer(list, eog, knownOf(s, opt)), players = fixedPlayers(list, fix);   // 🙈 우리 앱 사람만(v0.1.254)
     const hpOf = {}; for (const r of list) hpOf[norm(r.name)] = r.hp || [];
     const isPlayer = n => !!players[norm(n)];
     const ev = fixedEvents(src, fix);
     const kills = ev.filter(e => e.n === 'ChampionKill' && isPlayer(e.k) && isPlayer(e.v));
-    const champId = n => { const p = (eog || []).find(x => norm(x.summonerName) === norm(n)); return p ? p.championId : null; };
+    const champId = champIdOf(eog);
     const teamOfName = n => (s.teamA || []).some(x => norm(x) === norm(n)) ? 'teamA' : (s.teamB || []).some(x => norm(x) === norm(n)) ? 'teamB' : null;
     const minHp = (n, t0, t1) => { const h = hpOf[norm(n)]; if (!h || !h.length) return null; let m = null, prev = null;
       for (const [t, p] of h) { if (t <= t0 && (!prev || t > prev[0])) prev = [t, p]; if (t >= t0 && t <= t1) m = m == null ? p : Math.min(m, p); }
@@ -220,7 +226,7 @@ module.exports = function makePotg(d) {
     const list = Object.values(raws || {}).filter(Boolean);
     if (!list.length) return null;
     const src = list.slice().sort((a, b) => (b.events || []).length - (a.events || []).length)[0];
-    const fix = nameFixer(list, eog), players = fixedPlayers(list, fix);   // 🙈 v0.1.122 이름 숨기기 PC 기록 바로잡기
+    const fix = nameFixer(list, eog, knownOf(s, opt)), players = fixedPlayers(list, fix);   // 🙈 v0.1.122 이름 숨기기 PC 기록 바로잡기 · 우리 앱 사람만(v0.1.254)
     const side = n => (players[n] || {}).teamId || 0;
     const hpOf = {}, msOf = {}; for (const r of list) { hpOf[norm(r.name)] = r.hp || []; msOf[norm(r.name)] = r.ms || []; }
     const ev = fixedEvents(src, fix);
@@ -228,7 +234,7 @@ module.exports = function makePotg(d) {
     if (!kills.length) return null;
     const st = heroStats(eog);
     const dmgRank = {}; (eog || []).slice().sort((a, b) => (b.damage || 0) - (a.damage || 0)).forEach((p, i) => { if (p.damage) dmgRank[norm(p.summonerName)] = i + 1; });
-    const champId = n => { const p = (eog || []).find(x => norm(x.summonerName) === norm(n)); return p ? p.championId : null; };
+    const champId = champIdOf(eog);
     const dmg = []; for (const [n, h] of Object.entries(hpOf)) for (const x of steps(h)) if (x.d < 0) dmg.push(Object.assign({ n }, x));
     dmg.sort((a, b) => a.t - b.t);
     // ① 한타 나누기

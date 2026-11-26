@@ -28,7 +28,7 @@
 ## 내기 전에 정리할 것(회색 지대 — CLAUDE.md 「남은 일」 ⚖️ 번호)
 심사에서 걸릴 수 있는 순. 고치거나, 고치지 않으면 신청서에 사실대로 적음.
 - [ ] ② **우리끼리 티어** = 브론즈~챌린저 이름 + 롤 랭크 문장 그림 → 공식 랭크 대체처럼 보임(「cannot create alternatives for official skill ranking systems」) → 이름·그림을 우리 것으로
-- [ ] ③ **이름 숨긴 사람 찾아내기**(v0.1.122 팟지 기록 바로잡기 · 「cannot identify or analyze players who are deliberately hidden」) → 없애기
+- [x] ③ **이름 숨긴 사람 찾아내기**(v0.1.122 팟지 기록 바로잡기 · 「cannot identify or analyze players who are deliberately hidden」) → v0.1.254: 우리 앱에 들어온 사람만 바로잡고, 모르는 사람은 챔피언 이름 그대로
 - [ ] ⑧ **게임 파일에서 꺼낸 자료**(핑 그림·핑 소리·감정표현·랭크 문장) → Data Dragon·프레스 킷 자료나 직접 만든 것으로
 - [ ] ⑨ **롤 화면과 너무 닮은 디자인**(핑 바퀴 · 「cannot closely resemble Riot's games or products」)
 - [ ] ⑦ **롤 클라 조작**(방 만들기·초대·자동 수락·자리 이동·내보내기·큐 시작·리플레이 열기·game.cfg·리플레이 창 숨기기·Alt+클릭 핑용 마우스 훅) → 신청서에 목록으로 적고 허용되는지 질문
