@@ -1381,7 +1381,7 @@ window.addEventListener('resize', () => { chatPlace(); pingPlace(); });
 if (window.api.onChat) window.api.onChat(chatShow);
 
 // 📍 v0.1.220 대기실 핑 = 롤 핑 그대로(사장님: 내 얼굴이 아니라 마우스로 찍은 곳에 · 롤처럼 도배 제한 · 생김새도 최대한 롤처럼)
-//   ✏️ v0.1.256(사장님: 스케치 느낌으로 귀엽게 · 대기실용 뜻으로) — 롤 핑 그림·소리·뜻 안 씀 · 그림 = tools/ping-sketch.cjs가 그린 분필 스케치 PNG(assets/ping) · 소리 = Kenney CC0(tools/ping-sfx.py)
+//   ✏️ v0.1.256(사장님: 스케치 느낌으로 귀엽게 · 대기실용 뜻으로) — 롤 핑 그림·소리·뜻 안 씀 · 그림 = tools/ping-sketch.cjs가 그린 분필 스케치 PNG(assets/ping) · 소리 = 실제 악기 녹음 VSCO-2 CC0(tools/ping-sfx.py · v0.1.257)
 //   바퀴 = 가운데 여기 봐요 + 위에서 시계 방향 준비 완료 · 가자! · 좋아요 · ㅋㅋ · 잠깐만 · 미안 · ? · 고마워 · 판 = 손그림 원(assets/ping/wheel.png)
 //   찍는 곳 = 마우스 자리 → 다른 PC 창 크기가 달라도 같은 곳에 뜨게 「무엇 위에 찍었는지」로 보냄: 자리 칸(s · 몇 번째 칸 + 칸 안 비율) · 관전 칩(c · 사람 + 비율) · 그 밖(v · 대기실 창 비율)
 //   모양 = 찍은 곳에 핑 그림이 위에서 떨어져 박히고 바닥에 물결(타원) 두 번 + 아래 작게 보낸 사람 · 2.6초 · 여러 개 동시에 · 무한 애니메이션 없음
@@ -1430,7 +1430,7 @@ function pingPlace() {
     if (pt) { p.el.style.left = pt.x + 'px'; p.el.style.top = pt.y + 'px'; }
   }
 }
-// 🔊 핑 소리 = v0.1.256부터 Kenney 「Interface Sounds」(CC0 · tools/ping-sfx.py · assets/ping/sfx · 약 -15~-17 LUFS) · ⚙ 효과음 크기
+// 🔊 핑 소리 = v0.1.257부터 실제 악기 녹음(VSCO-2 CC0 · 마림바·실로폰·글로켄·피치카토·나무 블록 · tools/ping-sfx.py · assets/ping/sfx · 약 -16 LUFS) · ⚙ 효과음 크기
 // 크기(v0.1.226 실측): 핑 파일 평균 −14.7 LUFS(라이엇 원래 비율 그대로 — 신호는 조용하고 후퇴는 큼) × 0.14 ≈ −32 LUFS = 드래프트 픽 소리(−16 LUFS × 0.2 ≈ −30)보다 살짝 작게(자주 울려서) · 예전 0.55는 픽 소리보다 13dB 컸음
 const PING_SFX = {}, PING_VOL = 0.14;
 function pingSound(k) {

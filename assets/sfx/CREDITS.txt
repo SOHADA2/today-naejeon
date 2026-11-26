@@ -20,8 +20,10 @@ v0.1.40 팟지 효과음 potg-intro·hit·slow·slam.ogg — 사장님이 Suno�
   intro = 1.00~4.60초(「쿵」+금속 울림, 타격 0.17초) · hit = 12.30~13.40초(타격 0.12초) · slow = 5.15~7.00초(점점 느려지는 떨림 → 타격 1.03초) · slam = 20.30~23.90초(가장 큰 타격 0.07초+잔향)
 v0.1.42: 효과음 묶음 원곡의 16.5·18·19.5kHz 「삐-」 음(기계음) → 15kHz 위 10차 저역통과 · 15.5kHz 위 -51 → -68~-83dB
 
-assets/ping/sfx/*.ogg (v0.1.256 대기실 핑 소리 9개 · 롤 게임 파일 소리 대신) — Kenney 「Interface Sounds」 1.0 (CC0 · www.kenney.nl)
-  https://opengameart.org/content/interface-sounds · 만드는 법 = tools/ping-sfx.py(크기 약 -16 LUFS · 짧은 소리 두 개는 겹쳐 섞음)
-  look = bong_001 · ready = confirmation_002 · go = maximize_004 · good = select_003 · lol = pluck_001 + pluck_002(0.13초 뒤)
-  wait = tick_002 + tick_004(0.2초 뒤) · sorry = minimize_005 · ask = question_002 · thanks = glass_004
+assets/ping/sfx/*.ogg (v0.1.257 대기실 핑 소리 9개 · 실제 악기 녹음만) — VSCO-2 Community Edition (CC0) https://github.com/sgossner/VSCO-2-CE
+  재료 = 마림바 C6 · 실로폰 C6 · 글로켄슈필 C6·C7 · 솔로 바이올린 피치카토 C5·E5 · 슬릿 드럼(나무) 2개 — 같은 녹음을 반음 단위로 높이고 낮춰 짧은 가락
+  만드는 법 = tools/ping-sfx.py(머리 주석에 재료 경로 · 크기 약 -16 LUFS)
+  look 마림바 「똥~」+글로켄 · ready 마림바 「또롱!」 · go 실로폰 「또로로롱↑」 · good 글로켄 「띵!」 · lol 피치카토 「티리티링」
+  wait 나무 블록 「똑. 딱.」 · sorry 마림바 「또롱↓」 · ask 피치카토 「응?」 · thanks 글로켄 「띠리링~」
+  (v0.1.256의 Kenney Interface Sounds는 사장님: 기계음 느낌 → v0.1.257에서 바꿈)
 assets/ping/*.png (핑·이모티콘 그림 · 바퀴 판) = 직접 그린 스케치(tools/ping-sketch.cjs · 롤 그림 안 씀)
