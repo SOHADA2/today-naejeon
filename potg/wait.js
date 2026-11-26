@@ -119,9 +119,7 @@
     const kda = by(p => (p.k + p.a) / Math.max(1, p.d)); add('🎯', 'KDA 왕', kda, `${kda.k}/${kda.d}/${kda.a}`);
     const fb = S.find(p => p.fb); add('🩸', '퍼스트 블러드', fb, '첫 킬');
     const gold = by(p => p.gold); add('💰', '골드왕', gold, `${num(gold.gold)} 골드`);
-    const win = S.filter(p => p.win), bus = win.slice().sort((a, b) => a.dmg - b.dmg)[0];
-    if (bus && bus !== carry && bus !== tank && bus !== heal) add('🚌', '버스 탑승', bus, `이긴 팀 피해량 꼴찌 ${num(bus.dmg)}`);
-    const dead = by(p => p.d); if (dead && dead.d >= 5) add('💀', '최다 데스', dead, `${dead.d}번`);
+    // ⚖️ v0.1.262 「버스 탑승」(이긴 팀 피해량 꼴찌)·「최다 데스」 뺌(라이엇 정책: 지표로 망신 주기 금지)
     // 천적 = 킬 지도 기록에서 같은 사람이 같은 사람을 2번 이상(챔피언 기준)
     const pair = {}; for (const k of (v.kills || [])) if (k.k && k.v) pair[k.k + '>' + k.v] = (pair[k.k + '>' + k.v] || 0) + 1;
     const best = Object.entries(pair).sort((a, b) => b[1] - a[1])[0];

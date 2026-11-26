@@ -32,6 +32,17 @@
 - 등록 = 모든 제품 등록·심사 · 「If your product serves players, you must register it」 · Personal = 작은 개인 프로젝트 · Production = 큰 공개 프로젝트 · 승인 전 공개 사용(오픈 베타) 문구는 이번 원문에서 못 찾음 → 큐 시범은 등록 신청 뒤에
 - 고지문 = 일반 정책 최신 문구와 우리 문구(홈페이지 꼬리·앱 ⚙)가 같음 · 「readily visible to players」
 
+## 🖊️ 포털 등록 화면에서 동의한 창(2026-11-26 · 사장님 화면 · 이것도 최신 문구로 봄)
+**General Policies**(Please Don't 중 우리와 겹치는 것):
+- 「Shame players based on any metric」 → ✅ v0.1.262 「버스 탑승」·「최다 데스」 뺌(칭찬 = 캐리·멀티킬·탱커·힐러·MVP·매너는 「You may honor or glorify players」라 그대로)
+- 「Provide alternate channels to report or evaluate other players」 → 대기실 채팅 **신고**(우리 앱 채팅 관리용) = **App Note로 질문**
+- 「Charge money for your app or provide exclusive access … to specific users」 → 일반 정책(2025-05-29)은 승인 뒤 구독 허용이라 어긋남 + 초대 코드 커뮤니티(기본 커뮤니티는 누구나) = **App Note로 질문**
+- 「Build or design any tools … designed to look like the native League of Legends … designs」 → 사장님: 앱 디자인(헥스텍 톤)은 우리 톤앤매너로 만든 것 = 그대로
+- 「Utilize a Development or Interim API key to run a project accessible by the community」 → 큐 시범(공개 운영)은 **승인 뒤**
+- 「Scrape data from undocumented endpoints …」 → LCU는 롤 문서에 있는 「지원 안 함」 도구 · 신청서 「APIs used」에 전부 적음
+- Please Do: 「Feel free to use any of our art assets from the game (but NOT any official Logos)」 → 챔피언·아이템 그림 그대로 OK · 공식 로고 안 씀
+**Tournament Policies**(Tournaments API 쓰는 제품 대상 · 우리는 안 씀 = 롤 클라에서 사용자 설정 방 · 나중에 리그를 열 때 기준): 공정한 매칭 · **대회 참가자에게 모든 기능 무료(= VIP 기능도 대회 참가자는 무료여야)** · **최소 20명** · 정식 대회 방식(토너먼트·리그전 · 도전·사다리 아님) · 내기·도박·명목 참가비 외 돈 금지 · 돈 가치 있는 자체 화폐 금지 · 참가비는 원화로 표시하고 순위대로 우승 팀에 나눔
+
 라이엇 문서에서 확인한 것(2026-11-26 · 첫 정리):
 - LCU를 쓰는 제품 = **개발자 포털에 등록** · 「어떤 주소를 어떻게 쓰는지 알려 달라」(docs/lol · League Client API)
 - 모든 제품 = 포털에서 **등록 + 심사** · 새 기능도 심사(일반 정책) · 개인용(Personal)으로는 **공개 사용 금지(오픈 베타 포함)**

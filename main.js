@@ -2648,7 +2648,7 @@ async function normalPotg(rec) {
   if (clip) card.clip = clip; if (hclip && card.hero) card.hero.clip = hclip;
   await publish();
 }
-function normalFun(m) {   // 🎉 우리 팀 안 재미 지표 한 줄(캐리·버스·최다 데스·탱커·힐러·멀티킬)
+function normalFun(m) {   // 🎉 우리 팀 안 재미 지표 한 줄(캐리·탱커·힐러·멀티킬 · ⚖️ v0.1.262 「버스 탑승」·「최다 데스」 뺌 = 라이엇 정책 「Shame players based on any metric」)
   const us = (m.stats || []).filter(p => (m.us || []).some(n => norm(n) === norm(p.summonerName)));
   if (us.length < 2) return [];
   const all = (m.stats || []).slice().sort((a, b) => (b.damage || 0) - (a.damage || 0));
@@ -2662,10 +2662,6 @@ function normalFun(m) {   // 🎉 우리 팀 안 재미 지표 한 줄(캐리·�
   if (tank && tank !== carry) out.push({ k: 'tank', label: '탱커', name: nm(tank), champId: tank.championId, v: `받은 피해 ${Math.round((tank.taken || 0) + (tank.mitig || 0)).toLocaleString('en-US')}` });
   const heal = top(p => (p.healMates || 0) + (p.shieldMates || 0), 2000);
   if (heal) out.push({ k: 'heal', label: '힐러', name: nm(heal), champId: heal.championId, v: `힐·보호막 ${Math.round((heal.healMates || 0) + (heal.shieldMates || 0)).toLocaleString('en-US')}` });
-  const bus = us.slice().sort((a, b) => (a.damage || 0) - (b.damage || 0))[0];
-  if (m.win && bus && bus !== carry && bus !== tank && bus !== heal) out.push({ k: 'bus', label: '버스 탑승', name: nm(bus), champId: bus.championId, v: `딜 ${Math.round(bus.damage || 0).toLocaleString('en-US')}` });
-  const dead = top(p => p.deaths || 0, 4);
-  if (dead) out.push({ k: 'dead', label: '최다 데스', name: nm(dead), champId: dead.championId, v: `${dead.deaths}데스` });
   return out;
 }
 const CLIP_MAX = 40 * 1048576;   // 이보다 크면 안 올림 → 카드 · v0.1.71: 12→40MB(영상은 GitHub = 받는 양 제한 없음 · 화질 올림)

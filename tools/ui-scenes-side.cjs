@@ -23,7 +23,7 @@ const today = {
   normals: [
     { win: true, queue: '아수라장', ts: TS, gameTime: 1320, potg: { name: NM[0] }, players: [{ name: NM[0], champId: 498, k: 12, d: 4, a: 18 }, { name: NM[1], champId: 99, k: 7, d: 6, a: 25 }, { name: NM[5], champId: 54, k: 3, d: 8, a: 30 }],
       fun: [{ k: 'carry', label: '캐리', name: NM[0], v: '피해량 32,100' }, { k: 'tank', label: '탱커', name: NM[5], v: '받은 피해 41,800' }] },
-    { win: false, queue: '아수라장', ts: TS - 1800e3, gameTime: 980, players: [{ name: NM[0], champId: 22, k: 4, d: 9, a: 11 }, { name: NM[1], champId: 16, k: 1, d: 7, a: 19 }], fun: [{ k: 'dead', label: '최다 데스', name: NM[0], v: '9번' }] },
+    { win: false, queue: '아수라장', ts: TS - 1800e3, gameTime: 980, players: [{ name: NM[0], champId: 22, k: 4, d: 9, a: 11 }, { name: NM[1], champId: 16, k: 1, d: 7, a: 19 }], fun: [{ k: 'tank', label: '탱커', name: NM[0], v: '받은 피해 31,200' }] },
   ],
 };
 const todayEmpty = { ok: true, day: DAY, today: DAY, roomName: '오늘 내전?', standings: [], matches: [], normals: [] };
