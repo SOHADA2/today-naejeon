@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Riot API Usage · Today In-House</title>
+<meta name="description" content="Which local League of Legends client APIs Today In-House uses and how.">
+<meta name="theme-color" content="#0a0e12">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="img/icon.png">
+<style>
+  :root { --bg:#0a0e12; --card:#111821; --ink:#e8edf2; --mute:#93a1b0; --gold:#c8aa6e; --line:#223040; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  main { max-width:820px; margin:0 auto; padding:40px 16px 64px; }
+  h1 { font-size:26px; margin:0 0 6px; }
+  h2 { font-size:17px; color:var(--gold); margin:28px 0 8px; }
+  p, li { color:var(--ink); }
+  .mute { color:var(--mute); }
+  section { background:var(--card); border:1px solid var(--line); padding:16px 18px; margin-top:14px; }
+  ul { margin:6px 0 0; padding-left:20px; }
+  code { font:13px/1.5 ui-monospace,Consolas,monospace; color:#d9e3ee; word-break:break-all; }
+  a { color:var(--gold); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Riot API usage</h1>
+  <p class="mute">Today In-House (투데이 내전) · Developer Portal app 913403 · updated 2026-11-26</p>
+  <p>Today In-House does not use the Riot Web API or any API key. It only talks to services that run locally on the player's own PC: the League Client API (LCU), the Live Client Data API and the Replay API.</p>
+
+  <section>
+    <h2>League Client API — read</h2>
+    <ul>
+      <li><code>/lol-summoner/v1/current-summoner</code>, <code>/lol-summoner/v2/summoners/puuid/{puuid}</code> — who is logged in, names of room members</li>
+      <li><code>/lol-gameflow/v1/gameflow-phase</code>, <code>/lol-gameflow/v1/session</code> — lobby / game state, queue and map</li>
+      <li><code>/lol-champ-select/v1/session</code> — picked champions (shown after the game only)</li>
+      <li><code>/lol-end-of-game/v1/eog-stats-block</code> — end-of-game result and stats</li>
+      <li><code>/lol-match-history/v1/games/{gameId}</code>, <code>/lol-match-history/v1/game-timelines/{gameId}</code>, <code>/lol-match-history/v1/products/lol/current-summoner/matches</code> — recovering a result if the end-of-game screen was missed</li>
+      <li><code>/lol-ranked/v1/current-ranked-stats</code>, <code>/lol-ranked/v1/ranked-stats/{puuid}</code> — official rank, only to balance Summoner's Rift in-house teams (not shown as our own ranking)</li>
+      <li><code>/lol-game-queues/v1/custom</code>, <code>/lol-lobby/v2/lobby</code>, <code>/lol-lobby/v2/lobby/invitations</code>, <code>/lol-lobby/v2/received-invitations</code> — custom lobby state</li>
+      <li><code>/lol-replays/v1/configuration</code>, <code>/lol-replays/v1/metadata/{gameId}</code>, <code>/lol-replays/v1/rofls/path</code> — replay availability</li>
+      <li><code>/lol-game-data/assets/...</code> — champion / item / augment icons</li>
+      <li><code>/entitlements/v1/token</code> — our server checks its signature against Riot's public keys so each player can only write their own data (never stored or logged)</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>League Client API — actions</h2>
+    <p class="mute">Only on the room host's click, or by settings each player can turn off.</p>
+    <ul>
+      <li><code>POST /lol-lobby/v2/lobby</code> — create / update the custom lobby for the room</li>
+      <li><code>POST /lol-lobby/v2/lobby/invitations</code> — invite room members</li>
+      <li><code>POST /lol-lobby/v2/received-invitations/{id}/accept</code> — accept an invite only from the room host</li>
+      <li><code>/lol-lobby/v2/lobby/team/{team}</code>, <code>/lol-lobby/v1/lobby/custom/switch-teams</code> — move to the assigned team</li>
+      <li><code>POST /lol-lobby/v2/lobby/members/{id}/kick</code> — remove a member the host removed from the room</li>
+      <li><code>/lol-lobby/v2/lobby/matchmaking/search</code> — start / cancel queue for a normal-game party (party leader's click)</li>
+      <li><code>/lol-replays/v1/metadata/{gameId}/create/...</code>, <code>/lol-replays/v1/rofls/{gameId}/download/graceful</code>, <code>/lol-replays/v1/rofls/{gameId}/watch</code> — open the finished game's replay on the host's PC</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Live Client Data API (port 2999, read only)</h2>
+    <p><code>/liveclientdata/eventdata</code>, <code>/liveclientdata/playerlist</code>, <code>/liveclientdata/activeplayer</code>, <code>/liveclientdata/gamestats</code> — collected during the player's own game and used only after the game to pick the highlight moment (kill times, own health). Nothing is shown during the game.</p>
+  </section>
+
+  <section>
+    <h2>Replay API (port 2999)</h2>
+    <p><code>/replay/playback</code>, <code>/replay/render</code>, <code>/replay/sequence</code>, <code>/replay/recording</code> — after the game the host's app opens the replay and records one short highlight clip. This needs <code>EnableReplayApi=1</code> in <code>game.cfg</code>.</p>
+  </section>
+
+  <p class="mute" style="margin-top:28px">Privacy policy: <a href="privacy.html">privacy.html</a></p>
+  <p class="mute">Today In-House isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.</p>
+</main>
+</body>
+</html>
