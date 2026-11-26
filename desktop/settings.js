@@ -94,6 +94,7 @@
         <div class="tn-sec">도움말</div>
         <button class="tn-btn tn-tut" data-act="tut">📘 사용법 다시 보기</button>
         <button class="tn-quit" data-act="quit">투데이 내전 완전히 종료</button>
+        <p class="tn-legal">Today In-House isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.</p>
       </div>`;
     panel.querySelector('.tn-set-x').onclick = closePanel;
     panel.querySelectorAll('.tn-sw').forEach(c => c.onchange = async () => { api.setSetting(c.dataset.k, c.checked).then(v => { if (v) { S = v; applyVol(); renderPanel(); } }); });
