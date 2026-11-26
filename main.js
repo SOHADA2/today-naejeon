@@ -2248,9 +2248,12 @@ async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(�
   const v = lobbyView(), names = v.members.filter(m => m.st === 'in').map(m => m.name);
   if (names.length < 2) return { ok: false, err: `참가자가 2명 이상이어야 해요 (지금 ${names.length}명)` };
   if (v.mode === 'normal') return { ok: false, err: '일반판은 시작 버튼 없이 같은 팀으로 큐를 잡으면 돼요' };
+  // 🪑 v0.1.264 자리 10칸(방식마다 자리만 제한 · 사장님) = 앉은 순서대로 10명 · 11번째부터는 이번 판 관전(대기실 「대기」 줄과 같은 사람)
+  const seatOf = (list, keep) => { if (list.length <= SEATS) return [list, []]; const s = list.slice(0, SEATS), x = list.slice(SEATS); for (const k of keep || []) { const i = x.indexOf(k); if (i < 0) continue; const j = s.map(n => (keep || []).includes(n)).lastIndexOf(false); if (j < 0) break; x.splice(i, 1, s[j]); s[j] = k; } return [s, x]; };
   if (v.mode === 'draft') {
     if (!v.captains.teamA || !v.captains.teamB) return { ok: false, err: '팀장 2명을 정해주세요' };
-    return startDraft(names, [v.captains.teamA, v.captains.teamB]);
+    const [seated, extra] = seatOf(names, [v.captains.teamA, v.captains.teamB]);   // 팀장은 늘 자리 안
+    return startDraft(seated, [v.captains.teamA, v.captains.teamB], extra);
   }
   if (v.mode === 'manual') {
     const A = names.filter(n => v.sides[n] === 'teamA'), B = names.filter(n => v.sides[n] === 'teamB'), none = names.length - A.length - B.length;
@@ -2258,7 +2261,8 @@ async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(�
     if (!A.length || !B.length) return { ok: false, err: '두 팀에 한 명 이상씩 넣어주세요' };
     return writeTeams(A, B, [], 'manual');
   }
-  return startTeamBuild(names, v.mode === 'balance' ? 'balance' : 'random');
+  const [seated, extra] = seatOf(names);
+  return startTeamBuild(seated, v.mode === 'balance' ? 'balance' : 'random', extra);
 }
 async function lobbyReopen() {   // 👑 지금 판을 접고 대기실로(팀은 남겨둬서 「같은 팀으로 한 판 더」 가능)
   if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
@@ -3094,7 +3098,7 @@ async function closeVote() {
 // ── ⚔️ 팀 짜기(방장) — 바로 확정(아이템 시간 없음) ───────────────────────────
 let _tbBusy = false;
 function sendTb(payload) { if (leftWin && !leftWin.isDestroyed()) leftWin.webContents.send('teambuild', payload); }
-async function startTeamBuild(names, mode) {
+async function startTeamBuild(names, mode, extra) {   // extra = 자리 밖(11번째부터) = 관전
   if (!config.isHost) return { ok: false, err: '방장만 팀을 짤 수 있어요' };
   if (_tbBusy) return { ok: false, err: '팀을 짜는 중이에요' };
   names = [...new Set((names || []).map(n => normName(String(n))).filter(Boolean))];
@@ -3109,6 +3113,7 @@ async function startTeamBuild(names, mode) {
       const avg = (t, sum) => t.length ? Math.round(sum / t.length * 10) / 10 : 0;
       const bal = { a: avg(b.teamA, b.sumA), b: avg(b.teamB, b.sumB), sr: lobbyGame().game === 'sr' || null, known: sc.known, n: b.teamA.length + b.teamB.length, miss: [...b.teamA, ...b.teamB].filter(x => !sc.has[x]).slice(0, 10) };
       console.log('[balance] ' + b.teamA.length + ':' + b.teamB.length + ' 합 ' + b.sumA + '/' + b.sumB + ' (차이 ' + b.diff + ' · 최소 ' + b.min + ' · 후보 ' + b.cands + ') 점수 있는 사람 ' + sc.known + '/' + names.length);
+      b.spectators = [...(b.spectators || []), ...(extra || [])];
       const res = await writeTeams(b.teamA, b.teamB, b.spectators, 'balance', bal);
       if (!res.ok) { sendTb({ state: 'error', err: '팀 저장 실패 — ' + res.err }); return res; }
       sendTb({ state: 'done', teamA: b.teamA, teamB: b.teamB, spectators: b.spectators });
@@ -3119,6 +3124,7 @@ async function startTeamBuild(names, mode) {
       prevTeamA: (prev && prev.teamA) || [], prevTeamB: (prev && prev.teamB) || [],
       spectatorExclude: [],
     });
+    r.spectators = [...(r.spectators || []), ...(extra || [])];
     const res = await writeTeams(r.teamA, r.teamB, r.spectators, 'random');
     if (!res.ok) { sendTb({ state: 'error', err: '팀 저장 실패 — ' + res.err }); return res; }
     sendTb({ state: 'done', teamA: r.teamA, teamB: r.teamB, spectators: r.spectators });
@@ -3131,6 +3137,7 @@ async function startTeamBuild(names, mode) {
 }
 // ── 🎯 드래프트 픽 — 팀장 2명이 번갈아 팀원을 고름(스네이크 A,B,B,A,A…·차례당 30초·시간 초과=무작위) ──
 const DRAFT_TURN_MS = 30000;
+const SEATS = 10;   // 🪑 v0.1.264 내전 한 판 자리(5:5) · overlay SEATS와 같은 값
 // ETag 조건부 갱신(읽고→바꾸고→그 사이 아무도 안 바꿨을 때만 저장) — 팀장 픽과 방장 자동 픽이 동시에 들어와도 한 번만 반영
 async function fbCas(pathStr, mutate, tries = 5) {
   for (let i = 0; i < tries; i++) {
@@ -3168,19 +3175,20 @@ function draftOrder(first, picks) {   // 스네이크: first, other, other, firs
   for (let i = 0; i < picks; i++) out.push(((i + 1) >> 1) % 2 === 0 ? first : other);
   return out;
 }
-async function startDraft(names, captains) {
+async function startDraft(names, captains, extra) {   // extra = 자리 밖 = 관전(드래프트 끝나면 남은 사람과 같이)
   if (!config.isHost) return { ok: false, err: '방장만 드래프트를 시작할 수 있어요' };
   names = [...new Set((names || []).map(n => normName(String(n))).filter(Boolean))];
   if (names.length < 2) return { ok: false, err: `최소 2명이 필요해요 (현재 ${names.length}명)` };
   let caps = [...new Set((captains || []).map(n => normName(String(n))).filter(n => names.includes(n)))];
   if (caps.length !== 2) caps = names.slice().sort(() => Math.random() - 0.5).slice(0, 2);   // 팀장 미지정 → 무작위 2명
-  if (names.length < 4) return writeTeams([caps[0]], [caps[1]], names.filter(n => !caps.includes(n)), 'draft');   // 2~3명 = 1:1이라 뽑을 차례가 없음 → 팀장끼리 바로 확정(남은 1명=관전)
+  if (names.length < 4) return writeTeams([caps[0]], [caps[1]], [...names.filter(n => !caps.includes(n)), ...(extra || [])], 'draft');   // 2~3명 = 1:1이라 뽑을 차례가 없음 → 팀장끼리 바로 확정(남은 1명=관전)
   const first = Math.random() < 0.5 ? 'teamA' : 'teamB';   // ⚔ 선픽 = 무작위(화면 = 줄다리기 연출)
   const teamSize = Math.min(5, Math.floor(names.length / 2));
   const now = Date.now(), ids = await teamIds(names);
   const w = await fbSet(`${RP()}/session`, {
     phase: 'draft', ids, active: true, mode: 'draft', by: config.myName || null, day: dayKey(now),
     players: names, captains: { teamA: caps[0], teamB: caps[1] }, teamA: [caps[0]], teamB: [caps[1]],
+    extraSpec: (extra && extra.length) ? extra : null,
     pool: names.filter(n => !caps.includes(n)), order: draftOrder(first, (teamSize - 1) * 2), pickIdx: 0,
     teamSize, firstPick: first, draftStartedAt: now, turnEndsAt: now + FP_MS + DRAFT_TURN_MS,   // 첫 차례 = 선픽 연출이 끝난 뒤부터 30초
     mapBy: first === 'teamA' ? 'teamB' : 'teamA', lolMap: null,   // 🎮 v0.1.188 다리 = 선픽이 아닌 팀장이 고름(사장님) · 안 고르면 무작위
@@ -3206,7 +3214,7 @@ async function draftPick(name, auto) {
     const next = Object.assign({}, s, { pool: pool.filter((_, i) => i !== idx), [team]: [...(s[team] || []), picked], pickIdx: (s.pickIdx || 0) + 1,
       lastPick: { name: picked, team, at: now, auto: !!auto, byHost: !auto && config.isHost && normName((s.captains || {})[team] || '') !== me } });
     if (next.pickIdx >= next.order.length || !next.pool.length) {   // 🏁 다 뽑음 → 팀 확정(남은 사람=관전)
-      Object.assign(next, { phase: 'teams', teamsFormedAt: now, spectators: next.pool.length ? next.pool : null, teamSize: Math.max(next.teamA.length, next.teamB.length), lolMap: next.lolGame === 'sr' ? null : next.lolMap || lolRandMap(),
+      Object.assign(next, { phase: 'teams', teamsFormedAt: now, spectators: [...next.pool, ...(next.extraSpec || [])].length ? [...next.pool, ...(next.extraSpec || [])] : null, extraSpec: null, teamSize: Math.max(next.teamA.length, next.teamB.length), lolMap: next.lolGame === 'sr' ? null : next.lolMap || lolRandMap(),
         pool: null, order: null, pickIdx: null, turnEndsAt: null });
     } else next.turnEndsAt = now + DRAFT_TURN_MS;
     return { value: next };

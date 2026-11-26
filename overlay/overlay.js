@@ -899,7 +899,7 @@ function renderLobby() {
   seats.style.display = login ? '' : 'none';
   seats.className = 'lb-seats' + (pick ? ' pick' : '');
   seats.innerHTML = manual ? Array.from({ length: Math.min(5, Math.max(sA.length, sB.length) + 1) }, (_, i) => seat(sA[i], i, 'teamA') + seat(sB[i], i, 'teamB')).join('')   // 🧩 직접: 왼쪽 열 1팀 · 오른쪽 열 2팀
-    : normal ? Array.from({ length: fit(n, 5) }, (_, i) => seat(ins[i], i, null, i >= 5)).join('')   // 🎮 일반판 = 롤 파티 5자리
+    : normal ? Array.from({ length: n >= 5 ? 5 : fit(n, 5) }, (_, i) => seat(ins[i], i)).join('')   // 🎮 일반판 = 롤 파티 5자리(🪑 v0.1.264 6번째부터 = 아래 「대기」 줄)
     : Array.from({ length: n >= SEATS ? SEATS : fit(n, SEATS) }, (_, i) => seat(ins[i], i)).join('');
 
   // ④ 자리에 없는 사람 = 팀 미정(직접) · 관전
@@ -908,6 +908,10 @@ function renderLobby() {
     + (myIsHost && m.guest ? `<button class="seat-btn out" data-rm="${esc(m.key)}" title="목록에서 빼기">✕</button>` : '')
     + (myIsHost && !m.me && !m.guest ? `<button class="seat-btn kick" data-kick="${esc(m.key)}" title="방에서 내보내기">✕</button>` : '') + '</span>';
   const others = [];
+  // 🪑 v0.1.264 자리 밖 = 「대기」(방식마다 자리만 제한 · 사장님) — 일반 6번째부터(롤 파티 5명) · 내전 11번째부터(10명 · 시작하면 이번 판 관전) · 앉은 순서 = 들어온 순서 · 방장이 앉은 사람을 ↓(관전)로 빼면 대기 첫 사람이 자리로
+  const waitL = manual ? [] : ins.slice(seatCap);
+  if (waitL.length) others.push(`<div class="lb-others wait"><span class="lb-ol" title="${normal ? '롤 파티는 5명까지 · 자리가 나면 앞사람부터 들어가요' : '한 판 10명까지 · 시작하면 이번 판은 관전 · 자리가 나면 앞사람부터 들어가요'}">대기 <b>${waitL.length}</b></span>${waitL.map(m => `<span class="lb-chip in${m.me ? ' me' : ''}">${avatar(m, 'chip-av')}<b class="lb-nm" data-pk="${esc(m.key)}">${esc(m.name)}</b>`
+    + (myIsHost && !m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="관전으로 보내기">↓</button><button class="seat-btn kick" data-kick="${esc(m.key)}" title="방에서 내보내기">✕</button>` : '') + '</span>').join('')}</div>`);
   if (manual && sNone.length) others.push(`<div class="lb-others none"><span class="lb-ol">팀 미정 <b>${sNone.length}</b></span>${sNone.map(m => `<span class="lb-chip in${m.me ? ' me' : ''}">${avatar(m, 'chip-av')}<b class="lb-nm" data-pk="${esc(m.key)}">${esc(m.name)}</b>`
     + (myIsHost ? `<button class="seat-btn t1" data-side="${esc(m.name)}" data-t="teamA" title="1팀에 넣기">1팀</button><button class="seat-btn t2" data-side="${esc(m.name)}" data-t="teamB" title="2팀에 넣기">2팀</button>` + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="관전으로 보내기">↓</button>` : '') : '') + '</span>').join('')}</div>`);
   if (specs.length) others.push(`<div class="lb-others"><span class="lb-ol">관전 <b>${specs.length}</b></span>${specs.map(chip).join('')}</div>`);
