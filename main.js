@@ -1478,7 +1478,7 @@ async function roomUidPut(id) {
   if (!w || !w.ok) { console.log('[room] 방 기기 칸 못 씀', w && w.status); return { ok: false, err: '롤 계정 확인이 안 돼서 방에 못 들어갔습니다 · 잠시 뒤 다시 해 주세요' }; }
   _roomUidKey = k; return { ok: true };
 }
-async function roomJoin(id, pw, hash) {
+async function roomJoin(id, pw, hash, rejoin) {   // rejoin = 앱을 다시 켜서 있던 방으로(들어온 순서 그대로 둠)
   if (!account) return { ok: false, err: '롤에 로그인하면 방에 들어갈 수 있습니다' };
   if (banOn()) return { ok: false, err: '이용이 정지된 계정입니다' };   // 🚫 v0.1.244
   if (!pubOk()) return { ok: false, err: PUB_ERR, needPub: true };   // 🔒 v0.1.253
@@ -1496,6 +1496,8 @@ async function roomJoin(id, pw, hash) {
   room = { id, name: r.name, priv: !!r.priv, h };
   config.lastRoom = { id, h }; saveConfig();
   fbSet(`${CT}/rooms/${id}/lobby/kick/${account.puuid}`, null).catch(() => {});   // 🚪 v0.1.217 예전에 내보내졌던 표시는 지움(내가 다시 들어온 것)
+  { const op = `${CT}/rooms/${id}/lobby/order/${account.puuid}`, ts = { '.sv': 'timestamp' };   // 🪑 v0.1.275 들어온 순서(자리) · 다시 켜서 돌아온 거면 예전 자리 그대로
+    (rejoin ? fbPutIfAbsent(op, ts) : fbSet(op, ts)).catch(() => {}); }
   roomStreams();
   await beatPresence();
   broadcastRooms(); if (runSession) runSession();
@@ -1510,6 +1512,7 @@ async function lobbyKick(key) {
   const w = await fbSet(`${RP()}/lobby/kick/${key}`, { at: Date.now(), by: account.gameName || '방장' });
   if (!w.ok) return { ok: false, err: '내보내지 못했습니다' };
   fbSet(`${RP()}/lobby/join/${key}`, null).catch(() => {});
+  fbSet(`${RP()}/lobby/order/${key}`, null).catch(() => {});   // 🪑 다시 들어오면 맨 뒤
   let lol = false;
   if (bridge && bridge.lcuRaw && !inGame && lobbyPhase === 'Lobby' && lobbyCustom === true) {
     const cur = await lolCurLobby().catch(() => null);
@@ -1577,7 +1580,7 @@ async function roomLeave(quiet) {
     const mem = rest.map(m => m.name);
     await fbUpdate(`${CT}/roomList/${id}`, Object.assign({ n: mem.length, mem: mem.slice(0, 10).join('\n').slice(0, 400) }, wasHost && next ? { host: next.name } : {})).catch(() => {});
   }
-  const uid = uidFor(`${CT}/rooms`), dels = account ? ['lobby/join', 'lobby/chat', 'lobby/ping', 'lobby/cping', 'members', 'dc'].map(k => fbSet(`${CT}/rooms/${id}/${k}/${account.puuid}`, null).catch(() => {})) : [];   // 💬 내 한마디·📍 핑·📦 방 사람 칸·디스코드 사본
+  const uid = uidFor(`${CT}/rooms`), dels = account ? ['lobby/join', 'lobby/order', 'lobby/chat', 'lobby/ping', 'lobby/cping', 'members', 'dc'].map(k => fbSet(`${CT}/rooms/${id}/${k}/${account.puuid}`, null).catch(() => {})) : [];   // 💬 내 한마디·📍 핑·📦 방 사람 칸·디스코드 사본
   room = null; config.lastRoom = null; saveConfig(); _roomUidKey = null; _dcRoomKey = null;   // 먼저 방을 비움(지우는 사이 접속 신호가 방 사람 칸을 다시 쓰지 않게)
   await Promise.all(dels);
   if (uid) fbSet(`${CT}/rooms/${id}/uids/${uid}`, null).catch(() => {});   // 🔐 v0.1.236 · v0.1.243 = 다른 칸을 다 지운 뒤에(먼저 지우면 2단계 규칙에서 나머지가 막힘)
@@ -1620,7 +1623,7 @@ function roomRejoin() {   // 앱을 다시 켜면(업데이트 등) 있던 방�
   if (room || !account || banOn() || !L || !L.id || !(MIR.roomList && MIR.roomList.ready)) return;
   const r = (roomListRaw || {})[L.id];
   if (!r || !r.name) { config.lastRoom = null; saveConfig(); return; }
-  roomJoin(L.id, null, L.h).then(x => { if (!x.ok && !x.needPub) { config.lastRoom = null; saveConfig(); } }).catch(() => {});   // 🔒 v0.1.263 동의 전이라 막힌 건 기억해 둠 → 동의하면 그 방으로(pubSet)
+  roomJoin(L.id, null, L.h, true).then(x => { if (!x.ok && !x.needPub) { config.lastRoom = null; saveConfig(); } }).catch(() => {});   // 🔒 v0.1.263 동의 전이라 막힌 건 기억해 둠 → 동의하면 그 방으로(pubSet)
 }
 const fetchSession   = () => roomGet('session');
 const fetchLobby     = () => roomGet('lobby');
@@ -1740,6 +1743,7 @@ function releaseAccount(prev) {   // 이전 계정의 접속 표시·방장·대
   if (room) fbSet(`${RP()}/members/${prev.puuid}`, null).catch(() => {});
   if (config.isHost) { config.isHost = false; fbSet(`${RP()}/host`, null).catch(() => {}); broadcast('account', { account, isHost: false }); broadcast('host', hostView()); }
   fbSet(`${RP()}/lobby/join/${prev.puuid}`, null).catch(() => {});
+  if (room) fbSet(`${RP()}/lobby/order/${prev.puuid}`, null).catch(() => {});
 }
 function setAccount(acc) {
   const prev = account;
@@ -2154,7 +2158,9 @@ function lobbyView() {
   }
   // 🔒 v0.1.253 앱 없는 사람(g_ 손님) 줄 없앰 — 기록 공개 동의를 받을 수 없어서(옛 앱이 남긴 칸은 무시)
   const ord = { in: 0, null: 1, spec: 2 };
-  members.sort((a, b) => (ord[a.st] - ord[b.st]) || (b.online - a.online) || a.name.localeCompare(b.name, 'ko'));
+  // 🪑 v0.1.275 자리 순서 = 방에 들어온 순서(사장님 · 예전 = 이름순이라 12명이면 이름이 뒤쪽인 사람이 늘 대기) · lobby/order/{puuid} = 들어온 서버 시각 · 없는 사람(옛 앱)은 뒤에 이름순
+  const jo = L.order || {}, oa = m => typeof jo[m.key] === 'number' ? jo[m.key] : Infinity;
+  members.sort((a, b) => (ord[a.st] - ord[b.st]) || (b.online - a.online) || (oa(a) - oa(b)) || a.name.localeCompare(b.name, 'ko'));
   const caps = L.captains || {};
   const inNames = members.filter(m => m.st === 'in').map(m => m.name);
   const sd = L.sides || {}, sides = {};
@@ -4636,6 +4642,7 @@ app.on('before-quit', (e) => {
   // 🚪 v0.1.271 그냥 끌 때(업데이트 재시작 아님) = 방 목록을 바로 고침 — 혼자였으면 방을 닫고(목록 → 방 데이터 순) · 아니면 인원·이름에서 나를 뺌
   //   업데이트 재시작은 그대로 둠(방 90초 · 방장 2분 맡아 둠 → 다시 켜지면 같은 방으로 · roomRejoin)
   if (account && room && !_updRestart) {
+    jobs.push(fbSet(`${RP()}/lobby/order/${account.puuid}`, null));   // 🪑 그냥 끄면 자리 순서도 비움(업데이트 재시작은 그대로 = 다시 켜지면 같은 자리)
     const id = room.id, rest = roomMembers(id).filter(m => m.key !== account.puuid), mem = rest.map(m => m.name);
     const later = f => new Promise(r => setTimeout(r, 800)).then(f);   // 이미 나간 「방 살아 있음」 쓰기가 먼저 닿게(roomLeave와 같은 이유)
     if (!rest.length) jobs.push(later(() => fbSet(`${CT}/roomList/${id}`, null)).then(w => w && w.ok ? fbSet(`${CT}/rooms/${id}`, null) : null));
