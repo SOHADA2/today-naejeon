@@ -110,8 +110,15 @@ async function customToken(env, uid, p) {   // Firebase 커스텀 로그인 증�
   return `${head}.${pay}.${b64uStr(String.fromCharCode(...sig))}`;
 }
 
+// 🏘️ 2026-11-27(앱 v0.1.270) 운영 보드(sohada2.github.io)에서 부르는 경로만 브라우저 허용(CORS) — 지금은 /discord/invite 하나
+const BOARD = 'https://sohada2.github.io', BOARD_PATHS = ['/discord/invite'];
 async function route(req, env) {
-  const u = new URL(req.url);
+  const u = new URL(req.url), cors = req.headers.get('origin') === BOARD && BOARD_PATHS.includes(u.pathname);
+  if (cors && req.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'access-control-allow-origin': BOARD, 'access-control-allow-methods': 'POST', 'access-control-allow-headers': 'authorization, content-type, x-tn-app', 'access-control-max-age': '600' } });
+  if (cors) { const r = await route2(req, env, u); const h = new Headers(r.headers); h.set('access-control-allow-origin', BOARD); return new Response(r.body, { status: r.status, headers: h }); }
+  return route2(req, env, u);
+}
+async function route2(req, env, u) {
   if (req.headers.get('x-tn-app') !== 'today-naejeon') return json({ err: 'forbidden' }, 403);
   if (req.method === 'POST' && u.pathname === '/riot-auth') {   // 🔐 롤 계정 로그인(위 verifyRiotToken) — 익명 표식 없이도 받음(이 증표 자체가 확인 수단) · IP당 1분 10번
     if (env.UP_LIMIT && !(await env.UP_LIMIT.limit({ key: `ra:${req.headers.get('cf-connecting-ip') || ''}` })).success) return json({ err: 'too many' }, 429);
@@ -169,6 +176,23 @@ async function route(req, env) {
     if (!/^\d{15,21}$/.test(gid)) return json({ err: 'bad request' }, 400);
     const g = await dcGuild(env, gid, true); if (!g) return json({ err: 'bot not in guild' }, 404);
     return json({ id: g.id, name: g.name, t1: g.chans.some(c => T1.test(c.name)), t2: g.chans.some(c => T2.test(c.name)), lobby: g.chans.some(c => LOBBY.test(c.name) && !isTeam(c)) });
+  }
+  if (req.method === 'POST' && u.pathname === '/discord/invite') {   // 🏘️ v0.1.270 운영 보드 「디스코드 정하기」 — 초대 링크(또는 서버 번호) → 서버 번호·이름 · 봇이 들어가 있는지 · 1팀/2팀/대기 채널
+    if (!uid) return json({ err: 'login required' }, 401);
+    if (!env.DISCORD_BOT_TOKEN) return json({ err: 'no bot' }, 501);
+    const b = await req.json().catch(() => null), s = String((b && b.code) || '').trim();
+    let gid = /^\d{15,21}$/.test(s) ? s : null, name = '', code = null;
+    if (!gid) {
+      const m = /^(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/([A-Za-z0-9-]{2,32})\/?$/.exec(s) || (/^[A-Za-z0-9-]{2,32}$/.test(s) ? [0, s] : null);
+      if (!m) return json({ err: 'bad request' }, 400);
+      const r = await dc(env, 'GET', `/invites/${m[1]}`);
+      if (!r.ok) return json({ err: 'bad invite' }, 404);
+      const j = await r.json().catch(() => ({})); if (!j.guild || !/^\d{15,21}$/.test(String(j.guild.id || ''))) return json({ err: 'bad invite' }, 404);
+      gid = String(j.guild.id); name = String(j.guild.name || '').slice(0, 60); code = m[1];
+    }
+    const g = await dcGuild(env, gid, true);
+    if (!g) return json({ id: gid, name, code, bot: false });
+    return json({ id: g.id, name: g.name || name, code, bot: true, t1: g.chans.some(c => T1.test(c.name)), t2: g.chans.some(c => T2.test(c.name)), lobby: g.chans.some(c => LOBBY.test(c.name) && !isTeam(c)) });
   }
   if (req.method === 'POST' && u.pathname === '/discord/member') {   // 🎧 v0.1.138 이 사람이 그 서버에 들어와 있는지(대기실 「디스코드 서버 들어가기」를 띄울지)
     if (!uid) return json({ err: 'login required' }, 401);

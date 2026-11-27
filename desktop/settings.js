@@ -90,9 +90,10 @@
     const D = S.discord || null, on = !!(D && D.on), app = !!(D && D.app);
     const st = `<div class="tn-ver tn-dcst"><i class="tn-dc-dot${on ? ' on' : ''}"></i><div class="tn-ver-tx"><b>${on ? `연결됨 · ${esc(D.name || '디스코드')}` : app ? '디스코드 앱이 꺼져 있습니다' : '연결 준비 중'}</b><small>${on ? '이 PC의 디스코드 앱과 연결됐습니다' : app ? 'PC 디스코드 앱을 켜면 저절로 연결됩니다' : '디스코드 연동을 준비하고 있습니다'}</small></div></div>`;
     const room = D && D.room ? row(`이 방 · ${esc(D.room.name)}`, D.room.ch ? '내전 대기실 음성 채널' : '서버 초대 링크로 들어가기', `<button class="tn-btn" data-act="dcroom" ${D.room.ch || D.room.code ? '' : 'disabled'}>${D.room.ch ? '음성 채널 열기' : '들어가기'}</button>`) : '';
-    const host = app ? row(D.guild ? `서버 · ${esc(D.guild)}` : '디스코드 서버', D.guild ? '팀이 정해지면 1팀·2팀 채널로' : '봇을 우리 서버에 넣고 연결', `<button class="tn-btn" data-act="dcgo" ${D.connecting ? 'disabled' : ''}>${D.connecting ? '고르는 중' : D.guild ? '바꾸기' : '서버 연결'}</button>`)
-      + (invEdit ? `<div class="tn-row tn-row-act"><input class="tn-inv-in" placeholder="https://discord.gg/…  (비우면 지움)" value="${D.invite ? 'https://discord.gg/' + esc(D.invite) : ''}" maxlength="80"><button class="tn-btn" data-act="dcinvsave">저장</button></div>`
-        : row('초대 링크', D.invite ? `discord.gg/${esc(D.invite)}` : '서버에 없는 방 사람에게 「들어가기」', `<button class="tn-btn" data-act="dcinv">${D.invite ? '바꾸기' : '넣기'}</button>`, '', D.invite ? '서버에 없는 방 사람에게 「들어가기」 버튼이 보입니다' : ''))
+    // 🏘️ v0.1.270 서버·초대 링크 = 운영자가 커뮤니티마다 정함(운영 보드) · 방장이 고르는 「서버 연결」·초대 링크 칸은 없앰
+    const host = app ? row(D.guild ? `서버 · ${esc(D.guild)}` : '디스코드 서버 · 정해지지 않음', D.fixed ? '운영자가 정한 커뮤니티 서버' : D.guild ? '예전에 이 PC에서 연결한 서버' : '운영자가 커뮤니티 서버를 정하면 저절로 연결됩니다', '', '',
+        D.fixed ? '커뮤니티 운영자가 정한 디스코드 서버입니다. 팀이 정해지면 이 서버의 「1팀」「2팀」 음성 채널로 옮기고, 서버에 없는 방 사람에게는 「들어가기」가 보입니다.' : '디스코드 서버는 커뮤니티 운영자가 정합니다. 정해지면 앱을 다시 켜지 않아도 10분 안에 바뀝니다.')
+      + (D.fixed && D.invite ? row('초대 링크', `discord.gg/${esc(D.invite)}`, '', '', '서버에 없는 방 사람에게 「들어가기」 버튼이 보입니다') : '')
       + tog('discordMove', '음성 채널 자동 나누기', '팀이 정해지면 1팀·2팀 채널로',
           '내가 방장일 때 팀이 정해지면 디스코드 음성 채널 「1팀」「2팀」으로 옮기고, 게임이 끝나면 원래 채널로 모읍니다. 서버에 투데이 내전 봇과 「1팀」「2팀」 음성 채널이 있어야 하고, 음성 채널에 들어와 있고 디스코드 앱을 켠 사람만 옮깁니다.') : '';
     return st + grp('지금 방', room)

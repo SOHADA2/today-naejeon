@@ -3899,7 +3899,23 @@ async function dcAppId() {
   const v = await getJson(`${FIREBASE_DB}/${T}/config/discordApp.json`).catch(() => undefined);
   if (v === null) discord.setApp(null); else if (typeof v === 'string' || typeof v === 'number') discord.setApp(String(v));
 }
-const dcGuildOf = () => config.discordGuild && /^\d{15,21}$/.test(config.discordGuild.id || '') ? config.discordGuild : null;
+// 🏘️ v0.1.270 커뮤니티 디스코드 서버(사장님: 커뮤니티마다 운영하는 디스코드가 다름 → 방장이 고르지 않고 운영자가 정함)
+//   today/communities/{커뮤니티 id · 기본 커뮤니티 = _base}/discord = {g(서버 번호), n(이름), inv?(초대 코드), at, by} · 운영 보드 설정 탭 「커뮤니티」에서 주인 운영자가 정함
+//   정해져 있으면 그 서버만 씀(음성 채널 나누기·「들어가기」 초대) · ⚙ 「서버 연결」·초대 링크 칸은 안 보임 · 10분마다 다시 읽음(앱 다시 켜기 없이 바뀜)
+//   안 정해진 커뮤니티 = 예전에 방장이 이 PC에서 연결해 둔 서버(config.discordGuild · 옮겨 가는 동안만 · 새로 연결하는 버튼은 없앰)
+let _commDc = null, _commDcAt = 0;
+const commDcId = () => community ? community.id : '_base';
+async function commDcLoad(force) {
+  if (!force && Date.now() - _commDcAt < 600000) return; _commDcAt = Date.now();
+  const v = await getJson(`${FIREBASE_DB}/${T}/communities/${commDcId()}/discord.json`).catch(() => undefined);
+  if (v === undefined) { _commDcAt = Date.now() - 540000; return; }   // 못 읽음 = 1분 뒤 다시
+  const ID = /^\d{15,21}$/, next = v && ID.test(String(v.g || '')) ? { g: String(v.g), n: String(v.n || '').slice(0, 60) || '서버', inv: /^[A-Za-z0-9-]{2,32}$/.test(String(v.inv || '')) ? String(v.inv) : null } : null;
+  if (JSON.stringify(next) === JSON.stringify(_commDc)) return;
+  _commDc = next; _dcLinked = null; _dcMember = null;
+  console.log('[discord] 커뮤니티 서버', next ? `${next.n}(${next.g})` : '없음');
+  try { dcLink(); broadcastSettings(); broadcast('lobby', lobbyView()); } catch (_) {}
+}
+const dcGuildOf = () => _commDc ? { id: _commDc.g, name: _commDc.n } : (config.discordGuild && /^\d{15,21}$/.test(config.discordGuild.id || '') ? config.discordGuild : null);
 function dcLink() {   // 내 디스코드 번호·켜짐·연결한 서버 → today/discord/{puuid}(바뀔 때 · 하루 한 번)
   if (!account || !discord) return;
   const u = discord.user, G = dcGuildOf();
@@ -3962,8 +3978,9 @@ async function dcMemberCheck(gid, force) {   // 내가 그 서버에 있는지·
   } finally { _dcMemBusy = false; }
 }
 const DC_INV = /^(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/([A-Za-z0-9-]{2,32})\/?$/;
-const dcInvOf = () => config.discordInvite && /^[A-Za-z0-9-]{2,32}$/.test(config.discordInvite) ? config.discordInvite : null;
+const dcInvOf = () => _commDc ? _commDc.inv : (config.discordInvite && /^[A-Za-z0-9-]{2,32}$/.test(config.discordInvite) ? config.discordInvite : null);   // 🏘️ v0.1.270 커뮤니티 서버가 정해져 있으면 그 초대 코드만
 ipcMain.handle('discord-invite', (_e, link) => {   // ⚙ 「초대 링크」 저장(비우면 지움)
+  if (_commDc) return { ok: false, err: '초대 링크는 운영자가 정합니다' };   // 🏘️ v0.1.270
   link = String(link || '').trim();
   if (!link) config.discordInvite = null;
   else { const m = DC_INV.exec(link) || (/^[A-Za-z0-9-]{2,32}$/.test(link) ? [0, link] : null); if (!m) return { ok: false, err: 'discord.gg/… 모양의 초대 링크를 넣어 주세요' }; config.discordInvite = m[1]; }
@@ -4047,7 +4064,7 @@ const dcOn = puuid => { const v = _dcMap && _dcMap[puuid]; return !!(v && v.id &
 const dcClip = (s, n) => { s = String(s || '').trim(); return s.length >= 2 ? s.slice(0, n || 128) : null; };
 function dcPresence() {   // 3초마다 · 같은 내용은 discord.js가 안 보냄
   if (!discord) return;
-  dcAppId().catch(() => {}); dcLink();
+  dcAppId().catch(() => {}); commDcLoad().catch(() => {}); dcLink();
   if (room && discord.appId) { dcMapGet().catch(() => {}); const i = dcRoomInfo(lobbyView().members); if (i) dcMemberCheck(i.id).catch(() => {}); }   // v0.1.157: 초대 링크가 없어도(음성 채널 칩)
   if (config.discordRpc === false || !discord.ready) return discord.setActivity(null);
   const s = sessionData, me = config.myName, rn = room ? (room.priv ? '비공개 방' : room.name) : null;
@@ -4129,6 +4146,7 @@ async function dcVoiceTick() {   // 방장 앱만 · pollSession마다
 // 🔗 디스코드 서버 연결(v0.1.131) — 봇 초대 화면을 브라우저로 열고, 디스코드가 돌려보내는 주소(이 PC 127.0.0.1:47823)에서 고른 서버 번호를 받음
 const dcPage = (title, sub, ok) => `<!doctype html><meta charset="utf-8"><title>투데이 내전</title><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#0b1018;color:#e8e2d0;font-family:'Malgun Gothic',sans-serif"><div style="text-align:center;padding:36px 44px;border:1px solid rgba(200,170,110,.45);background:#0f1822;box-shadow:inset 0 2px 0 #c8aa6e"><div style="font-size:12px;letter-spacing:.2em;color:#c8aa6e">TODAY IN-HOUSE</div><h1 style="margin:10px 0 8px;font-size:22px;color:${ok ? '#f0e6d2' : '#e38c8c'}">${title}</h1><p style="margin:0;color:#a09b8c;font-size:14px">${sub}</p></div></body>`;
 function dcConnect() {
+  if (_commDc) return Promise.resolve({ ok: false, err: `운영자가 정한 커뮤니티 서버(${_commDc.n})를 씁니다` });   // 🏘️ v0.1.270
   if (!discord || !discord.appId) return Promise.resolve({ ok: false, err: '디스코드 연동 준비 중입니다' });
   if (_dcConn) { shell.openExternal(_dcConn.url); return Promise.resolve({ ok: true, waiting: true }); }
   const state = require('crypto').randomBytes(12).toString('hex');
@@ -4160,7 +4178,7 @@ function dcConnect() {
 ipcMain.handle('discord-connect', () => dcConnect());
 ipcMain.handle('discord-unlink', () => { config.discordGuild = null; saveConfig(); _dcLinked = null; dcLink(); broadcastSettings(); return true; });
 const dcRoomView = () => { if (!room) return null; try { const i = dcRoomInfo(lobbyView().members); return i ? { gid: i.id, name: i.name, code: i.inv || null, ch: (_dcMember && _dcMember.g === i.id && _dcMember.lobby) || null } : null; } catch (_) { return null; } };   // ⚙ 「이 방 디스코드」(v0.1.157 · 칩을 ✕로 닫아도 여기서)
-const dcView = () => ({ room: dcRoomView(), invite: dcInvOf(), app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null, guild: dcGuildOf() ? dcGuildOf().name || '서버' : null, connecting: !!_dcConn });
+const dcView = () => ({ room: dcRoomView(), invite: dcInvOf(), app: !!(discord && discord.appId), on: !!(discord && discord.ready), name: (discord && discord.user && discord.user.name) || null, guild: dcGuildOf() ? dcGuildOf().name || '서버' : null, fixed: !!_commDc, connecting: !!_dcConn });   // 🏘️ v0.1.270 fixed = 운영자가 정한 커뮤니티 서버
 // ⚙️ 설정(v0.1.39) — 왼쪽·오른쪽 창의 ⚙ 버튼 · 효과음(켜기·크기)·클라 옆에 붙이기·오른쪽 패널·✕ 닫을 때 묻기
 const settingsView = () => ({ tutorialSeen: !!config.tutorialSeen, tutorialDc: !!config.tutorialDc, dcNudgeOff: !!config.dcNudgeOff, autoSeat: config.autoSeat !== false, sfxOn: config.sfxOn !== false, sfxVol: typeof config.sfxVol === 'number' ? config.sfxVol : 1, dock: config.dock !== false, sidePanel: config.sidePanel !== false, closeAsk: config.closeAsk !== false, autoLaunch: config.autoLaunch !== false, lolRemake: config.lolRemake !== false, lolAutoAccept: config.lolAutoAccept !== false, lolPing: config.lolPing !== false, chatFilter: config.chatFilter !== false, chatMute: Array.isArray(config.chatMute) ? config.chatMute : [], hotkey: TOGGLE_HOTKEY, discordRpc: config.discordRpc !== false, discordMove: config.discordMove !== false, discord: dcView(), pub: pubView(), comm: communityView() });
 function broadcastSettings() { const v = settingsView(); for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('settings', v); }

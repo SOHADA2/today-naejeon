@@ -836,12 +836,7 @@ function renderLobby() {
   } else if (L.room && J) {
     dcKind = 'act'; dcTip = `디스코드 「${J.name}」 서버 들어가기`;
     dcGo = () => window.api.discordJoin({ code: J.code, gid: J.gid });
-  } else if (myIsHost && L.room && S.discord && S.discord.app && !S.dcNudgeOff && (!L.dcGuild || !L.dcInv)) {
-    const inv = !!L.dcGuild;
-    dcKind = 'dim'; dcTip = inv ? '디스코드 초대 링크 넣기 · 서버에 없는 친구에게 「들어가기」가 떠요' : '디스코드 서버 연결 · 팀이 정해지면 1팀·2팀 음성 채널로 나눠요';
-    dcGo = inv ? () => { if (window.tnSettingsOpen) window.tnSettingsOpen('dc'); setTimeout(() => { const ib = document.querySelector('.tn-set [data-act=dcinv]'); if (ib) ib.click(); }, 80); }
-      : () => window.api.discordConnect && window.api.discordConnect().then(r => { if (r && !r.ok && r.err) tnAlert('디스코드 서버 연결 · ' + r.err); }).catch(() => {});
-  }
+  }   // 🏘️ v0.1.270 방장용 「서버 연결·초대 링크 넣기」 흐린 아이콘은 없앰(서버는 운영자가 커뮤니티마다 정함)
   const dcHint = dcKind === 'act' && J && J.kind === 'voice' && Date.now() < _dcHintUntil;
 
   // ① 방 줄 — [방 이름 ▾ = 방 메뉴(방장 넘겨주기·앱 없는 사람 추가·그만하기·나가기)] [디스코드] [PLAYERS n/10] · 방장 = 자리의 왕관

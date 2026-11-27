@@ -223,7 +223,7 @@ textarea{width:100%;min-height:62px;resize:vertical}
     <section data-p="admin" class="hide">
       <div class="sec card"><div class="sec-h"><span class="en">SEATS</span><h2>동시 접속 한도</h2><span class="sp">무료 서버 = 동시 연결 100개까지</span></div><div id="cap"></div></div>
       <div class="sec card tw"><div class="sec-h"><span class="en">OPERATORS</span><h2 id="adm-h">운영자</h2><span class="sp" id="adm-sp"></span></div><table><tbody id="adms"></tbody></table><div id="adm-add"></div></div>
-      <div class="sec card tw" id="cm-sec"><div class="sec-h"><span class="en">COMMUNITIES</span><h2>커뮤니티</h2><span class="sp">초대 코드를 넣은 사람만 그 커뮤니티로 들어감 · 기록·순위·운영이 따로</span></div><table><tbody id="cms"></tbody></table><div id="cm-add"></div></div>
+      <div class="sec card tw" id="cm-sec"><div class="sec-h"><span class="en">COMMUNITIES</span><h2>커뮤니티</h2><span class="sp">초대 코드를 넣은 사람만 그 커뮤니티로 들어감 · 기록·순위·운영이 따로</span></div><table><thead><tr><th>커뮤니티</th><th>초대 코드</th><th></th><th>디스코드 서버</th><th></th></tr></thead><tbody id="cms"></tbody></table><div id="cm-add"></div></div>
     </section>
   </main>
 </div>
@@ -244,7 +244,7 @@ const PERM = 9e15, ONLINE_MS = 60000, DAY_START_HOUR = 6;
 let ME = null, S = {};   // S = 받은 자료
 // 🏘️ v0.1.258 커뮤니티 공간 — CT = 고른 커뮤니티 칸(기본 = today · 다른 커뮤니티 = today/c/{id}) · 같이 쓰는 칸(계정·점수·디스코드·자리·설정·전체 운영자)은 today 그대로
 //   주인·전체 운영자 = 모든 커뮤니티 · 커뮤니티 운영자 = 주인이 준 링크(…/admin/?c={id})로만 들어옴(자기 커뮤니티만)
-let CT = 'today', COMM = null, COMMS = {};
+let CT = 'today', COMM = null, COMMS = {}, BASEC = null;
 const CQ = (new URLSearchParams(location.search).get('c') || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 24) || null;
 const ADM = () => COMM ? `${CT}/admins` : 'today/admins';
 // 🏘️ v0.1.259 커뮤니티 전용 서버 — today/communities/{id}.db = {url, key, proj}면 그 커뮤니티 칸(CT 아래)·자리(today/conns·config/connCap)는 그 서버
@@ -302,6 +302,7 @@ async function onAuthUser(u) {
   }
   ME = { uid: u.uid, name: (a || ca).name || u.displayName || '운영자', owner: !!(a && a.owner === true), global: !!a };
   COMMS = {}; if (ME.global) { try { COMMS = (await get('today/communities')) || {}; } catch (_) {} } else COMMS = { [CQ]: (await get(`today/communities/${CQ}`).catch(() => null)) || { name: CQ } };
+  BASEC = COMMS._base || null; for (const k of Object.keys(COMMS)) if (k.startsWith('_')) delete COMMS[k];   // 🏘️ v0.1.270 _base = 기본 커뮤니티 설정 칸(디스코드) · 커뮤니티 목록엔 안 보임
   $('comm').innerHTML = (ME.global ? '<option value="">기본 커뮤니티</option>' : '') + Object.entries(COMMS).map(([id, c]) => `<option value="${esc(id)}">${esc((c && c.name) || id)}</option>`).join('');
   $('comm').classList.toggle('hide', Object.keys(COMMS).length === 0);
   setComm(ME.global ? (CQ && COMMS[CQ] ? CQ : null) : CQ);
@@ -430,7 +431,7 @@ document.querySelector('section[data-p="bans"]').onclick = e => {
   const u = e.target.closest('[data-unban]'), c = e.target.closest('[data-clear]'), p = e.target.closest('[data-k]');
   if (u) unban(u.dataset.unban); else if (c) unban(c.dataset.clear, true); else if (p) openPerson(p.dataset.k);
 };
-const ACT = { gamefix: '경기 기록 고침', gamedel: '경기 기록 지움', wipe: '개인정보 지움', cap: '자리 한도 바꿈', opadd: '운영자 추가', opdel: '운영자 뺌', ban: '정지', unban: '정지 해제', kick: '방에서 내보냄', roomdel: '방 지움', warn: '경고', mute: '채팅 금지', unmute: '채팅 금지 해제', report: '신고 처리', notice: '공지', unnotice: '공지 내림' };
+const ACT = { gamefix: '경기 기록 고침', gamedel: '경기 기록 지움', wipe: '개인정보 지움', cap: '자리 한도 바꿈', opadd: '운영자 추가', opdel: '운영자 뺌', ban: '정지', unban: '정지 해제', kick: '방에서 내보냄', roomdel: '방 지움', warn: '경고', mute: '채팅 금지', unmute: '채팅 금지 해제', report: '신고 처리', notice: '공지', unnotice: '공지 내림', commdc: '커뮤니티 디스코드' };
 const warnN = k => Object.keys(S.warns[k] || {}).length;
 const openReports = () => Object.entries(S.reports || {}).map(([id, r]) => ({ id, ...r })).filter(r => r && r.st !== 'done');
 // 🚨 신고함
@@ -643,7 +644,11 @@ async function renderComms() {
   let codes = {}; try { codes = (await get('today/communityCodes')) || {}; } catch (_) {}
   const byId = {}; for (const [c, id] of Object.entries(codes)) (byId[id] = byId[id] || []).push(c);
   const link = id => `${location.origin}${location.pathname}?c=${encodeURIComponent(id)}`;
-  $('cms').innerHTML = Object.entries(COMMS).map(([id, c]) => `<tr><td><b>${esc((c && c.name) || id)}</b> <span class="mute">${esc(id)}</span>${c && c.db ? ` <span class="tag">전용 서버 ${esc(c.db.proj)}</span>` : ''}</td><td>${(byId[id] || []).map(x => `<span class="tag gold">${esc(x)}</span>`).join(' ') || '<span class="mute">코드 없음</span>'}</td><td><button class="btn sm" data-cmlink="${esc(id)}">운영자 링크 복사</button> <button class="btn sm" data-cmcode="${esc(id)}">코드 새로</button></td></tr>`).join('') || '<tr><td class="mute">아직 없음 · 기본 커뮤니티만 있음</td></tr>';
+  // 🎧 v0.1.270 디스코드 = 커뮤니티마다 주인 운영자가 정함(today/communities/{id}/discord · 기본 커뮤니티 = _base) · 앱은 10분 안에 따라감
+  const dcCell = (id, c) => { const d = c && c.discord; return `<td>${d && d.g ? `<span class="tag">${esc(d.n || d.g)}</span>${d.inv ? ` <span class="mute">discord.gg/${esc(d.inv)}</span>` : ' <span class="mute">초대 링크 없음</span>'}` : '<span class="mute">디스코드 없음</span>'}</td>`
+    + `<td><button class="btn sm" data-cmdc="${esc(id)}">디스코드 ${d && d.g ? '바꾸기' : '정하기'}</button>${d && d.g ? ` <button class="btn sm" data-cmdcdel="${esc(id)}">빼기</button>` : ''}</td>`; };
+  $('cms').innerHTML = `<tr><td><b>기본 커뮤니티</b> <span class="mute">초대 코드 없이 시작한 사람</span></td><td></td><td></td>${dcCell('_base', BASEC)}</tr>`
+    + Object.entries(COMMS).map(([id, c]) => `<tr><td><b>${esc((c && c.name) || id)}</b> <span class="mute">${esc(id)}</span>${c && c.db ? ` <span class="tag">전용 서버 ${esc(c.db.proj)}</span>` : ''}</td><td>${(byId[id] || []).map(x => `<span class="tag gold">${esc(x)}</span>`).join(' ') || '<span class="mute">코드 없음</span>'}</td><td><button class="btn sm" data-cmlink="${esc(id)}">운영자 링크 복사</button> <button class="btn sm" data-cmcode="${esc(id)}">코드 새로</button></td>${dcCell(id, c)}</tr>`).join('');
   $('cm-add').innerHTML = `<div class="row" style="margin-top:12px"><input class="in" id="cm-nm" maxlength="20" placeholder="커뮤니티 이름(앱에 보임 · 예: 큐)" style="flex:1;min-width:0"><input class="in" id="cm-id" maxlength="24" placeholder="영문 이름표(예: que)" style="width:150px"><button class="btn gold" id="cm-go">만들기</button></div>`;
   const newCode = () => { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let x = ''; const r = crypto.getRandomValues(new Uint8Array(6)); for (const v of r) x += A[v % A.length]; return x; };
   const addCode = async id => { const code = newCode(); await api('PUT', `today/communityCodes/${code}`, id); await logIt({ act: 'commcode', target: id, reason: code }); return code; };
@@ -660,7 +665,38 @@ async function renderComms() {
     const l = e.target.closest('[data-cmlink]'), c = e.target.closest('[data-cmcode]');
     if (l) navigator.clipboard.writeText(link(l.dataset.cmlink)).then(() => toast('복사했습니다 · 그 커뮤니티 운영자에게 전달(운영자 번호는 아래 「운영자」에 추가)'));
     if (c) { if (!confirm('초대 코드를 하나 더 만들까요? (예전 코드도 그대로 쓸 수 있음)')) return; try { toast('새 코드 ' + await addCode(c.dataset.cmcode)); renderComms(); } catch (er) { toast('만들지 못했습니다 · ' + er.message, true); } }
+    const d = e.target.closest('[data-cmdc]'), dd = e.target.closest('[data-cmdcdel]');
+    if (d) dcPick(d.dataset.cmdc);
+    if (dd) { const id = dd.dataset.cmdcdel, nm = id === '_base' ? '기본 커뮤니티' : ((COMMS[id] || {}).name || id);
+      if (!confirm(`「${nm}」의 디스코드 서버를 뺄까요?\n앱이 10분 안에 따라가며, 음성 채널 나누기·「들어가기」가 멈춥니다`)) return;
+      try { await api('DELETE', `today/communities/${id}/discord`); await logIt({ act: 'commdc', target: id, name: '(뺌)' }); commSet(id, null); toast('뺐습니다'); renderComms(); } catch (er) { toast('빼지 못했습니다 · ' + er.message, true); } }
   };
+}
+// 🎧 v0.1.270 커뮤니티 디스코드 정하기 — 초대 링크(또는 서버 번호) → 중계가 서버를 찾아 봇이 들어가 있는지·채널 확인 → today/communities/{id}/discord
+function commSet(id, dc) { const o = id === '_base' ? (BASEC = BASEC || { name: '기본 커뮤니티' }) : COMMS[id]; if (!o) return; if (dc) o.discord = dc; else delete o.discord; }
+async function dcPick(id) {
+  const nm = id === '_base' ? '기본 커뮤니티' : ((COMMS[id] || {}).name || id);
+  const s = prompt(`「${nm}」에서 쓸 디스코드 서버의 초대 링크를 넣어 주세요\n(예: https://discord.gg/abcd · 만료 없는 링크 권장 · 서버에 없는 회원에게 「들어가기」로 쓰임)`, '');
+  if (!s || !s.trim()) return;
+  let px = null, appId = null; try { [px, appId] = await Promise.all([get('today/config/clipProxy'), get('today/config/discordApp')]); } catch (_) {}
+  if (!px) { toast('중계 주소를 못 읽었습니다', true); return; }
+  let j = null, st = 0;
+  try { const r = await fetch(String(px).replace(/\/$/, '') + '/discord/invite', { method: 'POST', headers: { 'content-type': 'application/json', 'x-tn-app': 'today-naejeon', authorization: 'Bearer ' + await auth.currentUser.getIdToken() }, body: JSON.stringify({ code: s.trim() }) }); st = r.status; j = await r.json().catch(() => null); }
+  catch (e) { toast('중계에 연결하지 못했습니다 · ' + e.message, true); return; }
+  if (st !== 200 || !j || !j.id) { toast(st === 404 ? '없는 초대 링크이거나 만료된 링크입니다' : st === 400 ? '초대 링크 모양을 확인해 주세요' : `확인하지 못했습니다(${st})`, true); return; }
+  if (!j.bot) {
+    if (!appId) { toast('봇 번호(today/config/discordApp)를 못 읽었습니다', true); return; }
+    if (confirm(`「${j.name || j.id}」 서버에 아직 투데이 내전 봇이 없습니다.\n봇 초대 화면을 열까요? (그 서버의 「서버 관리」 권한이 있는 계정으로)\n\n봇을 넣은 뒤 「디스코드 정하기」를 다시 눌러 주세요.`))
+      window.open(`https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(appId)}&scope=bot&permissions=17826816&guild_id=${encodeURIComponent(j.id)}&disable_guild_select=true`, '_blank', 'noopener');
+    return;
+  }
+  const lack = [!j.t1 && '「1팀」', !j.t2 && '「2팀」', !j.lobby && '이름에 「대기」가 들어간'].filter(Boolean);
+  if (!confirm(`「${nm}」 디스코드 = 「${j.name}」\n${j.code ? '초대 링크 discord.gg/' + j.code : '초대 링크 없음(서버 번호로 넣음)'}\n${lack.length ? `⚠️ 음성 채널 ${lack.join('·')} 채널이 없습니다 · 만들어야 팀별로 옮겨집니다\n` : '음성 채널 1팀·2팀·대기 확인됨\n'}\n이 서버로 정할까요? 앱이 10분 안에 따라갑니다`)) return;
+  const dc = Object.assign({ g: j.id, n: String(j.name || '').slice(0, 60), at: Date.now(), by: ME.name.slice(0, 40) }, j.code ? { inv: j.code } : {});
+  try {
+    await api('PATCH', `today/communities/${id}`, Object.assign({ discord: dc }, id === '_base' && !(BASEC && BASEC.name) ? { name: '기본 커뮤니티' } : {}));
+    await logIt({ act: 'commdc', target: id, name: dc.n }); commSet(id, dc); toast(`정했습니다 · ${dc.n}`); renderComms();
+  } catch (e) { toast('저장하지 못했습니다 · ' + e.message, true); }
 }
 async function unban(key, quiet) {
   const b = S.bans[key] || {}, name = b.name || key.slice(0, 8);
