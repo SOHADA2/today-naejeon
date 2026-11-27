@@ -28,7 +28,7 @@ assets/ping/sfx/*.ogg (v0.1.257 대기실 핑 소리 9개 · 실제 악기 녹�
   (v0.1.256의 Kenney Interface Sounds는 사장님: 기계음 느낌 → v0.1.257에서 바꿈)
 assets/ping/*.png (핑·이모티콘 그림 · 바퀴 판) = 직접 그린 스케치(tools/ping-sketch.cjs · 롤 그림 안 씀)
 
-fold-out.ogg · fold-in.ogg (v0.1.285 접기 손잡이 · 돌 끄는 「그르륵」 · 실제 녹음만) — VSCO-2 Community Edition (CC0) https://github.com/sgossner/VSCO-2-CE
-  재료 = 벽돌 긁는 녹음(Miscellania Raw/Misc 1/brick_scrape · brick_scrape2) + 귀로(Percussion/Guiro-Slow_v1_Sum · 「드르륵」 결 조금)
-  속도를 바꿔 가며 재생(0.4~0.7배 = 낮고 굵게) · 접기 = 빨라지며 끌려 들어가다 마찰로 느려지며 멈춤(0.42초) · 펼치기 = 빠르게 밀려 나오다 느려짐(0.5초) · 고음 깎음
-  만드는 법 = tools/fold-sfx.py(머리 주석에 재료 경로) · 앱 볼륨 0.12 × ⚙ 효과음 · (v0.1.281~284 하프·현 합주·말렛 심벌 버전과 힌트 소리 fold-hint.ogg는 사장님 의견으로 바꾸고 지움)
+fold-out-L/R.ogg · fold-in-L/R.ogg (v0.1.286 접기 손잡이 「헥스텍 슬라이드」 · 스테레오 · 실제 녹음만) — VSCO-2 Community Edition (CC0) https://github.com/sgossner/VSCO-2-CE
+  재료 = 공 긁기 여리게/세게(Percussion/gongscrape_pp · gongscrape_mf) · 여린 크래시(Percussion/cymbal-crash1_pp_rr1 · 거꾸로) · 큰북 여린 한 번(Percussion/BDrumNewhit_v1_rr1_Sum · 160Hz 아래)
+  금빛 결(공 pp −4반음) + 공기 무게(공 mf −9반음) + 빨려 듦(거꾸로 심벌) + 클라 뒤에 닿는 「툼」 · soxr 리샘플 · STFT 필터 · 창 방향으로 좌우 이동 · 짧은 어두운 잔향
+  만드는 법 = tools/fold-sfx.py · 앱 볼륨 0.12 × ⚙ 효과음 · (v0.1.281~285 하프·현·벽돌 버전은 사장님 의견으로 바꿈)
