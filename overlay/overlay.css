@@ -938,18 +938,11 @@ body.pw-drag, body.pw-drag * { cursor:crosshair !important; user-select:none; }
 .lb-rbtn:hover .lb-rrow i { background:var(--gold); color:#1a1206; border-color:var(--gold); }
 
 /* 🏆 v0.1.289 시리즈(사장님: v0.1.288이 지저분·직관적이지 않음) — 방식 창 = 「판 수」 한 줄 · 대기실 아래 대진 카드(#lb-vs) · 팀 화면 = 점수판 한 장(.tv-band.sb) · 배너 안 한 줄 */
-.lb-mp-grid.g3 { grid-template-columns:repeat(3, 1fr); }
-.lb-mpop .lb-bo { -webkit-app-region:no-drag; padding:6px 2px; font:700 12px var(--f-body); color:var(--ink-soft); background:rgba(255,255,255,0.04); border:1px solid var(--hair); clip-path:var(--cut-sm); cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.lb-mpop .lb-bo:hover { color:var(--ink); }
-.lb-mpop .lb-bo.on { color:var(--gold-hi); background:var(--gold-soft); border-color:var(--gold); cursor:default; }
 .lb-vs { display:flex; flex-direction:column; align-items:center; gap:4px; padding:8px 10px 9px; background:linear-gradient(180deg, #121e29, var(--bg-1)); border:1px solid var(--gold-line); clip-path:var(--cut-sm); }
 .lb-vs .vs-bo { font:700 11px var(--f-num); letter-spacing:0.08em; color:var(--gold); }
 .lb-vs .vs-row { width:100%; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:8px; }
 .lb-vs .vs-n { min-width:0; width:100%; padding:5px 8px; font:800 14px var(--f-body); text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; background:transparent; border:1px solid transparent; clip-path:var(--cut-sm); outline:none; }
 .lb-vs .vs-n.t1 { color:var(--t1); } .lb-vs .vs-n.t2 { color:var(--t2); }
-.lb-vs input.vs-n { -webkit-app-region:no-drag; background:rgba(0,0,0,0.25); border-color:var(--hair); cursor:text; }
-.lb-vs input.vs-n:hover { border-color:var(--line); } .lb-vs input.vs-n:focus { border-color:var(--gold-line); background:rgba(0,0,0,0.4); }
-.lb-vs input.vs-n::placeholder { color:var(--dim); font-weight:700; }
 .lb-vs .vs-x { font:800 13px var(--f-num); letter-spacing:0.1em; color:var(--dim); }
 .lb-vs .vs-x.sc { font-size:18px; letter-spacing:0.04em; color:var(--ink); }
 .tv-band.sb { display:flex; flex-direction:column; align-items:center; gap:3px; }
@@ -965,12 +958,3 @@ body.pw-drag, body.pw-drag * { cursor:crosshair !important; user-select:none; }
 .vt-banner b.num, .st-banner span b.num { font-size:inherit; font-weight:800; color:var(--ink); letter-spacing:0.02em; margin:0 3px; }
 .vt-prow > span:first-child { width:auto; min-width:28px; max-width:7em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }   /* 🏆 v0.1.288 팀 이름이 길면 …(예전 1팀·2팀 = 28px) */
 .vt-banner b .tn-cut, .st-banner b .tn-cut { display:inline-block; max-width:9.5em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom; }   /* 🏆 v0.1.288 긴 팀 이름 = …(「승리」는 한 줄에) */
-/* 🏆 v0.1.289 방 만들기 = 일반 내전 | 3판 2선승 | 5판 3선승 · 시리즈면 팀 이름(1팀 VS 2팀) */
-.rm-bo { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
-.rm-bseg { -webkit-app-region:no-drag; padding:7px 2px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--dim); background:var(--bg-2); border:1px solid var(--hair); clip-path:var(--cut-sm); white-space:nowrap; }
-.rm-bseg:hover { color:var(--ink-soft); }
-.rm-bseg.on { color:var(--gold-hi); background:var(--gold-soft); border-color:var(--gold); }
-.rm-tn { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:6px; }
-.rm-tn > span { font:800 12px var(--f-num); letter-spacing:0.1em; color:var(--dim); }
-.rm-tn .rm-in { min-width:0; padding:8px 9px; font-weight:700; }
-.rm-tn .rm-in.t1 { border-left:2px solid var(--t1); } .rm-tn .rm-in.t2 { border-left:2px solid var(--t2); }

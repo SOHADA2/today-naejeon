@@ -31,7 +31,6 @@ for (const w of [302, 402]) {
   S.push(sc('h-pop-' + w, w, 4, 0, 'balance', "document.getElementById('lb-mchip').click();"));                         // 방식 고르는 창(내전)
   { // 🏆 v0.1.288~289 시리즈 — 방식 창 「판 수」 · 대기실 대진 카드(12자 팀 이름) · 팀원 안내 줄 · 팀 화면 점수 띠 · 투표 · 결과(시리즈 끝)
     const SER = { bo: 3, a: '불꽃', b: '열두글자팀이름열두글자팀' };
-    S.push(sc('h-pop-ser-' + w, w, 4, 0, 'random', "document.getElementById('lb-mchip').click();", { series: SER }));
     S.push(sc('m-ser-' + w, w, 4, 1, 'random', '', { series: Object.assign({}, SER, { bo: 5 }) }));
     S.push(sc('h-vs-' + w, w, 4, 0, 'random', '', { series: SER }));   // v0.1.289 대진 카드(방장 = 이름 칸)
     const ss = (phase, n, wa, wb, done, extra) => Object.assign({ phase, teamA: [NM[0], NM[2], NM[5]], teamB: [NM[1], NM[3], NM[4]], mode: 'random', teamsFormedAt: Date.now(), ids: {},
@@ -46,7 +45,6 @@ for (const w of [302, 402]) {
   S.push(sc('h-normal-party-' + w, w, 4, 0, 'normal', '', { lol: partyLead }));                                         // 롤 파티 3/5 · 다시 초대 · 「큐 시작」
   S.push(sc('h-normal-pop-' + w, w, 7, 0, 'normal', "document.getElementById('lb-mchip').click();"));                   // 7명(6번째부터 파티 자리 없음) + 고르는 창(일반)
   S.push(sc('h-menu-' + w, w, 4, 0, 'random', "document.getElementById('lb-rbtn').click();"));
-  S.push(sc('h-menu-ser-' + w, w, 4, 0, 'random', "document.getElementById('lb-rbtn').click(); await new Promise(r=>setTimeout(r,350)); document.getElementById('lb-hm-ser').click();", { series: { bo: 3, a: '불꽃', b: '번개' } }));   // 🏆 v0.1.289 방 메뉴 → 시리즈 바꾸기                          // 방 메뉴
   S.push(sc('m-menu-' + w, w, 4, 2, 'random', "document.getElementById('lb-rbtn').click();"));                          // 🚪 v0.1.265 팀원 방 메뉴(지금 방장 · 신고 · 나가기)
   S.push(sc('h-menu-rep-' + w, w, 4, 0, 'random', "document.getElementById('lb-rbtn').click(); await new Promise(r=>setTimeout(r,350)); document.getElementById('lb-hm-rep').click();"));   // 신고할 사람 고르기
   // 🗺️ v0.1.232 소환사의 협곡
@@ -95,7 +93,6 @@ for (const w of [302, 402]) {
   S.push({ name: 'x-set-comm-' + w, page: 'overlay', w, h: 720, js: "__emit('settings'," + JSON.stringify(Object.assign({}, set, { comm: { name: '큐', id: 'que', ask: false }, pub: { need: false, at: Date.UTC(2026, 10, 26) } })) + "); __emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms, room: null, ready: true }) + ");" + wait + "window.tnSettingsOpen('acct');" + wait + "const b=document.querySelector('[data-act=comm]'); if(b) b.scrollIntoView();" + wait });
   S.push({ name: 'x-rooms-slow-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms: [], room: null, ready: false, slow: true }) + ");" + wait });
   S.push({ name: 'x-rooms-form-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms: [], room: null, ready: true }) + ");" + wait + "document.getElementById('rm-new2').click();" + wait });
-  S.push({ name: 'x-rooms-form-ser-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms: [], room: null, ready: true }) + ");" + wait + "document.getElementById('rm-new2').click();" + wait + "document.querySelector('.rm-bseg[data-bo=\"3\"]').click(); document.getElementById('rm-tna').value='불꽃'; document.getElementById('rm-tnb').value='열두글자팀이름열두글자팀';" + wait });   // 🏆 v0.1.289 시리즈 방 만들기
   // 🧭 따라 하기(v0.1.228 · 예시 화면 + 밝게 남긴 버튼 + 말풍선) 8단계 · 낮은 창(576)에서 아래 버튼·고르는 창·팀 화면 · 끝 카드(마지막 단계에서 「다음」)
   const TUT = pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms, room: null, ready: true }) + ");" + wait;
   for (let k = 0; k < 8; k++) S.push({ name: 'x-tut-g' + (k + 1) + '-' + w, page: 'overlay', w, h: 720, audit: 1, js: TUT + "window.tnTutorial(" + k + ");" + wait + wait });

@@ -95,12 +95,8 @@ async function rmAct(fn) {
 function rmForm(open) {
   el('rm-form').style.display = open ? '' : 'none';
   document.body.classList.toggle('rm-forming', !!open);   // v0.1.227 만드는 칸이 열려 있는 동안 빈 화면의 같은 버튼은 숨김
-  if (open) { el('rm-name').value = ''; el('rm-name').placeholder = myName ? `${myName}의 방` : '방 이름'; el('rm-pw').value = ''; el('rm-tna').value = el('rm-tnb').value = ''; setPriv(false); setBo(1); setTimeout(() => el('rm-name').focus(), 0); }
+  if (open) { el('rm-name').value = ''; el('rm-name').placeholder = myName ? `${myName}의 방` : '방 이름'; el('rm-pw').value = ''; setPriv(false); setTimeout(() => el('rm-name').focus(), 0); }
 }
-// 🏆 v0.1.289 시리즈 방(사장님: 처음 방 만들 때 정함 · 대기실은 예전 그대로) = 일반 내전 | 3판 2선승 | 5판 3선승 · 시리즈면 팀 이름 칸
-let _rmBo = 1;
-function setBo(bo) { _rmBo = bo; document.querySelectorAll('.rm-bseg').forEach(b => b.classList.toggle('on', Number(b.dataset.bo) === bo)); el('rm-tn').style.display = bo > 1 ? '' : 'none'; }
-document.querySelectorAll('.rm-bseg').forEach(b => b.onclick = () => { setBo(Number(b.dataset.bo)); if (_rmBo > 1 && !el('rm-tna').value) el('rm-tna').focus(); });
 function setPriv(p) { _rmPriv = !!p; document.querySelectorAll('.rm-seg').forEach(b => b.classList.toggle('on', (b.dataset.priv === '1') === _rmPriv)); el('rm-pw').style.display = _rmPriv ? '' : 'none'; }
 document.querySelectorAll('.rm-seg').forEach(b => b.onclick = () => { setPriv(b.dataset.priv === '1'); if (_rmPriv) el('rm-pw').focus(); });
 el('rm-new').onclick = () => rmForm(el('rm-form').style.display === 'none');
@@ -108,13 +104,12 @@ el('rm-cancel').onclick = () => { rmForm(false); rmErr(''); };
 async function rmCreate() {
   const go = el('rm-go'); if (go.disabled) return;
   go.disabled = true;
-  const ser = _rmBo > 1 ? { bo: _rmBo, a: el('rm-tna').value.trim(), b: el('rm-tnb').value.trim() } : null;
-  const r = await rmAct(() => window.api.roomCreate(el('rm-name').value.trim(), _rmPriv, el('rm-pw').value, ser));
+  const r = await rmAct(() => window.api.roomCreate(el('rm-name').value.trim(), _rmPriv, el('rm-pw').value));
   go.disabled = false;
   if (r && r.ok) rmForm(false);
 }
 el('rm-go').onclick = rmCreate;
-['rm-name', 'rm-pw', 'rm-tna', 'rm-tnb'].forEach(id => el(id).addEventListener('keydown', e => { if (e.key === 'Enter') rmCreate(); }));
+['rm-name', 'rm-pw'].forEach(id => el(id).addEventListener('keydown', e => { if (e.key === 'Enter') rmCreate(); }));
 async function rmJoin(id, pw) {
   const r = await rmAct(() => window.api.roomJoin(id, pw));
   if (r && r.needPw) {
@@ -1009,12 +1004,8 @@ function renderLobby() {
       const sig = [SC.bo, SC.a, SC.b, myIsHost, S ? serScore(S) : ''].join('|');
       if (box.dataset.sig !== sig || !box.contains(document.activeElement)) {
         box.dataset.sig = sig;
-        const nmH = (k, cls, ph) => myIsHost ? `<input class="vs-n ${cls}" data-k="${k}" maxlength="12" spellcheck="false" placeholder="${ph}" value="${esc(SC[k] || '')}">` : `<b class="vs-n ${cls}">${esc(SC[k] || ph)}</b>`;
+        const nmH = (k, cls, ph) => `<b class="vs-n ${cls}">${esc(SC[k] || ph)}</b>`;   // v0.1.290 읽기 전용(팀 이름 = 대회에서 옴)
         box.innerHTML = `<span class="vs-bo">${BO_KO(SC.bo)}${S ? ` · ${(S.series.n || 0) + 1}번째 판` : ''}</span><span class="vs-row">${nmH('a', 't1', '1팀')}<span class="vs-x${S ? ' sc num' : ''}">${S ? serScore(S) : 'VS'}</span>${nmH('b', 't2', '2팀')}</span>`;
-        box.querySelectorAll('input.vs-n').forEach(inp => {
-          inp.onchange = () => { const a = box.querySelector('[data-k="a"]').value.trim(), b = box.querySelector('[data-k="b"]').value.trim(); lbAct(() => window.api.lobbySeries({ bo: SC.bo, a, b })); };
-          inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); };
-        });
       }
     }
   }
@@ -1184,7 +1175,6 @@ function fillRoomMenu(L) {
     ? '<div class="lb-hm-hd">👑 방장 넘겨주기<small>누르면 그 사람이 방장이 됩니다</small></div>'
       + (others.length ? others.map(o => `<button class="lb-hm-item" data-p="${esc(o.key)}">${avatar(o, 'chip-av')}<span>${esc(o.name)}</span>${act('넘기기')}</button>`).join('') : '<div class="lb-hm-empty">앱을 켠 다른 사람이 없습니다</div>')
     : `<div class="lb-hm-hd">${hn ? `👑 지금 방장 <b>${esc(hn)}</b>` : '방장 없음'}</div>`)
-    + (myIsHost && L.room ? `<button class="lb-hm-item sep" id="lb-hm-ser"><span>🏆 시리즈<small>${L.series && L.series.bo > 1 ? BO_KO(L.series.bo) + ' · 같은 팀으로 이어서' : '지금은 한 판씩(일반 내전)'}</small></span>${act('바꾸기 ›', 'dim')}</button>` : '')
     + (L.room && others.length ? `<button class="lb-hm-item sep" id="lb-hm-rep"><span>🚨 신고하기<small>운영자에게만 전달됩니다</small></span>${act('신고 ›', 'dim')}</button>` : '')
     + (L.room ? `<button class="lb-hm-item leave" id="lb-hm-leave"><span>방에서 나가기<small>방 목록으로 돌아갑니다</small></span>${act('나가기', 'red')}</button>` : '');
   popAnim(m, true);   // 🎞️ v0.1.235 열 때 펼쳐짐(이미 열려 있으면 그대로)
@@ -1194,15 +1184,6 @@ function fillRoomMenu(L) {
     if (!await tnConfirm(`${o.name}님에게 방장을 넘길까요?\n진행 중인 판은 그대로 이어집니다.`)) return;
     lbAct(() => window.api.handHost(o.key));
   });
-  const sv = el('lb-hm-ser'); if (sv) sv.onclick = e => {   // 🏆 v0.1.289 시리즈 바꾸기 = 판 수 고르기(팀 이름은 대기실 대진 카드에서)
-    e.stopPropagation();
-    const cur = (L.series && L.series.bo) || 1;
-    m.innerHTML = '<div class="lb-hm-hd">🏆 시리즈<small>팀 이름은 대기실 아래 대진 카드에서 고칩니다</small></div>'
-      + [[1, '일반 내전', '한 판씩'], [3, '3판 2선승', '먼저 2판 이기면 시리즈 승리'], [5, '5판 3선승', '먼저 3판 이기면 시리즈 승리']].map(([bo, t, sub]) => `<button class="lb-hm-item" data-bo="${bo}"><span>${t}<small>${sub}</small></span>${act(bo === cur ? '지금' : '고르기', bo === cur ? 'dim' : '')}</button>`).join('')
-      + '<button class="lb-hm-item sep" id="lb-hm-back2"><span>‹ 뒤로</span></button>';
-    m.querySelectorAll('[data-bo]').forEach(b => b.onclick = () => { const bo = Number(b.dataset.bo); closeRoomMenu(); if (bo !== cur) lbAct(() => window.api.lobbySeries({ bo, a: (L.series && L.series.a) || '', b: (L.series && L.series.b) || '' })); });
-    el('lb-hm-back2').onclick = ev => { ev.stopPropagation(); fillRoomMenu(L); };
-  };
   const rp = el('lb-hm-rep'); if (rp) rp.onclick = e => {   // 🚨 v0.1.245 신고할 사람 고르기
     e.stopPropagation();
     m.innerHTML = '<div class="lb-hm-hd">🚨 누구를 신고할까요?<small>고른 뒤 무슨 일이 있었는지 한 줄 적습니다</small></div>' + others.map(x => `<button class="lb-hm-item" data-rk="${esc(x.key)}">${avatar(x, 'chip-av')}<span>${esc(x.name)}</span><em class="lb-hm-act dim">신고</em></button>`).join('') + '<button class="lb-hm-item" id="lb-hm-back"><span>‹ 뒤로</span></button>';

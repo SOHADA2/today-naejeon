@@ -1626,7 +1626,7 @@ function kickDiff(prev, cur) {
   console.log('[room] 방장이 내보냄 →', nm);
   roomLeave(false).then(() => broadcast('kicked', { room: nm, by, admin: !!b.admin })).catch(() => {});
 }
-async function roomCreate(name, priv, pw, ser) {   // 🏆 v0.1.289 ser = 시리즈 방 {bo 3|5, a, b}(방 만들 때 정함 · 사장님)
+async function roomCreate(name, priv, pw, ser) {   // 🏆 ser = 시리즈 {bo 3|5, a, b} — v0.1.289 방 만들기 선택지는 v0.1.290에서 뺌(사장님: 굳이 · 대회 경기에서만) · 인자는 남김
   if (!account) return { ok: false, err: '롤에 로그인하면 방을 만들 수 있습니다' };
   if (banOn()) return { ok: false, err: '이용이 정지된 계정입니다' };   // 🚫 v0.1.244
   if (!pubOk()) return { ok: false, err: PUB_ERR, needPub: true };   // 🔒 v0.1.253
