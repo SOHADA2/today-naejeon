@@ -51,52 +51,73 @@
     else if (inst) { tx.innerHTML = `<span>🔄 <b>v${esc(U.version || '')}</b> 설치 중 · 끄지 마세요</span>`; tx.title = '몇 초 뒤 다시 켜집니다'; }
     else if (done) { tx.innerHTML = `<span>✅ <b>v${esc(U.cur || '')}</b>로 업데이트됐습니다</span>`; tx.title = U.from ? `v${U.from}에서` : ''; }
   }
-  const tog = (key, label, sub) => `<label class="tn-row"><span class="tn-row-tx"><b>${label}</b>${sub ? `<small>${sub}</small>` : ''}</span><input type="checkbox" class="tn-sw" data-k="${key}" ${S[key] ? 'checked' : ''}></label>`;
+  // 🗂️ v0.1.269 설정 = 탭 4개(일반·내전·디스코드·계정) + 묶음 카드(사장님: 설정창이 번잡 — 한 줄로 25칸 넘게 이어지고 구역 제목이 흐려 안 나뉘어 보였음)
+  //   자세한 설명은 줄에 마우스를 올리면(title → tip.js) · 줄 아래 작은 글은 짧게 한 줄 · ⓘ 아이콘·이모지 없앰
+  let tab = 'gen';
+  const TABS = [['gen', '일반'], ['game', '내전'], ['dc', '디스코드'], ['acct', '계정']];
+  const tip = t => t ? ` title="${esc(t)}"` : '';
+  const tog = (key, label, sub, more) => `<label class="tn-row"${tip(more)}><span class="tn-row-tx"><b>${label}</b>${sub ? `<small>${sub}</small>` : ''}</span><input type="checkbox" class="tn-sw" data-k="${key}" ${S[key] ? 'checked' : ''}></label>`;
+  const row = (label, sub, btn, cls, more) => `<div class="tn-row tn-row-act${cls ? ' ' + cls : ''}"${tip(more)}><span class="tn-row-tx"><b>${label}</b>${sub ? `<small>${sub}</small>` : ''}</span>${btn || ''}</div>`;
+  const grp = (title, body) => body ? `<div class="tn-sec">${title}</div><div class="tn-grp">${body}</div>` : '';
+  function tabGen() {
+    const [line, cls] = upLine();
+    return `<div class="tn-ver"><div class="tn-ver-tx"><b>투데이 내전 <span class="num">v${esc(U.cur || '')}</span></b><small class="${cls}">${line}</small></div>
+        ${U.state === 'ready' ? '<button class="ui-btn-gold tn-ver-go" data-act="up">지금 업데이트</button>'
+          : `<button class="tn-btn" data-act="check" ${['checking', 'downloading', 'dev', 'installing'].includes(U.state) ? 'disabled' : ''}>업데이트 확인</button>`}</div>
+      ${U.state === 'downloading' ? `<div class="tn-prog"><i style="width:${U.pct || 0}%"></i></div>` : ''}
+      ${grp('소리', tog('sfxOn', '효과음', '선픽·픽·팟지 소리')
+        + `<div class="tn-row tn-vol${S.sfxOn ? '' : ' off'}"><span class="tn-row-tx"><b>크기</b></span><input type="range" min="0" max="100" step="5" value="${Math.round(S.sfxVol * 100)}" class="tn-range" ${S.sfxOn ? '' : 'disabled'}><span class="tn-vol-n num">${Math.round(S.sfxVol * 100)}</span></div>`)}
+      ${grp('창', tog('dock', '롤 클라이언트 옆에 붙이기', '끄면 창이 따로 떠 있습니다')
+        + tog('sidePanel', '오른쪽 창 보이기', '홈·기록·프로필·증강')
+        + tog('closeAsk', '✕ 누르면 숨길지 묻기', '끄면 묻지 않고 숨깁니다')
+        + tog('autoLaunch', '윈도우 시작할 때 켜기', '트레이에 켜 두고 롤을 켜면 나타납니다')
+        + row('왼쪽 창 켜기·끄기', '단축키', `<span class="tn-key num">${esc(S.hotkey)}</span>`))}
+      <div class="tn-foot"><button class="tn-btn tn-tut" data-act="tut">사용법 다시 보기</button><button class="tn-quit" data-act="quit">완전히 종료</button></div>`;
+  }
+  function tabGame() {
+    const mute = (S.chatMute || []).length;
+    return grp('대기실 채팅', tog('chatFilter', '욕설 가리기', '욕설을 ●로 · 내 화면에서만')
+        + (mute ? row(`말을 숨긴 사람 ${mute}명`, '채팅 줄 「숨기기」로 숨김', '<button class="tn-btn" data-act="unmute">다시 보기</button>') : ''))
+      + grp('롤 클라이언트', tog('autoSeat', '팀 자리로 자동 이동', '롤 방에서 내 자리를 1팀·2팀으로',
+          '팀이 정해지면 롤 사용자 설정 게임 방에서 내 자리를 1팀·2팀·관전석으로 옮깁니다(롤의 「팀 참가」 버튼과 같은 동작 · 내 자리만). 한 번 옮긴 뒤 직접 바꾸면 그대로 둡니다.')
+        + tog('lolRemake', '롤 방 자동으로 만들기', '방장 · 팀이 정해지면 만들고 초대',
+          '방장일 때 · 내전 팀이 정해지면 그 판 다리(드래프트 = 선픽이 아닌 팀장이 고름 · 나머지 = 무작위)로 롤 사용자 설정 방을 만들고(이미 있으면 다시 만듦) 그 판 사람 전원을 초대합니다. 큐 잡는 중이나 게임 중엔 건드리지 않습니다.')
+        + tog('lolAutoAccept', '방장 초대 자동 수락', '방장이 롤 방을 다시 만들면 바로 들어감')
+        + tog('lolPing', '롤 화면에서 핑', 'Alt + 끌기 · 방 사람에게 보임',
+          '롤 클라이언트(게임 밖)에서 Alt + 왼쪽 버튼을 누른 채 끌면 핑 바퀴가 뜹니다. 방 사람 모두의 롤 화면 같은 자리에 보입니다. 그 Alt+클릭은 롤에 눌리지 않습니다. 끄면 롤의 Alt+클릭이 원래대로 동작합니다.'));
+  }
+  function tabDc() {
+    const D = S.discord || null, on = !!(D && D.on), app = !!(D && D.app);
+    const st = `<div class="tn-ver tn-dcst"><i class="tn-dc-dot${on ? ' on' : ''}"></i><div class="tn-ver-tx"><b>${on ? `연결됨 · ${esc(D.name || '디스코드')}` : app ? '디스코드 앱이 꺼져 있습니다' : '연결 준비 중'}</b><small>${on ? '이 PC의 디스코드 앱과 연결됐습니다' : app ? 'PC 디스코드 앱을 켜면 저절로 연결됩니다' : '디스코드 연동을 준비하고 있습니다'}</small></div></div>`;
+    const room = D && D.room ? row(`이 방 · ${esc(D.room.name)}`, D.room.ch ? '내전 대기실 음성 채널' : '서버 초대 링크로 들어가기', `<button class="tn-btn" data-act="dcroom" ${D.room.ch || D.room.code ? '' : 'disabled'}>${D.room.ch ? '음성 채널 열기' : '들어가기'}</button>`) : '';
+    const host = app ? row(D.guild ? `서버 · ${esc(D.guild)}` : '디스코드 서버', D.guild ? '팀이 정해지면 1팀·2팀 채널로' : '봇을 우리 서버에 넣고 연결', `<button class="tn-btn" data-act="dcgo" ${D.connecting ? 'disabled' : ''}>${D.connecting ? '고르는 중' : D.guild ? '바꾸기' : '서버 연결'}</button>`)
+      + (invEdit ? `<div class="tn-row tn-row-act"><input class="tn-inv-in" placeholder="https://discord.gg/…  (비우면 지움)" value="${D.invite ? 'https://discord.gg/' + esc(D.invite) : ''}" maxlength="80"><button class="tn-btn" data-act="dcinvsave">저장</button></div>`
+        : row('초대 링크', D.invite ? `discord.gg/${esc(D.invite)}` : '서버에 없는 방 사람에게 「들어가기」', `<button class="tn-btn" data-act="dcinv">${D.invite ? '바꾸기' : '넣기'}</button>`, '', D.invite ? '서버에 없는 방 사람에게 「들어가기」 버튼이 보입니다' : ''))
+      + tog('discordMove', '음성 채널 자동 나누기', '팀이 정해지면 1팀·2팀 채널로',
+          '내가 방장일 때 팀이 정해지면 디스코드 음성 채널 「1팀」「2팀」으로 옮기고, 게임이 끝나면 원래 채널로 모읍니다. 서버에 투데이 내전 봇과 「1팀」「2팀」 음성 채널이 있어야 하고, 음성 채널에 들어와 있고 디스코드 앱을 켠 사람만 옮깁니다.') : '';
+    return st + grp('지금 방', room)
+      + grp('내 디스코드', tog('discordRpc', '내 상태 보이기', '디스코드 프로필에 대기실·내전 중',
+          '디스코드 프로필에 「투데이 내전 · 대기실 · 방 이름 · 6명 모임」처럼 지금 하고 있는 것을 보여 줍니다(디스코드 설정 「활동 상태」가 켜져 있어야 보입니다).'))
+      + grp('방장일 때', host);
+  }
+  function tabAcct() {
+    const P = S.pub, C = S.comm;
+    return grp('커뮤니티 · 기록', (C ? row(`커뮤니티 · ${esc(C.name || '기본')}`, '바꾸면 앱이 다시 켜집니다', '<button class="tn-btn" data-act="comm">바꾸기</button>', '', '방·기록·순위가 이 커뮤니티 것만 보입니다') : '')
+        + (P ? row(`기록 공개 · ${P.need ? '동의 안 함' : '동의함'}`, P.need ? '동의해야 내전에 참가할 수 있습니다' : `${pubDay(P.at)} 동의`, P.need ? '<button class="ui-btn-gold tn-ver-go" data-act="pubon">동의하기</button>' : '<button class="tn-btn" data-act="puboff">철회</button>', P.need ? 'tn-need' : '', P.need ? '지금은 보기만 할 수 있습니다' : '내 전적이 앱을 쓰는 다른 사람에게 보입니다') : ''))
+      + grp('개인정보', row('개인정보 처리방침', '저장하는 것·보관 기간·지우는 방법', '<button class="tn-btn" data-act="privacy">보기</button>')
+        + row('내 정보 지우기', '서버의 내 계정·디스코드·전적 점수', '<button class="tn-btn tn-danger" data-act="wipe">지우기</button>'))
+      + `<p class="tn-legal">Today In-House isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.</p>`;
+  }
   function renderPanel() {
     if (!ui || panel.style.display === 'none') return;
-    const [line, cls] = upLine();
+    const keep = panel.querySelector('.tn-set-body'), top = keep && keep.dataset.tab === tab ? keep.scrollTop : 0;
+    const body = { gen: tabGen, game: tabGame, dc: tabDc, acct: tabAcct }[tab] || tabGen;
+    const dot = { gen: U.state === 'ready', acct: !!(S.pub && S.pub.need) };
     panel.innerHTML = `<div class="tn-set-hd"><span class="tn-set-en">SETTINGS</span><b>설정</b><button class="tn-set-x" title="닫기">✕</button></div>
-      <div class="tn-set-body ui-scroll">
-        <div class="tn-sec">버전</div>
-        <div class="tn-ver"><div class="tn-ver-tx"><b>투데이 내전 <span class="num">v${esc(U.cur || '')}</span></b><small class="${cls}">${line}</small></div>
-          ${U.state === 'ready' ? '<button class="ui-btn-gold tn-ver-go" data-act="up">지금 업데이트</button>'
-            : `<button class="tn-btn" data-act="check" ${['checking', 'downloading', 'dev'].includes(U.state) ? 'disabled' : ''}>업데이트 확인</button>`}</div>
-        ${U.state === 'downloading' ? `<div class="tn-prog"><i style="width:${U.pct || 0}%"></i></div>` : ''}
-        <div class="tn-sec">소리</div>
-        ${tog('sfxOn', '효과음', '선픽·픽·팟지 소리')}
-        <div class="tn-row tn-vol${S.sfxOn ? '' : ' off'}"><span class="tn-row-tx"><b>크기</b></span><input type="range" min="0" max="100" step="5" value="${Math.round(S.sfxVol * 100)}" class="tn-range" ${S.sfxOn ? '' : 'disabled'}><span class="tn-vol-n num">${Math.round(S.sfxVol * 100)}</span></div>
-        <div class="tn-sec">대기방</div>
-        ${tog('chatFilter', '채팅 욕설 가리기', '욕설을 ●로 가려 보입니다 · 내 화면만')}
-        ${(S.chatMute || []).length ? `<div class="tn-row"><span class="tn-row-tx"><b>말을 숨긴 사람 ${S.chatMute.length}명</b><small>채팅 줄의 「숨기기」로 숨긴 사람</small></span><button class="tn-btn" data-act="unmute">모두 다시 보기</button></div>` : ''}
-        ${tog('autoSeat', '팀 자리로 자동 이동 <span class=\"tn-tip\" data-tip=\"팀이 정해지면 롤 사용자 설정 게임 방에서 내 자리를 1팀·2팀·관전석으로 옮깁니다(롤의 「팀 참가」 버튼과 같은 동작 · 내 자리만). 한 번 옮긴 뒤 직접 바꾸면 그대로 둬요\">ⓘ</span>', '롤 대기방에서 1팀·2팀으로')}
-        ${tog('lolRemake', '팀 정할 때 롤 방 자동으로 만들기 <span class=\"tn-tip\" data-tip=\"방장일 때 · 내전 팀이 정해지면 그 판 다리(드래프트 = 선픽이 아닌 팀장이 고름 · 나머지 = 무작위)로 롤 사용자 설정 방을 만들고(이미 있으면 다시 만듦) 그 판 사람 전원을 초대합니다 · 큐 잡는 중이나 게임 중엔 안 건드립니다\">ⓘ</span>', '방장 · 판마다 다리 바뀜')}
-        ${tog('lolAutoAccept', '방장 롤 초대 자동 수락', '방장이 롤 방을 다시 만들면 바로 들어갑니다')}
-        ${tog('lolPing', '롤 화면에서 핑 <span class=\"tn-tip\" data-tip=\"롤 클라이언트(게임 밖)에서 Alt + 왼쪽 누른 채 끌면 롤 핑 바퀴가 떠요 · 방 사람 모두의 롤 화면 같은 자리에 보입니다. 그 Alt+클릭은 롤에 안 눌러집니다. 끄면 롤의 Alt+클릭이 원래대로\">ⓘ</span>', 'Alt + 끌기 = 핑 · 방 사람에게 보임')}
-        <div class="tn-sec">디스코드</div>
-        ${S.discord && S.discord.room ? `<div class="tn-row tn-dc"><span class="tn-row-tx"><b>이 방 디스코드 · ${esc(S.discord.room.name)}</b><small>${S.discord.room.ch ? '내전 대기실 음성 채널을 디스코드 앱으로' : '서버 초대 링크를 디스코드 앱으로'}</small></span><button class="tn-btn" data-act="dcroom" ${S.discord.room.ch || S.discord.room.code ? '' : 'disabled'}>${S.discord.room.ch ? '음성 채널 열기' : '들어가기'}</button></div>` : ''}
-        <div class="tn-row tn-dc"><span class="tn-row-tx"><b>${S.discord && S.discord.on ? `연결됨 · ${esc(S.discord.name || '디스코드')}` : S.discord && S.discord.app ? '디스코드 앱이 꺼져 있습니다' : '준비 중'}</b><small>${S.discord && S.discord.on ? '이 PC의 디스코드 앱과 연결' : S.discord && S.discord.app ? 'PC 디스코드 앱을 켜면 저절로 연결됩니다' : '디스코드 연동 준비 중입니다'}</small></span><i class="tn-dc-dot${S.discord && S.discord.on ? ' on' : ''}"></i></div>
-        ${S.discord && S.discord.app ? `<div class="tn-row tn-dc"><span class="tn-row-tx"><b>${S.discord.guild ? `서버 · ${esc(S.discord.guild)}` : '디스코드 서버'}</b><small>${S.discord.guild ? '팀이 정해지면 이 서버의 1팀·2팀 채널로' : '봇을 우리 서버에 넣고 연결(방장)'}</small></span><button class="tn-btn" data-act="dcgo" ${S.discord.connecting ? 'disabled' : ''}>${S.discord.connecting ? '브라우저에서 고르는 중' : S.discord.guild ? '바꾸기' : '서버 연결'}</button></div>` : ''}
-        ${S.discord && S.discord.app ? (invEdit ? `<div class="tn-row tn-dc"><input class="tn-inv-in" placeholder="https://discord.gg/…  (비우면 지움)" value="${S.discord.invite ? 'https://discord.gg/' + esc(S.discord.invite) : ''}" maxlength="80"><button class="tn-btn" data-act="dcinvsave">저장</button></div>`
-          : `<div class="tn-row tn-dc"><span class="tn-row-tx"><b>초대 링크</b><small>${S.discord.invite ? `discord.gg/${esc(S.discord.invite)} · 서버에 없는 방 사람에게 「들어가기」` : '방장이 넣으면 서버에 없는 친구에게 「들어가기」 버튼'}</small></span><button class="tn-btn" data-act="dcinv">${S.discord.invite ? '바꾸기' : '넣기'}</button></div>`) : ''}
-        ${tog('discordRpc', '디스코드에 내 상태 보이기 <span class=\"tn-tip\" data-tip=\"디스코드 프로필에 「투데이 내전 · 대기실 · 방 이름 · 6명 모임」처럼 지금 하고 있는 걸 보여 줍니다(디스코드 설정 「활동 상태」가 켜져 있어야 보입니다)\">ⓘ</span>', '대기실·드래프트·내전 중')}
-        ${tog('discordMove', '음성 채널 자동 나누기 <span class=\"tn-tip\" data-tip=\"내가 방장일 때 팀이 정해지면 디스코드 음성 채널 「1팀」「2팀」으로 옮기고, 게임이 끝나면 원래 채널로 모읍니다. 서버에 투데이 내전 봇과 「1팀」「2팀」 음성 채널이 있어야 하고, 음성 채널에 들어와 있고 디스코드 앱을 켠 사람만 옮깁니다\">ⓘ</span>', '방장일 때 · 1팀/2팀 채널로')}
-        <div class="tn-sec">창</div>
-        ${tog('dock', '롤 클라이언트 옆에 붙이기', '끄면 두 창이 따로 떠 있습니다')}
-        ${tog('sidePanel', '오른쪽 창 보이기', '홈·기록·프로필·증강')}
-        ${tog('closeAsk', '✕ 누르면 「숨기기/종료」 묻기', '끄면 묻지 않고 숨기기만')}
-        ${tog('autoLaunch', '윈도우 시작할 때 자동 실행', '트레이에만 켜 두고 롤을 켜면 나타납니다')}
-        <div class="tn-sec">단축키</div>
-        <div class="tn-row"><span class="tn-row-tx"><b>왼쪽 창 켜기/끄기</b></span><span class="tn-key num">${esc(S.hotkey)}</span></div>
-        <div class="tn-sec">개인정보</div>
-        ${S.comm ? `<div class="tn-row"><span class="tn-row-tx"><b>커뮤니티 · ${esc(S.comm.name || '기본')}</b><small>방·기록·순위가 이 커뮤니티 것만 보입니다 · 바꾸면 앱이 다시 켜집니다</small></span><button class="tn-btn" data-act="comm">바꾸기</button></div>` : ''}
-        ${S.pub ? `<div class="tn-row"><span class="tn-row-tx"><b>내전 기록 공개 · ${S.pub.need ? '동의 안 함' : '동의함'}</b><small>${S.pub.need ? '동의해야 내전에 참가할 수 있습니다 · 지금은 보기만' : `${pubDay(S.pub.at)} 동의 · 전적이 앱을 쓰는 다른 사람에게 보입니다`}</small></span><button class="tn-btn" data-act="${S.pub.need ? 'pubon' : 'puboff'}">${S.pub.need ? '동의하기' : '동의 철회'}</button></div>` : ''}
-        <div class="tn-row"><span class="tn-row-tx"><b>개인정보 처리방침</b><small>무엇을 저장하고 얼마나 두는지 · 지우는 방법</small></span><button class="tn-btn" data-act="privacy">보기</button></div>
-        <div class="tn-row"><span class="tn-row-tx"><b>내 정보 지우기</b><small>서버의 내 계정·디스코드·전적 점수</small></span><button class="tn-btn tn-danger" data-act="wipe">지우기</button></div>
-        <div class="tn-sec">도움말</div>
-        <button class="tn-btn tn-tut" data-act="tut">📘 사용법 다시 보기</button>
-        <button class="tn-quit" data-act="quit">투데이 내전 완전히 종료</button>
-        <p class="tn-legal">Today In-House isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.</p>
-      </div>`;
+      <div class="tn-tabs">${TABS.map(([k, n]) => `<button class="tn-tab${k === tab ? ' on' : ''}" data-tab="${k}">${n}${dot[k] ? '<i class="tn-tab-dot"></i>' : ''}</button>`).join('')}</div>
+      <div class="tn-set-body ui-scroll" data-tab="${tab}">${body()}</div>`;
+    panel.querySelector('.tn-set-body').scrollTop = top;
+    panel.querySelectorAll('.tn-tab').forEach(t => t.onclick = () => { if (tab !== t.dataset.tab) { tab = t.dataset.tab; invEdit = false; renderPanel(); } });
     panel.querySelector('.tn-set-x').onclick = closePanel;
     panel.querySelectorAll('.tn-sw').forEach(c => c.onchange = async () => { api.setSetting(c.dataset.k, c.checked).then(v => { if (v) { S = v; applyVol(); renderPanel(); } }); });
     const r = panel.querySelector('.tn-range'), n = panel.querySelector('.tn-vol-n');
@@ -119,6 +140,7 @@
       else if (b.dataset.act === 'quit') tnConfirm('투데이 내전을 완전히 종료할까요?', { ok: '종료', danger: true }).then(y => { if (y) api.quitApp(); });
     });
   }
+  window.tnSettingsOpen = (t) => { if (!ui) return; if (t) { tab = t; invEdit = false; } if (panel.style.display === 'none') openPanel(); else renderPanel(); };   // v0.1.269 바깥(대기실 「초대 링크」·사용법)에서 그 탭으로 열기
   function openPanel() { const r = (strip.style.display === 'none' ? header : strip).getBoundingClientRect(); panel.style.top = Math.round(r.bottom) + 'px'; panel.style.display = ''; gear.classList.add('on'); renderPanel(); api.getSettings().then(v => { if (v) { S = v; renderPanel(); } }).catch(() => {}); if (U.state === 'idle' || U.state === 'error') api.checkUpdate(); }
   function closePanel() { if (!ui) return; panel.style.display = 'none'; gear.classList.remove('on'); }
   api.getSettings().then(v => { if (v) { S = v; applyVol(); renderPanel(); } }).catch(() => {});

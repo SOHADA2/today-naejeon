@@ -839,7 +839,7 @@ function renderLobby() {
   } else if (myIsHost && L.room && S.discord && S.discord.app && !S.dcNudgeOff && (!L.dcGuild || !L.dcInv)) {
     const inv = !!L.dcGuild;
     dcKind = 'dim'; dcTip = inv ? '디스코드 초대 링크 넣기 · 서버에 없는 친구에게 「들어가기」가 떠요' : '디스코드 서버 연결 · 팀이 정해지면 1팀·2팀 음성 채널로 나눠요';
-    dcGo = inv ? () => { const g = document.querySelector('.tn-gear'); if (g) g.click(); setTimeout(() => { const bd = document.querySelector('.tn-set-body'), t = bd && [...bd.querySelectorAll('.tn-sec')].find(e => e.textContent === '디스코드'); if (t) bd.scrollTop = t.offsetTop - 50; const ib = document.querySelector('.tn-set [data-act=dcinv]'); if (ib) ib.click(); }, 80); }
+    dcGo = inv ? () => { if (window.tnSettingsOpen) window.tnSettingsOpen('dc'); setTimeout(() => { const ib = document.querySelector('.tn-set [data-act=dcinv]'); if (ib) ib.click(); }, 80); }
       : () => window.api.discordConnect && window.api.discordConnect().then(r => { if (r && !r.ok && r.err) tnAlert('디스코드 서버 연결 · ' + r.err); }).catch(() => {});
   }
   const dcHint = dcKind === 'act' && J && J.kind === 'voice' && Date.now() < _dcHintUntil;

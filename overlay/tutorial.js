@@ -76,7 +76,7 @@
       <div class="tut-btns">${last ? '' : '<button class="tut-skip">닫기</button>'}${mi ? '<button class="tut-prev">이전</button>' : ''}<button class="tut-next ui-btn-gold">${last ? '닫기' : '다음'}</button></div>
     </div>`;
     if (q('.tut-skip')) q('.tut-skip').onclick = done;
-    if (q('.tut-act')) q('.tut-act').onclick = () => { done(); setTimeout(() => { const g = $('.tn-gear'); if (g) g.click(); setTimeout(() => { const b = $('.tn-set-body'), t = b && [...b.querySelectorAll('.tn-sec')].find(x => x.textContent === '디스코드'); if (t) b.scrollTop = t.offsetTop - 50; }, 80); }, 50); };   // 🎧 설정의 디스코드 칸으로
+    if (q('.tut-act')) q('.tut-act').onclick = () => { done(); setTimeout(() => { if (window.tnSettingsOpen) window.tnSettingsOpen('dc'); }, 50); };   // 🎧 설정의 디스코드 칸으로
     if (q('.tut-prev')) q('.tut-prev').onclick = () => { mi--; card(); };
     q('.tut-next').onclick = () => { if (last) done(); else { mi++; card(); } };
   }
