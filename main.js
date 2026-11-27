@@ -412,13 +412,13 @@ async function lolInvite(puuids) {
   return sent;
 }
 ipcMain.handle('lol-lobby', async (_e, o) => {
-  if (!bridge || !bridge.lcuRaw) return { ok: false, err: '롤 클라이언트가 켜져 있어야 해요' };
-  if (!config.isHost || !room) return { ok: false, err: '방장만 만들 수 있어요' };
-  if (inGame) return { ok: false, err: '게임 중에는 못 만들어요' };
+  if (!bridge || !bridge.lcuRaw) return { ok: false, err: '롤 클라이언트가 켜져 있어야 합니다' };
+  if (!config.isHost || !room) return { ok: false, err: '방장만 만들 수 있습니다' };
+  if (inGame) return { ok: false, err: '게임 중에는 못 만듭니다' };
   const ph = await bridge.lcuRaw('GET', '/lol-gameflow/v1/gameflow-phase').catch(() => null), phase = ph && ph.data;
-  if (!lolOk(ph)) return { ok: false, err: '롤 클라이언트에 연결되지 않았어요' };
+  if (!lolOk(ph)) return { ok: false, err: '롤 클라이언트에 연결되지 않았습니다' };
   const inCustom = phase === 'Lobby' && lobbyCustom === true;
-  if (phase !== 'None' && phase !== 'Lobby') return { ok: false, err: `지금은 못 만들어요(롤: ${phase})` };
+  if (phase !== 'None' && phase !== 'Lobby') return { ok: false, err: `지금은 못 만듭니다(롤: ${phase})` };
   if (phase === 'Lobby' && !inCustom && !(o && o.force)) return { ok: false, need: 'leave' };   // 일반 큐 대기방에 있음 → 나가도 되는지 먼저 물음
   let made = false;
   const sg = lobbyGame();
@@ -432,7 +432,7 @@ ipcMain.handle('lol-lobby', async (_e, o) => {
     const name = String(room.name || '투데이 내전').slice(0, 24), map0 = lolRandMap();
     let r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody(name, map0, sg)).catch(() => null);
     if (!lolOk(r)) r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', lolLobbyBody('TODAY IN-HOUSE', map0, sg)).catch(() => null);   // 이름 때문에 거절되면 영문 이름으로
-    if (!lolOk(r)) { console.log('[lol] 방 만들기 실패', sg.game, r && r.status, r && JSON.stringify(r.data).slice(0, 200)); return { ok: false, err: '롤 방을 만들지 못했어요' + (r && r.data && r.data.message ? ` (${r.data.message})` : '') }; }
+    if (!lolOk(r)) { console.log('[lol] 방 만들기 실패', sg.game, r && r.status, r && JSON.stringify(r.data).slice(0, 200)); return { ok: false, err: '롤 방을 만들지 못했습니다' + (r && r.data && r.data.message ? ` (${r.data.message})` : '') }; }
     made = true; lobbyPhase = 'Lobby'; lobbyCustom = true;
     if (sg.game !== 'sr') await lolRememberMade(map0);   // v0.1.214 이 롤 방 = 이 다리(팀 정할 때 다리가 같으면 그대로 씀)
   }
@@ -535,13 +535,13 @@ async function lolRemakeTick() {
 const LOL_MAP_KO = { NONE: '칼바람 나락', MapSkin_Map12_Bloom: '코신 다리', MapSkin_HA_Bilgewater: '도살자의 다리' };
 // 드래프트 = 선픽이 아닌 팀장(session.mapBy)이 다리를 고름(사장님) · 방장도 대신 고를 수 있음 · 다 뽑을 때까지 안 고르면 무작위(draftPick)
 async function draftMap(map) {
-  if (!LOL_MAPS.includes(map)) return { ok: false, err: '없는 맵이에요' };
+  if (!LOL_MAPS.includes(map)) return { ok: false, err: '없는 맵입니다' };
   const me = normName(config.myName || '');
   const r = await fbCas(`${RP()}/session`, s => {
-    if (!s || s.phase !== 'draft') return { err: '드래프트 중이 아니에요' };
-    if (s.lolGame === 'sr') return { err: '협곡 내전은 다리를 고르지 않아요' };
+    if (!s || s.phase !== 'draft') return { err: '드래프트 중이 아닙니다' };
+    if (s.lolGame === 'sr') return { err: '협곡 내전은 다리를 고르지 않습니다' };
     const by = (s.captains || {})[s.mapBy];
-    if (!config.isHost && normName(by || '') !== me) return { err: '맵은 선픽이 아닌 팀장이 골라요' };
+    if (!config.isHost && normName(by || '') !== me) return { err: '맵은 선픽이 아닌 팀장이 고릅니다' };
     return { value: Object.assign({}, s, { lolMap: map, lolMapBy: normName(by || '') !== me ? config.myName || null : by }) };
   });
   return r.ok ? { ok: true } : r;
@@ -561,14 +561,14 @@ function normalInvitees(partyIds) {
   return { invite: others.slice(0, slots), left: others.slice(slots).map(m => m.name) };
 }
 ipcMain.handle('lol-party', async (_e, o) => {
-  if (!bridge || !bridge.lcuRaw) return { ok: false, err: '롤 클라이언트가 켜져 있어야 해요' };
-  if (!config.isHost || !room) return { ok: false, err: '방장만 만들 수 있어요' };
-  if (inGame) return { ok: false, err: '게임 중에는 못 만들어요' };
+  if (!bridge || !bridge.lcuRaw) return { ok: false, err: '롤 클라이언트가 켜져 있어야 합니다' };
+  if (!config.isHost || !room) return { ok: false, err: '방장만 만들 수 있습니다' };
+  if (inGame) return { ok: false, err: '게임 중에는 못 만듭니다' };
   const q = LOL_NQ.includes(o && o.q) ? o.q : LOL_NQ.includes(config.lolNormalQ) ? config.lolNormalQ : 2400;
   if (config.lolNormalQ !== q) { config.lolNormalQ = q; saveConfig(); }
   const ph = await bridge.lcuRaw('GET', '/lol-gameflow/v1/gameflow-phase').catch(() => null), phase = ph && ph.data;
-  if (!lolOk(ph)) return { ok: false, err: '롤 클라이언트에 연결되지 않았어요' };
-  if (phase !== 'None' && phase !== 'Lobby') return { ok: false, err: phase === 'Matchmaking' ? '큐를 잡는 중이에요 — 먼저 취소해 주세요' : `지금은 못 만들어요(롤: ${phase})` };
+  if (!lolOk(ph)) return { ok: false, err: '롤 클라이언트에 연결되지 않았습니다' };
+  if (phase !== 'None' && phase !== 'Lobby') return { ok: false, err: phase === 'Matchmaking' ? '큐를 잡는 중입니다 — 먼저 취소해 주세요' : `지금은 못 만듭니다(롤: ${phase})` };
   let lb = null;
   if (phase === 'Lobby') { const r = await bridge.lcuRaw('GET', '/lol-lobby/v2/lobby').catch(() => null); lb = lolOk(r) ? r.data : null; }
   const gc = lb && lb.gameConfig, leader = !!(lb && lb.localMember && lb.localMember.isLeader);
@@ -577,7 +577,7 @@ ipcMain.handle('lol-party', async (_e, o) => {
   if (!lb || !gc || gc.isCustom || gc.queueId !== q || !leader) {
     if (lb && !leader) await bridge.lcuRaw('DELETE', '/lol-lobby/v2/lobby').catch(() => null);
     const r = await bridge.lcuRaw('POST', '/lol-lobby/v2/lobby', { queueId: q }).catch(() => null);
-    if (!lolOk(r)) { console.log('[lol] 일반 파티 만들기 실패', q, r && r.status, r && JSON.stringify(r.data).slice(0, 200)); return { ok: false, err: `${LOL_NQ_KO[q]} 파티를 만들지 못했어요` + (r && r.data && r.data.message ? ` (${r.data.message})` : '') }; }
+    if (!lolOk(r)) { console.log('[lol] 일반 파티 만들기 실패', q, r && r.status, r && JSON.stringify(r.data).slice(0, 200)); return { ok: false, err: `${LOL_NQ_KO[q]} 파티를 만들지 못했습니다` + (r && r.data && r.data.message ? ` (${r.data.message})` : '') }; }
     made = true; lb = r.data && r.data.members ? r.data : lb && !gc.isCustom && leader ? lb : null;
   }
   const ids = ((lb && lb.members) || []).map(m => m && m.puuid).filter(Boolean);
@@ -589,20 +589,20 @@ ipcMain.handle('lol-party', async (_e, o) => {
   return { ok: true, made, invited, total: invite.length, left, q };
 });
 ipcMain.handle('lol-queue', async (_e, o) => {   // 큐 시작(on) / 취소
-  if (!bridge || !bridge.lcuRaw || !config.isHost || !room || inGame) return { ok: false, err: '방장만 할 수 있어요' };
+  if (!bridge || !bridge.lcuRaw || !config.isHost || !room || inGame) return { ok: false, err: '방장만 할 수 있습니다' };
   const r = await bridge.lcuRaw(o && o.on ? 'POST' : 'DELETE', '/lol-lobby/v2/lobby/matchmaking/search').catch(() => null);
   if (lolOk(r)) { console.log('[lol] 큐', o && o.on ? '시작' : '취소'); return { ok: true }; }
   console.log('[lol] 큐', o && o.on ? '시작' : '취소', '실패', r && r.status, r && JSON.stringify(r.data).slice(0, 200));
   const m = r && r.data && (r.data.message || r.data.errorCode) || '';
   const srQ = LOL_NQ_SR.includes(lobbyParty && lobbyParty.q);
-  return { ok: false, err: (o && o.on ? '큐를 시작하지 못했어요' : '큐를 취소하지 못했어요') + (m ? ` (${m})` : '') + (o && o.on ? (srQ ? ' — 자유 랭크는 모두 롤에서 포지션을 골라야 하고 1·2·3·5명 파티만 돼요 · 파티장인지도 확인해 주세요' : ' — 롤에서 파티장인지·모두 준비됐는지 확인해 주세요') : '') };
+  return { ok: false, err: (o && o.on ? '큐를 시작하지 못했습니다' : '큐를 취소하지 못했습니다') + (m ? ` (${m})` : '') + (o && o.on ? (srQ ? ' — 자유 랭크는 모두 롤에서 포지션을 골라야 하고 1·2·3·5명 파티만 됩니다 · 파티장인지도 확인해 주세요' : ' — 롤에서 파티장인지·모두 준비됐는지 확인해 주세요') : '') };
 });
 ipcMain.on('lol-normal-q', (_e, q) => { if (LOL_NQ.includes(q) && config.lolNormalQ !== q) { config.lolNormalQ = q; saveConfig(); broadcast('lobby', lobbyView()); } });
 ipcMain.handle('lol-accept', async () => {
   if (!_lolInv || !bridge || !bridge.lcuRaw) return { ok: false };
   const r = await bridge.lcuRaw('POST', `/lol-lobby/v2/received-invitations/${encodeURIComponent(_lolInv.id)}/accept`).catch(() => null);
   if (lolOk(r)) { _lolInv = null; broadcast('lobby', lobbyView()); return { ok: true }; }
-  return { ok: false, err: '수락하지 못했어요 — 롤 클라이언트에서 직접 수락해 주세요' };
+  return { ok: false, err: '수락하지 못했습니다 — 롤 클라이언트에서 직접 수락해 주세요' };
 });
 // 🪑 자동 자리 이동(2026-11-01 사장님: 팀이 정해지면 1팀/2팀으로 옮겨 줄 수 있나) — 롤 클라 「팀 참가/관전」 버튼과 같은 요청
 //   POST /lol-lobby/v2/lobby/team/TEAM1|TEAM2|SPECTATOR(rcp-fe-lol-parties teamToStringQueue · 1팀=customTeam100=왼쪽) · 각자 앱이 「내 자리만」 옮김
@@ -1423,7 +1423,7 @@ async function seatGate() {
     seatFull = null; startLive(); broadcastRooms();
   } finally { _gateBusy = false; }
 }
-const notLiveErr = () => { seatGate(); return seatFull ? '지금은 자리가 꽉 찼어요' : '서버에 연결하는 중이에요 · 잠시 뒤 다시 눌러 주세요'; };
+const notLiveErr = () => { seatGate(); return seatFull ? '지금은 자리가 꽉 찼습니다' : '서버에 연결하는 중입니다 · 잠시 뒤 다시 눌러 주세요'; };
 function roomMembers(id) {
   const now = Date.now();
   return Object.entries(presenceRaw || {}).filter(([, p]) => p && p.room === id && p.name && now - (p.at || 0) < ONLINE_MS).map(([key, p]) => ({ key, name: normName(p.name), icon: p.icon || null }));
@@ -1475,20 +1475,20 @@ async function roomUidPut(id) {
   const uid = uidFor(`${CT}/rooms`); if (!uid) return { ok: true };
   const k = id + '|' + account.puuid + '|' + uid; if (_roomUidKey === k) return { ok: true };
   const w = await fbSet(`${CT}/rooms/${id}/uids/${uid}`, account.puuid).catch(() => null);
-  if (!w || !w.ok) { console.log('[room] 방 기기 칸 못 씀', w && w.status); return { ok: false, err: '롤 계정 확인이 안 돼서 방에 못 들어갔어요 · 잠시 뒤 다시 해 주세요' }; }
+  if (!w || !w.ok) { console.log('[room] 방 기기 칸 못 씀', w && w.status); return { ok: false, err: '롤 계정 확인이 안 돼서 방에 못 들어갔습니다 · 잠시 뒤 다시 해 주세요' }; }
   _roomUidKey = k; return { ok: true };
 }
 async function roomJoin(id, pw, hash) {
-  if (!account) return { ok: false, err: '롤에 로그인하면 방에 들어갈 수 있어요' };
-  if (banOn()) return { ok: false, err: '이용이 정지된 계정이에요' };   // 🚫 v0.1.244
+  if (!account) return { ok: false, err: '롤에 로그인하면 방에 들어갈 수 있습니다' };
+  if (banOn()) return { ok: false, err: '이용이 정지된 계정입니다' };   // 🚫 v0.1.244
   if (!pubOk()) return { ok: false, err: PUB_ERR, needPub: true };   // 🔒 v0.1.253
   if (!_live) return { ok: false, err: notLiveErr() };
   const r = (roomListRaw || {})[id] || await getJson(`${FIREBASE_DB}/${CT}/roomList/${id}.json`);
-  if (!r || !r.name) return { ok: false, err: '없어진 방이에요' };
+  if (!r || !r.name) return { ok: false, err: '없어진 방입니다' };
   let h = null;
   if (r.priv) {
     h = hash || (pw ? pwHash(id, String(pw).trim()) : null);
-    if (h !== r.pw) return { ok: false, needPw: true, err: pw || hash ? '비밀번호가 틀렸어요' : '비밀번호를 넣어주세요' };
+    if (h !== r.pw) return { ok: false, needPw: true, err: pw || hash ? '비밀번호가 틀렸습니다' : '비밀번호를 넣어주세요' };
   }
   if (room && room.id === id) return { ok: true };
   if (room) await roomLeave(true);
@@ -1505,10 +1505,10 @@ async function roomJoin(id, pw, hash) {
 //   내보내진 사람 앱(v0.1.217+)이 방 스트림에서 내 칸이 새로 생긴 걸 보고 스스로 방을 나감 + 안내 · 다시 들어오는 건 자유(들어올 때 그 칸을 지움)
 //   방장이 롤 내전 방에 있고 그 사람이 롤 방에도 있으면 롤 방에서도 내보냄 · ⚠️ v0.1.216 이하 앱은 표시를 못 읽어 안 나가짐(자동 업데이트)
 async function lobbyKick(key) {
-  if (!config.isHost || !room || !account) return { ok: false, err: '방장만 내보낼 수 있어요' };
-  if (!/^[0-9a-f-]{30,}$/i.test(String(key || '')) || key === account.puuid) return { ok: false, err: '내보낼 수 없는 사람이에요' };
+  if (!config.isHost || !room || !account) return { ok: false, err: '방장만 내보낼 수 있습니다' };
+  if (!/^[0-9a-f-]{30,}$/i.test(String(key || '')) || key === account.puuid) return { ok: false, err: '내보낼 수 없는 사람입니다' };
   const w = await fbSet(`${RP()}/lobby/kick/${key}`, { at: Date.now(), by: account.gameName || '방장' });
-  if (!w.ok) return { ok: false, err: '내보내지 못했어요' };
+  if (!w.ok) return { ok: false, err: '내보내지 못했습니다' };
   fbSet(`${RP()}/lobby/join/${key}`, null).catch(() => {});
   let lol = false;
   if (bridge && bridge.lcuRaw && !inGame && lobbyPhase === 'Lobby' && lobbyCustom === true) {
@@ -1533,8 +1533,8 @@ function kickDiff(prev, cur) {
   roomLeave(false).then(() => broadcast('kicked', { room: nm, by, admin: !!b.admin })).catch(() => {});
 }
 async function roomCreate(name, priv, pw) {
-  if (!account) return { ok: false, err: '롤에 로그인하면 방을 만들 수 있어요' };
-  if (banOn()) return { ok: false, err: '이용이 정지된 계정이에요' };   // 🚫 v0.1.244
+  if (!account) return { ok: false, err: '롤에 로그인하면 방을 만들 수 있습니다' };
+  if (banOn()) return { ok: false, err: '이용이 정지된 계정입니다' };   // 🚫 v0.1.244
   if (!pubOk()) return { ok: false, err: PUB_ERR, needPub: true };   // 🔒 v0.1.253
   if (!_live) return { ok: false, err: notLiveErr() };
   const nm = normName(String(name || '')).slice(0, 20) || `${account.gameName}의 방`, p = String(pw || '').trim();
@@ -1795,7 +1795,7 @@ function onBridgeEog(e) {
   if (e.stage === 'history') recSet({ stage: 'get', src: '전적', tries: e.tries || 0, max: e.max || 36, problem: null, gameId: e.gameId });
   else if (e.stage === 'captured') recAdvance('save', { src: e.src, gameId: e.gameId, problem: null });
   else if (e.stage === 'saved') recAdvance('rec', { src: e.src, gameId: e.gameId, problem: null });
-  else if (e.stage === 'retry') recSet({ problem: '저장이 늦어지고 있어요 · 다시 시도 중' });
+  else if (e.stage === 'retry') recSet({ problem: '저장이 늦어지고 있습니다 · 다시 시도 중' });
   else if (e.stage === 'missed') recSet({ problem: 'missed' });
   else if (e.stage === 'closed') recSet({ problem: 'closed' });
 }
@@ -1847,17 +1847,17 @@ function onHostRec(h) {
   if (hostRec && !mine) _lastHost = { puuid: hostRec.puuid, name: hostRec.name || '' };
   if (mine && !config.isHost && hostAlive(hostRec)) {
     if (hostRec.from) hostNotice({ why: 'hand', from: hostRec.from, fromKey: hostRec.fromKey || null });
-    return setHostLocal(true, hostRec.from ? `${hostRec.from}님이 방장을 넘겨줬어요` : null);
+    return setHostLocal(true, hostRec.from ? `${hostRec.from}님이 방장을 넘겨줬습니다` : null);
   }
-  if (!mine && config.isHost) return setHostLocal(false, hostRec ? `${hostRec.name}님이 방장이 됐어요` : null);
+  if (!mine && config.isHost) return setHostLocal(false, hostRec ? `${hostRec.name}님이 방장이 됐습니다` : null);
   if (JSON.stringify(prev) !== JSON.stringify(hostRec) || !hostAlive(hostRec)) broadcast('host', hostView());
 }
 async function claimHost() {
-  if (!account) return { ok: false, err: '롤에 로그인해야 방장을 할 수 있어요' };
-  if (!room) return { ok: false, err: '먼저 방에 들어가거나 방을 만들어요' };
+  if (!account) return { ok: false, err: '롤에 로그인해야 방장을 할 수 있습니다' };
+  if (!room) return { ok: false, err: '먼저 방에 들어가거나 방을 만듭니다' };
   const me = account;
   const r = await fbCas(`${RP()}/host`, cur => {
-    if (cur && cur.puuid && cur.puuid !== me.puuid && hostAlive(cur)) return { err: `${cur.name}님이 이미 방장이에요` };
+    if (cur && cur.puuid && cur.puuid !== me.puuid && hostAlive(cur)) return { err: `${cur.name}님이 이미 방장입니다` };
     return { value: { puuid: me.puuid, name: me.gameName, at: Date.now() } };
   });
   if (!r.ok) return r;
@@ -1870,14 +1870,14 @@ async function releaseHost() {
   return { ok: true };
 }
 async function handHost(puuid) {
-  if (!config.isHost || !account) return { ok: false, err: '방장만 넘겨줄 수 있어요' };
+  if (!config.isHost || !account) return { ok: false, err: '방장만 넘겨줄 수 있습니다' };
   const p = ((await fetchPresence()) || {})[puuid];
-  if (!p || !p.name || Date.now() - (p.at || 0) >= ONLINE_MS || !room || p.room !== room.id) return { ok: false, err: '지금 이 방에 있는 사람에게만 넘길 수 있어요' };
+  if (!p || !p.name || Date.now() - (p.at || 0) >= ONLINE_MS || !room || p.room !== room.id) return { ok: false, err: '지금 이 방에 있는 사람에게만 넘길 수 있습니다' };
   const me = account;
   const r = await fbCas(`${RP()}/host`, cur => cur && cur.puuid === me.puuid
-    ? { value: { puuid, name: normName(p.name), at: Date.now(), from: me.gameName, fromKey: me.puuid } } : { err: '방장이 아니에요' });
+    ? { value: { puuid, name: normName(p.name), at: Date.now(), from: me.gameName, fromKey: me.puuid } } : { err: '방장이 아닙니다' });
   if (!r.ok) return r;
-  hostRec = r.value; setHostLocal(false, `${normName(p.name)}님에게 방장을 넘겼어요`);
+  hostRec = r.value; setHostLocal(false, `${normName(p.name)}님에게 방장을 넘겼습니다`);
   fbUpdate(`${CT}/roomList/${room.id}`, { host: normName(p.name) }).catch(() => {});   // 🚪 방 목록 방장 이름 바로
   return { ok: true };
 }
@@ -1912,12 +1912,12 @@ const REPORT_WHY = ['욕설·비하', '도배', '게임 방해', '사칭', '기�
 let _reportAt = 0; const _reportedAt = new Map();
 ipcMain.handle('report-send', async (_e, o) => {
   const key = String(o && o.key || ''), memo = String(o && o.memo || '').replace(/\s+/g, ' ').trim().slice(0, 200);
-  if (!account || !room) return { ok: false, err: '방 안에서만 신고할 수 있어요' };
-  if (banOn()) return { ok: false, err: '이용이 정지된 계정이에요' };
-  if (!/^[0-9a-f-]{30,}$/i.test(key) || key === account.puuid) return { ok: false, err: '신고할 수 없는 사람이에요' };
+  if (!account || !room) return { ok: false, err: '방 안에서만 신고할 수 있습니다' };
+  if (banOn()) return { ok: false, err: '이용이 정지된 계정입니다' };
+  if (!/^[0-9a-f-]{30,}$/i.test(key) || key === account.puuid) return { ok: false, err: '신고할 수 없는 사람입니다' };
   const now = Date.now();
   if (now - _reportAt < 30000) return { ok: false, err: '조금 뒤에 다시 신고해 주세요' };
-  if (now - (_reportedAt.get(key) || 0) < 600000) return { ok: false, err: '이 사람은 방금 신고했어요 · 운영자가 확인합니다' };
+  if (now - (_reportedAt.get(key) || 0) < 600000) return { ok: false, err: '이 사람은 방금 신고했습니다 · 운영자가 확인합니다' };
   const mm = roomMembers(room.id).find(x => x.key === key), lines = {};
   _chatHist.filter(h => h.k === key && h.room === room.id).slice(-5).forEach((h, i) => { lines[i] = { text: h.text, at: h.at }; });
   const why = REPORT_WHY.includes(o && o.why) ? o.why : Object.values(lines).some(l => /●/.test(l.text)) ? '욕설·비하' : '기타';   // 가려진 말이 있으면 욕설
@@ -1925,7 +1925,7 @@ ipcMain.handle('report-send', async (_e, o) => {
   if (Object.keys(lines).length) rep.lines = lines;
   const tok = await tokFor(`${CT}/reports`).catch(() => null);
   const r = await new Promise(res => { const req = https.request(withAuth(`${baseFor(`${CT}/reports`)}/${CT}/reports.json`, tok), { method: 'POST', headers: { 'Content-Type': 'application/json' } }, x => { x.resume(); x.on('end', () => res(x.statusCode)); }); req.on('error', () => res(0)); req.end(JSON.stringify(rep)); });
-  if (r !== 200) return { ok: false, err: '신고를 보내지 못했어요 · 잠시 뒤 다시 해 주세요' };
+  if (r !== 200) return { ok: false, err: '신고를 보내지 못했습니다 · 잠시 뒤 다시 해 주세요' };
   _reportAt = now; _reportedAt.set(key, now);
   console.log('[report] 신고 보냄', why);
   return { ok: true };
@@ -1934,7 +1934,7 @@ ipcMain.handle('chat-send', async (_e, text) => {
   const raw = String(text || '').replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX), t = chatFilter.clean(raw);
   if (!t) return { ok: false };
   if (!account || !room) return { ok: false, err: '방에 들어가야 말할 수 있습니다' };
-  if (muteOn()) return { ok: false, err: `채팅 금지 중이에요 · ${untilTxt(_mute.until)}` };   // 💬 v0.1.245
+  if (muteOn()) return { ok: false, err: `채팅 금지 중입니다 · ${untilTxt(_mute.until)}` };   // 💬 v0.1.245
   const now = Date.now();
   if (now - _chatAt < 800) return { ok: false, err: '조금 천천히 보내 주세요', slow: true };   // slow = 이모티콘을 연달아 누른 건 화면이 조용히 넘김
   _chatAt = now;
@@ -1957,12 +1957,12 @@ function pingAnchor(a) {
   return o;
 }
 function pingRate(k) {   // 도배 제한 — 막히면 안내 글 · 통과하면 null(기록에 남김) · 대기실 핑·롤 클라 핑 같이 셈
-  if (muteOn()) return '채팅 금지 중이라 핑을 찍을 수 없어요';   // 💬 v0.1.245
+  if (muteOn()) return '채팅 금지 중이라 핑을 찍을 수 없습니다';   // 💬 v0.1.245
   const now = Date.now();
-  if (now < _pingLock) return `핑을 너무 많이 찍었어요 · ${Math.ceil((_pingLock - now) / 1000)}초 뒤에 다시 찍을 수 있어요`;
+  if (now < _pingLock) return `핑을 너무 많이 찍었습니다 · ${Math.ceil((_pingLock - now) / 1000)}초 뒤에 다시 찍을 수 있습니다`;
   _pingLog = _pingLog.filter(p => now - p.at < 6000);
-  if (_pingLog.filter(p => p.k === k).length >= 3) return '같은 핑은 6초에 3번까지 찍을 수 있어요';
-  if (_pingLog.filter(p => now - p.at < 5000).length >= 6) { _pingLock = now + 10000; return '핑을 너무 많이 찍었어요 · 10초 뒤에 다시 찍을 수 있어요'; }
+  if (_pingLog.filter(p => p.k === k).length >= 3) return '같은 핑은 6초에 3번까지 찍을 수 있습니다';
+  if (_pingLog.filter(p => now - p.at < 5000).length >= 6) { _pingLock = now + 10000; return '핑을 너무 많이 찍었습니다 · 10초 뒤에 다시 찍을 수 있습니다'; }
   _pingLog.push({ k, at: now });
   return null;
 }
@@ -2114,11 +2114,11 @@ function pingDiff(a, b) {
 ipcMain.handle('ping-send', async (_e, o) => {
   const k = o && PING_K.includes(o.k) ? o.k : null, a = pingAnchor(o && o.a);
   if (!k || !a) return { ok: false };
-  if (!account || !room) return { ok: false, err: '방에 들어가야 핑을 찍을 수 있어요' };
+  if (!account || !room) return { ok: false, err: '방에 들어가야 핑을 찍을 수 있습니다' };
   const now = Date.now(), rerr = pingRate(k);
   if (rerr) return { ok: false, err: rerr };
   const w = await fbSet(`${RP()}/lobby/ping/${account.puuid}`, { k, a, at: now });
-  return w && w.ok ? { ok: true, key: account.puuid, k, a, at: now } : { ok: false, err: '핑을 보내지 못했어요' };
+  return w && w.ok ? { ok: true, key: account.puuid, k, a, at: now } : { ok: false, err: '핑을 보내지 못했습니다' };
 });
 let lobbyRaw = null, presenceRaw = null;
 function lobbyView() {
@@ -2168,13 +2168,13 @@ function lobbyJoin(key, st, extra) {
 const refreshLobby = coalesce(async () => { const L = await fetchLobby(); if (L !== undefined) { lobbyRaw = L || null; broadcast('lobby', lobbyView()); } });
 const refreshPresence = coalesce(async () => { const P = await fetchPresence(); if (P !== undefined) { presenceRaw = P || null; broadcast('lobby', lobbyView()); } });
 async function lobbySetMine(st) {
-  if (!account) return { ok: false, err: '롤에 로그인하면 참가할 수 있어요' };
+  if (!account) return { ok: false, err: '롤에 로그인하면 참가할 수 있습니다' };
   return lobbyJoin(account.puuid, st, { name: account.gameName });
 }
 async function lobbySetFor(key, st) {   // 👑 방장: 다른 사람 상태 바꾸기
-  if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
+  if (!config.isHost) return { ok: false, err: '방장만 할 수 있습니다' };
   const m = lobbyView().members.find(x => x.key === key);
-  if (!m) return { ok: false, err: '목록에 없는 사람이에요' };
+  if (!m) return { ok: false, err: '목록에 없는 사람입니다' };
   return lobbyJoin(key, st, m.guest ? { name: m.name, guest: true } : { name: m.name });
 }
 async function lobbyRemoveGuest(key) {
@@ -2182,7 +2182,7 @@ async function lobbyRemoveGuest(key) {
   return lobbyJoin(key, null);
 }
 async function lobbySetMode(mode, auto) {
-  if (!config.isHost) return { ok: false, err: '방장만 방식을 정할 수 있어요' };
+  if (!config.isHost) return { ok: false, err: '방장만 방식을 정할 수 있습니다' };
   if (mode === 'inhouse') mode = config.lastTeamMode || 'random';   // v0.1.134: 「내전」 = 마지막에 고른 팀 짜기 방식
   const m = ['draft', 'manual', 'normal', 'balance'].includes(mode) ? mode : 'random';   // normal = 🎮 일반판 진행(v0.1.60 · 팀짜기 없음)
   if (!auto && m !== 'normal' && config.lastTeamMode !== m) { config.lastTeamMode = m; saveConfig(); }   // 일반판에서 내전으로 돌아올 때 쓸 방식
@@ -2190,7 +2190,7 @@ async function lobbySetMode(mode, auto) {
   return lobbyWrite(fbUpdate(`${RP()}/lobby`, { mode: m }));
 }
 async function lobbySetGame(game, pick, auto) {   // 🗺️ v0.1.232 내전 게임 = 아수라장 | 협곡(+ 픽 방식)
-  if (!config.isHost) return { ok: false, err: '방장만 게임을 정할 수 있어요' };
+  if (!config.isHost) return { ok: false, err: '방장만 게임을 정할 수 있습니다' };
   const g = game === 'sr' ? 'sr' : null, p = g ? srPickOf(pick != null ? pick : lobbyRaw && lobbyRaw.srPick) : null;
   if ((lobbyRaw && lobbyRaw.game || null) === g && (!g || srPickOf(lobbyRaw && lobbyRaw.srPick) === p)) return { ok: true };
   if (!auto) console.log('[lobby] 내전 게임', g ? '협곡 · ' + SR_PICKS[p] : '아수라장');
@@ -2198,7 +2198,7 @@ async function lobbySetGame(game, pick, auto) {   // 🗺️ v0.1.232 내전 게
   return lobbyWrite(fbUpdate(`${RP()}/lobby`, { game: g, srPick: p }));
 }
 async function lobbyCaptain(name, rand) {   // 🎯 팀장 지정/해제(누르면 빈 자리에, 다시 누르면 해제) · rand=무작위 2명
-  if (!config.isHost) return { ok: false, err: '방장만 팀장을 정할 수 있어요' };
+  if (!config.isHost) return { ok: false, err: '방장만 팀장을 정할 수 있습니다' };
   const v = lobbyView(), inNames = v.members.filter(m => m.st === 'in').map(m => m.name);
   let { teamA, teamB } = v.captains;
   if (rand) { const sh = inNames.slice().sort(() => Math.random() - 0.5); teamA = sh[0] || null; teamB = sh[1] || null; }
@@ -2214,40 +2214,40 @@ async function lobbyCaptain(name, rand) {   // 🎯 팀장 지정/해제(누르�
 }
 // 🧩 직접 팀 짜기(v0.1.47) — 방장이 한 명씩 1팀/2팀/빼기(team=null) · 한 팀 5명까지
 async function lobbySide(name, team) {
-  if (!config.isHost) return { ok: false, err: '방장만 팀을 정할 수 있어요' };
+  if (!config.isHost) return { ok: false, err: '방장만 팀을 정할 수 있습니다' };
   const n = normName(name || ''), v = lobbyView();
   if (!v.members.some(m => m.st === 'in' && m.name === n)) return { ok: false, err: '참가자 중에서 골라주세요' };
   const t = team === 'teamA' || team === 'teamB' ? team : null;
-  if (t && v.sides[n] !== t && Object.values(v.sides).filter(x => x === t).length >= 5) return { ok: false, err: `${t === 'teamA' ? '1' : '2'}팀은 5명까지예요` };
+  if (t && v.sides[n] !== t && Object.values(v.sides).filter(x => x === t).length >= 5) return { ok: false, err: `${t === 'teamA' ? '1' : '2'}팀은 5명까지입니다` };
   const k = fbKeyOf(n);
   lobbyLocal(L => { L.sides = L.sides || {}; if (t) L.sides[k] = t; else delete L.sides[k]; });
   return lobbyWrite(fbSet(`${RP()}/lobby/sides/${k}`, t));
 }
 async function lobbySidesPrev() {   // 지난 판 팀 그대로(지금 판 → 없으면 오늘 마지막 경기 기록)
-  if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
+  if (!config.isHost) return { ok: false, err: '방장만 할 수 있습니다' };
   let A = sessionData && sessionData.teamA, B = sessionData && sessionData.teamB;
   if (!(A && A.length && B && B.length)) {
     const ms = await fetchDay(dayKey());
     const last = Object.values(ms || {}).filter(m => m && m.teamA && m.teamB && sameGroup(m)).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
     if (last) { A = last.teamA; B = last.teamB; }
   }
-  if (!(A && A.length && B && B.length)) return { ok: false, err: '오늘 지난 판 팀이 없어요' };
+  if (!(A && A.length && B && B.length)) return { ok: false, err: '오늘 지난 판 팀이 없습니다' };
   const sides = {}; for (const n of A) sides[fbKeyOf(n)] = 'teamA'; for (const n of B) sides[fbKeyOf(n)] = 'teamB';
   lobbyLocal(L => { L.sides = sides; L.mode = 'manual'; });
   return lobbyWrite(fbUpdate(`${RP()}/lobby`, { sides, mode: 'manual' }));
 }
 async function lobbySidesClear() {
-  if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
+  if (!config.isHost) return { ok: false, err: '방장만 할 수 있습니다' };
   lobbyLocal(L => { L.sides = null; });
   return lobbyWrite(fbSet(`${RP()}/lobby/sides`, null));
 }
 async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(대기실에서 정한 방식)
-  if (!config.isHost) return { ok: false, err: '방장만 시작할 수 있어요' };
+  if (!config.isHost) return { ok: false, err: '방장만 시작할 수 있습니다' };
   const [L, P] = await Promise.all([fetchLobby(), fetchPresence()]);
   lobbyRaw = L || null; presenceRaw = P || null;
   const v = lobbyView(), names = v.members.filter(m => m.st === 'in').map(m => m.name);
-  if (names.length < 2) return { ok: false, err: `참가자가 2명 이상이어야 해요 (지금 ${names.length}명)` };
-  if (v.mode === 'normal') return { ok: false, err: '일반판은 시작 버튼 없이 같은 팀으로 큐를 잡으면 돼요' };
+  if (names.length < 2) return { ok: false, err: `참가자가 2명 이상이어야 합니다 (지금 ${names.length}명)` };
+  if (v.mode === 'normal') return { ok: false, err: '일반판은 시작 버튼 없이 같은 팀으로 큐를 잡으면 됩니다' };
   // 🪑 v0.1.264 자리 10칸(방식마다 자리만 제한 · 사장님) = 앉은 순서대로 10명 · 11번째부터는 이번 판 관전(대기실 「대기」 줄과 같은 사람)
   const seatOf = (list, keep) => { if (list.length <= SEATS) return [list, []]; const s = list.slice(0, SEATS), x = list.slice(SEATS); for (const k of keep || []) { const i = x.indexOf(k); if (i < 0) continue; const j = s.map(n => (keep || []).includes(n)).lastIndexOf(false); if (j < 0) break; x.splice(i, 1, s[j]); s[j] = k; } return [s, x]; };
   if (v.mode === 'draft') {
@@ -2257,7 +2257,7 @@ async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(�
   }
   if (v.mode === 'manual') {
     const A = names.filter(n => v.sides[n] === 'teamA'), B = names.filter(n => v.sides[n] === 'teamB'), none = names.length - A.length - B.length;
-    if (none) return { ok: false, err: `아직 팀을 안 정한 사람이 ${none}명 있어요` };
+    if (none) return { ok: false, err: `아직 팀을 안 정한 사람이 ${none}명 있습니다` };
     if (!A.length || !B.length) return { ok: false, err: '두 팀에 한 명 이상씩 넣어주세요' };
     return writeTeams(A, B, [], 'manual');
   }
@@ -2265,7 +2265,7 @@ async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(�
   return startTeamBuild(seated, v.mode === 'balance' ? 'balance' : 'random', extra);
 }
 async function lobbyReopen() {   // 👑 지금 판을 접고 대기실로(팀은 남겨둬서 「같은 팀으로 한 판 더」 가능)
-  if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
+  if (!config.isHost) return { ok: false, err: '방장만 할 수 있습니다' };
   if (!sessionData) return { ok: true };
   const r = await fbUpdate(`${RP()}/session`, { phase: 'lobby', pendingEog: null });
   pollSession();
@@ -2336,7 +2336,7 @@ async function pollSession() {
     // 🚫 v0.1.190 건너뜀 = 기다림 화면을 안 보고 있는 사람(✕로 닫음 등)에게도 위쪽 알림 6초(사장님: 팀원도 건너뛴 걸 알게) · 녹화한 본인은 안 띄움
     if (mine && W.skipped && !_recLocal && _skipToastFor !== W.gameId && !(_potgMode === 'wait' && potgWin && !potgWin.isDestroyed() && potgWin.isVisible() && _waitClosed !== W.gameId)) {
       _skipToastFor = W.gameId; _skipToastAt = Date.now(); _skipToastUntil = Date.now() + 6000;
-      _recToastMsg = { title: '🚫 팟지 건너뜀', sub: `${W.skipped}님이 이번 판 팟지를 건너뛰었어요`, pct: null };
+      _recToastMsg = { title: '🚫 팟지 건너뜀', sub: `${W.skipped}님이 이번 판 팟지를 건너뛰었습니다`, pct: null };
       showRecToast();
       setTimeout(() => { if (!_recLocal && Date.now() >= _skipToastUntil) hideRecToast(); }, 6100);
     }
@@ -2750,8 +2750,8 @@ function onRecLog(m) {   // replayrec 로그 → 안내 글
   else if (m.includes('리플레이 준비됨')) recStage('리플레이 여는 중… (소리가 잠깐 나요)');
   else if (m.includes('되감기')) recStage(`${sc()} 준비 중…`);
   else if (m.includes('연출 카메라: 주인공 위치')) recStage(`${sc()} 녹화 준비 중…`);
-  else if (m.includes('녹화 중') && !_recToastMsg.sub.startsWith(`${sc()} 녹화 중`)) recStage(`${sc()} 녹화 중 · 들리는 소리는 리플레이예요`);
-  else if (m.includes('리플레이 닫음')) recStage('영상 정리하고 올리는 중… (곧 끝나요)');
+  else if (m.includes('녹화 중') && !_recToastMsg.sub.startsWith(`${sc()} 녹화 중`)) recStage(`${sc()} 녹화 중 · 들리는 소리는 리플레이입니다`);
+  else if (m.includes('리플레이 닫음')) recStage('영상 정리하고 올리는 중… (곧 끝납니다)');
 }
 // 🎥 팟지 카메라 시야(v0.1.80) — 리플레이 기본 50 + 위에서 비스듬히(56°) 내려다봐 주인공이 화면 아래쪽에 놓이고, 1.15배로 잘라내 아래가 잘렸음
 //   (사장님: 본인이 잘 안 보일 때 · 먼 사거리) → 잘라내기 없앰 + 시야 60 · 사거리 500+(Data Dragon stats.attackrange)나 원거리로 바뀌는 챔피언은 68
@@ -2788,7 +2788,7 @@ function slowKeys(spAt, bounds) {   // 속도 함수 + 바뀌는 지점들 → [
 const spdAt = (K, g) => { if (!K || !K.length) return 1; if (g <= K[0][0]) return K[0][1]; for (let i = 1; i < K.length; i++) if (g <= K[i][0]) { const [a, va] = K[i - 1], [b, vb] = K[i]; return va + (vb - va) * ((g - a) / Math.max(1e-6, b - a)); } return K[K.length - 1][1]; };   // potg/potg.js와 같음
 const slowExtra = (K, a, b) => { if (!K) return 0; let w = 0; for (let x = a; x < b; x += 0.01) w += Math.min(0.01, b - x) * (1 / Math.max(0.05, spdAt(K, x)) - 1); return w; };   // 게임 a→b초를 찍는 데 더 걸린 실제 시간(= 영상이 늘어난 만큼)
 // 🚫 v0.1.118: 팟지 건너뛰기(사장님: 쓸만한 장면 없는 노잼판 — 「팟지 준비 중」일 때 녹화하는 PC가 취소) — 기다림 화면 버튼(녹화하는 사람에게만) → 'potg-cancel'
-//   → replayRec.cancel()(녹화 멈춤·리플레이 닫기·소리 켜기) · 영상 안 올림 · potgWait.skipped(다른 사람 화면에 「○○님이 건너뛰었어요」) → 5초 뒤 지움 · 기록 potg = {none, skipped, by}
+//   → replayRec.cancel()(녹화 멈춤·리플레이 닫기·소리 켜기) · 영상 안 올림 · potgWait.skipped(다른 사람 화면에 「○○님이 건너뛰었습니다」) → 5초 뒤 지움 · 기록 potg = {none, skipped, by}
 let _potgSkip = false;
 ipcMain.on('potg-cancel', () => {
   if (!_recLocal || !replayRec || _potgSkip) return;
@@ -2796,13 +2796,13 @@ ipcMain.on('potg-cancel', () => {
   recProgStop();   // v0.1.240 진행 알림이 0.5초마다 위쪽 알림 창을 다시 띄우지 않게
   _recLog.push(`${new Date().toTimeString().slice(0, 8)} 🚫 팟지 건너뛰기(${config.myName || '녹화한 사람'})`);
   // v0.1.240 알림은 한 가지만 — 기다림 창이 보이면 그 안 알림 줄로(위쪽 알림 창은 내림) · 안 보이면 위쪽 알림 창에 「건너뜀」
-  if (_potgMode === 'wait' && potgWin && !potgWin.isDestroyed() && potgWin.isVisible()) hideRecToast(); else showRecToast('🚫 팟지 건너뜀 · 이번 판은 팟지 없이 넘어가요', null);
+  if (_potgMode === 'wait' && potgWin && !potgWin.isDestroyed() && potgWin.isVisible()) hideRecToast(); else showRecToast('🚫 팟지 건너뜀 · 이번 판은 팟지 없이 넘어갑니다', null);
   _waitKeep = _waitCache ? String(_waitCache.id) : _waitKeep;
   fbUpdate(`${RP()}/potgWait`, { skipped: config.myName || '녹화한 사람', skippedAt: Date.now() }).catch(() => {});
   fbSet(`${RP()}/potgRec`, null).catch(() => {});   // v0.1.210 친구들 「○○님 PC에서 찍는 중」 안내를 바로 내림
 });
 async function skipPublish(card, path) {   // 건너뛴 판 = 팟지 없음으로 기록(카드도 안 띄움)
-  await new Promise(r => setTimeout(r, 5000));   // 다른 사람 기다림 화면에 「건너뛰었어요」가 보일 시간
+  await new Promise(r => setTimeout(r, 5000));   // 다른 사람 기다림 화면에 「건너뛰었습니다」가 보일 시간
   await potgWaitFinish(card, path).catch(() => {});
   const none = { none: true, skipped: true, gameId: String(card.gameId), by: config.myName || null };
   await fbUpdate(path, { potg: none }).catch(() => {});
@@ -3043,7 +3043,7 @@ function matchWinner(s, eog) {
 // 경기 기록 저장(오늘 날짜) → 투표 단계로. eog 없으면 수동 기록.
 async function recordGame(winner, eog) {
   const s = sessionData;
-  if (!s || !s.teamA || !s.teamB) return { ok: false, err: '진행 중인 팀이 없어요' };
+  if (!s || !s.teamA || !s.teamB) return { ok: false, err: '진행 중인 팀이 없습니다' };
   if (winner !== 'teamA' && winner !== 'teamB') return { ok: false, err: '승리팀을 골라주세요' };
   const gid = String((eog && eog.gameId) || ('m' + Date.now()));
   const day = dayKey(s.teamsFormedAt);
@@ -3075,7 +3075,7 @@ function tally(list, statsByName) {
 }
 async function closeVote() {
   const s = await fetchSession();   // 최신으로 다시 읽고 확정(중복 확정 방지)
-  if (!s || s.phase !== 'vote' || !s.game) return { ok: false, err: '투표 중이 아니에요' };
+  if (!s || s.phase !== 'vote' || !s.game) return { ok: false, err: '투표 중이 아닙니다' };
   const votes = s.votes || {};
   const win = s.game.winner, lose = win === 'teamA' ? 'teamB' : 'teamA';
   const inTeam = (team, name) => (s[team] || []).some(x => normName(x) === normName(name));
@@ -3099,10 +3099,10 @@ async function closeVote() {
 let _tbBusy = false;
 function sendTb(payload) { if (leftWin && !leftWin.isDestroyed()) leftWin.webContents.send('teambuild', payload); }
 async function startTeamBuild(names, mode, extra) {   // extra = 자리 밖(11번째부터) = 관전
-  if (!config.isHost) return { ok: false, err: '방장만 팀을 짤 수 있어요' };
-  if (_tbBusy) return { ok: false, err: '팀을 짜는 중이에요' };
+  if (!config.isHost) return { ok: false, err: '방장만 팀을 짤 수 있습니다' };
+  if (_tbBusy) return { ok: false, err: '팀을 짜는 중입니다' };
   names = [...new Set((names || []).map(n => normName(String(n))).filter(Boolean))];
-  if (names.length < 2) return { ok: false, err: `최소 2명이 필요해요 (현재 ${names.length}명)` };
+  if (names.length < 2) return { ok: false, err: `최소 2명이 필요합니다 (현재 ${names.length}명)` };
   _tbBusy = true;
   sendTb({ state: 'building' });
   try {
@@ -3167,7 +3167,7 @@ async function fbCas(pathStr, mutate, tries = 5) {
     if (status !== 412) { if (status === 401 || status === 403) dropFor(pathStr); return { ok: false, err: `쓰기 실패(HTTP ${status})` }; }
     // 412 = 그 사이 다른 기기가 바꿈 → 최신으로 다시 시도
   }
-  return { ok: false, err: '다른 기기와 동시에 바뀌어서 실패했어요 — 다시 눌러주세요' };
+  return { ok: false, err: '다른 기기와 동시에 바뀌어서 실패했습니다 — 다시 눌러주세요' };
 }
 const FP_MS = 4700;   // ⚔ 선픽 줄다리기 연출 길이(overlay.js FP_MS와 같게 · v0.1.230 동전 3.8초 → 줄다리기 4.7초)
 function draftOrder(first, picks) {   // 스네이크: first, other, other, first, first, other…
@@ -3176,9 +3176,9 @@ function draftOrder(first, picks) {   // 스네이크: first, other, other, firs
   return out;
 }
 async function startDraft(names, captains, extra) {   // extra = 자리 밖 = 관전(드래프트 끝나면 남은 사람과 같이)
-  if (!config.isHost) return { ok: false, err: '방장만 드래프트를 시작할 수 있어요' };
+  if (!config.isHost) return { ok: false, err: '방장만 드래프트를 시작할 수 있습니다' };
   names = [...new Set((names || []).map(n => normName(String(n))).filter(Boolean))];
-  if (names.length < 2) return { ok: false, err: `최소 2명이 필요해요 (현재 ${names.length}명)` };
+  if (names.length < 2) return { ok: false, err: `최소 2명이 필요합니다 (현재 ${names.length}명)` };
   let caps = [...new Set((captains || []).map(n => normName(String(n))).filter(n => names.includes(n)))];
   if (caps.length !== 2) caps = names.slice().sort(() => Math.random() - 0.5).slice(0, 2);   // 팀장 미지정 → 무작위 2명
   if (names.length < 4) return writeTeams([caps[0]], [caps[1]], [...names.filter(n => !caps.includes(n)), ...(extra || [])], 'draft');   // 2~3명 = 1:1이라 뽑을 차례가 없음 → 팀장끼리 바로 확정(남은 1명=관전)
@@ -3201,15 +3201,15 @@ async function startDraft(names, captains, extra) {   // extra = 자리 밖 = �
 async function draftPick(name, auto) {
   const me = normName(config.myName || '');
   const r = await fbCas(`${RP()}/session`, s => {
-    if (!s || s.phase !== 'draft') return { err: '드래프트 중이 아니에요' };
+    if (!s || s.phase !== 'draft') return { err: '드래프트 중이 아닙니다' };
     const team = (s.order || [])[s.pickIdx || 0];
-    if (!team) return { err: '이미 끝났어요' };
-    if (auto) { if (!(s.turnEndsAt && Date.now() > s.turnEndsAt)) return { err: '아직 시간이 남았어요' }; }
-    else if (!s.pickIdx && Date.now() < (s.draftStartedAt || 0) + FP_MS) return { err: '선픽을 정하는 중이에요 — 잠깐만요' };
-    else if (!config.isHost && normName((s.captains || {})[team] || '') !== me) return { err: '지금은 내 차례가 아니에요' };
+    if (!team) return { err: '이미 끝났습니다' };
+    if (auto) { if (!(s.turnEndsAt && Date.now() > s.turnEndsAt)) return { err: '아직 시간이 남았습니다' }; }
+    else if (!s.pickIdx && Date.now() < (s.draftStartedAt || 0) + FP_MS) return { err: '선픽을 정하는 중입니다 — 잠깐만요' };
+    else if (!config.isHost && normName((s.captains || {})[team] || '') !== me) return { err: '지금은 내 차례가 아닙니다' };
     const pool = s.pool || [];
     const idx = auto ? Math.floor(Math.random() * pool.length) : pool.findIndex(x => normName(x) === normName(name || ''));
-    if (idx < 0 || !pool.length) return { err: '이미 뽑혔거나 없는 사람이에요' };
+    if (idx < 0 || !pool.length) return { err: '이미 뽑혔거나 없는 사람입니다' };
     const picked = pool[idx], now = Date.now();
     const next = Object.assign({}, s, { pool: pool.filter((_, i) => i !== idx), [team]: [...(s[team] || []), picked], pickIdx: (s.pickIdx || 0) + 1,
       lastPick: { name: picked, team, at: now, auto: !!auto, byHost: !auto && config.isHost && normName((s.captains || {})[team] || '') !== me } });
@@ -3536,7 +3536,7 @@ function planDiff(before, after) {   // 자동 요약(「무엇을 바꿨나요�
 }
 async function augGuideWrite(id, guide, opt) {   // opt = {baseAt?, sum?, force?, restore?}
   const me = (account && account.gameName) || config.myName || '';
-  if (!me) return { ok: false, err: '롤에 로그인해야 고칠 수 있어요(누가 고쳤는지 남겨요)' };
+  if (!me) return { ok: false, err: '롤에 로그인해야 고칠 수 있습니다(누가 고쳤는지 남깁니다)' };
   const want = cleanGuideEntry(guide || {}), now = Date.now();
   let before = [], after = [];
   const r = await fbCas(`${T}/augGuide/champs/${id}`, cur => {
@@ -3552,8 +3552,8 @@ async function augGuideWrite(id, guide, opt) {   // opt = {baseAt?, sum?, force?
     return { value: after.length ? v : null };
   });
   if (!r.ok) {
-    if (r.err === 'conflict') return { ok: false, conflict: true, by: (r.info && r.info.by) || '', err: '그사이 다른 사람이 먼저 고쳤어요' };
-    if (r.err === 'same') return { ok: false, err: '바뀐 게 없어요' };
+    if (r.err === 'conflict') return { ok: false, conflict: true, by: (r.info && r.info.by) || '', err: '그사이 다른 사람이 먼저 고쳤습니다' };
+    if (r.err === 'same') return { ok: false, err: '바뀐 게 없습니다' };
     return { ok: false, err: r.err || '저장 실패' };
   }
   const sum = String(opt.sum || '').trim().slice(0, SUM_MAX) || planDiff(before, after), k = histKey();
@@ -3569,7 +3569,7 @@ async function pruneKeys(pathStr, max) {   // 오래된 것부터 지워 max개�
   for (const k of ks.slice(0, Math.max(0, ks.length - max))) await fbDelete(`${pathStr}/${k}`);
 }
 ipcMain.handle('augguide-save', async (_e, arg) => {
-  const id = Number(arg && arg.champId); if (!(id > 0)) return { ok: false, err: '챔피언 번호가 이상해요' };
+  const id = Number(arg && arg.champId); if (!(id > 0)) return { ok: false, err: '챔피언 번호가 이상합니다' };
   return augGuideWrite(id, arg.guide, { baseAt: arg.baseAt, sum: arg.sum });
 });
 ipcMain.handle('augguide-hist', async (_e, champId) => {   // 그 챔피언 고친 기록(최신 먼저)
@@ -3582,9 +3582,9 @@ ipcMain.handle('augguide-recent', async () => {   // 최근 고친 것(모든 �
   return Object.entries(h || {}).map(([k, v]) => ({ k, ...v })).sort((a, b) => b.k.localeCompare(a.k)).slice(0, 20);
 });
 ipcMain.handle('augguide-restore', async (_e, arg) => {   // 되돌리기 = 그 기록의 내용으로 다시 저장(이것도 기록에 남음)
-  const id = Number(arg && arg.champId); if (!(id > 0)) return { ok: false, err: '챔피언 번호가 이상해요' };
+  const id = Number(arg && arg.champId); if (!(id > 0)) return { ok: false, err: '챔피언 번호가 이상합니다' };
   const v = await getJson(`${FIREBASE_DB}/${T}/augGuide/hist/${id}/${String(arg.k || '').replace(/[^0-9a-z]/g, '')}.json`).catch(() => null);
-  if (!v) return { ok: false, err: '기록을 못 찾았어요' };
+  if (!v) return { ok: false, err: '기록을 못 찾았습니다' };
   const plans = arg.which === 'before' ? (v.before || []) : (v.after || []);
   return augGuideWrite(id, { plans }, { force: true, restore: true, sum: `되돌리기 — ${new Date(v.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} ${v.by || ''} ${arg.which === 'before' ? '편집 전' : '버전'}`.slice(0, SUM_MAX) });
 });
@@ -3726,7 +3726,7 @@ async function getProfile(arg) {
   if (arg && arg.me) key = account ? 'p:' + account.puuid : null;
   else if (arg && arg.puuid && !String(arg.puuid).startsWith('g_')) key = 'p:' + arg.puuid;
   else if (arg && arg.name) { const n = normName(arg.name), pk = idx.nameToPuuid[n] || idx.statPuuid[n]; key = pk ? 'p:' + pk : 'n:' + n; }
-  if (!key) return { ok: false, err: '롤에 로그인하면 내 프로필을 볼 수 있어요' };
+  if (!key) return { ok: false, err: '롤에 로그인하면 내 프로필을 볼 수 있습니다' };
   const acc = key.startsWith('p:') ? idx.accounts[key.slice(2)] : null;
   if (!(account && key === 'p:' + account.puuid) && !pubOf(idx.accounts, key.startsWith('p:') ? key.slice(2) : null))   // 🔒 v0.1.253 동의 안 한 사람(앱 없는 옛 손님 포함) = 비공개
     return { ok: true, private: true, key, name: (acc && acc.name) || (arg && arg.name) || key.slice(2), tag: (acc && acc.tag) || '', me: false };
@@ -3871,7 +3871,7 @@ ipcMain.on('quit-confirm', (_e, yes, noAsk) => {
   if (mode === 'close') {
     if (noAsk && !yes) { config.closeAsk = false; saveConfig(); try { broadcastSettings(); } catch (_) {} }
     if (yes) { app._quitting = true; app.quit(); }
-    else if (tray && process.platform === 'win32') try { tray.displayBalloon({ title: '투데이 내전은 계속 켜져 있어요', content: '작업 표시줄 오른쪽 아래 숨은 아이콘(^)에서 아이콘을 우클릭 → 「투데이 내전 종료」', iconType: 'info' }); } catch (_) {}
+    else if (tray && process.platform === 'win32') try { tray.displayBalloon({ title: '투데이 내전은 계속 켜져 있습니다', content: '작업 표시줄 오른쪽 아래 숨은 아이콘(^)에서 아이콘을 우클릭 → 「투데이 내전 종료」', iconType: 'info' }); } catch (_) {}
     return;
   }
   if (yes && !_clientPresent) { app._quitting = true; app.quit(); }
@@ -4129,7 +4129,7 @@ async function dcVoiceTick() {   // 방장 앱만 · pollSession마다
 // 🔗 디스코드 서버 연결(v0.1.131) — 봇 초대 화면을 브라우저로 열고, 디스코드가 돌려보내는 주소(이 PC 127.0.0.1:47823)에서 고른 서버 번호를 받음
 const dcPage = (title, sub, ok) => `<!doctype html><meta charset="utf-8"><title>투데이 내전</title><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#0b1018;color:#e8e2d0;font-family:'Malgun Gothic',sans-serif"><div style="text-align:center;padding:36px 44px;border:1px solid rgba(200,170,110,.45);background:#0f1822;box-shadow:inset 0 2px 0 #c8aa6e"><div style="font-size:12px;letter-spacing:.2em;color:#c8aa6e">TODAY IN-HOUSE</div><h1 style="margin:10px 0 8px;font-size:22px;color:${ok ? '#f0e6d2' : '#e38c8c'}">${title}</h1><p style="margin:0;color:#a09b8c;font-size:14px">${sub}</p></div></body>`;
 function dcConnect() {
-  if (!discord || !discord.appId) return Promise.resolve({ ok: false, err: '디스코드 연동 준비 중이에요' });
+  if (!discord || !discord.appId) return Promise.resolve({ ok: false, err: '디스코드 연동 준비 중입니다' });
   if (_dcConn) { shell.openExternal(_dcConn.url); return Promise.resolve({ ok: true, waiting: true }); }
   const state = require('crypto').randomBytes(12).toString('hex');
   const url = `https://discord.com/oauth2/authorize?client_id=${discord.appId}&scope=bot&permissions=${DC_PERMS}&response_type=code&redirect_uri=${encodeURIComponent(DC_REDIRECT)}&state=${state}`;
@@ -4140,19 +4140,19 @@ function dcConnect() {
       const u = new URL(req.url, DC_REDIRECT);
       if (u.pathname !== '/discord') { res.writeHead(404); return res.end(); }
       const send = (t, s2, ok) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(dcPage(t, s2, ok)); };
-      if (u.searchParams.get('state') !== state) return send('다시 시도해 주세요', '오래된 연결 화면이에요 · 앱에서 「서버 연결」을 다시 눌러 주세요', false);
+      if (u.searchParams.get('state') !== state) return send('다시 시도해 주세요', '오래된 연결 화면입니다 · 앱에서 「서버 연결」을 다시 눌러 주세요', false);
       const gid = u.searchParams.get('guild_id');
-      if (!gid || !/^\d{15,21}$/.test(gid)) { send('연결하지 않았어요', '취소했거나 서버를 고르지 않았어요 · 이 창은 닫아도 돼요', false); return done({ ok: false, err: '취소했어요' }); }
+      if (!gid || !/^\d{15,21}$/.test(gid)) { send('연결하지 않았습니다', '취소했거나 서버를 고르지 않았습니다 · 이 창은 닫아도 됩니다', false); return done({ ok: false, err: '취소했습니다' }); }
       const { status, j } = await potg.pxJson('/discord/guild', { guild: gid }).catch(() => ({ status: 0, j: null }));
-      if (status !== 200 || !j || !j.id) { send('서버를 확인하지 못했어요', '봇이 그 서버에 들어갔는지 확인하고 다시 눌러 주세요', false); return done({ ok: false, err: `서버 확인 실패(${status})` }); }
+      if (status !== 200 || !j || !j.id) { send('서버를 확인하지 못했습니다', '봇이 그 서버에 들어갔는지 확인하고 다시 눌러 주세요', false); return done({ ok: false, err: `서버 확인 실패(${status})` }); }
       config.discordGuild = { id: j.id, name: j.name || '' }; saveConfig(); _dcLinked = null; dcLink();
       const lack = [!j.t1 && '「1팀」', !j.t2 && '「2팀」', !j.lobby && '「대기실」'].filter(Boolean);
-      send(`「${String(j.name || '').replace(/[<>&]/g, '')}」 연결됐어요`, lack.length ? `음성 채널 ${lack.join('·')}을 만들어 주세요(이름에 그 글자만 들어가면 돼요) · 이 창은 닫아도 돼요` : '팀이 정해지면 1팀·2팀 음성 채널로 옮겨요 · 이 창은 닫아도 돼요', true);
+      send(`「${String(j.name || '').replace(/[<>&]/g, '')}」 연결됐습니다`, lack.length ? `음성 채널 ${lack.join('·')}을 만들어 주세요(이름에 그 글자만 들어가면 됩니다) · 이 창은 닫아도 됩니다` : '팀이 정해지면 1팀·2팀 음성 채널로 옮깁니다 · 이 창은 닫아도 됩니다', true);
       done({ ok: true, guild: config.discordGuild, lack });
     });
-    srv.on('error', e => { _dcConn = null; resolve({ ok: false, err: e.code === 'EADDRINUSE' ? '47823 포트를 다른 프로그램이 쓰고 있어요' : String(e.message || e) }); });
+    srv.on('error', e => { _dcConn = null; resolve({ ok: false, err: e.code === 'EADDRINUSE' ? '47823 포트를 다른 프로그램이 쓰고 있습니다' : String(e.message || e) }); });
     srv.listen(DC_PORT, '127.0.0.1', () => {
-      _dcConn = { srv, url, timer: setTimeout(() => done({ ok: false, err: '시간이 지났어요(5분)' }), 5 * 60000) };
+      _dcConn = { srv, url, timer: setTimeout(() => done({ ok: false, err: '시간이 지났습니다(5분)' }), 5 * 60000) };
       shell.openExternal(url); broadcastSettings();
     });
   });
@@ -4228,9 +4228,9 @@ async function communityJoin(code) {
   if (c) {
     if (c.length < 4 || c.length > 12) return { ok: false, err: '초대 코드를 확인해 주세요' };
     const id = await getJson(`${FIREBASE_DB}/${T}/communityCodes/${c}.json`).catch(() => null);
-    if (!id || typeof id !== 'string') return { ok: false, err: '없는 초대 코드예요' };
+    if (!id || typeof id !== 'string') return { ok: false, err: '없는 초대 코드입니다' };
     const info = await getJson(`${FIREBASE_DB}/${T}/communities/${id}.json`).catch(() => null);
-    if (!info || !info.name) return { ok: false, err: '없는 커뮤니티예요' };
+    if (!info || !info.name) return { ok: false, err: '없는 커뮤니티입니다' };
     next = { id, name: String(info.name).slice(0, 20) }; const db = cdbOk(info.db); if (db) next.db = db;   // 🏘️ v0.1.259 전용 서버
   }
   config.community = next; config.commAsked = true; saveConfig();
@@ -4255,7 +4255,7 @@ async function communityRefresh() {
 }
 ipcMain.handle('pub-set', (_e, on) => pubSet(!!on));   // 🔒 v0.1.253 기록 공개 동의/철회
 ipcMain.handle('privacy-wipe', async () => {
-  if (!account) return { ok: false, err: '롤에 로그인한 뒤에 지울 수 있어요(어느 계정인지 알아야 해서)' };
+  if (!account) return { ok: false, err: '롤에 로그인한 뒤에 지울 수 있습니다(어느 계정인지 알아야 해서)' };
   const p = account.puuid;
   try {
     privacyTick();   // 이 기기를 계정에 등록해 둬야 계정 칸을 지울 수 있음(서버 규칙)
@@ -4264,12 +4264,12 @@ ipcMain.handle('privacy-wipe', async () => {
     const jobs = [`${T}/discord/${p}`, `${T}/ratings/${p}`, `${CT}/presence/${p}`, `${T}/accounts/${p}`].map(x => fbSet(x, null).then(w => ({ x, ok: !!(w && w.ok) })).catch(() => ({ x, ok: false })));
     const res = await Promise.all(jobs), bad = res.filter(r => !r.ok).map(r => r.x.split('/')[1]);
     console.log('[privacy] 내 정보 지우기', bad.length ? '일부 실패 ' + bad.join(',') : '완료');
-    if (bad.length) return { ok: false, err: '일부를 지우지 못했어요(' + bad.join(', ') + ') · 잠시 뒤 다시 해 주세요' };
+    if (bad.length) return { ok: false, err: '일부를 지우지 못했습니다(' + bad.join(', ') + ') · 잠시 뒤 다시 해 주세요' };
     _dcLinked = null; _dcMine = null; _ownKey = null;
     if (config.pubAt && config.pubAt[p]) { delete config.pubAt[p]; saveConfig(); }   // 🔒 v0.1.253 기록 공개 동의도 지움(다시 켜면 다시 물음)
     setTimeout(() => { app._quitting = true; app.quit(); }, 1500);
     return { ok: true };
-  } catch (e) { return { ok: false, err: e && e.message || '지우지 못했어요' }; }
+  } catch (e) { return { ok: false, err: e && e.message || '지우지 못했습니다' }; }
 });
 ipcMain.on('open-privacy', () => { shell.openExternal('https://sohada2.github.io/today-naejeon/privacy.html').catch(() => {}); });
 ipcMain.on('open-web', () => shell.openExternal(WEB_URL));
@@ -4303,28 +4303,28 @@ ipcMain.handle('tb-start', (_e, { names, mode }) => startTeamBuild(names, mode))
 ipcMain.handle('draft-start', (_e, { names, captains }) => startDraft(names, captains));   // 🎯 드래프트 시작(방장)
 ipcMain.handle('draft-pick', (_e, { name }) => draftPick(name, false));                  // 🎯 팀장(또는 방장) 픽
 ipcMain.handle('tb-again', async () => {   // 🔁 같은 팀으로 한 판 더
-  if (!config.isHost) return { ok: false, err: '방장만 할 수 있어요' };
+  if (!config.isHost) return { ok: false, err: '방장만 할 수 있습니다' };
   const s = sessionData;
-  if (!s || !s.teamA || !s.teamB) return { ok: false, err: '직전 팀이 없어요' };
+  if (!s || !s.teamA || !s.teamB) return { ok: false, err: '직전 팀이 없습니다' };
   return writeTeams(s.teamA, s.teamB, s.spectators || [], s.mode);
 });
 ipcMain.handle('host-result', async (_e, { winner }) => {   // 🏁 방장 수동 결과(EOG 못 잡았거나 이름 매칭 실패)
-  if (!config.isHost) return { ok: false, err: '방장만 결과를 기록할 수 있어요' };
+  if (!config.isHost) return { ok: false, err: '방장만 결과를 기록할 수 있습니다' };
   const s = sessionData;
-  if (!s || s.phase !== 'teams') return { ok: false, err: '팀이 정해진 상태에서만 기록할 수 있어요' };
+  if (!s || s.phase !== 'teams') return { ok: false, err: '팀이 정해진 상태에서만 기록할 수 있습니다' };
   let eog = null;
   if (s.pendingEog) { const e = await fetchEog(); if (e && String(e.gameId) === String(s.pendingEog.gameId)) eog = e; }
   return recordGame(winner, eog);
 });
 ipcMain.handle('vote-cast', async (_e, { mvpPick, mannerPick }) => {
   const s = sessionData, me = config.myName;
-  if (!s || s.phase !== 'vote') return { ok: false, err: '지금은 투표 시간이 아니에요' };
+  if (!s || s.phase !== 'vote') return { ok: false, err: '지금은 투표 시간이 아닙니다' };
   const team = teamOf(s, me);
-  if (!team) return { ok: false, err: '이 경기에 참가하지 않았어요' };
+  if (!team) return { ok: false, err: '이 경기에 참가하지 않았습니다' };
   const opp = team === 'teamA' ? 'teamB' : 'teamA';
-  if (!teamOf(s, mvpPick) || teamOf(s, mvpPick) !== opp) return { ok: false, err: 'MVP는 상대 팀에서 골라요' };
+  if (!teamOf(s, mvpPick) || teamOf(s, mvpPick) !== opp) return { ok: false, err: 'MVP는 상대 팀에서 고릅니다' };
   const mates = (s[team] || []).filter(n => normName(n) !== normName(me));   // 우리 팀이 나 혼자(1:1 등)면 매너왕 없이 투표
-  if (mates.length && (teamOf(s, mannerPick) !== team || normName(mannerPick) === normName(me))) return { ok: false, err: '매너왕은 우리 팀(본인 제외)에서 골라요' };
+  if (mates.length && (teamOf(s, mannerPick) !== team || normName(mannerPick) === normName(me))) return { ok: false, err: '매너왕은 우리 팀(본인 제외)에서 고릅니다' };
   const r = await fbSet(`${RP()}/session/votes/${fbKeyOf(me)}`, { mvp: normName(mvpPick), manner: mates.length ? normName(mannerPick) : null, team, at: Date.now() });
   if (r.ok && config.isHost) runHost();
   return r;
@@ -4334,7 +4334,7 @@ ipcMain.handle('vote-clear', async () => {
   return fbDelete(`${RP()}/session/votes/${fbKeyOf(config.myName)}`);
 });
 ipcMain.handle('vote-close', async () => {   // ⏭️ 방장: 미투표자 있어도 지금까지의 표로 결과 확정
-  if (!config.isHost) return { ok: false, err: '방장만 마감할 수 있어요' };
+  if (!config.isHost) return { ok: false, err: '방장만 마감할 수 있습니다' };
   return closeVote();
 });
 ipcMain.handle('today-data', async (_e, arg) => getToday(arg && arg.day));
@@ -4413,7 +4413,7 @@ function bakeFinal(card, recPath, day) {   // 방장 PC: 팟지가 다 나온 �
 }
 const _files = {};
 ipcMain.handle('potg-file', async (_e, { card, day, key: uiKey }) => {   // 「기록」 탭 「영상 저장」
-  if (!card || card.none || !potg) return { ok: false, err: '팟지가 없는 판이에요' };
+  if (!card || card.none || !potg) return { ok: false, err: '팟지가 없는 판입니다' };
   day = /^\d{4}-\d{2}-\d{2}$/.test(day || '') ? day : (card.clip && card.clip.day) || dayKey();
   if (!card.gameId) card.gameId = (card.clip && card.clip.gameId) || '';
   const key = finalKey(day, card.gameId), pk = typeof uiKey === 'string' && uiKey ? uiKey : key;   // pk = 화면이 쓰는 열쇠(진행 표시)
@@ -4435,14 +4435,14 @@ ipcMain.handle('potg-file', async (_e, { card, day, key: uiKey }) => {   // 「�
       filePush(pk, { pct: 0, stage: 'make' });
       const m = await makeFinal(card, f => filePush(pk, { pct: Math.round(f * 100), stage: 'make' }));
       if (m.busy) return { ok: false, busy: true };
-      if (!m.ok) { console.log('[potg] 영상 파일 실패', m.err); return { ok: false, err: '영상을 만들지 못했어요' }; }
+      if (!m.ok) { console.log('[potg] 영상 파일 실패', m.err); return { ok: false, err: '영상을 만들지 못했습니다' }; }
       buf = m.buf; ext = m.ext;
     }
     let file = r.filePath; if (path.extname(file).toLowerCase() !== '.' + ext) file = file.replace(/\.[^.\\/]*$/, '') + '.' + ext;
     fs.writeFileSync(file, buf); _savedPaths.add(file);
     console.log('[potg] 영상 저장', file, (buf.length / 1048576).toFixed(1) + 'MB');
     return { ok: true, path: file };
-  } catch (e) { console.log('[potg] 영상 저장 오류', e && e.message); return { ok: false, err: '저장하지 못했어요' }; }
+  } catch (e) { console.log('[potg] 영상 저장 오류', e && e.message); return { ok: false, err: '저장하지 못했습니다' }; }
   finally { delete _files[key]; }
 });
 ipcMain.on('potg-to-record', (_e, arg) => {   // 팟지 끝 화면 「영상 저장 ›」 → 오른쪽 창 「기록」의 그 판
@@ -4548,7 +4548,7 @@ else {
 const upd = { state: 'idle', version: null, pct: 0 };   // idle·checking·downloading·ready·latest·error·dev
 const updView = () => Object.assign({ cur: app.getVersion() }, upd);
 function setUpd(p) {
-  if (upd.state === 'updated' && !p.force && (p.state === 'latest' || p.state === 'checking')) return;   // ✅ 「업데이트됐어요」 몇 초는 확인 결과로 덮지 않음
+  if (upd.state === 'updated' && !p.force && (p.state === 'latest' || p.state === 'checking')) return;   // ✅ 「업데이트됐습니다」 몇 초는 확인 결과로 덮지 않음
   delete p.force; Object.assign(upd, p); broadcast('update', updView());
 }
 function checkUpdate() {
@@ -4566,7 +4566,7 @@ function tryInstallUpdate() {
   installUpdateNow();
 }
 // 🔄 v0.1.143 설치 = 언제나 조용히(사장님: 설치할 때 톤앤매너 안 맞는 창 — 「지금 업데이트」는 설치 프로그램 기본 창이 떴음) + 다시 켜기
-//   창이 없는 몇 초 동안 모르고 다시 켜지 않게 우리 창 머리 아래 금색 줄 「설치 중」을 1.2초 보여 주고 끔 · 다시 켜지면 「v… 로 업데이트됐어요」(config.lastVer)
+//   창이 없는 몇 초 동안 모르고 다시 켜지 않게 우리 창 머리 아래 금색 줄 「설치 중」을 1.2초 보여 주고 끔 · 다시 켜지면 「v… 로 업데이트됐습니다」(config.lastVer)
 let _installing = false, _updRestart = false;
 function installUpdateNow() {
   if (_installing) return; _installing = true;

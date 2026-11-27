@@ -14,7 +14,7 @@ const ageName = id => ((AGE.all && AGE.all.augs[id]) || {}).name || ('증강 #' 
 async function renderAugEdit(force) {
   const body = $('ag-ed');
   if (!AGE.all || force) { body.innerHTML = '<div class="td-state">불러오는 중…</div>'; AGE.all = await window.api.getAugGuideAll().catch(() => null); AGE.recent = null; }
-  if (!AGE.all) { body.innerHTML = '<div class="td-state">불러오지 못했어요 — 인터넷 연결을 확인해 주세요</div>'; return; }
+  if (!AGE.all) { body.innerHTML = '<div class="td-state">불러오지 못했습니다 — 인터넷 연결을 확인해 주세요</div>'; return; }
   if (AGE.live && AGE.live.active && !AGE.editing) return ageLive();
   if (AGE.champ) return ageChamp();
   ageList();
@@ -37,7 +37,7 @@ function ageList(pre) {
     <div class="age-find">다른 챔피언 보기</div>
     <div id="age-recent">${recentH()}</div>
     <input id="age-q" class="age-q" placeholder="챔피언 이름으로 찾기" value="${escH(AGE.q)}">
-    <div class="age-grid">${ids.map(id => `<button class="age-ch${has(id) ? ' has' : ''}${has(id) && guide[id].draft ? ' draft' : ''}" data-id="${id}" title="${escH(champs[id].name)}"><img src="${ageIc(id)}" alt="" onerror="this.style.visibility='hidden'"><span>${escH(champs[id].name)}</span></button>`).join('') || '<div class="td-state">찾는 챔피언이 없어요</div>'}</div>`;
+    <div class="age-grid">${ids.map(id => `<button class="age-ch${has(id) ? ' has' : ''}${has(id) && guide[id].draft ? ' draft' : ''}" data-id="${id}" title="${escH(champs[id].name)}"><img src="${ageIc(id)}" alt="" onerror="this.style.visibility='hidden'"><span>${escH(champs[id].name)}</span></button>`).join('') || '<div class="td-state">찾는 챔피언이 없습니다</div>'}</div>`;
   const qi = $('age-q'); qi.oninput = () => { AGE.q = qi.value; ageList(pre); const n = $('age-q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
   $('ag-ed').querySelectorAll('.age-ch').forEach(b => b.onclick = () => ageOpen(Number(b.dataset.id)));
   bindRecent();
@@ -75,10 +75,10 @@ function ageChamp() {
     </div>`).join('') +
     (d.length < A.planMax ? `<button class="age-add" id="age-addplan">＋ 플랜 추가</button>` : '') +
     `<div class="age-pick" id="age-pick" style="display:none;"></div>
-     <div class="age-save"><input id="age-sum" class="age-sum" maxlength="40" placeholder="무엇을 바꿨나요? (선택)" title="적으면 「기록」에 같이 남아요" value="${escH(AGE.sum)}"><button class="ui-btn-gold" id="age-save"${AGE.dirty ? '' : ' disabled'}>저장 · 모두에게 반영</button></div>`;
+     <div class="age-save"><input id="age-sum" class="age-sum" maxlength="40" placeholder="무엇을 바꿨나요? (선택)" title="적으면 「기록」에 같이 남습니다" value="${escH(AGE.sum)}"><button class="ui-btn-gold" id="age-save"${AGE.dirty ? '' : ' disabled'}>저장 · 모두에게 반영</button></div>`;
   $('age-sum').oninput = e => { AGE.sum = e.target.value; };
   $('age-histbtn').onclick = ageHist;
-  $('age-back').onclick = async () => { if (AGE.dirty && !await tnConfirm('저장하지 않은 내용이 있어요. 버릴까요?')) return; AGE.champ = 0; AGE.dirty = false; AGE.editing = false; renderAugEdit(); };
+  $('age-back').onclick = async () => { if (AGE.dirty && !await tnConfirm('저장하지 않은 내용이 있습니다. 버릴까요?')) return; AGE.champ = 0; AGE.dirty = false; AGE.editing = false; renderAugEdit(); };
   const mark = () => { AGE.dirty = true; $('age-save').disabled = false; };
   const q = s => $('ag-ed').querySelectorAll(s);
   q('.age-title').forEach(x => x.oninput = () => { d[+x.dataset.i].title = x.value; mark(); });
@@ -99,7 +99,7 @@ function agePick(i) {   // 증강 고르기(우리 기록에 자주 나온 증�
     const qv = $('age-pq').value.trim().toLowerCase(), { augs, seen } = AGE.all;
     const ids = Object.keys(augs).map(Number).filter(id => !augs[id].trait && (id >= 1000)).filter(id => !qv || (augs[id].name || '').toLowerCase().includes(qv))
       .sort((a, b) => (seen[b] || 0) - (seen[a] || 0) || (augs[a].name || '').localeCompare(augs[b].name || '', 'ko')).slice(0, 80);
-    $('age-pl').innerHTML = ids.map(id => `<button class="age-pk" data-id="${id}" title="${escH(augs[id].desc || '')}">${ageAug(id, 'ag-ic')}<span><b>${escH(augs[id].name)}</b>${seen[id] ? `<small>우리 기록 ${seen[id]}번</small>` : ''}</span></button>`).join('') || '<div class="td-state">찾는 증강이 없어요</div>';
+    $('age-pl').innerHTML = ids.map(id => `<button class="age-pk" data-id="${id}" title="${escH(augs[id].desc || '')}">${ageAug(id, 'ag-ic')}<span><b>${escH(augs[id].name)}</b>${seen[id] ? `<small>우리 기록 ${seen[id]}번</small>` : ''}</span></button>`).join('') || '<div class="td-state">찾는 증강이 없습니다</div>';
     $('age-pl').querySelectorAll('.age-pk').forEach(b => b.onclick = () => {
       const id = Number(b.dataset.id), p = AGE.draft[AGE.pick];
       if (p && !p.augs.includes(id) && p.augs.length < AGE.all.planAugs) { p.augs.push(id); unsrc(p); }
@@ -113,10 +113,10 @@ function agePick(i) {   // 증강 고르기(우리 기록에 자주 나온 증�
 async function ageSave() {
   const b = $('age-save'); b.disabled = true; b.textContent = '저장 중…';
   const r = await window.api.saveAugGuide(AGE.champ, { plans: AGE.draft }, AGE.baseAt, AGE.sum).catch(e => ({ ok: false, err: String(e) }));
-  if (r && r.ok) { toast('🧭 저장했어요 — 모두의 챔피언 선택 화면에 반영돼요 · 「기록」에 남아요'); AGE.dirty = false; AGE.sum = ''; AGE.baseAt = r.at; await renderAugEdit(true); }
+  if (r && r.ok) { toast('🧭 저장했습니다 — 모두의 챔피언 선택 화면에 반영됩니다 · 「기록」에 남습니다'); AGE.dirty = false; AGE.sum = ''; AGE.baseAt = r.at; await renderAugEdit(true); }
   else if (r && r.conflict) {   // 편집 충돌 — 덮어쓰지 않음(위키와 같음)
     b.disabled = false; b.textContent = '저장 · 모두에게 반영';
-    if (await tnConfirm(`그사이 ${r.by || '다른 사람'}님이 이 챔피언을 먼저 고쳤어요.\n\n[확인] 최신 내용 불러오기(내가 고친 건 사라져요)\n[취소] 그대로 두기 — 「기록」에서 바뀐 걸 보고 다시 고쳐 주세요`)) { AGE.dirty = false; const id = AGE.champ; await renderAugEdit(true); ageOpen(id); }
+    if (await tnConfirm(`그사이 ${r.by || '다른 사람'}님이 이 챔피언을 먼저 고쳤습니다.\n\n[확인] 최신 내용 불러오기(내가 고친 건 사라집니다)\n[취소] 그대로 두기 — 「기록」에서 바뀐 걸 보고 다시 고쳐 주세요`)) { AGE.dirty = false; const id = AGE.champ; await renderAugEdit(true); ageOpen(id); }
   }
   else { toast('저장 실패 — ' + ((r && r.err) || '다시 시도해 주세요')); b.disabled = false; b.textContent = '저장 · 모두에게 반영'; }
 }
@@ -126,17 +126,17 @@ async function ageHist() {
   if (box.style.display !== 'none') { box.style.display = 'none'; return; }
   box.style.display = ''; box.innerHTML = '<div class="td-state">불러오는 중…</div>';
   const h = AGE.hist = await window.api.getAugGuideHist(AGE.champ).catch(() => []);
-  if (!h.length) { box.innerHTML = '<div class="age-hist"><div class="age-rc-hd">고친 기록</div><div class="td-state">아직 고친 사람이 없어요</div></div>'; return; }
+  if (!h.length) { box.innerHTML = '<div class="age-hist"><div class="age-rc-hd">고친 기록</div><div class="td-state">아직 고친 사람이 없습니다</div></div>'; return; }
   const first = h[h.length - 1];
   box.innerHTML = `<div class="age-hist"><div class="age-rc-hd">고친 기록 <small>최근 ${h.length}개</small></div>${h.map((x, i) => `<div class="age-hrow"><span class="age-rc-tx"><b>${escH(x.by || '?')} <small>${agWhen(x.at)}</small></b><small>${escH(x.sum || '')} · 플랜 ${x.n}개</small></span>${i ? `<button class="age-hbtn" data-k="${x.k}" data-w="after">이 버전으로</button>` : '<span class="age-hnow">지금</span>'}</div>`).join('')}
     <div class="age-hrow"><span class="age-rc-tx"><b>처음 내용</b><small>${escH(first.by || '')}님이 처음 고치기 전 · 플랜 ${first.before.length}개</small></span><button class="age-hbtn" data-k="${first.k}" data-w="before">이 버전으로</button></div></div>`;
   box.querySelectorAll('.age-hbtn').forEach(b => b.onclick = async () => {
-    if (AGE.dirty && !await tnConfirm('저장하지 않은 내용은 사라져요. 되돌릴까요?')) return;
-    if (!await tnConfirm('이 버전으로 되돌릴까요? 되돌린 것도 기록에 남아서 다시 바꿀 수 있어요.')) return;
+    if (AGE.dirty && !await tnConfirm('저장하지 않은 내용은 사라집니다. 되돌릴까요?')) return;
+    if (!await tnConfirm('이 버전으로 되돌릴까요? 되돌린 것도 기록에 남아서 다시 바꿀 수 있습니다.')) return;
     b.disabled = true;
     const r = await window.api.restoreAugGuide(AGE.champ, b.dataset.k, b.dataset.w).catch(e => ({ ok: false, err: String(e) }));
-    if (r && r.ok) { toast('↩ 되돌렸어요 — 모두에게 반영돼요'); AGE.dirty = false; const id = AGE.champ; await renderAugEdit(true); ageOpen(id); }
-    else { toast('되돌리지 못했어요 — ' + ((r && r.err) || '')); b.disabled = false; }
+    if (r && r.ok) { toast('↩ 되돌렸습니다 — 모두에게 반영됩니다'); AGE.dirty = false; const id = AGE.champ; await renderAugEdit(true); ageOpen(id); }
+    else { toast('되돌리지 못했습니다 — ' + ((r && r.err) || '')); b.disabled = false; }
   });
 }
 // 플랜 아래 작은 줄 = 자료 날짜(패치 기록 없을 때) · 마지막으로 고친 사람
@@ -148,7 +148,7 @@ function planFoot(p) {
 // 플랜 옆 작은 표시 = 우리 기록 짝이면 판 수(v0.1.246: 승률·등급 없음)
 function planSrc(p) { return p.src === 'ours' ? `<span class="ag-wr num" title="투데이 내전 기록 · 이 챔피언으로 두 증강을 같이 고른 판">우리 ${p.games}판 같이 고름</span>` : ''; }
 function srcNote(plans) {
-  if (plans.length && plans.every(p => p.src === 'ours')) return `<div class="ag-src">아직 사람이 쓴 플랜이 없어 <b>우리 기록</b>(이 챔피언으로 두 증강을 같이 고른 판 · 2판 이상)으로 보여 줘요 · 「✎ 고치기」로 채워 주세요</div>`;
+  if (plans.length && plans.every(p => p.src === 'ours')) return `<div class="ag-src">아직 사람이 쓴 플랜이 없어 <b>우리 기록</b>(이 챔피언으로 두 증강을 같이 고른 판 · 2판 이상)으로 보여 줍니다 · 「✎ 고치기」로 채워 주세요</div>`;
   return plans.some(p => p.link) ? `<div class="ag-src">「설명 ↗」= 원문(브라우저)</div>` : '';
 }
 // ── 챔피언 선택 동안 보는 화면(내 챔피언 + 벤치 챔피언) ──
@@ -163,7 +163,7 @@ function ageLive() {
   else {
     const plans = (c.guide && c.guide.plans) || [], rec = c.rec || {};
     const head = `<div class="ag-champ"><img src="${ageIc(c.id)}" alt="" onerror="this.remove()"><span class="ag-cn"><b>${escH(c.name || '')}</b><small>${c.mine ? '내 챔피언' : '벤치 · 바꾸면 이런 증강'}</small></span></div>`;
-    body = head + (!plans.length ? '<div class="ag-empty">이 챔피언은 아직 준비 중이에요<small>위 「✎ 고치기」로 채우면 모두에게 바로 보여요</small></div>'
+    body = head + (!plans.length ? '<div class="ag-empty">이 챔피언은 아직 준비 중입니다<small>위 「✎ 고치기」로 채우면 모두에게 바로 보입니다</small></div>'
       : plans.map((p, i) => `<div class="ag-plan"><div class="ag-ph"><span class="ag-pn num">${i + 1}</span><b>${escH(p.title || (p.src === 'ours' ? '우리가 같이 고른 짝' : '추천 플랜'))}</b>${planSrc(p)}${p.link ? `<button class="ag-link" data-u="${escH(p.link)}" title="원문에서 설명 보기(브라우저)">설명 ↗</button>` : ''}</div>` +
         `<div class="ag-pa">${p.augs.map(a => { const r = rec[a]; return `<span class="ag-pchip">${ageAug(a, 'ag-ic')}<span class="ag-pt"><b>${escH(ageName(a))}</b>${r && r.g ? `<small>우리 ${r.g}판</small>` : ''}</span></span>`; }).join('')}</div>` +
         (p.why ? `<div class="ag-why">${escH(p.why)}</div>` : '') + planFoot(p) + '</div>').join('')) + srcNote(plans);

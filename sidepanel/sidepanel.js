@@ -95,7 +95,7 @@ document.querySelectorAll('#sp-seg button').forEach(b => b.addEventListener('cli
 
 // ── 공용 ────────────────────────────────────────────────────────────────
 // 🚫 v0.1.211 건너뛴 판 표시(사장님: 건너뛴 것도 알게 — 그때 뜨는 안내를 놓쳐도 기록에서 보이게)
-const pgSkipTag = by => `<span class="rc-pgx" title="${escH(by || '방장')}님이 이 판 팟지를 건너뛰었어요">팟지 건너뜀</span>`;
+const pgSkipTag = by => `<span class="rc-pgx" title="${escH(by || '방장')}님이 이 판 팟지를 건너뛰었습니다">팟지 건너뜀</span>`;
 const champIcon = id => id ? `<img class="pf-ci" src="https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${Number(id)}.png" onerror="this.style.visibility='hidden'" alt="">` : '<span class="pf-ci"></span>';
 const md = day => { if (!day) return ''; const [, m, d] = day.split('-'); return `${Number(m)}/${Number(d)}`; };
 const pct = (w, g) => g ? Math.round(w / g * 100) : 0;
@@ -270,12 +270,12 @@ async function renderToday() {
 //   저장본 = 팟지 창에서 본 것과 같은 영상(팟지 → 숨은 영웅) · 상태는 판마다 _dl[날짜:게임] (다시 그려도 유지)
 const _dl = {}; let _dlFocus = null;
 const dlKey = (day, c) => `${day}:${c.gameId || (c.clip && c.clip.gameId) || c.t0 || ""}`;
-function dlBtn(id, day, c) { const k = dlKey(day, c), s = _dl[k]; return `<button class="rc-dl" data-dl="${id}" data-key="${escH(k)}" title="이 판 팟지를 영상 파일(mp4)로 저장해요"${s && s.busy ? ' disabled' : ''}>${s && s.busy ? '저장 중' : '영상 저장'}</button>`; }
+function dlBtn(id, day, c) { const k = dlKey(day, c), s = _dl[k]; return `<button class="rc-dl" data-dl="${id}" data-key="${escH(k)}" title="이 판 팟지를 영상 파일(mp4)로 저장합니다"${s && s.busy ? ' disabled' : ''}>${s && s.busy ? '저장 중' : '영상 저장'}</button>`; }
 function dlRow(day, c) { return `<div class="rc-dlrow" data-key="${escH(dlKey(day, c))}">${dlInner(_dl[dlKey(day, c)])}</div>`; }
 function dlInner(s) {
   if (!s) return '';
   if (s.busy) return `<div class="rc-bar"><i style="width:${Math.max(2, s.pct || 0)}%"></i></div><span class="rc-dlt">${s.stage === 'down' ? '받는 중' : '영상 만드는 중'} <b class="num">${s.pct || 0}%</b></span>`;
-  if (s.path) return `<span class="rc-dlt ok" title="${escH(s.path)}">저장했어요 · ${escH(String(s.path).split(/[\\/]/).pop())}</span><button class="rc-open" data-p="${escH(s.path)}">폴더 열기</button>`;
+  if (s.path) return `<span class="rc-dlt ok" title="${escH(s.path)}">저장했습니다 · ${escH(String(s.path).split(/[\\/]/).pop())}</span><button class="rc-open" data-p="${escH(s.path)}">폴더 열기</button>`;
   if (s.err) return `<span class="rc-dlt err">${escH(s.err)}</span>`;
   return '';
 }
@@ -289,7 +289,7 @@ async function dlStart(day, c) {
   const r = await window.api.potgFile(c, day, k).catch(() => null);
   if (r && r.ok) _dl[k] = { path: r.path };
   else if (r && r.canceled) delete _dl[k];
-  else _dl[k] = { err: r && r.busy ? '다른 영상을 저장하는 중이에요 · 끝나면 다시 눌러 주세요' : ((r && r.err) || '저장하지 못했어요') + ' · 다시 눌러 주세요' };
+  else _dl[k] = { err: r && r.busy ? '다른 영상을 저장하는 중입니다 · 끝나면 다시 눌러 주세요' : ((r && r.err) || '저장하지 못했습니다') + ' · 다시 눌러 주세요' };
   dlPaint(k);
 }
 window.api.onPotgFileProg(p => { const s = _dl[p.key]; if (!s || !s.busy) return; s.pct = Math.max(0, Math.min(100, p.pct | 0)); if (p.stage) s.stage = p.stage; dlPaint(p.key); });

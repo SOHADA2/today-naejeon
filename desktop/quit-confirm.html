@@ -34,7 +34,7 @@
       <img class="ic" src="../assets/icon.png" alt="">
       <span class="hd"><span class="en" id="en">LOL CLIENT CLOSED</span><span class="ttl">롤 클라이언트 종료됨</span></span>
     </div>
-    <div class="body">롤 클라이언트가 종료됐어요.<br>투데이 내전도 <b>같이 종료</b>할까요?<small>계속 켜두면 다음 게임에도 그대로 이어져요</small></div>
+    <div class="body">롤 클라이언트가 종료됐습니다.<br>투데이 내전도 <b>같이 종료</b>할까요?<small>계속 켜두면 다음 게임에도 그대로 이어집니다</small></div>
     <label class="noask" id="noask-row"><input type="checkbox" id="noask">다음부터 묻지 않고 숨기기</label>
     <div class="actions">
       <button class="ui-btn-ghost" id="keep">계속 켜두기</button>
@@ -45,7 +45,7 @@
     const $ = (id) => document.getElementById(id);
     if (new URLSearchParams(location.search).get('mode') === 'close') {   // 오른쪽 창 ✕
       document.querySelector('.ttl').textContent = '창을 닫을까요?'; $('en').textContent = 'CLOSE WINDOW';
-      document.querySelector('.body').innerHTML = '숨기기만 하면 투데이 내전은 <b>계속 켜져 있어요</b>.<small>나중에 끄려면 작업 표시줄 오른쪽 아래 숨은 아이콘(^) → 우클릭 → 「투데이 내전 종료」</small>';
+      document.querySelector('.body').innerHTML = '숨기기만 하면 투데이 내전은 <b>계속 켜져 있습니다</b>.<small>나중에 끄려면 작업 표시줄 오른쪽 아래 숨은 아이콘(^) → 우클릭 → 「투데이 내전 종료」</small>';
       $('keep').textContent = '숨기기'; $('quit').textContent = '완전히 종료';
       $('noask-row').style.display = 'flex';
     }

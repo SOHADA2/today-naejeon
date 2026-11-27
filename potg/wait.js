@@ -182,12 +182,12 @@
     const first = !V;
     V = v; room.style.display = '';
     if (first) { autoAt = Date.now(); $('wr-steps').innerHTML = STEPS(v).map(s => `<span>${E(s)}</span>`).join(''); }
-    $('wr-who').textContent = v.skipped ? '이 창은 닫을 때까지 계속 볼 수 있어요'   // 🚫 v0.1.240 건너뛴 사람은 아래 알림 줄에
+    $('wr-who').textContent = v.skipped ? '이 창은 닫을 때까지 계속 볼 수 있습니다'   // 🚫 v0.1.240 건너뛴 사람은 아래 알림 줄에
       : v.who && v.me && v.who === v.me ? '내 PC에서 리플레이로 찍는 중' : v.who ? `${v.who}님 PC에서 리플레이로 찍는 중` : '리플레이로 찍는 중';   // v0.1.92: 방장 본인은 자기 PC가 찍는 걸 알게
     room.classList.toggle('skipped', !!v.skipped);
     { // 🚫 v0.1.190 건너뛰면 모두에게 안내 · v0.1.240(사장님: 건너뛰었을 때 화면을 못 누르면 안 됨 · 알림만 뜨고 뒤 화면은 봐야 함 · 알림이 두 종류) = 창을 덮던 큰 카드 → 진행 막대 자리의 알림 줄 하나(탭·「내 판」 그대로 누름)
       const sk = $('wr-skipped');
-      if (sk) { const was = !sk.hidden; sk.hidden = !v.skipped; if (v.skipped && !was) { $('wr-sk-who').textContent = v.skipped === v.me ? '내가 이번 판 팟지를 건너뛰었어요' : `${v.skipped}님이 이번 판 팟지를 건너뛰었어요`; } }
+      if (sk) { const was = !sk.hidden; sk.hidden = !v.skipped; if (v.skipped && !was) { $('wr-sk-who').textContent = v.skipped === v.me ? '내가 이번 판 팟지를 건너뛰었습니다' : `${v.skipped}님이 이번 판 팟지를 건너뛰었습니다`; } }
       const t = room.querySelector('.wr-ttl b'); if (t) t.textContent = v.skipped ? '이번 판 기록' : '팟지 준비 중';
     }
     skipBtn(v);
@@ -201,7 +201,7 @@
     b.hidden = !v.canSkip || !!v.skipped;
     if (b.hidden) { b.classList.remove('arm'); return; }
     b.onclick = () => {
-      if (!b.classList.contains('arm')) { b.classList.add('arm'); b.textContent = '한 번 더 누르면 건너뛰어요'; clearTimeout(armT); armT = setTimeout(() => { b.classList.remove('arm'); b.textContent = '팟지 건너뛰기'; }, 3000); return; }
+      if (!b.classList.contains('arm')) { b.classList.add('arm'); b.textContent = '한 번 더 누르면 건너뜁니다'; clearTimeout(armT); armT = setTimeout(() => { b.classList.remove('arm'); b.textContent = '팟지 건너뛰기'; }, 3000); return; }
       clearTimeout(armT); b.disabled = true; b.textContent = '건너뛰는 중…';
       try { window.api.potgCancel(); } catch (_) {}
     };

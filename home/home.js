@@ -94,7 +94,7 @@ function commBox(d) {
     const b = $('cm-go'); if (b) b.disabled = true;
     const r = await window.api.communityJoin(code).catch(() => null);
     if (b) b.disabled = false;
-    _commMsg = !r || !r.ok ? ((r && r.err) || '잠깐 문제가 생겼어요') : r.restart ? `${r.community ? r.community.name : '기본'} 커뮤니티로 다시 켜는 중입니다` : '';
+    _commMsg = !r || !r.ok ? ((r && r.err) || '잠깐 문제가 생겼습니다') : r.restart ? `${r.community ? r.community.name : '기본'} 커뮤니티로 다시 켜는 중입니다` : '';
     if (r && r.ok && !r.restart) _commOpen = false;
     _commSig = ''; commBox(_lastD || d);
   };

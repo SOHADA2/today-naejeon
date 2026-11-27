@@ -549,7 +549,7 @@ function end(my) {
   setTeam(c.team);
   el('pg-sum').innerHTML = `<b>${esc(c.name)}</b>${c.champ ? ' · ' + esc(c.champ) : ''} · ${esc(c.label)} · <span class="num">${mmss(c.t0)}</span>`
     + (c.hero ? `<br><span class="hs">숨은 영웅</span> <b>${esc(c.hero.name)}</b> · ${esc(c.hero.label)} · <span class="num">${mmss(c.hero.peak)}</span>` : '')
-    + (c.guess && c.guess.n ? `<br><span class="hs">🔮 예측</span> ${c.guess.right.length ? `맞힌 사람 <b>${c.guess.right.map(esc).join(', ')}</b>` : '아무도 못 맞혔어요'} · ${c.guess.right.length}/${c.guess.n}명` : '');   // ⏳ 기다림 화면 예측 결과
+    + (c.guess && c.guess.n ? `<br><span class="hs">🔮 예측</span> ${c.guess.right.length ? `맞힌 사람 <b>${c.guess.right.map(esc).join(', ')}</b>` : '아무도 못 맞혔습니다'} · ${c.guess.right.length}/${c.guess.n}명` : '');   // ⏳ 기다림 화면 예측 결과
   el('pg-save').style.display = EXPORT ? 'none' : '';   // 💾 v0.1.251 영상 저장 = 오른쪽 창 「기록」에서(진행 막대)
   el('pg-end').style.display = '';
   bgm.timers.push(setTimeout(() => bgmEnd(2500), 2500));   // 터진 뒤 조금 더 들려주고 서서히
@@ -563,7 +563,7 @@ el('pg-again').onclick = () => play();
 el('pg-save').onclick = () => {
   const c = card || {}, day = (c.clip && c.clip.day) || (c.normal && c.normal.day) || c.day || '';
   window.api.potgToRecord({ day, gameId: String(c.gameId || (c.clip && c.clip.gameId) || '') });
-  el('pg-msg').textContent = '오른쪽 창 「기록」에서 「영상 저장」을 누르면 진행 막대와 함께 받아져요';
+  el('pg-msg').textContent = '오른쪽 창 「기록」에서 「영상 저장」을 누르면 진행 막대와 함께 받아집니다';
 };
 // 내보내기 창(main이 executeJavaScript로 부름 · 사용자 동작으로 쳐 줌) — 자기 화면+소리를 탭 녹화(main setDisplayMediaRequestHandler가 이 창만 허락)
 //   팟지 = 소개 → 영상(킬 자막·슬로·정지·끝맺음) 또는 킬 카드 · 숨은 영웅 = 짧은 소개 → 영상 또는 지표 카드 · 끝 화면·버튼은 안 담음
