@@ -1550,9 +1550,32 @@ async function roomCreate(name, priv, pw) {
 async function roomLeave(quiet) {
   if (!room) return { ok: true };
   const id = room.id;
-  if (config.isHost) {   // 👑 남은 사람에게 넘김(없으면 비움)
-    const next = roomMembers(id).filter(m => !account || m.key !== account.puuid).sort((a, b) => a.key.localeCompare(b.key))[0];
+  const rest = roomMembers(id).filter(m => !account || m.key !== account.puuid);
+  // 🚪 v0.1.271 혼자 있던 방에서 나가면 방을 바로 닫음(사장님: 방이 사라질 때까지 90초 동안 방 목록에 방장·사람이 있는 것처럼 보였음)
+  //   순서 = 방 목록 칸 지우기(방 사람이라 허용) → 방 데이터 통째(목록에 없는 방이라 허용) · 실패하면 예전처럼 내 칸만 지우고 90초 뒤 정리에 맡김
+  //   ⚠️ 먼저 방을 비우고(room = null) 잠깐 기다림 — 20초마다 도는 「방 살아 있음」(beatPresence → roomList seen·n·mem) 쓰기가 이미 나가 있으면
+  //      지운 방 목록 칸을 다시 만들어 버리고, 그러면 방 데이터 통째 지우기도 규칙에 막힘(실제 시험에서 생김)
+  let closed = false;
+  if (!rest.length && account) {
+    if (config.isHost) await releaseHost().catch(() => {});
+    room = null; config.lastRoom = null; saveConfig(); _roomUidKey = null; _dcRoomKey = null;
+    await new Promise(r => setTimeout(r, 1500));
+    const ok = await fbSet(`${CT}/roomList/${id}`, null).catch(() => null);
+    if (ok && ok.ok) {
+      roomListRaw = Object.assign({}, roomListRaw); delete roomListRaw[id];
+      const g = await fbSet(`${CT}/rooms/${id}`, null).catch(() => null);
+      closed = !!(g && g.ok);
+      console.log('[room] 혼자 나감 → 방 닫음', id, closed ? '' : '(방 데이터는 정리에 맡김)');
+      if (closed) { roomStreams(); await beatPresence(); broadcastRooms(); if (!quiet) try { showMainPanel(); } catch (_) {} return { ok: true, closed: true }; }
+    }
+  }
+  const next = rest.slice().sort((a, b) => a.key.localeCompare(b.key))[0], wasHost = !!config.isHost;
+  if (wasHost) {   // 👑 남은 사람에게 넘김(없으면 비움)
     if (next) await handHost(next.key).catch(() => {}); else await releaseHost().catch(() => {});
+  }
+  if (rest.length && account) {   // 🚪 v0.1.271 방 목록의 인원·이름·방장을 바로 고침(남은 사람 앱이 20초 뒤 다시 쓸 때까지 내가 남아 보이던 것)
+    const mem = rest.map(m => m.name);
+    await fbUpdate(`${CT}/roomList/${id}`, Object.assign({ n: mem.length, mem: mem.slice(0, 10).join('\n').slice(0, 400) }, wasHost && next ? { host: next.name } : {})).catch(() => {});
   }
   const uid = uidFor(`${CT}/rooms`), dels = account ? ['lobby/join', 'lobby/chat', 'lobby/ping', 'lobby/cping', 'members', 'dc'].map(k => fbSet(`${CT}/rooms/${id}/${k}/${account.puuid}`, null).catch(() => {})) : [];   // 💬 내 한마디·📍 핑·📦 방 사람 칸·디스코드 사본
   room = null; config.lastRoom = null; saveConfig(); _roomUidKey = null; _dcRoomKey = null;   // 먼저 방을 비움(지우는 사이 접속 신호가 방 사람 칸을 다시 쓰지 않게)
@@ -4610,11 +4633,20 @@ app.on('before-quit', (e) => {
   if (_guestOn) jobs.push(fbSet(`${CT}/presence/g_${config.deviceId}`, null));   // 👤 게스트 표시
   if (account && room) jobs.push(fbSet(`${RP()}/members/${account.puuid}`, null));   // 📦 방 사람 칸
   if (account) jobs.push(fbSet(`${RP()}/lobby/join/${account.puuid}`, null));
+  // 🚪 v0.1.271 그냥 끌 때(업데이트 재시작 아님) = 방 목록을 바로 고침 — 혼자였으면 방을 닫고(목록 → 방 데이터 순) · 아니면 인원·이름에서 나를 뺌
+  //   업데이트 재시작은 그대로 둠(방 90초 · 방장 2분 맡아 둠 → 다시 켜지면 같은 방으로 · roomRejoin)
+  if (account && room && !_updRestart) {
+    const id = room.id, rest = roomMembers(id).filter(m => m.key !== account.puuid), mem = rest.map(m => m.name);
+    const later = f => new Promise(r => setTimeout(r, 800)).then(f);   // 이미 나간 「방 살아 있음」 쓰기가 먼저 닿게(roomLeave와 같은 이유)
+    if (!rest.length) jobs.push(later(() => fbSet(`${CT}/roomList/${id}`, null)).then(w => w && w.ok ? fbSet(`${CT}/rooms/${id}`, null) : null));
+    else jobs.push(later(() => fbUpdate(`${CT}/roomList/${id}`, { n: mem.length, mem: mem.slice(0, 10).join('\n').slice(0, 400) })));
+  }
   // 👑 v0.1.151 업데이트 재시작이면 방장 자리를 비우지 않고 2분 맡아 둠(at = 지금 + 1분 → 살아있음 판정 2분) — 다시 켜지면 onHostRec가 그대로 방장으로 되돌림(받는 사람 없음)
   //   2분 안에 못 돌아오면 그때 남은 사람이 자동으로 이어받고 안내 줄을 봄 · 그냥 끌 때는 예전처럼 비워서 바로 이어받게
   if (config.isHost) jobs.push(fbCas(`${RP()}/host`, cur => cur && account && cur.puuid === account.puuid
     ? { value: _updRestart ? { puuid: cur.puuid, name: cur.name, at: Date.now() + 60000, upd: true } : null } : { err: 'not mine' }));
   if (!jobs.length) return;
+  if (room && !_updRestart) room = null;   // 🚪 v0.1.271 끄는 3초 동안 「방 살아 있음」이 방 목록을 다시 쓰지 않게(업데이트 재시작은 그대로 · lastRoom은 남겨 다음에 켜면 그 방으로)
   e.preventDefault();
   Promise.race([Promise.allSettled(jobs), new Promise(r => setTimeout(r, 3000))]).then(() => app.quit());
 });
