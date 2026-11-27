@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('api', {
   // 🪟 창
   winFold: (side, v) => ipcRenderer.send('win-fold', side, !!v),   // 📌 v0.1.276 접기 손잡이(side 'L' 왼쪽 · 'R' 오른쪽)
   onFold: (cb) => ipcRenderer.on('fold', (_e, d) => cb(d)),
+  onFoldTabIn: (cb) => ipcRenderer.on('foldtab-in', () => cb()),   // ✨ v0.1.277 빛 손잡이가 나타날 때 한 번
   sideClose: () => ipcRenderer.send('side-hide'),
   sideMinimize: () => ipcRenderer.send('side-min'),
   overlayMinimize: () => ipcRenderer.send('overlay-min'),

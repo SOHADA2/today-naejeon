@@ -254,51 +254,100 @@ function clientRect(pb) {   // 도킹 줄 원시 px → 화면 좌표(배율 반
   const cx = pb.x / sf, cy = pb.y / sf, cw = pb.w / sf, ch = pb.h / sf;
   return { cx, cy, cw, ch, disp: screen.getDisplayMatching({ x: Math.round(cx), y: Math.round(cy), width: Math.round(cw), height: Math.round(ch) }) };
 }
-function dockBoundsL(pb, full) {   // ◀ 팀/명단 오버레이 = 클라 왼쪽 바깥 · 📌 접혔으면 클라에 붙은 손잡이(FOLD_W)만
+function dockBoundsL(pb) {   // ◀ 팀/명단 오버레이 = 클라 왼쪽 바깥
   const { cx, cy, ch, disp } = clientRect(pb), dispLeft = disp.workArea.x;
   let W = Math.min(400, Math.round(cx - dispLeft)); if (W < 300) W = 300;
   let x = Math.round(cx - W); if (x < dispLeft) x = dispLeft;
-  const b = { x, y: Math.round(cy), width: W + 2, height: Math.round(ch) };
-  return !full && config.foldL ? { x: b.x + b.width - FOLD_W, y: b.y, width: FOLD_W, height: b.height } : b;
+  return { x, y: Math.round(cy), width: W + 2, height: Math.round(ch) };
 }
-function dockBoundsR(pb, full) {   // ▶ 내 정보 패널 = 클라 오른쪽 바깥 · 📌 접혔으면 손잡이만
+function dockBoundsR(pb) {   // ▶ 내 정보 패널 = 클라 오른쪽 바깥
   const { cx, cy, cw, ch, disp } = clientRect(pb), dispRight = disp.workArea.x + disp.workArea.width;
   let x = Math.round(cx + cw) - 2;
   let W = Math.min(400, Math.round(dispRight - x)); if (W < 300) W = 300;
   if (x + W > dispRight) x = Math.max(disp.workArea.x, dispRight - W);
-  const b = { x, y: Math.round(cy), width: W, height: Math.round(ch) };
-  return !full && config.foldR ? { x: Math.round(cx + cw) - 2, y: b.y, width: FOLD_W, height: b.height } : b;
+  return { x, y: Math.round(cy), width: W, height: Math.round(ch) };
 }
 // 📌 v0.1.276 접기 손잡이(사장님: 왼쪽 창을 ✕로 끄면 다시 여는 게 불편 → 「접기 손잡이」 선택)
-//   롤 클라에 붙어 있을 때 머리의 —·✕ 대신 「접기」 하나 → 창이 클라 옆 얇은 손잡이(FOLD_W)로 접히고 누르면 다시 펼쳐짐 · 종료는 ⚙ 설정·트레이
-//   클라가 없을 때(홈·합친 창·도킹 끔)는 예전 —·✕ 그대로 · 접힘은 저장(config.foldL/foldR) · 팀이 정해지는 등 꼭 봐야 할 때는 저절로 펼침(unfoldL)
-const FOLD_W = 48;   // 윈도우가 불투명 창(오른쪽)을 48px보다 좁게 못 만듦(크기 조절·최소화를 꺼도 같음 · 실측) → 두 손잡이 다 48
-const canFold = () => !_floating && !_homeOn;
+//   롤 클라에 붙어 있을 때 머리의 —·✕ 대신 「접기」 하나 · 종료는 ⚙ 설정·트레이 · 클라가 없을 때(홈·합친 창·도킹 끔)는 예전 —·✕ 그대로
+//   접힘은 저장(config.foldL/foldR) · 팀이 정해지거나 투표·드래프트가 시작되는 등 꼭 봐야 할 때는 저절로 펼침(unfoldL)
+// ✨ v0.1.277(사장님: 세로 글자 손잡이는 디자인이 별로 → 빛이 새어 나오는 느낌 · 마우스를 대면 창이 스르륵 나오며 화살표 · 화살표를 누르면 예전처럼 열림)
+//   접히면 창(왼쪽·오른쪽)은 숨기고, 클라 가장자리에 따로 띄운 투명 손잡이 창(desktop/foldtab.html · FOLD_HW 폭 · 클라 높이)만 둠
+//   = 클라와 창 사이 틈에서 금빛이 새어 나옴 → 마우스를 올리면 창 조각이 스르륵 나오며 화살표 → 누르면 창이 클라 쪽에서 미끄러져 나오며 열림(문 열림 효과)
+//   손잡이 창도 우리 프로세스 창이라 도킹 스크립트가 클라와 같이 올림 · 포커스를 안 가져감(focusable false)
+const FOLD_HW = 64;   // 창 조각 34 + 바깥 빛 30
+const canFold = () => !_floating && !_homeOn && !inGame && _door !== 'closed' && !_bootWait && !_quiet;
+const foldOn = side => !!(side === 'L' ? config.foldL : config.foldR) && canFold();
 let _foldSig = '';
 function sendFold(force) {
   const c = canFold(), sig = `${c}|${!!config.foldL}|${!!config.foldR}`;
-  if (!force && sig === _foldSig) return; _foldSig = sig;
-  for (const [w, f] of [[overlayWin, config.foldL], [leftWin, config.foldR]]) if (w && !w.isDestroyed()) try { w.webContents.send('fold', { can: c, fold: c && !!f }); } catch (_) {}
+  if (force || sig !== _foldSig) {
+    _foldSig = sig;
+    for (const [w, f] of [[overlayWin, config.foldL], [leftWin, config.foldR]]) if (w && !w.isDestroyed()) try { w.webContents.send('fold', { can: c, fold: c && !!f }); } catch (_) {}
+  }
+  syncFoldTabs();
+}
+const _foldTab = { L: null, R: null }, _foldTabSig = { L: '', R: '' };
+function foldTabBounds(side, pb) {
+  if (side === 'L') { const b = dockBoundsL(pb); return { x: b.x + b.width - FOLD_HW, y: b.y, width: FOLD_HW, height: b.height }; }
+  const b = dockBoundsR(pb); return { x: b.x, y: b.y, width: FOLD_HW, height: b.height };
+}
+function makeFoldTab(side) {
+  const w = new BrowserWindow({ width: FOLD_HW, height: 600, show: false, frame: false, transparent: true, hasShadow: false, backgroundColor: '#00000000',
+    resizable: false, focusable: false, skipTaskbar: true, alwaysOnTop: false, roundedCorners: false, paintWhenInitiallyHidden: true,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false } });
+  w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  w.loadFile('desktop/foldtab.html', { query: { side } });
+  w.on('closed', () => { _foldTab[side] = null; _foldTabSig[side] = ''; });
+  return w;
+}
+function syncFoldTabs() {   // 손잡이 창 = 접힘 + 클라에 붙어 있음 + 클라 위치를 알 때만 · 위치는 바뀐 때만 옮김
+  for (const side of ['L', 'R']) {
+    const want = foldOn(side) && !!_lastRect && (side === 'L' || config.sidePanel !== false);
+    let w = _foldTab[side];
+    if (!want) { if (w && !w.isDestroyed() && w.isVisible()) w.hide(); continue; }
+    if (!w || w.isDestroyed()) w = _foldTab[side] = makeFoldTab(side);
+    const b = foldTabBounds(side, rectPb(_lastRect)), sig = `${b.x},${b.y},${b.width},${b.height}`;
+    if (sig !== _foldTabSig[side]) { _foldTabSig[side] = sig; w.setBounds(b); }
+    if (!w.isVisible()) { w.showInactive(); try { w.webContents.send('foldtab-in'); } catch (_) {} }
+  }
 }
 function setFold(side, v) {
   const k = side === 'L' ? 'foldL' : 'foldR'; v = !!v;
   if (!!config[k] === v) { sendFold(true); return; }
+  const win = side === 'L' ? overlayWin : leftWin, anim = canFold() && !!_lastRect && win && !win.isDestroyed();
   config[k] = v; saveConfig();
   if (side === 'R' && !v) { leftUserHid = false; leftMinimized = false; if (config.sidePanel === false) { config.sidePanel = true; refreshTrayMenu(); } }
   if (side === 'L' && !v) { userHid = false; overlayMinimized = false; }
-  sendFold(true);
-  if (canFold() && _lastRect) {
-    const pb = rectPb(_lastRect);   // moveWin = 붙는 움직임 도중이면 도착점만 바꿈(그냥 setBounds면 움직임이 펼친 크기로 덮어씀)
-    if (side === 'L') { dockedBounds = null; moveWin(overlayWin, dockBoundsL(pb)); }
-    else { leftDockedBounds = null; moveWin(leftWin, dockBoundsR(pb)); }
-    applyRaise();
+  if (!anim) { sendFold(true); return; }
+  const to = side === 'L' ? dockBoundsL(rectPb(_lastRect)) : dockBoundsR(rectPb(_lastRect)), dir = side === 'L' ? 1 : -1;   // dir = 클라 쪽
+  if (side === 'L') dockedBounds = null; else leftDockedBounds = null;
+  if (v) {   // 접기 = 클라 쪽으로 살짝 밀려 들어가며 사라짐 → 그 자리에 빛 손잡이
+    _winAnim.delete(win);
+    moveWin(win, { ...to, x: to.x + dir * 70 }, 200, { curve: 'close' });
+    const t0 = Date.now(), fade = setInterval(() => { const k2 = Math.min(1, (Date.now() - t0) / 190); try { win.setOpacity(1 - k2); } catch (_) {} if (k2 >= 1) clearInterval(fade); }, 16);
+    setTimeout(() => {
+      clearInterval(fade); _winAnim.delete(win);
+      if (!win.isDestroyed()) { if (foldOn(side)) win.hide(); win.setBounds(to); try { win.setOpacity(1); } catch (_) {} }
+      sendFold(true); applyRaise();
+    }, 220);
+    try { win.webContents.send('fold', { can: true, fold: true }); } catch (_) {}
+    return;
   }
+  // 펼치기 = 손잡이를 내리고 창이 클라 쪽에서 미끄러져 나오며 서서히(예전 문 열림 효과)
+  const t = _foldTab[side]; if (t && !t.isDestroyed() && t.isVisible()) t.hide();
+  sendFold(true);
+  _winAnim.delete(win);
+  win.setBounds({ ...to, x: to.x + dir * 90 }); try { win.setOpacity(0); } catch (_) {}
+  win.showInactive();
+  moveWin(win, to, 380, { curve: 'open', fade: true });
+  try { win.webContents.send('door-fx', { act: 'open', side: side === 'L' ? 'left' : 'right', ms: 380, v2: true }); } catch (_) {}
+  applyRaise();
 }
 const unfoldL = () => { if (config.foldL) setFold('L', false); };
 let _foldPh = null;
 function doorBounds(pb, which) {   // 🚪 문 닫힌 자리 = 두 창이 클라 가운데에서 맞닿음(높이 = 클라 · 폭 = 붙어 있던 폭)
   const { cx, cy, cw, ch } = clientRect(pb), mid = Math.round(cx + cw / 2);
-  const wL = dockBoundsL(pb, true).width, wR = dockBoundsR(pb, true).width;
+  const wL = dockBoundsL(pb).width, wR = dockBoundsR(pb).width;
   return which === 'left' ? { x: mid - wL, y: Math.round(cy), width: wL, height: Math.round(ch) } : { x: mid, y: Math.round(cy), width: wR, height: Math.round(ch) };
 }
 function applyDock(pb, ms) {                   // 팀/명단 오버레이 = 클라 '왼쪽' 바깥에 붙임
@@ -330,7 +379,7 @@ function applyAutoLaunch() {   // 설정값을 윈도우 시작 프로그램에 
 const rectPb = p => ({ x: p[0], y: p[1], w: p[2] - p[0], h: p[3] - p[1] });
 function closeDoors() {
   _door = 'closed'; _floating = true; _lastRaise = null; dockedBounds = null; leftDockedBounds = null; setMerged(false);
-  hideSlotMarker();
+  hideSlotMarker(); sendFold();   // ✨ 빛 손잡이도 내림
   const pb = _lastRect && rectPb(_lastRect);
   if (pb) {
     moveWin(overlayWin, doorBounds(pb, 'left'), DOOR_MS, { curve: 'close' }); moveWin(leftWin, doorBounds(pb, 'right'), DOOR_MS, { curve: 'close' }); doorFx('close');
@@ -706,8 +755,9 @@ function applyRaise() {
     if (allowed) { if (!win.isVisible()) win.showInactive(); }
     else if (win.isVisible()) win.hide();   // 사용자가 직접 숨긴(userHid/leftUserHid) 경우만 숨김
   };
-  show(overlayWin, !userHid && !sampleActive && !overlayMinimized);
-  show(leftWin, config.sidePanel !== false && !leftUserHid && !leftMinimized);
+  show(overlayWin, !userHid && !sampleActive && !overlayMinimized && !foldOn('L'));   // ✨ 접혔으면 창 대신 빛 손잡이(syncFoldTabs)
+  show(leftWin, config.sidePanel !== false && !leftUserHid && !leftMinimized && !foldOn('R'));
+  syncFoldTabs();
   // 📍 마커는 클라 또는 우리 창이 활성일 때만(도킹 중·다른 앱 위엔 안 뜨게 · v0.1.53: 우리 창 눌러도 유지)
   if (!_floating && clientFg && _lastRect) updateSlotMarker(_lastRect); else hideSlotMarker();
 }
@@ -1052,7 +1102,7 @@ async function fbUpdate(pathStr, value) {   // 노드 일부 필드만 갱신(PA
 // ── 창 생성 ──────────────────────────────────────────────────────────────
 function createOverlay() {
   overlayWin = new BrowserWindow({
-    width: 456, height: 452, x: 24, y: 84, minWidth: 24, minHeight: 220,   // minWidth 작게 = 📌 접기 손잡이(FOLD_W)
+    width: 456, height: 452, x: 24, y: 84, minWidth: 260, minHeight: 220,
     transparent: true, frame: false, resizable: true, movable: true,   // 크기 조절 가능(반응형)
     alwaysOnTop: false, skipTaskbar: true, show: false, focusable: true,   // 로비=클라와 같은 층위, 게임 중만 위로(pollGame)
     roundedCorners: false,   // 🪟 Win11 창 모서리 둥글림 끄기 → 클라에 각지게 딱 맞음
@@ -1069,7 +1119,7 @@ function createOverlay() {
 // ▶ 오른쪽 패널(입장·팀짜기·오늘 기록) — 메인 창
 function createLeftPanel() {
   leftWin = new BrowserWindow({
-    width: 360, height: 600, x: 24, y: 84, minWidth: 24, minHeight: 300,
+    width: 360, height: 600, x: 24, y: 84, minWidth: 260, minHeight: 300,
     frame: false, backgroundColor: '#010A13', show: false,
     icon: path.join(__dirname, 'assets', 'icon.png'),
     alwaysOnTop: false, skipTaskbar: true, resizable: true, focusable: true,   // 클라와 같은 층위(로비 정보 패널)
@@ -1292,11 +1342,11 @@ function showMainPanel() {   // 트레이/재실행 → 내 정보 패널(메인
 }
 
 // ── 오버레이 표시/숨김 ────────────────────────────────────────────────────
-function showOverlay() { overlayMinimized = false; if (overlayWin) { try { overlayWin.setSkipTaskbar(true); } catch (_) {} if (!overlayWin.isVisible()) overlayWin.showInactive(); } } // 게임 포커스 뺏지 않게
+function showOverlay() { if (foldOn('L')) return; overlayMinimized = false; if (overlayWin) { try { overlayWin.setSkipTaskbar(true); } catch (_) {} if (!overlayWin.isVisible()) overlayWin.showInactive(); } } // 게임 포커스 뺏지 않게
 function hideOverlay() { if (overlayWin && overlayWin.isVisible()) overlayWin.hide(); }
 function toggleOverlay() {
   if (!overlayWin) return;
-  if (config.foldL && canFold() && overlayWin.isVisible()) { setFold('L', false); return; }   // 📌 접혀 있으면 Shift+F7 = 펼치기
+  if (foldOn('L')) { setFold('L', false); return; }   // 📌 접혀 있으면 Shift+F7 = 펼치기
   if (overlayWin.isVisible()) { hideOverlay(); userHid = true; }
   else { showOverlay(); userHid = false; }
 }
@@ -3869,7 +3919,7 @@ function refreshTrayMenu(updateReady) {
   const items = [
     { label: '롤 클라이언트에 붙이기(도킹)', type: 'checkbox', checked: config.dock !== false, click: toggleDock },
     { type: 'separator' },
-    { label: `대기실 창 열기/닫기 (${TOGGLE_HOTKEY})`, click: () => { if (config.foldL && canFold()) setFold('L', false); else toggleOverlay(); } },
+    { label: `대기실 창 열기/닫기 (${TOGGLE_HOTKEY})`, click: toggleOverlay },
     { label: '오른쪽 패널', type: 'checkbox', checked: config.sidePanel !== false, click: toggleSidePanel },
     { label: '오른쪽 패널 열기', click: showMainPanel },
     { type: 'separator' },
@@ -4565,10 +4615,11 @@ else {
     // 🧪 개발용 TN_DOCK_SIM=1: 롤 없이 창 연출 시험 — 진짜 도킹 감시 대신 global.__dockSim으로 클라 위치·롤 단계·게임 중을 흉내(배포본에선 무시)
     const dockSim = !app.isPackaged && process.env.TN_DOCK_SIM;
     if (dockSim) global.__dockSim = { line: queueDockLine, phase: (ph) => onLobbySeat({ phase: ph, seat: null, custom: null }), game: (v) => { global.__simGame = !!v; pollGame(); },
-      bounds: () => [overlayWin, leftWin, homeWin].map(w => w && !w.isDestroyed() ? w.getBounds() : null), state: () => ({ _floating, _door, _bootWait, quiet: _quiet, inGame, home: _homeOn ? _homeMode : null, live: _live, guest: _guestOn, acct: !!account }) };
+      bounds: () => [overlayWin, leftWin, homeWin].map(w => w && !w.isDestroyed() ? w.getBounds() : null), state: () => ({ _floating, _door, _bootWait, quiet: _quiet, inGame, home: _homeOn ? _homeMode : null, live: _live, guest: _guestOn, acct: !!account, fold: { can: canFold(), L: !!config.foldL, R: !!config.foldR, tabs: Object.keys(_foldTab).filter(k => _foldTab[k]), rect: !!_lastRect, bw: _bootWait, q: _quiet, home: _homeOn, door: _door, fl: _floating } }) };
     pollGame(); pollSession(); if (!dockSim) startDockStream();
     setInterval(pollGame, 2500);
     setInterval(autoLobbyMode, 3000);
+    setInterval(() => { try { sendFold(); } catch (_) {} }, 1000);   // ✨ 게임 시작·홈 등으로 상태가 바뀌면 빛 손잡이를 내리고 올림(바뀐 것만)
     setInterval(() => { lolInvTick().catch(() => {}); lolRemakeTick().catch(() => {}); }, 3000);   // 🎮 v0.1.185 방장 롤 초대 받기 · v0.1.188 팀 정해지면 롤 로비 새 다리로   // 🔀 v0.1.82: 대기방을 먼저 감지하고 방장이 나중에 된 경우(앱 재시작·방장 이어받기)도 판단 — 대기방 종류가 바뀐 때만 실제로 바꿈
     runSession = coalesce(pollSession);
     setInterval(runSession, 3000);                       // 화면·방장 일 3초마다(📡 v0.1.63: 데이터는 스트림 사본 — 끊긴 노드만 서버에서 읽음)

@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>투데이 내전</title>
+  <link rel="stylesheet" href="../shared.css">
+  <style>
+    /* ✨ v0.1.277 접힌 창 손잡이(사장님: 세로 글자 말고 빛이 새어 나오는 느낌 · 마우스를 대면 창이 스르륵 나오며 화살표 · 누르면 예전처럼 열림)
+       창 = 클라 가장자리에 붙은 투명 창(main FOLD_HW 폭 · 클라 높이) · 기준 = 왼쪽 손잡이(클라가 오른쪽) · 오른쪽 손잡이는 통째로 좌우 뒤집음(scaleX(-1))
+       쉬는 모습 = 클라와 창 사이 틈의 금빛 선 + 바깥으로 번지는 빛 · 마우스를 올리면 창 조각(.peek)이 틈에서 스르륵 나오고 빛은 그 끝으로 옮겨 감 + 화살표
+       ⚠️ 무한 애니메이션 금지(투명 창) — 나타날 때 한 번·마우스 올림 전환만 */
+    html, body { margin:0; width:100%; height:100%; background:transparent; overflow:hidden; -webkit-user-select:none; user-select:none; }
+    #hit { position:fixed; inset:0; background:rgba(0,0,0,0.01); }   /* 거의 투명한 바탕 = 마우스 올림을 받음 */
+    body.R #hit { transform:scaleX(-1); }
+    .seam, .leak, .rays, .peek { position:absolute; top:0; bottom:0; right:0; }
+    /* 틈의 빛줄기 — 가운데가 가장 밝고 위아래로 옅어짐 */
+    .seam { width:2px; background:linear-gradient(180deg, transparent 0%, rgba(240,215,154,0.45) 16%, #F7E3B0 50%, rgba(240,215,154,0.45) 84%, transparent 100%);
+      box-shadow:0 0 8px 1px rgba(240,215,154,0.5); transition:opacity .25s; }
+    /* 바깥으로 새어 나오는 빛 */
+    .leak { top:3%; bottom:3%; width:58px; pointer-events:none;
+      background:radial-gradient(56px 54% at 100% 50%, rgba(240,215,154,0.38), rgba(200,170,110,0.13) 45%, transparent 80%);
+      transition:transform .34s cubic-bezier(.2,.9,.3,1), opacity .3s; }
+    .rays { top:12%; bottom:12%; width:40px; pointer-events:none; opacity:0.55;
+      background:repeating-linear-gradient(180deg, rgba(247,227,176,0.10) 0 1px, transparent 1px 11px);
+      -webkit-mask-image:linear-gradient(to left, #000, transparent); mask-image:linear-gradient(to left, #000, transparent);
+      transition:transform .34s cubic-bezier(.2,.9,.3,1), opacity .3s; }
+    /* 마우스를 올리면 틈에서 나오는 창 조각 */
+    .peek { width:34px; transform:translateX(34px); cursor:pointer; -webkit-app-region:no-drag;
+      background:radial-gradient(120% 40% at 50% -10%, rgba(200,170,110,0.10), transparent 60%), linear-gradient(180deg, rgba(14,23,31,0.98), rgba(6,11,16,0.99));
+      border-top:2px solid var(--gold); transition:transform .34s cubic-bezier(.2,.9,.3,1); }
+    .peek::before { content:''; position:absolute; left:-1px; top:0; bottom:0; width:2px;   /* 조각 끝으로 옮겨 간 빛 */
+      background:linear-gradient(180deg, transparent 0%, rgba(240,215,154,0.5) 16%, #F7E3B0 50%, rgba(240,215,154,0.5) 84%, transparent 100%);
+      box-shadow:-2px 0 10px 1px rgba(240,215,154,0.45); }
+    .arr { position:absolute; left:50%; top:50%; width:26px; height:26px; margin:-13px 0 0 -13px; padding:0; display:flex; align-items:center; justify-content:center;
+      border:1px solid var(--gold-line); background:var(--gold-soft); color:var(--gold-hi); clip-path:var(--cut-sm); cursor:pointer;
+      opacity:0; transform:scale(.6); transition:opacity .18s .1s, transform .26s .1s cubic-bezier(.2,.9,.3,1.3), background-color .12s, color .12s; }
+    .arr svg { width:11px; height:11px; }
+    #hit:hover .seam { opacity:0; }
+    #hit:hover .leak { transform:translateX(-34px); opacity:1; }
+    #hit:hover .rays { transform:translateX(-34px); opacity:0.8; }
+    #hit:hover .peek { transform:none; }
+    #hit:hover .arr { opacity:1; transform:none; }
+    .peek:hover .arr { background:var(--gold); color:#14100a; border-color:var(--gold-hi); }
+    .peek:active .arr { transform:scale(.92); }
+    /* 나타날 때 한 번 = 빛줄기가 가운데에서 위아래로 퍼지고 번짐이 차오름 */
+    body.in .seam { animation:ftSeam .5s cubic-bezier(.2,.9,.3,1) both; }
+    body.in .leak, body.in .rays { animation:ftLeak .7s ease-out both; }
+    @keyframes ftSeam { from { transform:scaleY(0); opacity:0; } to { transform:none; opacity:1; } }
+    @keyframes ftLeak { from { opacity:0; } }
+  </style>
+</head>
+<body>
+  <div id="hit" title="">
+    <div class="leak"></div><div class="rays"></div><div class="seam"></div>
+    <div class="peek"><button class="arr" aria-label="펼치기"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M7.5 2 3.5 6l4 4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button></div>
+  </div>
+  <script>
+    const side = new URLSearchParams(location.search).get('side') === 'R' ? 'R' : 'L';
+    document.body.classList.add(side);
+    document.querySelector('.peek').title = side === 'L' ? '대기실 펼치기 (Shift+F7)' : '홈·기록 펼치기';
+    document.querySelector('.peek').addEventListener('click', () => { if (window.api && window.api.winFold) window.api.winFold(side, false); });
+    const replay = () => { document.body.classList.remove('in'); void document.body.offsetWidth; document.body.classList.add('in'); };
+    if (window.api && window.api.onFoldTabIn) window.api.onFoldTabIn(replay);
+    replay();
+  </script>
+</body>
+</html>
