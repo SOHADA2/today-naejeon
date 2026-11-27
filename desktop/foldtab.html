@@ -59,7 +59,6 @@
     const side = new URLSearchParams(location.search).get('side') === 'R' ? 'R' : 'L';
     document.body.classList.add(side);
     const hit = document.getElementById('hit');
-    hit.title = side === 'L' ? '대기실 펼치기 (Shift+F7)' : '홈·기록 펼치기';
     hit.addEventListener('click', () => { if (window.api && window.api.winFold) window.api.winFold(side, false); });
     const replay = () => { document.body.classList.remove('in'); void document.body.offsetWidth; document.body.classList.add('in'); };
     if (window.api && window.api.onFoldTabIn) window.api.onFoldTabIn(replay);

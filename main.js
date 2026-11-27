@@ -321,27 +321,32 @@ function setFold(side, v) {
   if (!anim) { sendFold(true); return; }
   const to = side === 'L' ? dockBoundsL(rectPb(_lastRect)) : dockBoundsR(rectPb(_lastRect)), dir = side === 'L' ? 1 : -1;   // dir = 클라 쪽
   if (side === 'L') dockedBounds = null; else leftDockedBounds = null;
-  if (v) {   // 접기 = 클라 쪽으로 살짝 밀려 들어가며 사라짐 → 그 자리에 빛 손잡이
-    _winAnim.delete(win);
-    moveWin(win, { ...to, x: to.x + dir * 70 }, 200, { curve: 'close' });
-    const t0 = Date.now(), fade = setInterval(() => { const k2 = Math.min(1, (Date.now() - t0) / 190); try { win.setOpacity(1 - k2); } catch (_) {} if (k2 >= 1) clearInterval(fade); }, 16);
+  // v0.1.279(사장님: 접힐 때 창이 클라 위로 들어감 → 뒤로 들어가게) — 창은 제자리 · 창 안 화면(#panel)만 클라 쪽 가장자리로 미끄러져 잘려 나감
+  //   = 클라 뒤로 들어가는 것처럼 보임(창 가장자리 = 클라 가장자리) · 오른쪽 창은 바탕이 불투명이라 창 투명도도 같이 줄임 · 렌더러 = desktop/fold.js 'fold-anim'
+  const fa = d => { try { win.webContents.send('fold-anim', d); } catch (_) {} };
+  const fadeWin = (from, to2, ms) => { if (side !== 'R') return; const t0 = Date.now(), iv = setInterval(() => { const k2 = Math.min(1, (Date.now() - t0) / ms); try { if (!win.isDestroyed()) win.setOpacity(from + (to2 - from) * k2); } catch (_) {} if (k2 >= 1) clearInterval(iv); }, 16); };
+  _winAnim.delete(win); if (!win.isDestroyed()) win.setBounds(to);
+  if (v) {   // 접기 → 그 자리에 빛 손잡이
+    const MS = 260;
+    fa({ act: 'out', ms: MS }); fadeWin(1, 0, MS);
     setTimeout(() => {
-      clearInterval(fade); _winAnim.delete(win);
-      if (!win.isDestroyed()) { if (foldOn(side)) win.hide(); win.setBounds(to); try { win.setOpacity(1); } catch (_) {} }
+      if (!win.isDestroyed()) { if (foldOn(side)) win.hide(); try { win.setOpacity(1); } catch (_) {} }
+      setTimeout(() => fa({ act: 'reset' }), 60);
       sendFold(true); applyRaise();
-    }, 220);
+    }, MS + 20);
     try { win.webContents.send('fold', { can: true, fold: true }); } catch (_) {}
     return;
   }
-  // 펼치기 = 손잡이를 내리고 창이 클라 쪽에서 미끄러져 나오며 서서히(예전 문 열림 효과)
+  // 펼치기 = 손잡이를 내리고 창 안 화면이 클라 뒤에서 미끄러져 나옴
   const t = _foldTab[side]; if (t && !t.isDestroyed() && t.isVisible()) t.hide();
   sendFold(true);
-  _winAnim.delete(win);
-  win.setBounds({ ...to, x: to.x + dir * 90 }); try { win.setOpacity(0); } catch (_) {}
-  win.showInactive();
-  moveWin(win, to, 380, { curve: 'open', fade: true });
-  try { win.webContents.send('door-fx', { act: 'open', side: side === 'L' ? 'left' : 'right', ms: 380, v2: true }); } catch (_) {}
-  applyRaise();
+  fa({ act: 'pre' });   // 화면을 클라 쪽 바깥(잘린 곳)에 둔 채로 창을 띄움
+  if (side === 'R') try { win.setOpacity(0); } catch (_) {}
+  setTimeout(() => {
+    if (win.isDestroyed()) return;
+    win.showInactive(); fa({ act: 'in', ms: 380 }); fadeWin(0, 1, 160);
+    applyRaise();
+  }, 50);
 }
 const unfoldL = () => { if (config.foldL) setFold('L', false); };
 let _foldPh = null;

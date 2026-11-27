@@ -16,4 +16,18 @@
   const before = document.getElementById(side === 'L' ? 'ov-min' : 's-min');
   head.insertBefore(btn, before || null);
   if (window.api.onFold) window.api.onFold(d => { document.body.classList.toggle('can-fold', !!(d && d.can)); });
+  // ✨ v0.1.279 접기·펼치기 움직임 = 창은 제자리 · 화면(#panel)만 클라 쪽 가장자리 밖으로 미끄러짐(잘림) → 클라 뒤로 들어가고 나오는 것처럼
+  //   main → 'fold-anim' {act: 'out'(접힘) | 'pre'(펼치기 직전 = 바깥에 둠) | 'in'(펼침) | 'reset', ms}
+  if (window.api.onFoldAnim) window.api.onFoldAnim(d => {
+    const p = document.getElementById('panel'); if (!p || !d) return;
+    const off = `translateX(${side === 'L' ? '100%' : '-100%'})`;
+    for (const a of p.getAnimations()) if (a.id === 'tn-fold') a.cancel();
+    if (d.act === 'pre') { p.style.transform = off; return; }
+    if (d.act === 'reset') { p.style.transform = ''; return; }
+    p.style.transform = '';
+    const a = d.act === 'out'
+      ? p.animate([{ transform: 'none' }, { transform: off }], { duration: d.ms || 260, easing: 'cubic-bezier(.55,0,.8,.2)', fill: 'forwards' })
+      : p.animate([{ transform: off }, { transform: 'none' }], { duration: d.ms || 380, easing: 'cubic-bezier(.2,.9,.3,1)' });
+    a.id = 'tn-fold';
+  });
 })();
