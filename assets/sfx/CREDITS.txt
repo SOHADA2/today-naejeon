@@ -27,3 +27,9 @@ assets/ping/sfx/*.ogg (v0.1.257 대기실 핑 소리 9개 · 실제 악기 녹�
   wait 나무 블록 「똑. 딱.」 · sorry 마림바 「또롱↓」 · ask 피치카토 「응?」 · thanks 글로켄 「띠리링~」
   (v0.1.256의 Kenney Interface Sounds는 사장님: 기계음 느낌 → v0.1.257에서 바꿈)
 assets/ping/*.png (핑·이모티콘 그림 · 바퀴 판) = 직접 그린 스케치(tools/ping-sketch.cjs · 롤 그림 안 씀)
+
+fold-out.ogg · fold-in.ogg · fold-hint.ogg (v0.1.281 접기 손잡이 · 실제 녹음만) — VSCO-2 Community Edition (CC0) https://github.com/sgossner/VSCO-2-CE
+  재료 = 크래시 심벌 아주 여리게(Percussion/cymbal-crash1_pp_rr1) · 하프(Strings/Harp/KSHarp_D4·G5·B5·D6_mf)
+  fold-out = 거꾸로 튼 심벌 바람 「스윽」(0.26초 접힘에 맞춰 차오름 → 먹먹해지며 클라 뒤로) + 아주 작은 낮은 하프 「둥」
+  fold-in = 바람이 앞에서 밝게 지나감 + 하프 B5 한 음 · fold-hint = 꺾쇠가 스며 나올 때 하프 G5·B5·D6 여리게 굴림 → 바깥으로 톡톡 = 하프 D6 「팅·팅」
+  만드는 법 = tools/fold-sfx.py(머리 주석에 재료 경로 · 박자 = desktop/foldtab.html ftHint) · 앱 재생 볼륨 0.24/0.22 × ⚙ 효과음 크기

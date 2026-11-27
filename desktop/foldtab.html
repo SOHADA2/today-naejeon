@@ -76,8 +76,20 @@
     const side = new URLSearchParams(location.search).get('side') === 'R' ? 'R' : 'L';
     document.body.classList.add(side);
     const hit = document.getElementById('hit');
-    hit.addEventListener('click', () => { if (window.api && window.api.winFold) window.api.winFold(side, false); });
-    const replay = () => { document.body.classList.remove('in'); void document.body.offsetWidth; document.body.classList.add('in'); };
+    // 🔊 v0.1.281 힌트 소리(사장님: 아주 자연스럽게) = 꺾쇠가 스며 나올 때 하프 세 음을 여리게 · 바깥으로 톡톡 = 하프 「팅·팅」
+    //   ftHint와 같은 박자(소리 파일 0초 = 애니메이션 시작 · tools/fold-sfx.py HINT_*) · 사람이 방금 접었을 때만(main이 vol을 줌)
+    //   마우스를 올리면(힌트 멈춤) 소리도 살짝 줄이며 멈춤 · 누르면(펼침) 바로 멈춤
+    const HINT_VOL = 0.22, hint = new Audio('../assets/sfx/fold-hint.ogg'); hint.preload = 'auto';
+    let hintFade = 0;
+    const hintStop = ms => { clearInterval(hintFade); if (hint.paused) return; if (!ms) { hint.pause(); return; }
+      const v0 = hint.volume, t0 = Date.now(); hintFade = setInterval(() => { const k = Math.min(1, (Date.now() - t0) / ms); hint.volume = v0 * (1 - k); if (k >= 1) { clearInterval(hintFade); hint.pause(); } }, 20); };
+    hit.addEventListener('mouseenter', () => hintStop(250));
+    hit.addEventListener('click', () => { hintStop(0); if (window.api && window.api.winFold) window.api.winFold(side, false); });
+    const replay = d => {
+      document.body.classList.remove('in'); void document.body.offsetWidth; document.body.classList.add('in');
+      hintStop(0);
+      if (d && d.vol > 0 && !hit.matches(':hover')) try { hint.currentTime = 0; hint.volume = Math.min(1, HINT_VOL * d.vol); hint.play().catch(() => {}); } catch (_) {}
+    };
     if (window.api && window.api.onFoldTabIn) window.api.onFoldTabIn(replay);
     replay();
   </script>

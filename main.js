@@ -308,10 +308,16 @@ function syncFoldTabs() {   // 손잡이 창 = 접힘 + 클라에 붙어 있음 
     if (!w || w.isDestroyed()) w = _foldTab[side] = makeFoldTab(side);
     const b = foldTabBounds(side, rectPb(_lastRect)), sig = `${b.x},${b.y},${b.width},${b.height}`;
     if (sig !== _foldTabSig[side]) { _foldTabSig[side] = sig; w.setBounds(b); }
-    if (!w.isVisible()) { w.showInactive(); try { w.webContents.send('foldtab-in'); } catch (_) {} }
+    if (!w.isVisible()) {   // 🔊 v0.1.281 사람이 방금 접은 손잡이만 힌트 소리(게임 끝나고 다시 붙을 때 등은 조용히)
+      const vol = Date.now() - _foldSnd[side] < 2500 ? sfxVolNow() : 0; _foldSnd[side] = 0;
+      w.showInactive(); try { w.webContents.send('foldtab-in', { vol }); } catch (_) {}
+    }
   }
 }
-function setFold(side, v) {
+// 🔊 v0.1.281 효과음(사장님: 아주 자연스럽게) = 사람이 누른 접기·펼치기만(user) · 저절로 펼침(팀 정해짐 등)은 조용히
+//   소리 파일 = assets/sfx/fold-out·fold-in·fold-hint.ogg(tools/fold-sfx.py) · 재생 = 렌더러(desktop/fold.js · foldtab.html) · 크기 = ⚙ 효과음
+const _foldSnd = { L: 0, R: 0 };
+function setFold(side, v, user) {
   const k = side === 'L' ? 'foldL' : 'foldR'; v = !!v;
   if (!!config[k] === v) { sendFold(true); return; }
   const win = side === 'L' ? overlayWin : leftWin, anim = canFold() && !!_lastRect && win && !win.isDestroyed();
@@ -324,11 +330,13 @@ function setFold(side, v) {
   // v0.1.279(사장님: 접힐 때 창이 클라 위로 들어감 → 뒤로 들어가게) — 창은 제자리 · 창 안 화면(#panel)만 클라 쪽 가장자리로 미끄러져 잘려 나감
   //   = 클라 뒤로 들어가는 것처럼 보임(창 가장자리 = 클라 가장자리) · 오른쪽 창은 바탕이 불투명이라 창 투명도도 같이 줄임 · 렌더러 = desktop/fold.js 'fold-anim'
   const fa = d => { try { win.webContents.send('fold-anim', d); } catch (_) {} };
+  const vol = user ? sfxVolNow() : 0;
   const fadeWin = (from, to2, ms) => { if (side !== 'R') return; const t0 = Date.now(), iv = setInterval(() => { const k2 = Math.min(1, (Date.now() - t0) / ms); try { if (!win.isDestroyed()) win.setOpacity(from + (to2 - from) * k2); } catch (_) {} if (k2 >= 1) clearInterval(iv); }, 16); };
   _winAnim.delete(win); if (!win.isDestroyed()) win.setBounds(to);
   if (v) {   // 접기 → 그 자리에 빛 손잡이
     const MS = 260;
-    fa({ act: 'out', ms: MS }); fadeWin(1, 0, MS);
+    if (user) _foldSnd[side] = Date.now();
+    fa({ act: 'out', ms: MS, vol }); fadeWin(1, 0, MS);
     setTimeout(() => {
       if (!win.isDestroyed()) { if (foldOn(side)) win.hide(); try { win.setOpacity(1); } catch (_) {} }
       setTimeout(() => fa({ act: 'reset' }), 60);
@@ -344,7 +352,7 @@ function setFold(side, v) {
   if (side === 'R') try { win.setOpacity(0); } catch (_) {}
   setTimeout(() => {
     if (win.isDestroyed()) return;
-    win.showInactive(); fa({ act: 'in', ms: 380 }); fadeWin(0, 1, 160);
+    win.showInactive(); fa({ act: 'in', ms: 380, vol }); fadeWin(0, 1, 160);
     applyRaise();
   }, 50);
 }
@@ -1341,7 +1349,7 @@ function showMainPanel() {   // 트레이/재실행 → 내 정보 패널(메인
   if (!leftWin || leftWin.isDestroyed()) createLeftPanel();
   if (config.sidePanel === false) { config.sidePanel = true; saveConfig(); refreshTrayMenu(); }
   leftUserHid = false; leftMinimized = false; try { leftWin.setSkipTaskbar(true); } catch (_) {}
-  if (config.foldR) setFold('R', false);   // 📌 트레이 「오른쪽 패널 열기」 = 접혀 있으면 펼침
+  if (config.foldR) setFold('R', false, true);   // 📌 트레이 「오른쪽 패널 열기」 = 접혀 있으면 펼침
   if (!leftWin.isVisible() && _floating) leftWin.setBounds(standaloneBounds('right'));   // 플로팅일 때만 위치 리셋
   leftWin.show(); leftWin.moveTop(); leftWin.focus();
 }
@@ -1351,7 +1359,7 @@ function showOverlay() { if (foldOn('L')) return; overlayMinimized = false; if (
 function hideOverlay() { if (overlayWin && overlayWin.isVisible()) overlayWin.hide(); }
 function toggleOverlay() {
   if (!overlayWin) return;
-  if (foldOn('L')) { setFold('L', false); return; }   // 📌 접혀 있으면 Shift+F7 = 펼치기
+  if (foldOn('L')) { setFold('L', false, true); return; }   // 📌 접혀 있으면 Shift+F7 = 펼치기
   if (overlayWin.isVisible()) { hideOverlay(); userHid = true; }
   else { showOverlay(); userHid = false; }
 }
@@ -4415,7 +4423,7 @@ ipcMain.handle('room-create', (_e, { name, priv, pw }) => roomCreate(name, priv,
 ipcMain.handle('room-join', (_e, { id, pw }) => roomJoin(id, pw));
 ipcMain.handle('room-leave', () => roomLeave());
 ipcMain.on('overlay-show', () => { userHid = false; unfoldL(); showOverlay(); });
-ipcMain.on('win-fold', (_e, side, v) => { if (side === 'L' || side === 'R') setFold(side, v); });   // 📌 v0.1.276 접기 손잡이
+ipcMain.on('win-fold', (_e, side, v) => { if (side === 'L' || side === 'R') setFold(side, v, true); });   // 📌 v0.1.276 접기 손잡이
 ipcMain.handle('get-players', async () => ({ account, myName: config.myName || '', isHost: !!config.isHost, appVer: app.getVersion(), session: sessionData }));
 ipcMain.handle('roster-data', () => getRoster());
 ipcMain.handle('tb-start', (_e, { names, mode }) => startTeamBuild(names, mode));
