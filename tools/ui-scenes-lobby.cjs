@@ -35,8 +35,9 @@ for (const w of [302, 402]) {
     S.push(sc('h-vs-' + w, w, 4, 0, 'random', '', { series: SER }));
     { // 🏆 v0.1.291 대회 경기 = 대진 카드에 대회 이름·라운드 + 방장 「취소」 · 팀원 안내 · 팀 화면 점수판 · 단판 대회 경기
       const TSR = Object.assign({}, SER, { tid: 'a', mid: 'r2m1', ta: 't2', tb: 't3', tn: '가을 멸망전 열두 글자 이름', rn: '4강 2경기' });
-      S.push(sc('h-vs-tour-' + w, w, 6, 0, 'manual', '', { series: TSR, sides: { [NM[0]]: 'teamA', [NM[1]]: 'teamB', [NM[2]]: 'teamA' } }));
-      S.push(sc('m-vs-tour-' + w, w, 6, 1, 'manual', '', { series: Object.assign({}, TSR, { bo: 1 }), sides: { [NM[0]]: 'teamA', [NM[1]]: 'teamB' } }));
+      const TRO = { p0: 'teamA', p1: 'teamB', p2: 'teamA', p3: 'teamB' };   // 등록 선수(p4·p5 = 등록 안 됨 = 관전)
+      S.push(sc('h-vs-tour-' + w, w, 6, 0, 'manual', '', { series: TSR, tnRoster: TRO, sides: { [NM[0]]: 'teamA', [NM[1]]: 'teamB', [NM[2]]: 'teamA' } }));
+      S.push(sc('m-vs-tour-' + w, w, 6, 1, 'manual', '', { series: Object.assign({}, TSR, { bo: 1 }), tnRoster: TRO, sides: { [NM[0]]: 'teamA', [NM[1]]: 'teamB' } }));
       const st = { phase: 'teams', teamA: [NM[0], NM[2], NM[5]], teamB: [NM[1], NM[3], NM[4]], mode: 'manual', teamsFormedAt: Date.now(), ids: {}, series: { id: 's_a_r2m1', bo: 3, need: 2, names: { teamA: SER.a, teamB: SER.b }, wins: { teamA: 1, teamB: 0 }, n: 1, games: [], done: null, tid: 'a', mid: 'r2m1', tn: TSR.tn, rn: TSR.rn } };
       S.push({ name: 'x-tour-team-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('session', { session: " + JSON.stringify(st) + ", myName: " + JSON.stringify(NM[0]) + ", isHost: true });" + wait });
       const sr = Object.assign({}, st, { phase: 'result', game: { id: 'g9', winner: 'teamA' }, result: { mvp: NM[2] }, series: Object.assign({}, st.series, { bo: 1, need: 1, wins: { teamA: 1, teamB: 0 }, done: 'teamA' }) });

@@ -56,7 +56,9 @@ const initializeApp = () => ({}), getAuth = () => FAKE, GoogleAuthProvider = fun
   T = await db('today/tourneys/' + tid); const teamIds = Object.entries(T.teams || {}).sort((a, b) => a[1].seed - b[1].seed).map(x => x[0]);
   check('팀 4개 · 시드 1~4', teamIds.length === 4 && teamIds.map(k => T.teams[k].seed).join() === '1,2,3,4', T.teams);
   // 선수: 첫 팀에 3명(첫 사람 = 팀장) + 후보 1 · 동의 안 한 사람 거절 · 다른 팀 중복 거절
-  const add = async (k, who, sub) => { await js(`const i = document.querySelector('.tn-add[data-k="${k}"]'); i.value = ${JSON.stringify(who)}; document.querySelector('[data-ta="madd"][data-k="${k}"][data-r="${sub ? 'sub' : ''}"]').click()`); await sleep(450); };
+  const view = async v => { await js(`document.querySelector('[data-tv="${v}"]').click()`); await sleep(250); };   // v0.1.292 「팀」/「대진」 화면
+  const pick = async mid => { await js(`document.querySelector('[data-bm="${mid}"]').click()`); await sleep(250); };   // 대진표에서 경기 고르기
+  const add = async (k, who, sub) => { await js(`const i = document.querySelector('.tn-add[data-k="${k}"]'); i.value = ${JSON.stringify(who)}; document.querySelector('.tn-role[data-k="${k}"]').value = ${JSON.stringify(sub ? 'sub' : '')}; document.querySelector('[data-ta="madd"][data-k="${k}"]').click()`); await sleep(450); };
   await add(teamIds[0], '가람#KR1'); await add(teamIds[0], '나래'); await add(teamIds[0], '다온'); await add(teamIds[0], '라온', true);
   await add(teamIds[0], '동의안함'); check('기록 공개 동의 안 한 계정 거절', /동의/.test(await toast()), await toast());
   await add(teamIds[1], '가람'); check('다른 팀 선수 중복 거절', /이미/.test(await toast()), await toast());
@@ -67,26 +69,32 @@ const initializeApp = () => ({}), getAuth = () => FAKE, GoogleAuthProvider = fun
   await js(`document.querySelector('[data-ta="mrole"][data-k="${teamIds[0]}"][data-p="p1"]').click()`); await sleep(450);
   T = await db('today/tourneys/' + tid); check('팀장은 한 명', T.teams[teamIds[0]].mem.p1.r === 'cap' && T.teams[teamIds[0]].mem.p0.r === '', T.teams[teamIds[0]].mem);
   // 시드: 2번을 위로 → 대진 만들기
+  await shot('2-teams'); await view('matches');
+  check('대진 짜기 화면 = 미리 보기 대진표', await js(`return !!document.querySelector('.tn-bk .m.pre')`));
   await js(`document.querySelector('[data-ta="sup"][data-k="${teamIds[1]}"]').click()`); await sleep(450);
   T = await db('today/tourneys/' + tid); check('시드 바꾸기', T.teams[teamIds[1]].seed === 1 && T.teams[teamIds[0]].seed === 2, [T.teams[teamIds[0]].seed, T.teams[teamIds[1]].seed]);
-  await shot('2-teams');
+  await shot('3-seed');
   await js(`document.querySelector('[data-ta="gen"]').click()`); await sleep(600);
   T = await db('today/tourneys/' + tid);
   check('대진 = 3경기 · 결승 5판', T.matches && Object.keys(T.matches).length === 3 && T.matches.r2m0.bo === 5 && T.matches.r1m0.a === teamIds[1] && T.matches.r1m0.b === teamIds[3], T.matches);
-  check('대진이 있으면 팀 추가 막힘', await js(`return document.querySelector('[data-ta="tadd"]').disabled`));
+  check('대진을 만들면 대진표 그림이 보임', await js(`return document.querySelectorAll('.tn-bk [data-bm]').length`) === 3);
+  await view('teams'); check('대진이 있으면 팀 추가 막힘', await js(`return document.querySelector('[data-ta="tadd"]').disabled`)); await view('matches');
   await js(`document.querySelector('[data-ta="st"][data-v="live"]').click()`); await sleep(500);
   check('대회 시작', (await db('today/tourneys/' + tid + '/st')) === 'live');
   // 방장 앱이 넣는 결과 흉내: 1경기 2:0
   await js(`window.__db.today.tourneys[${JSON.stringify(tid)}].res = { r1m0: { g1: { w: ${JSON.stringify(teamIds[1])}, day: '2026-11-28', at: 1 }, g2: { w: ${JSON.stringify(teamIds[1])}, day: '2026-11-28', at: 2 } } }; document.getElementById('reload2').click()`); await sleep(900);
   await js(`document.querySelector('nav.tabs button[data-t="tour"]').click()`); await sleep(300);
+  await pick('r1m0');
   const txt = await js(`return document.getElementById('tn-detail').innerText`);
-  check('결과가 대진에 보임(2 : 0 · 끝)', /2 : 0/.test(txt) && /1판 번개 승/.test(txt), txt.slice(0, 400));
+  check('결과가 대진에 보임(2 : 0 · 끝)', /2 : 0/.test(txt) && /1판 · 번개 승/.test(txt), txt.slice(0, 600));
   // 2경기 = 운영자가 승자 정하기(기권)
+  await pick('r1m1');
   await js(`const s = document.querySelector('select[data-tw="r1m1"]'); s.value = ${JSON.stringify(teamIds[2])}; s.dispatchEvent(new Event('change'))`); await sleep(600);
   T = await db('today/tourneys/' + tid); check('운영자 승자', T.matches.r1m1.win === teamIds[2], T.matches.r1m1);
-  const txt2 = await js(`return document.getElementById('tn-detail').innerText`);
-  check('결승 대진이 채워짐', /결승[\s\S]*번개[\s\S]*바람/.test(txt2), txt2.slice(-400));
-  await shot('3-bracket');
+  await pick('r2m0');
+  const txt2 = await js(`return document.querySelector('.tn-det').innerText`);
+  check('결승 대진이 채워짐', /결승/.test(txt2) && /번개/.test(txt2) && /바람/.test(txt2), txt2);
+  await shot('4-bracket'); await pick('r1m0');
   // 결과 지우기 · 운영 기록
   await js(`document.querySelector('[data-ta="rclr"][data-k="r1m0"]').click()`); await sleep(500);
   check('결과 지우기', !(await db('today/tourneys/' + tid + '/res/r1m0')));

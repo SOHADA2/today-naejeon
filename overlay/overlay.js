@@ -196,7 +196,7 @@ const serScore = s => { const w = (s.series && s.series.wins) || {}; return `${w
 function serBoard(s, mt) {   // 팀 화면 점수판 = 「3판 2선승 · 2번째 판」 / 불꽃 1 : 0 번개(내 팀 밝게) / 내 팀 줄
   const S = s.series, me = mt === 1 ? 'teamA' : mt === 2 ? 'teamB' : null;
   const nm = t => `<b class="sb-n ${t === 'teamA' ? 't1' : 't2'}${me === t ? ' me' : ''}">${esc(TN(s, t))}</b>`;
-  return `<span class="sb-bo">${serHead(S, (S.n || 0) + 1)}</span><span class="sb-row">${nm('teamA')}<span class="sb-sc num">${serScore(s)}</span>${nm('teamB')}</span>`
+  return (S.tn ? `<span class="sb-tn">🏆 ${esc(S.tn)}</span>` : '') + `<span class="sb-bo">${serHead(Object.assign({}, S, { tn: '' }), (S.n || 0) + 1)}</span><span class="sb-row">${nm('teamA')}<span class="sb-sc num">${serScore(s)}</span>${nm('teamB')}</span>`
     + `<span class="sb-me">${me ? `내 팀 · <b>${esc(TN(s, me))}</b> ${me === 'teamA' ? 'BLUE' : 'RED'}` : (s.spectators || []).some(x => nn(x) === nn(myName)) ? '이번 판은 관전' : '이번 판 팀 배정'}</span>`;
 }
 function myTeam() {
@@ -930,8 +930,10 @@ function renderLobby() {
   const waitL = manual ? [] : ins.slice(seatCap);
   if (waitL.length) others.push(`<div class="lb-others wait"><span class="lb-ol" title="${normal ? '롤 파티는 5명까지 · 자리가 나면 앞사람부터 들어갑니다' : '한 판 10명까지 · 시작하면 이번 판은 관전 · 자리가 나면 앞사람부터 들어갑니다'}">대기 <b>${waitL.length}</b></span>${waitL.map(m => `<span class="lb-chip in${m.me ? ' me' : ''}">${avatar(m, 'chip-av')}<b class="lb-nm" data-pk="${esc(m.key)}">${esc(m.name)}</b>`
     + (myIsHost && !m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="관전으로 보내기">↓</button><button class="seat-btn kick" data-kick="${esc(m.key)}" title="방에서 내보내기">✕</button>` : '') + '</span>').join('')}</div>`);
-  if (manual && sNone.length) others.push(`<div class="lb-others none"><span class="lb-ol">팀 미정 <b>${sNone.length}</b></span>${sNone.map(m => `<span class="lb-chip in${m.me ? ' me' : ''}">${avatar(m, 'chip-av')}<b class="lb-nm" data-pk="${esc(m.key)}">${esc(m.name)}</b>`
-    + (myIsHost ? `<button class="seat-btn t1" data-side="${esc(m.name)}" data-t="teamA" title="1팀에 넣기">1팀</button><button class="seat-btn t2" data-side="${esc(m.name)}" data-t="teamB" title="2팀에 넣기">2팀</button>` + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="관전으로 보내기">↓</button>` : '') : '') + '</span>').join('')}</div>`);
+  const TR = L.series && L.series.tid ? (L.tnRoster || {}) : null;   // 🏆 v0.1.292 대회 경기 = 등록 선수만 자기 팀으로 · 나머지는 「이번 판 관전」
+  if (manual && sNone.length) others.push(`<div class="lb-others none"><span class="lb-ol">${TR ? '출전 안 함' : '팀 미정'} <b>${sNone.length}</b></span>${sNone.map(m => `<span class="lb-chip in${m.me ? ' me' : ''}">${avatar(m, 'chip-av')}<b class="lb-nm" data-pk="${esc(m.key)}">${esc(m.name)}</b>`
+    + (TR ? (TR[m.key] ? (myIsHost ? `<button class="seat-btn ${TR[m.key] === 'teamA' ? 't1' : 't2'}" data-side="${esc(m.name)}" data-t="${TR[m.key]}" title="${esc(L.series[TR[m.key] === 'teamA' ? 'a' : 'b'])} 팀으로 출전">출전</button>` : '<em class="chip-tag">후보</em>') : '<em class="chip-tag">관전</em>')
+      : myIsHost ? `<button class="seat-btn t1" data-side="${esc(m.name)}" data-t="teamA" title="1팀에 넣기">1팀</button><button class="seat-btn t2" data-side="${esc(m.name)}" data-t="teamB" title="2팀에 넣기">2팀</button>` + (!m.me ? `<button class="seat-btn out" data-out="${esc(m.key)}" title="관전으로 보내기">↓</button>` : '') : '') + '</span>').join('')}</div>`);
   if (specs.length) others.push(`<div class="lb-others"><span class="lb-ol">관전 <b>${specs.length}</b></span>${specs.map(chip).join('')}</div>`);
   el('lb-list').style.display = login && others.length ? '' : 'none';
   el('lb-list').innerHTML = others.join('');
@@ -977,9 +979,11 @@ function renderLobby() {
     if (!myIsHost) _mpop = false;
     // v0.1.216(사장님: 「⚔ 내전 · 드래프트」가 버튼처럼 보여 직관적이지 않음) — 설정 칸처럼: 작은 제목(내전 · 팀 짜기 / 일반 · 큐) + 고른 값 ▾
     chipB.innerHTML = `<span class="mc"><small>${normal ? '일반 · 큐' : (sr ? '협곡 내전' : '내전') + ((L.series && L.series.bo > 1) ? ' · ' + BO_KO(L.series.bo) : ' · 팀 짜기')}</small><b>${normal ? (NQ_SHORT[nq] || '아수라장') : (MODE_KO[L.mode] || '랜덤')}</b></span><em>▾</em>`;
-    chipB.className = 'lb-mchip host' + (_mpop ? ' open' : '');
+    const TNM = !normal && L.series && L.series.tid;   // 🏆 대회 경기 = 방식 고르기 없음(등록 선수로 직접)
+    if (TNM) { _mpop = false; chipB.innerHTML = `<span class="mc"><small>대회 경기</small><b>${BO_KO(L.series.bo) || '단판'}</b></span>`; }
+    chipB.className = 'lb-mchip host' + (_mpop ? ' open' : '') + (TNM ? ' fixed' : '');
     chipB.title = '이번 판 방식 바꾸기 — 내전(아수라장·소환사의 협곡 · 랜덤·밸런스·드래프트·직접) / 일반(아수라장·칼바람·협곡 큐)';
-    chipB.onclick = e => { e.stopPropagation(); if (!myIsHost) return; _mpop = !_mpop; popAnim(pop, _mpop); chipB.classList.toggle('open', _mpop); };
+    chipB.onclick = e => { e.stopPropagation(); if (!myIsHost || TNM) return; _mpop = !_mpop; popAnim(pop, _mpop); chipB.classList.toggle('open', _mpop); };
     pop.querySelectorAll('.lb-kind').forEach(b => {
       const on = (b.dataset.kind === 'normal') === normal; b.classList.toggle('on', on);
       b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyMode(b.dataset.kind)); };   // 내전 = main이 마지막에 고른 방식으로 · 창은 열어 둠(이어서 팀 짜기·큐 고르게)
@@ -998,16 +1002,15 @@ function renderLobby() {
     popAnim(pop, _mpop);   // 🎞️ 상태가 바뀌었을 때만 움직임
     el('lb-mdesc').textContent = normal ? MODE_DESC.normal + (nq === 440 ? ' · 자유 랭크는 1·2·3·5명 파티만 · 각자 롤에서 포지션을 골라야 시작됩니다' : '') : sr && L.mode === 'balance' ? MODE_DESC.balanceSr : MODE_DESC[MODE_KO[L.mode] ? L.mode : 'random'];
   }
-  { // 🏆 대진 카드(v0.1.289 · v0.1.291 대회 경기) = 「가을 멸망전 · 4강 1경기 · 3판 2선승」 / 불꽃 VS 번개 — 방장이 「대회」 탭에서 경기를 고르면 뜸 · 진행 중이면 VS 대신 점수 · 방장 = 취소
+  { // 🏆 대회 경기 띠(v0.1.292 · 대기실 맨 위) = 「가을 멸망전 · 4강 2경기 · 3판 2선승」[취소] / 불꽃 VS 번개 — 방장이 「대회」 탭에서 경기를 고르면 뜸 · 진행 중이면 VS 대신 점수
     const SC = L.series || { bo: 1 }, box = el('lb-vs'), on = !normal && (SC.bo > 1 || !!SC.tid), S = sessionData && serOn(sessionData) && !sessionData.series.done && (!SC.tid || sessionData.series.mid === SC.mid) ? sessionData : null;
     box.style.display = on ? '' : 'none';
     if (on) {
       const sig = [SC.bo, SC.a, SC.b, SC.tid, SC.mid, myIsHost, S ? serScore(S) + (S.series.n || 0) : ''].join('|');
       if (box.dataset.sig !== sig) {
         box.dataset.sig = sig;
-        const nmH = (k, cls, ph) => `<b class="vs-n ${cls}">${esc(SC[k] || ph)}</b>`;
-        box.innerHTML = `<span class="vs-bo">${serHead(SC, S ? (S.series.n || 0) + 1 : 0)}</span><span class="vs-row">${nmH('a', 't1', '1팀')}<span class="vs-x${S ? ' sc num' : ''}">${S ? serScore(S) : 'VS'}</span>${nmH('b', 't2', '2팀')}</span>`
-          + (SC.tid ? `<span class="vs-note">${myIsHost ? '등록 선수만 두 팀에 넣을 수 있습니다 · 나머지는 관전' : '대회 경기 · 방장이 두 팀을 확인하고 시작합니다'}${myIsHost ? '<button class="lb-mini plain" id="lb-vs-x" title="대회 경기 고른 것을 취소하고 보통 내전으로">취소</button>' : ''}</span>` : '');
+        box.innerHTML = `<div class="vs-top"><span class="vs-bo">${SC.tid ? '🏆 ' : ''}${serHead(SC, S ? (S.series.n || 0) + 1 : 0)}</span>${SC.tid && myIsHost ? '<button class="vs-x-btn" id="lb-vs-x" title="대회 경기 고른 것을 취소하고 보통 내전으로">취소</button>' : ''}</div>`
+          + `<div class="vs-row"><b class="vs-n t1">${esc(SC.a || '1팀')}</b><span class="vs-x${S ? ' sc num' : ''}">${S ? serScore(S) : 'VS'}</span><b class="vs-n t2">${esc(SC.b || '2팀')}</b></div>`;
         const x = el('lb-vs-x'); if (x) x.onclick = () => lbAct(() => window.api.tourneyCancel());
       }
     }
@@ -1042,7 +1045,8 @@ function renderLobby() {
       } finally { b.disabled = false; }
     });
   }
-  const capsOk = !draft || capN === 2, sideOk = !manual || (!sNone.length && sA.length && sB.length);
+  const TNM2 = !normal && !!(L.series && L.series.tid);
+  const capsOk = !draft || capN === 2 || TNM2, sideOk = TNM2 ? !!(sA.length && sB.length) : !manual || (!sNone.length && sA.length && sB.length);
   const myParty = !!(P && P.leader && P.q === nq);
   const qState = !normal ? null : GAME_PHASES.includes(G.phase) ? 'game' : G.phase === 'Matchmaking' && P && P.leader ? 'search' : myParty && G.phase === 'Lobby' ? 'party' : 'none';
   { // 방장 안내 한 줄 — 지금 모자란 것·알아 둘 것 하나 + 그 일을 하는 작은 버튼(없으면 줄 자체가 없음)
@@ -1058,7 +1062,8 @@ function renderLobby() {
         h = (capN < 2 ? `<span class="lb-hint"><b>팀장 ${capN}/2</b> · 자리의 「팀장」을 눌러 정합니다</span>`
           : '<span class="lb-cap ok"><em>팀장</em><b class="num">2/2</b></span>' + (picks ? `<span class="lb-ordmini" title="뽑는 순서 · 선 = 줄다리기로 정해지는 선픽 팀 · 후 = 다른 팀">${orderBar(ord, 0, true)}</span>` : '<span class="lb-hint"></span>'))
           + '<button id="lb-caprand" class="lb-mini" title="참가한 사람 중 무작위로 팀장 둘">랜덤 팀장</button>';
-      } else if (manual) h = `<span class="lb-cap t1"><em>1팀</em><b class="num">${sA.length}</b></span><span class="lb-cap t2"><em>2팀</em><b class="num">${sB.length}</b></span>`
+      } else if (TNM2) h = `<span class="lb-cap t1"><em>${esc(L.series.a)}</em><b class="num">${sA.length}</b></span><span class="lb-cap t2"><em>${esc(L.series.b)}</em><b class="num">${sB.length}</b></span><span class="lb-hint">등록 선수만 출전 · 나머지는 관전</span>`;
+      else if (manual) h = `<span class="lb-cap t1"><em>1팀</em><b class="num">${sA.length}</b></span><span class="lb-cap t2"><em>2팀</em><b class="num">${sB.length}</b></span>`
         + (sNone.length ? `<span class="lb-cap"><em>미정</em><b class="num">${sNone.length}</b></span>` : '') + '<span class="lb-hint"></span>'
         + '<button id="lb-sprev" class="lb-mini" title="지난 판과 같은 1팀·2팀으로">지난 판 그대로</button>' + (sA.length + sB.length ? '<button id="lb-sclr" class="lb-mini plain">비우기</button>' : '');
       else if (left > 0) h = `<span class="lb-hint">${n}명 → <b>${ts} : ${ts}</b> · 남는 ${left}명은 관전입니다</span>`;
@@ -1074,10 +1079,11 @@ function renderLobby() {
     el('lb-gobar').style.display = myIsHost ? '' : 'none';
     const go = el('lb-start');
     go.dataset.q = normal && L.lol ? qState : roomStep ? 'room' : '';   // 🎮 일반판: none 파티 만들고 초대 → party 큐 시작 → search 취소 → game · 🪜 내전 ① room = 롤 로비 만들기
-    go.disabled = roomStep ? false : normal ? !go.dataset.q || qState === 'game' : n < 2 || !capsOk || !sideOk;
+    go.disabled = roomStep ? false : normal ? !go.dataset.q || qState === 'game' : TNM2 ? !sideOk : n < 2 || !capsOk || !sideOk;
     go.classList.toggle('normal', normal && (!go.dataset.q || qState === 'game'));
     go.classList.toggle('qcancel', qState === 'search' && !!go.dataset.q);
     go.textContent = roomStep ? '롤 로비 만들기' : normal ? (!go.dataset.q ? '일반판 진행 중' : qState === 'game' ? '게임 진행 중' : qState === 'search' ? '큐 잡는 중 · 취소' : qState === 'party' ? `큐 시작 · ${P.n}/${P.max || 5}` : '파티 만들고 초대')
+      : TNM2 ? (sideOk ? `경기 시작 · ${sA.length} : ${sB.length}` : '두 팀 선수가 필요합니다')
       : n < 2 ? '2명부터 시작' : !capsOk ? '팀장 2명 필요'
       : manual ? (sNone.length ? `팀 미정 ${sNone.length}명` : !sideOk ? '두 팀에 1명 이상' : `시작 · ${sA.length} : ${sB.length}`)
       : draft ? '드래프트 시작' : `팀 짜기 · ${ts} : ${ts}`;
@@ -1090,9 +1096,10 @@ function renderLobby() {
     else if (login && !myIsHost) {
       const sub = me && me.st === 'spec' ? '관전 중입니다 · 「다시 참가하기」를 누르면 자리에 앉습니다'
         : normal ? (qState === 'game' ? '게임 진행 중입니다' : G.phase === 'Matchmaking' ? '큐를 잡는 중입니다' : P ? `롤 파티 ${P.n}/${P.max || 5}명 · 방장이 큐를 시작합니다` : '방장이 초대하면 자동으로 롤 파티에 들어갑니다')
+        : TNM2 ? '대회 경기 · 방장이 두 팀을 확인하고 시작합니다'
         : manual ? '방장이 1팀·2팀을 직접 정하고 있습니다'
         : `방장이 시작하면 ${MODE_WAIT[L.mode] || MODE_WAIT.random}`;
-      h = `<div class="lb-stat-tx"><span class="lb-stat-top"><b class="lb-stat-m">${normal ? `<i>🎮</i>일반 · ${QN}` : `<i>⚔</i>${sr ? '협곡 내전' : '내전'} · ${MODE_KO[L.mode] || '랜덤'}${L.series && L.series.bo > 1 ? ' · ' + BO_KO(L.series.bo) : ''}`}</b><span class="lb-stat-h" title="방장">👑 ${esc(hostNm)}</span></span><small>${sub}</small></div>`;
+      h = `<div class="lb-stat-tx"><span class="lb-stat-top"><b class="lb-stat-m">${normal ? `<i>🎮</i>일반 · ${QN}` : `<i>⚔</i>${TNM2 ? '대회 경기 · ' + (BO_KO(L.series.bo) || '단판') : (sr ? '협곡 내전' : '내전') + ' · ' + (MODE_KO[L.mode] || '랜덤') + (L.series && L.series.bo > 1 ? ' · ' + BO_KO(L.series.bo) : '')}`}</b><span class="lb-stat-h" title="방장">👑 ${esc(hostNm)}</span></span><small>${sub}</small></div>`;
     }
     st.style.display = h ? '' : 'none';
     st.className = 'lb-stat' + (noHost ? ' cta' : '');
