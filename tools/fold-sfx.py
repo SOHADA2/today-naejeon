@@ -1,4 +1,4 @@
-# 🔊 접기 손잡이 효과음 만들기 — v0.1.286 「헥스텍 슬라이드」
+# 🔊 접기 손잡이 효과음 만들기 — v0.1.286 「헥스텍 슬라이드」 → v0.1.287 무겁게(heavy · 아래 시안 표)
 #   지난 흐름(사장님 의견): 281 높은 하프 → 282 하프 화음·현 합주(단순·높음·큼) → 283 낮고 짧게 → 284 어택 없앤 「웅」(더 은은하게)
 #     → 285 벽돌 긁기(돌 끄는 소리 아님) → 돌문 시안(퀄리티가 떨어짐) → **「네가 생각하는 최고 퀄리티로 · 모션과 앱 톤앤매너에 맞춰」**
 #   품질이 떨어졌던 원인 = 직접 짠 거친 필터(한 극 IIR)·선형 보간 음높이(뭉개짐·탁함) · 모노(납작함)
@@ -96,39 +96,51 @@ CRASH = load('cymbal-crash1_pp_rr1', -2)
 BD = load('BDrumNewhit_v1_rr1_Sum', -2)
 bon = int(np.argmax(np.abs(BD).max(axis=0) > 0.05))
 
+# 시안(셋째 인자): hex = 지금(금빛 결 + 몸통 + 빨려 듦 + 「툼」 + 잔향) · light = 가볍고 짧게(금빛 결만 · 잔향 아주 조금 = UI 느낌)
+#                   heavy = 무겁게(몸통·「툼」 위주 · 금빛 결은 조금 · 밝기 낮게)
+VAR = sys.argv[3] if len(sys.argv) > 3 else 'heavy'   # v0.1.287 = heavy(사장님이 A·B·C 중 C를 고름 · 286은 hex)
+P = {'hex':   dict(pp=1.0, mf=0.55, cr=0.22, bd=0.42, bri=1.0, rt=0.42, wet=0.17, T=0.95, dur=1.0),
+     'light': dict(pp=1.0, mf=0.12, cr=0.0,  bd=0.0,  bri=1.15, rt=0.22, wet=0.07, T=0.5, dur=0.62),
+     'heavy': dict(pp=0.35, mf=1.0, cr=0.1,  bd=0.85, bri=0.6, rt=0.36, wet=0.12, T=0.85, dur=1.0)}[VAR]
+def tm(pts): return [(t * P['dur'], v) for t, v in pts]          # 시간 줄이기(light)
+def br(pts): return [(t * P['dur'], v * P['bri']) for t, v in pts]
+
 def fold_out(side):                                               # side L = 클라가 오른쪽(+) · R = 거울
-    s = 1 if side == 'L' else -1; T = 0.95; buf = np.zeros((2, int(T * SR)))
-    a = seg(G_PP, 0.45, 0.5)                                      # ① 금빛 결
-    a = stft_filter(a, lo_pts=[(0, 2200), (0.23, 4200), (0.3, 1700), (0.5, 700)], hi_pts=[(0, 260)])
-    a *= curve(a.shape[1], [(0, 0), (0.08, 0.25), (0.235, 1), (0.3, 0.55), (0.5, 0)])
-    b = seg(G_MF, 1.3, 0.5)                                       # ② 몸통
-    b = stft_filter(b, lo_pts=[(0, 1200), (0.24, 1800), (0.34, 650), (0.5, 380)], hi_pts=[(0, 90)])
-    b *= curve(b.shape[1], [(0, 0), (0.1, 0.3), (0.24, 1), (0.34, 0.45), (0.5, 0)])
+    s = 1 if side == 'L' else -1; T = P['T']; buf = np.zeros((2, int(T * SR)))
+    a = seg(G_PP, 0.45, 0.5 * P['dur'])                           # ① 금빛 결
+    a = stft_filter(a, lo_pts=br([(0, 2200), (0.23, 4200), (0.3, 1700), (0.5, 700)]), hi_pts=[(0, 260)])
+    a *= curve(a.shape[1], tm([(0, 0), (0.08, 0.25), (0.235, 1), (0.3, 0.55), (0.5, 0)]))
+    b = seg(G_MF, 1.3, 0.5 * P['dur'])                            # ② 몸통
+    b = stft_filter(b, lo_pts=br([(0, 1200), (0.24, 1800), (0.34, 650), (0.5, 380)]), hi_pts=[(0, 90)])
+    b *= curve(b.shape[1], tm([(0, 0), (0.1, 0.3), (0.24, 1), (0.34, 0.45), (0.5, 0)]))
     c = seg(CRASH, 0.01, 0.26)[:, ::-1].copy()                    # ③ 빨려 듦(거꾸로 · 0.25초에 봉우리)
     c = stft_filter(c, lo_pts=[(0, 2400)], hi_pts=[(0, 380)]); c *= curve(c.shape[1], [(0, 0), (0.18, 0.6), (0.25, 1), (0.26, 0)])
     d = seg(BD, bon / SR, 0.6)                                    # ④ 닿음 「툼」
     d = stft_filter(d, lo_pts=[(0, 160)]); d *= curve(d.shape[1], [(0, 1), (0.25, 0.5), (0.6, 0)])
     mix = np.zeros((2, int(0.6 * SR)))
-    place(mix, a, 0, 1.0); place(mix, b, 0, 0.55); place(mix, c, 0, 0.22)
+    place(mix, a, 0, P['pp']); place(mix, b, 0, P['mf'])
+    if P['cr']: place(mix, c, 0.26 * P['dur'] - 0.26 if P['dur'] >= 1 else 0, P['cr'])
     mix = pan(mix, [(0, -0.12 * s), (0.26, 0.55 * s), (0.6, 0.5 * s)])  # 창과 함께 클라 쪽으로
-    place(buf, mix, 0); place(buf, pan(d, [(0, 0.35 * s)]), 0.238, 0.42)
-    return reverb(buf, 0.42, 0.17)[:, :int(T * SR)]
+    place(buf, mix, 0)
+    if P['bd']: place(buf, pan(d, [(0, 0.35 * s)]), 0.238, P['bd'])
+    return reverb(buf, P['rt'], P['wet'])[:, :int(T * SR)]
 
 def fold_in(side):
-    s = 1 if side == 'L' else -1; T = 0.95; buf = np.zeros((2, int(T * SR)))
+    s = 1 if side == 'L' else -1; T = P['T']; buf = np.zeros((2, int(T * SR)))
     d = seg(BD, bon / SR, 0.5)                                    # 클라 뒤에서 밀려 나오는 「툼」(여리게)
     d = stft_filter(d, lo_pts=[(0, 140)]); d *= curve(d.shape[1], [(0, 1), (0.2, 0.45), (0.5, 0)])
-    a = seg(G_PP, 1.2, 0.55)
-    a = stft_filter(a, lo_pts=[(0, 1300), (0.12, 4000), (0.3, 2600), (0.55, 1500)], hi_pts=[(0, 260)])
-    a *= curve(a.shape[1], [(0, 0), (0.035, 0.7), (0.11, 1), (0.3, 0.45), (0.55, 0)])
-    b = seg(G_MF, 2.6, 0.55)
-    b = stft_filter(b, lo_pts=[(0, 600), (0.12, 1500), (0.55, 700)], hi_pts=[(0, 90)])
-    b *= curve(b.shape[1], [(0, 0), (0.05, 0.6), (0.13, 1), (0.32, 0.4), (0.55, 0)])
+    a = seg(G_PP, 1.2, 0.55 * P['dur'])
+    a = stft_filter(a, lo_pts=br([(0, 1300), (0.12, 4000), (0.3, 2600), (0.55, 1500)]), hi_pts=[(0, 260)])
+    a *= curve(a.shape[1], tm([(0, 0), (0.035, 0.7), (0.11, 1), (0.3, 0.45), (0.55, 0)]))
+    b = seg(G_MF, 2.6, 0.55 * P['dur'])
+    b = stft_filter(b, lo_pts=br([(0, 600), (0.12, 1500), (0.55, 700)]), hi_pts=[(0, 90)])
+    b *= curve(b.shape[1], tm([(0, 0), (0.05, 0.6), (0.13, 1), (0.32, 0.4), (0.55, 0)]))
     mix = np.zeros((2, int(0.6 * SR)))
-    place(mix, a, 0.0, 1.0); place(mix, b, 0.0, 0.5)
+    place(mix, a, 0.0, P['pp']); place(mix, b, 0.0, P['mf'] * 0.9)
     mix = pan(mix, [(0, 0.5 * s), (0.38, -0.08 * s), (0.6, -0.1 * s)])  # 클라 쪽에서 바깥으로
-    place(buf, pan(d, [(0, 0.4 * s)]), 0.0, 0.3); place(buf, mix, 0.04)
-    return reverb(buf, 0.42, 0.17)[:, :int(T * SR)]
+    if P['bd']: place(buf, pan(d, [(0, 0.4 * s)]), 0.0, P['bd'] * 0.7)
+    place(buf, mix, 0.04)
+    return reverb(buf, P['rt'], P['wet'])[:, :int(T * SR)]
 
 for side in ('L', 'R'):
     finish(fold_out(side), f'fold-out-{side}.ogg', -25, 0.12)

@@ -31,4 +31,5 @@ assets/ping/*.png (핑·이모티콘 그림 · 바퀴 판) = 직접 그린 스�
 fold-out-L/R.ogg · fold-in-L/R.ogg (v0.1.286 접기 손잡이 「헥스텍 슬라이드」 · 스테레오 · 실제 녹음만) — VSCO-2 Community Edition (CC0) https://github.com/sgossner/VSCO-2-CE
   재료 = 공 긁기 여리게/세게(Percussion/gongscrape_pp · gongscrape_mf) · 여린 크래시(Percussion/cymbal-crash1_pp_rr1 · 거꾸로) · 큰북 여린 한 번(Percussion/BDrumNewhit_v1_rr1_Sum · 160Hz 아래)
   금빛 결(공 pp −4반음) + 공기 무게(공 mf −9반음) + 빨려 듦(거꾸로 심벌) + 클라 뒤에 닿는 「툼」 · soxr 리샘플 · STFT 필터 · 창 방향으로 좌우 이동 · 짧은 어두운 잔향
+  v0.1.287 = 시안 C 「무겁게」(사장님이 A 지금·B 가볍고 짧게·C 무겁게 중 고름) = 공기 무게·「툼」 위주 · 금빛 결 조금 · 밝기 낮게 · 잔향 0.36초
   만드는 법 = tools/fold-sfx.py · 앱 볼륨 0.12 × ⚙ 효과음 · (v0.1.281~285 하프·현·벽돌 버전은 사장님 의견으로 바꿈)
