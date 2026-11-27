@@ -108,11 +108,13 @@ const spEmb = tier => `<i class="pf-emb">${tier && window.tnEmblem ? `<span clas
 // 🏆 v0.1.288 팀 이름(시리즈) — 판 상태(session.series)·경기 기록(match.series) 둘 다 names
 const TNm = (m, t) => (m && m.series && m.series.names && m.series.names[t]) || (t === 'teamA' ? '1팀' : '2팀');
 const BOk = bo => bo === 5 ? '5판 3선승' : bo === 3 ? '3판 2선승' : '';
-function serRow(m, after) {   // 「3판 2선승 · 2번째 판 · 불꽃 1 : 0 번개」 · 끝났으면 「🏆 불꽃 시리즈 승리 2 : 1」
+function serRow(m, after) {   // 🏆 v0.1.289 = 상자 없이 한 줄 「3판 2선승 · 2번째 판 · 1 : 0」 · 끝 = 「🏆 불꽃 시리즈 승리 · 2 : 1」
   const S = m && m.series; if (!S || !(S.bo > 1)) return '';
-  const w = S.wins || {}, sc = `<b class="t1">${escH(TNm(m, 'teamA'))}</b> <span class="num">${w.teamA || 0} : ${w.teamB || 0}</span> <b class="t2">${escH(TNm(m, 'teamB'))}</b>`;
-  return `<div class="hm-ser${S.done ? ' done' : ''}"><em>${S.done ? '🏆 ' + escH(TNm(m, S.done)) + ' 시리즈 승리' : `${BOk(S.bo)} · ${after ? S.n || 0 : (S.n || 0) + 1}번째 판`}</em><span>${sc}</span></div>`;
+  const w = S.wins || {}, sc = `<b class="num">${w.teamA || 0} : ${w.teamB || 0}</b>`;
+  return `<span class="hm-serl${S.done ? ' done' : ''}">${S.done ? `🏆 ${escH(TNm(m, S.done))} 시리즈 승리` : `${BOk(S.bo)} · ${after ? S.n || 0 : (S.n || 0) + 1}번째 판`} · ${sc}</span>`;
 }
+const serTag = m => { const S = m && m.series; if (!S || !(S.bo > 1)) return ''; const w = S.wins || {};   // 기록 경기 카드 머리 = 작은 표
+  return `<span class="rc-tag ser${S.done ? ' done' : ''}">${S.done ? `🏆 ${escH(TNm(m, S.done))} ${w.teamA || 0}:${w.teamB || 0}` : `${BOk(S.bo)} ${S.n || 0}판째 · ${w.teamA || 0}:${w.teamB || 0}`}</span>`; };
 function teamRows(m, win) {
   const row = (k, label) => `<div class="hm-team ${k === 'teamA' ? 't1' : 't2'}${win === k ? ' win' : ''}"><i>${label}</i><span>${(m[k] || []).map(escH).join(' · ')}</span>${win === k ? '<em>승</em>' : ''}</div>`;
   return `<div class="hm-teams">${row('teamA', escH(TNm(m, 'teamA')))}${row('teamB', escH(TNm(m, 'teamB')))}</div>`;
@@ -182,7 +184,7 @@ function hmNow() {
   }
   const h = _hostInfo.host;
   return `<div class="sp-card hm-now${alert ? ' alert' : ''}"><div class="sp-hd"><div class="sp-hd-tx"><span class="sp-en">NOW</span><b class="sp-t">${title}</b></div>${h && h.name ? `<span class="hm-host">방장 <b>${escH(h.name)}</b></span>` : ''}</div>`
-    + serRow(s, s.phase === 'vote' || s.phase === 'result') + teamRows(s, win) + extra + (note ? `<span class="sp-note">${note}</span>` : '') + acts + (_hm.err ? `<span class="hm-err">${escH(_hm.err)}</span>` : '') + `</div>`;
+    + teamRows(s, win) + extra + serRow(s, s.phase === 'vote' || s.phase === 'result') + (note ? `<span class="sp-note">${note}</span>` : '') + acts + (_hm.err ? `<span class="hm-err">${escH(_hm.err)}</span>` : '') + `</div>`;
 }
 function hmToday() {
   const T = _hm.T, hd = (t, more) => `<div class="sp-hd"><div class="sp-hd-tx"><span class="sp-en">TODAY</span><b class="sp-t">${t}</b></div>${more ? '<button class="sp-more" data-go="today">전체 보기</button>' : ''}</div>`;
@@ -256,8 +258,8 @@ async function renderToday() {
     const kda = p.d || p.k || p.a ? ((p.k + p.a) / Math.max(1, p.d)).toFixed(1) : '-';
     return `<tr class="${nn(p.name) === nn(_myName) ? 'me' : ''}"><td class="r">${p.rank}</td><td class="n"><a class="pf-link" data-name="${escH(p.name)}">${escH(p.name)}</a></td><td>${p.wins}-${p.losses}</td><td>${pct(p.wins, p.games)}%</td>${zero(p.mvp)}${zero(p.manner)}<td>${kda}</td></tr>`;
   }).join('');
-  const games = t.matches.map((m, i) => `<div class="rc-g"><div class="rc-gh"><b>${t.matches.length - i}판</b><span class="num">${hhmm(m.ts)}</span>${m.source === 'manual' ? '<span class="rc-tag">직접 기록</span>' : ''}`
-    + `${m.potg && !m.potg.none ? `<button class="rc-pg" data-pg="m${i}" title="팟지 다시 보기">팟지</button>${dlBtn('m' + i, t.day, m.potg)}` : m.potg && m.potg.skipped ? pgSkipTag(m.potg.by) : ''}</div>${m.potg && !m.potg.none ? dlRow(t.day, m.potg) : ''}${serRow(m, true)}${teamRows(m, m.winner)}${awardRow(m)}</div>`).join('');
+  const games = t.matches.map((m, i) => `<div class="rc-g"><div class="rc-gh"><b>${t.matches.length - i}판</b><span class="num">${hhmm(m.ts)}</span>${serTag(m)}${m.source === 'manual' ? '<span class="rc-tag">직접 기록</span>' : ''}`
+    + `${m.potg && !m.potg.none ? `<button class="rc-pg" data-pg="m${i}" title="팟지 다시 보기">팟지</button>${dlBtn('m' + i, t.day, m.potg)}` : m.potg && m.potg.skipped ? pgSkipTag(m.potg.by) : ''}</div>${m.potg && !m.potg.none ? dlRow(t.day, m.potg) : ''}${teamRows(m, m.winner)}${awardRow(m)}</div>`).join('');
   // 🎮 같이 한 일반 판(v0.1.48) — 내전 순위와 따로 · 우리 팀(앱 켠 사람)만 · 재미 지표 · 팟지 다시 보기
   const nwin = normals.filter(m => m.win).length;
   const ngames = normals.map((m, i) => {

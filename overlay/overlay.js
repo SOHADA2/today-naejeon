@@ -95,8 +95,12 @@ async function rmAct(fn) {
 function rmForm(open) {
   el('rm-form').style.display = open ? '' : 'none';
   document.body.classList.toggle('rm-forming', !!open);   // v0.1.227 만드는 칸이 열려 있는 동안 빈 화면의 같은 버튼은 숨김
-  if (open) { el('rm-name').value = ''; el('rm-name').placeholder = myName ? `${myName}의 방` : '방 이름'; el('rm-pw').value = ''; setPriv(false); setTimeout(() => el('rm-name').focus(), 0); }
+  if (open) { el('rm-name').value = ''; el('rm-name').placeholder = myName ? `${myName}의 방` : '방 이름'; el('rm-pw').value = ''; el('rm-tna').value = el('rm-tnb').value = ''; setPriv(false); setBo(1); setTimeout(() => el('rm-name').focus(), 0); }
 }
+// 🏆 v0.1.289 시리즈 방(사장님: 처음 방 만들 때 정함 · 대기실은 예전 그대로) = 일반 내전 | 3판 2선승 | 5판 3선승 · 시리즈면 팀 이름 칸
+let _rmBo = 1;
+function setBo(bo) { _rmBo = bo; document.querySelectorAll('.rm-bseg').forEach(b => b.classList.toggle('on', Number(b.dataset.bo) === bo)); el('rm-tn').style.display = bo > 1 ? '' : 'none'; }
+document.querySelectorAll('.rm-bseg').forEach(b => b.onclick = () => { setBo(Number(b.dataset.bo)); if (_rmBo > 1 && !el('rm-tna').value) el('rm-tna').focus(); });
 function setPriv(p) { _rmPriv = !!p; document.querySelectorAll('.rm-seg').forEach(b => b.classList.toggle('on', (b.dataset.priv === '1') === _rmPriv)); el('rm-pw').style.display = _rmPriv ? '' : 'none'; }
 document.querySelectorAll('.rm-seg').forEach(b => b.onclick = () => { setPriv(b.dataset.priv === '1'); if (_rmPriv) el('rm-pw').focus(); });
 el('rm-new').onclick = () => rmForm(el('rm-form').style.display === 'none');
@@ -104,12 +108,13 @@ el('rm-cancel').onclick = () => { rmForm(false); rmErr(''); };
 async function rmCreate() {
   const go = el('rm-go'); if (go.disabled) return;
   go.disabled = true;
-  const r = await rmAct(() => window.api.roomCreate(el('rm-name').value.trim(), _rmPriv, el('rm-pw').value));
+  const ser = _rmBo > 1 ? { bo: _rmBo, a: el('rm-tna').value.trim(), b: el('rm-tnb').value.trim() } : null;
+  const r = await rmAct(() => window.api.roomCreate(el('rm-name').value.trim(), _rmPriv, el('rm-pw').value, ser));
   go.disabled = false;
   if (r && r.ok) rmForm(false);
 }
 el('rm-go').onclick = rmCreate;
-['rm-name', 'rm-pw'].forEach(id => el(id).addEventListener('keydown', e => { if (e.key === 'Enter') rmCreate(); }));
+['rm-name', 'rm-pw', 'rm-tna', 'rm-tnb'].forEach(id => el(id).addEventListener('keydown', e => { if (e.key === 'Enter') rmCreate(); }));
 async function rmJoin(id, pw) {
   const r = await rmAct(() => window.api.roomJoin(id, pw));
   if (r && r.needPw) {
@@ -189,15 +194,14 @@ function renderRooms() {
 // 🏆 v0.1.288 시리즈·팀 이름 — session.series {bo, need, names, wins, n, done} (main newSeries)
 const TN = (s, t) => (s && s.series && s.series.names && s.series.names[t]) || (t === 'teamA' ? '1팀' : '2팀');
 const BO_KO = bo => bo === 5 ? '5판 3선승' : bo === 3 ? '3판 2선승' : '';
-function serBar(box, s, after) {   // 팀·결과 화면 위 점수 띠 · after = 판이 기록된 뒤(결과 화면 = 이번 판 포함 · 팀 화면 = 다음 판 번호)
-  const S = s && s.series; box = el(box); if (!box) return;
-  if (!S || !(S.bo > 1)) { box.style.display = 'none'; return; }
-  const w = S.wins || {}, a = w.teamA || 0, b = w.teamB || 0;
-  const head = S.done ? 'SERIES' : `${BO_KO(S.bo)} · ${after ? (S.n || 0) : (S.n || 0) + 1}번째 판`;
-  box.className = 'tv-ser' + (S.done ? ' done' : '');
-  box.style.display = '';
-  box.innerHTML = `<span class="ts-bo">${head}</span><span class="ts-sc"><b class="ts-n t1">${esc(TN(s, 'teamA'))}</b><span class="ts-w">${a} : ${b}</span><b class="ts-n t2">${esc(TN(s, 'teamB'))}</b></span>`
-    + (S.done ? `<span class="ts-win">🏆 ${esc(TN(s, S.done))} 시리즈 승리</span>` : '');
+const serOn = s => !!(s && s.series && s.series.bo > 1);
+const serScore = s => { const w = (s.series && s.series.wins) || {}; return `${w.teamA || 0} : ${w.teamB || 0}`; };
+// 🏆 v0.1.289(사장님: 1단계가 지저분 · 직관적이지 않음) = 점수 띠 따로 두지 않고 팀 화면 맨 위 한 장(점수판) · 배너 안 한 줄로
+function serBoard(s, mt) {   // 팀 화면 점수판 = 「3판 2선승 · 2번째 판」 / 불꽃 1 : 0 번개(내 팀 밝게) / 내 팀 줄
+  const S = s.series, me = mt === 1 ? 'teamA' : mt === 2 ? 'teamB' : null;
+  const nm = t => `<b class="sb-n ${t === 'teamA' ? 't1' : 't2'}${me === t ? ' me' : ''}">${esc(TN(s, t))}</b>`;
+  return `<span class="sb-bo">${BO_KO(S.bo)} · ${(S.n || 0) + 1}번째 판</span><span class="sb-row">${nm('teamA')}<span class="sb-sc num">${serScore(s)}</span>${nm('teamB')}</span>`
+    + `<span class="sb-me">${me ? `내 팀 · <b>${esc(TN(s, me))}</b> ${me === 'teamA' ? 'BLUE' : 'RED'}` : (s.spectators || []).some(x => nn(x) === nn(myName)) ? '이번 판은 관전' : '이번 판 팀 배정'}</span>`;
 }
 function myTeam() {
   const s = sessionData; if (!s) return 0;
@@ -227,7 +231,8 @@ function renderTeam() {
     : (s.spectators || []).some(x => nn(x) === nn(myName)) ? '이번 판은 <b>관전</b>입니다' : '이번 판 팀 배정';
   el('team1').className = 'ta-team blue' + (mt === 1 ? ' mine' : mt === 2 ? ' dim' : '');
   el('team2').className = 'ta-team red' + (mt === 2 ? ' mine' : mt === 1 ? ' dim' : '');
-  serBar('tv-ser', s, false); el('t1-label').textContent = TN(s, 'teamA'); el('t2-label').textContent = TN(s, 'teamB');   // 🏆 v0.1.288
+  if (serOn(s)) { band.className = 'tv-band sb' + (mt === 1 ? ' t1' : mt === 2 ? ' t2' : ''); band.innerHTML = serBoard(s, mt); }   // 🏆 시리즈 = 점수판 한 장
+  el('t1-label').textContent = TN(s, 'teamA'); el('t2-label').textContent = TN(s, 'teamB');
   el('t1-count').textContent = A.length + '명';
   el('t2-count').textContent = B.length + '명';
   el('t1-players').innerHTML = A.map(playerRow).join('');
@@ -635,7 +640,7 @@ function renderVote() {
   const s = sessionData, A = s.teamA || [], B = s.teamB || [], mt = myTeam();
   const wt = s.game && s.game.winner === 'teamA' ? 1 : 2;
   el('vt-banner').className = 'vt-banner ' + (wt === 1 ? 't1' : 't2');
-  el('vt-banner').innerHTML = `<span class="lb-sec-en">TEAM ${wt} WIN</span><b><span class="tn-cut">${esc(TN(s, wt === 1 ? 'teamA' : 'teamB'))}</span> 승리</b><span>MVP와 매너왕을 뽑아주세요</span>`;
+  el('vt-banner').innerHTML = `<span class="lb-sec-en">TEAM ${wt} WIN</span><b><span class="tn-cut">${esc(TN(s, wt === 1 ? 'teamA' : 'teamB'))}</span> 승리</b><span>${serOn(s) ? `시리즈 <b class="num">${serScore(s)}</b>${s.series.done ? ` · 🏆 ${esc(TN(s, s.series.done))} 시리즈 승리` : ''} · ` : ''}MVP와 매너왕을 뽑아주세요</span>`;
   const body = el('vt-body');
   if (mt === 0) { body.innerHTML = '<div class="vt-note">관전자는 투표하지 않습니다.<br>결과가 나오면 여기에 떠요.</div>'; renderVoteProgress(); return; }
   const mine = (s.votes || {})[fbKeyOf(myName)];
@@ -696,8 +701,10 @@ function renderResult() {
   const s = sessionData, r = s.result || {}, g = s.game || {};
   const winA = g.winner === 'teamA';
   el('st-banner').className = 'st-banner ' + (winA ? 't1' : 't2');
-  el('st-banner').innerHTML = `<span class="lb-sec-en">RESULT</span><b><span class="tn-cut">${esc(TN(s, winA ? 'teamA' : 'teamB'))}</span> 승리</b>${_today ? `<span>오늘 <span class="num">${_today.matches.length}</span>번째 판</span>` : ''}`;
-  serBar('st-ser', s, true);   // 🏆 v0.1.288
+  const SD = serOn(s) && s.series.done;   // 🏆 시리즈 = 배너 아래 한 줄(끝나면 금색 「시리즈 승리」)
+  el('st-banner').className += SD ? ' serdone' : '';
+  el('st-banner').innerHTML = `<span class="lb-sec-en">${SD ? 'SERIES WIN' : 'RESULT'}</span><b><span class="tn-cut">${esc(TN(s, winA ? 'teamA' : 'teamB'))}</span> 승리</b>`
+    + (serOn(s) ? `<span>${SD ? '🏆 시리즈 승리' : BO_KO(s.series.bo)} · <b class="num">${serScore(s)}</b></span>` : _today ? `<span>오늘 <span class="num">${_today.matches.length}</span>번째 판</span>` : '');
   const aw = [];
   if (r.mvp) aw.push(`<span class="st-aw"><b>MVP</b><span class="st-awn">${esc(r.mvp)}</span></span>`);
   if (r.svp) aw.push(`<span class="st-aw"><b>SVP</b><span class="st-awn">${esc(r.svp)}</span></span>`);
@@ -987,17 +994,6 @@ function renderLobby() {
     pop.querySelectorAll('.lb-gm').forEach(b => { const on = (b.dataset.game === 'sr') === sr; b.classList.toggle('on', on); b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyGame(b.dataset.game === 'sr' ? 'sr' : null, srPick)); }; });
     pop.querySelectorAll('.lb-sp').forEach(b => { const q = Number(b.dataset.pick), on = q === srPick; b.classList.toggle('on', on); b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyGame('sr', q)); }; });
     el('lb-nq').style.display = normal ? '' : 'none';
-    { // 🏆 v0.1.288 시리즈·팀 이름(내전만) — 입력 중인 칸은 안 덮어씀 · 칸을 벗어나거나 Enter = 저장
-      const SC = L.series || { bo: 1, a: '', b: '' };
-      el('lb-ser').style.display = el('lb-tn').style.display = normal ? 'none' : '';
-      pop.querySelectorAll('.lb-bo').forEach(b => { const bo = Number(b.dataset.bo), on = bo === (SC.bo || 1); b.classList.toggle('on', on); b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbySeries({ bo, a: el('lb-tna').value, b: el('lb-tnb').value })); }; });
-      for (const [id, k] of [['lb-tna', 'a'], ['lb-tnb', 'b']]) {
-        const inp = el(id); inp.disabled = !myIsHost;
-        if (document.activeElement !== inp && inp.value !== (SC[k] || '')) inp.value = SC[k] || '';
-        const save = () => { const a = el('lb-tna').value.trim(), b2 = el('lb-tnb').value.trim(); if (myIsHost && (a !== (SC.a || '') || b2 !== (SC.b || ''))) lbAct(() => window.api.lobbySeries({ bo: SC.bo || 1, a, b: b2 })); };
-        inp.onchange = save; inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); };
-      }
-    }
     pop.querySelectorAll('.lb-seg').forEach(b => {
       b.classList.toggle('on', b.dataset.mode === L.mode);
       b.onclick = () => { if (!myIsHost) return; _mpop = false; popAnim(pop, false); chipB.classList.remove('open'); if (b.dataset.mode !== L.mode) lbAct(() => window.api.lobbyMode(b.dataset.mode)); };
@@ -1005,6 +1001,22 @@ function renderLobby() {
     pop.querySelectorAll('.lb-qb').forEach(b => { const q = Number(b.dataset.q); b.classList.toggle('on', q === nq); b.onclick = () => { if (q !== nq) window.api.lolNormalQ(q); }; });
     popAnim(pop, _mpop);   // 🎞️ 상태가 바뀌었을 때만 움직임
     el('lb-mdesc').textContent = normal ? MODE_DESC.normal + (nq === 440 ? ' · 자유 랭크는 1·2·3·5명 파티만 · 각자 롤에서 포지션을 골라야 시작됩니다' : '') : sr && L.mode === 'balance' ? MODE_DESC.balanceSr : MODE_DESC[MODE_KO[L.mode] ? L.mode : 'random'];
+  }
+  { // 🏆 v0.1.289 시리즈 대진 카드 = 「3판 2선승」 / [불꽃] VS [번개] — 방장은 이름 칸을 바로 고침(Enter·칸 벗어나면 저장) · 진행 중인 시리즈면 VS 대신 점수
+    const SC = L.series || { bo: 1 }, box = el('lb-vs'), on = !normal && SC.bo > 1, S = sessionData && serOn(sessionData) && !sessionData.series.done ? sessionData : null;
+    box.style.display = on ? '' : 'none';
+    if (on) {
+      const sig = [SC.bo, SC.a, SC.b, myIsHost, S ? serScore(S) : ''].join('|');
+      if (box.dataset.sig !== sig || !box.contains(document.activeElement)) {
+        box.dataset.sig = sig;
+        const nmH = (k, cls, ph) => myIsHost ? `<input class="vs-n ${cls}" data-k="${k}" maxlength="12" spellcheck="false" placeholder="${ph}" value="${esc(SC[k] || '')}">` : `<b class="vs-n ${cls}">${esc(SC[k] || ph)}</b>`;
+        box.innerHTML = `<span class="vs-bo">${BO_KO(SC.bo)}${S ? ` · ${(S.series.n || 0) + 1}번째 판` : ''}</span><span class="vs-row">${nmH('a', 't1', '1팀')}<span class="vs-x${S ? ' sc num' : ''}">${S ? serScore(S) : 'VS'}</span>${nmH('b', 't2', '2팀')}</span>`;
+        box.querySelectorAll('input.vs-n').forEach(inp => {
+          inp.onchange = () => { const a = box.querySelector('[data-k="a"]').value.trim(), b = box.querySelector('[data-k="b"]').value.trim(); lbAct(() => window.api.lobbySeries({ bo: SC.bo, a, b })); };
+          inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); };
+        });
+      }
+    }
   }
   const lolIdle = !G.phase || G.phase === 'None' || G.phase === 'Lobby';
   const roomStep = !!(myIsHost && !normal && L.room && G.phase && lolIdle && !G.inCustom && _roomStepSkip !== L.room.id);   // 🪜 v0.1.216 ① 롤 로비 만들기 단계(롤이 켜져 있고 롤 로비에 없음)
@@ -1172,6 +1184,7 @@ function fillRoomMenu(L) {
     ? '<div class="lb-hm-hd">👑 방장 넘겨주기<small>누르면 그 사람이 방장이 됩니다</small></div>'
       + (others.length ? others.map(o => `<button class="lb-hm-item" data-p="${esc(o.key)}">${avatar(o, 'chip-av')}<span>${esc(o.name)}</span>${act('넘기기')}</button>`).join('') : '<div class="lb-hm-empty">앱을 켠 다른 사람이 없습니다</div>')
     : `<div class="lb-hm-hd">${hn ? `👑 지금 방장 <b>${esc(hn)}</b>` : '방장 없음'}</div>`)
+    + (myIsHost && L.room ? `<button class="lb-hm-item sep" id="lb-hm-ser"><span>🏆 시리즈<small>${L.series && L.series.bo > 1 ? BO_KO(L.series.bo) + ' · 같은 팀으로 이어서' : '지금은 한 판씩(일반 내전)'}</small></span>${act('바꾸기 ›', 'dim')}</button>` : '')
     + (L.room && others.length ? `<button class="lb-hm-item sep" id="lb-hm-rep"><span>🚨 신고하기<small>운영자에게만 전달됩니다</small></span>${act('신고 ›', 'dim')}</button>` : '')
     + (L.room ? `<button class="lb-hm-item leave" id="lb-hm-leave"><span>방에서 나가기<small>방 목록으로 돌아갑니다</small></span>${act('나가기', 'red')}</button>` : '');
   popAnim(m, true);   // 🎞️ v0.1.235 열 때 펼쳐짐(이미 열려 있으면 그대로)
@@ -1181,6 +1194,15 @@ function fillRoomMenu(L) {
     if (!await tnConfirm(`${o.name}님에게 방장을 넘길까요?\n진행 중인 판은 그대로 이어집니다.`)) return;
     lbAct(() => window.api.handHost(o.key));
   });
+  const sv = el('lb-hm-ser'); if (sv) sv.onclick = e => {   // 🏆 v0.1.289 시리즈 바꾸기 = 판 수 고르기(팀 이름은 대기실 대진 카드에서)
+    e.stopPropagation();
+    const cur = (L.series && L.series.bo) || 1;
+    m.innerHTML = '<div class="lb-hm-hd">🏆 시리즈<small>팀 이름은 대기실 아래 대진 카드에서 고칩니다</small></div>'
+      + [[1, '일반 내전', '한 판씩'], [3, '3판 2선승', '먼저 2판 이기면 시리즈 승리'], [5, '5판 3선승', '먼저 3판 이기면 시리즈 승리']].map(([bo, t, sub]) => `<button class="lb-hm-item" data-bo="${bo}"><span>${t}<small>${sub}</small></span>${act(bo === cur ? '지금' : '고르기', bo === cur ? 'dim' : '')}</button>`).join('')
+      + '<button class="lb-hm-item sep" id="lb-hm-back2"><span>‹ 뒤로</span></button>';
+    m.querySelectorAll('[data-bo]').forEach(b => b.onclick = () => { const bo = Number(b.dataset.bo); closeRoomMenu(); if (bo !== cur) lbAct(() => window.api.lobbySeries({ bo, a: (L.series && L.series.a) || '', b: (L.series && L.series.b) || '' })); });
+    el('lb-hm-back2').onclick = ev => { ev.stopPropagation(); fillRoomMenu(L); };
+  };
   const rp = el('lb-hm-rep'); if (rp) rp.onclick = e => {   // 🚨 v0.1.245 신고할 사람 고르기
     e.stopPropagation();
     m.innerHTML = '<div class="lb-hm-hd">🚨 누구를 신고할까요?<small>고른 뒤 무슨 일이 있었는지 한 줄 적습니다</small></div>' + others.map(x => `<button class="lb-hm-item" data-rk="${esc(x.key)}">${avatar(x, 'chip-av')}<span>${esc(x.name)}</span><em class="lb-hm-act dim">신고</em></button>`).join('') + '<button class="lb-hm-item" id="lb-hm-back"><span>‹ 뒤로</span></button>';

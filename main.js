@@ -1626,7 +1626,7 @@ function kickDiff(prev, cur) {
   console.log('[room] 방장이 내보냄 →', nm);
   roomLeave(false).then(() => broadcast('kicked', { room: nm, by, admin: !!b.admin })).catch(() => {});
 }
-async function roomCreate(name, priv, pw) {
+async function roomCreate(name, priv, pw, ser) {   // 🏆 v0.1.289 ser = 시리즈 방 {bo 3|5, a, b}(방 만들 때 정함 · 사장님)
   if (!account) return { ok: false, err: '롤에 로그인하면 방을 만들 수 있습니다' };
   if (banOn()) return { ok: false, err: '이용이 정지된 계정입니다' };   // 🚫 v0.1.244
   if (!pubOk()) return { ok: false, err: PUB_ERR, needPub: true };   // 🔒 v0.1.253
@@ -1638,6 +1638,7 @@ async function roomCreate(name, priv, pw) {
   const w = await fbSet(`${CT}/roomList/${id}`, meta); if (!w.ok) return w;
   { const u = await roomUidPut(id); if (!u.ok) { fbSet(`${CT}/roomList/${id}`, null).catch(() => {}); return u; } }   // 🔐 v0.1.243 방장 칸보다 먼저
   await fbSet(`${CT}/rooms/${id}/host`, { puuid: account.puuid, name: account.gameName, at: now });   // 👑 만든 사람 = 방장(방 스트림이 받아 자동으로 방장이 됨)
+  { const c = serCfg(ser); if (c.bo > 1) await fbSet(`${CT}/rooms/${id}/lobby/series`, c).catch(() => {}); }   // 🏆 시리즈 방 = 대기실 칸(서버 규칙 변경 없음)
   roomListRaw = Object.assign({}, roomListRaw, { [id]: meta });
   return roomJoin(id, null, meta.pw);
 }
@@ -2360,7 +2361,7 @@ async function lobbySidesPrev() {   // 지난 판 팀 그대로(지금 판 → �
 //   lobby/series = {bo: 1|3|5, a: 1팀 이름, b: 2팀 이름}(방장이 대기실 방식 창에서 정함 · 대기실 칸이라 서버 규칙 변경 없음)
 //   session.series = {id, bo, need, names:{teamA,teamB}, wins:{teamA,teamB}, n(지난 판 수), games:[게임 번호], done: null|'teamA'|'teamB'}
 //   = 팀이 정해질 때(writeTeams·드래프트) 새로 · 「다음 판」(tb-again · 같은 팀) = 이어서 · 판이 기록되면(recordGame) 점수 올림 + 경기 기록에 series 칸
-//   bo 1 + 이름만 = 팀 이름만 보여 줌(점수 없음)
+//   v0.1.289 = 이름은 시리즈(3·5판)일 때만 · 방식 창 「판 수」 + 대기실 아래 대진 카드에서 이름
 const serName = (v, d) => { const t = String(v || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 12); return t || d; };
 function serCfg(x) {
   if (!x || typeof x !== 'object') return { bo: 1, a: '', b: '' };
@@ -2375,7 +2376,7 @@ async function lobbySeries(v) {
 }
 function newSeries(now) {
   const c = serCfg(lobbyRaw && lobbyRaw.series);
-  if (c.bo <= 1 && !c.a && !c.b) return null;
+  if (c.bo <= 1) return null;   // v0.1.289 팀 이름은 시리즈일 때만(단판 = 1팀·2팀)
   return { id: 's' + now, bo: c.bo, need: c.bo > 1 ? Math.ceil(c.bo / 2) : 0, names: { teamA: c.a || '1팀', teamB: c.b || '2팀' }, wins: { teamA: 0, teamB: 0 }, n: 0, games: [], done: null, at: now };
 }
 async function lobbySidesClear() {
@@ -4448,7 +4449,7 @@ ipcMain.handle('lobby-sides-clear', () => lobbySidesClear());
 ipcMain.handle('lobby-series', (_e, v) => lobbySeries(v));   // 🏆 v0.1.288 시리즈·팀 이름
 ipcMain.handle('lobby-reopen', () => lobbyReopen());
 ipcMain.handle('rooms-data', () => roomsView());   // 🚪 방 목록
-ipcMain.handle('room-create', (_e, { name, priv, pw }) => roomCreate(name, priv, pw));
+ipcMain.handle('room-create', (_e, { name, priv, pw, ser }) => roomCreate(name, priv, pw, ser));
 ipcMain.handle('room-join', (_e, { id, pw }) => roomJoin(id, pw));
 ipcMain.handle('room-leave', () => roomLeave());
 ipcMain.on('overlay-show', () => { userHid = false; unfoldL(); showOverlay(); });

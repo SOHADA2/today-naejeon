@@ -255,11 +255,8 @@ button.sp-card:hover { border-color:var(--gold-line); }
 }
 .rc-pgx { flex:none; margin-left:auto; padding:2px 7px; font-size:10.5px; font-weight:700; color:var(--dim); border:1px dashed var(--hair); white-space:nowrap; cursor:default; }   /* v0.1.211 팟지 건너뜀(누가 = 마우스 올림) */
 
-/* 🏆 v0.1.288 시리즈 줄(홈 「이번 판」·기록 경기 카드) */
-.hm-ser { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 6px; padding:5px 8px; font-size:12px; background:rgba(200,170,110,0.06); border:1px solid var(--gold-line); clip-path:var(--cut-sm); }
-.hm-ser em { flex:none; font-style:normal; font-weight:700; color:var(--gold); white-space:nowrap; }
-.hm-ser span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink-soft); }
-.hm-ser b.t1 { color:var(--t1); } .hm-ser b.t2 { color:var(--t2); }
-.hm-ser .num { font-weight:700; color:var(--ink); }
-.hm-ser.done { border-color:var(--gold); background:var(--gold-soft); } .hm-ser.done em { color:var(--gold-hi); }
+/* 🏆 v0.1.289 시리즈 = 상자 없이 한 줄(홈 「이번 판」 팀 줄 아래) · 기록 = 경기 카드 머리 작은 표 */
+.hm-serl { display:block; margin-top:6px; font-size:12px; font-weight:600; color:var(--gold); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hm-serl .num { color:var(--ink); font-weight:800; } .hm-serl.done { color:var(--gold-hi); font-weight:800; }
+.rc-tag.ser { color:var(--gold); border-color:var(--gold-line); } .rc-tag.ser.done { color:var(--gold-hi); }
 .hm-team i { max-width:6.5em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }   /* 🏆 v0.1.288 팀 이름이 길면 … */

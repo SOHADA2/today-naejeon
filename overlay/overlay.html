@@ -18,7 +18,6 @@
 
     <!-- 팀 배정 뷰 -->
     <section id="view-team" class="view" style="display:none;">
-      <div id="tv-ser" class="tv-ser" style="display:none;"></div>   <!-- 🏆 v0.1.288 시리즈 점수 -->
       <div id="tv-band" class="tv-band"></div>
       <div class="ta-teams">
         <div class="ta-team blue" id="team1">
@@ -86,7 +85,6 @@
     <!-- 🏁 결과 -->
     <section id="view-result" class="view ui-scroll" style="display:none;">
       <div id="st-banner" class="st-banner"></div>
-      <div id="st-ser" class="tv-ser" style="display:none;"></div>   <!-- 🏆 v0.1.288 시리즈 점수 · 끝나면 시리즈 승리 -->
       <div id="st-awards" class="st-awards"></div>
       <div id="st-teams" class="st-teams"></div>
       <button id="st-potg" class="ui-btn-gold" style="display:none;">팟지 다시 보기</button>
@@ -125,13 +123,12 @@
           <div class="lb-mp-row" id="lb-game"><span class="lb-mode-l">게임</span><span class="lb-mp-grid g2"><button class="lb-gm" data-game="mayhem" title="칼바람 맵 아수라장 사용자 설정 게임 · 다리(맵)는 판마다">아수라장</button><button class="lb-gm" data-game="sr" title="소환사의 협곡 5 : 5 사용자 설정 게임">소환사의 협곡</button></span></div>
           <div class="lb-mp-row" id="lb-srp"><span class="lb-mode-l">챔피언</span><span class="lb-mp-col"><button class="lb-sp" data-pick="3130" title="서로 챔피언을 금지한 뒤 번갈아 고름(상대 픽이 보임) · 롤 사용자 설정 「토너먼트 교차 선택」"><b>밴픽</b><small>토너먼트 교차 선택</small></button><button class="lb-sp" data-pick="3100" title="금지 없이 다 같이 동시에 고름(상대 픽이 안 보임) · 롤 사용자 설정 「비공개 선택」"><b>블라인드</b><small>비공개 선택</small></button></span></div>
           <div class="lb-mp-row" id="lb-sub"><span class="lb-mode-l">팀 짜기</span><span class="lb-mp-grid"><button class="lb-seg" data-mode="random">랜덤</button><button class="lb-seg" data-mode="balance">밸런스</button><button class="lb-seg" data-mode="draft">드래프트</button><button class="lb-seg" data-mode="manual">직접</button></span></div>
-          <div class="lb-mp-row" id="lb-ser"><span class="lb-mode-l">시리즈</span><span class="lb-mp-grid g3"><button class="lb-bo" data-bo="1" title="한 판씩(점수 없음)">단판</button><button class="lb-bo" data-bo="3" title="먼저 2판 이기는 팀이 시리즈 승리 · 같은 팀으로 이어서">3판 2선승</button><button class="lb-bo" data-bo="5" title="먼저 3판 이기는 팀이 시리즈 승리 · 같은 팀으로 이어서">5판 3선승</button></span></div>   <!-- 🏆 v0.1.288 -->
-          <div class="lb-mp-row" id="lb-tn"><span class="lb-mode-l">팀 이름</span><span class="lb-tn"><input id="lb-tna" class="lb-tn-in t1" maxlength="12" placeholder="1팀" spellcheck="false"><input id="lb-tnb" class="lb-tn-in t2" maxlength="12" placeholder="2팀" spellcheck="false"></span></div>
           <div class="lb-mp-row" id="lb-nq"><span class="lb-mode-l">큐</span><span class="lb-mp-grid"><button class="lb-qb" data-q="2400">아수라장</button><button class="lb-qb" data-q="450">칼바람 나락</button><button class="lb-qb" data-q="440">자유 랭크</button></span></div>
           <div id="lb-mdesc" class="lb-mp-desc"></div>
         </div>
         <div id="lb-lol" class="lb-lol" style="display:none;"></div>   <!-- 🎮 방장 롤 초대 수락(자동 수락을 끈 사람) -->
         <div id="lb-err" class="dr-err" style="display:none;"></div>
+        <div id="lb-vs" class="lb-vs" style="display:none;"></div>   <!-- 🏆 v0.1.289 시리즈 대진 카드(불꽃 VS 번개 · 방장은 이름을 바로 고침) -->
         <div id="lb-caps" class="lb-caps" style="display:none;"></div>   <!-- 방장 안내 한 줄: 팀장 n/2·랜덤 팀장 / 1팀·2팀·미정 / 롤 파티 n/5·다시 초대 / 남는 사람 -->
         <div id="lb-gobar" class="lb-gobar" style="display:none;"><button id="lb-mchip" class="lb-mchip"></button><button id="lb-start" class="ui-btn-gold lb-start" disabled>시작</button></div>
         <div id="lb-stat" class="lb-stat" style="display:none;"></div>   <!-- 팀원: 방식 · 방장 · 무엇을 기다리는지 / 방장 없음: 방장 하기 -->
@@ -145,6 +142,8 @@
         <input id="rm-name" class="rm-in" maxlength="20" placeholder="방 이름">
         <div class="rm-priv"><button class="rm-seg on" data-priv="0">공개</button><button class="rm-seg" data-priv="1">비공개</button></div>
         <input id="rm-pw" class="rm-in" maxlength="20" placeholder="비밀번호" type="password" style="display:none;">
+        <div class="rm-bo"><button class="rm-bseg on" data-bo="1" title="한 판씩(지금까지처럼)">일반 내전</button><button class="rm-bseg" data-bo="3" title="같은 두 팀이 먼저 2판 이길 때까지">3판 2선승</button><button class="rm-bseg" data-bo="5" title="같은 두 팀이 먼저 3판 이길 때까지">5판 3선승</button></div>   <!-- 🏆 v0.1.289 시리즈 방(사장님: 방 만들 때 정함) -->
+        <div id="rm-tn" class="rm-tn" style="display:none;"><input id="rm-tna" class="rm-in t1" maxlength="12" placeholder="1팀 이름"><span>VS</span><input id="rm-tnb" class="rm-in t2" maxlength="12" placeholder="2팀 이름"></div>
         <div class="rm-actions"><button id="rm-cancel" class="lb-mini plain">취소</button><button id="rm-go" class="ui-btn-gold rm-go">만들고 들어가기</button></div>
       </div>
       <div id="rm-err" class="dr-err" style="display:none;"></div>

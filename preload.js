@@ -112,7 +112,7 @@ contextBridge.exposeInMainWorld('api', {
   // 🚪 방(v0.1.94) — onRooms로 {rooms:[{id,name,priv,host,n,members,mine}], room, me, ready}
   onRooms: (cb) => ipcRenderer.on('rooms', (_e, d) => cb(d)),
   getRooms: () => ipcRenderer.invoke('rooms-data'),
-  roomCreate: (name, priv, pw) => ipcRenderer.invoke('room-create', { name, priv, pw }),
+  roomCreate: (name, priv, pw, ser) => ipcRenderer.invoke('room-create', { name, priv, pw, ser }),   // 🏆 v0.1.289 ser = 시리즈 {bo, a, b}
   roomJoin: (id, pw) => ipcRenderer.invoke('room-join', { id, pw }),
   roomLeave: () => ipcRenderer.invoke('room-leave'),                    // 👑 지금 판 접고 대기실로
   showOverlay: () => ipcRenderer.send('overlay-show'),
