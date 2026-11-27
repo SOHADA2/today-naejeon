@@ -19,7 +19,7 @@
   // ✨ v0.1.279 접기·펼치기 움직임 = 창은 제자리 · 화면(#panel)만 클라 쪽 가장자리 밖으로 미끄러짐(잘림) → 클라 뒤로 들어가고 나오는 것처럼
   //   main → 'fold-anim' {act: 'out'(접힘) | 'pre'(펼치기 직전 = 바깥에 둠) | 'in'(펼침) | 'reset', ms}
   // 🔊 v0.1.281 접기 「스윽」(클라 뒤로 먹먹해지며 사라짐) · 펼치기 = 바람 + 하프 한 음 · 사람이 누른 때만 main이 vol을 줌(⚙ 효과음 크기)
-  const SND = { out: '../assets/sfx/fold-out.ogg', in: '../assets/sfx/fold-in.ogg' }, SND_VOL = 0.24;
+  const SND = { out: '../assets/sfx/fold-out.ogg', in: '../assets/sfx/fold-in.ogg' }, SND_VOL = 0.16;   // v0.1.282 0.24 → 0.16(사장님: 소리가 너무 큼 · 파일도 -20 → -24 LUFS)
   const sndEl = {}; for (const k in SND) { try { const a = new Audio(SND[k]); a.preload = 'auto'; sndEl[k] = a; } catch (_) {} }
   const playSnd = (k, vol) => { const a = sndEl[k]; if (!a || !(vol > 0)) return; try { a.pause(); a.currentTime = 0; a.volume = Math.min(1, SND_VOL * vol); a.play().catch(() => {}); } catch (_) {} };
   if (window.api.onFoldAnim) window.api.onFoldAnim(d => {
