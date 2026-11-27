@@ -44,7 +44,7 @@
       '팀이 정해질 때 음성 채널 <b>「1팀」「2팀」으로 자동 이동</b> · 게임이 끝나면 원래 채널로',
       '대기실 자리의 헤드셋 표시 = 디스코드 켠 사람 · 웹 브라우저 디스코드는 안 됩니다'] },
     { en: 'SETTINGS', t: '단축키·설정', l: [
-      '<b>Shift+F7</b> 왼쪽 창 보이기/숨기기',
+      '창 머리 <b>›</b> = 롤 클라이언트 옆 손잡이로 접기 · 손잡이를 누르면 다시 펼침(<b>Shift+F7</b>도 됨)',
       '⚙ 설정 — 디스코드 · 소리 · 롤 화면 핑',
       '이 사용법은 ⚙ 설정 → <b>「사용법 다시 보기」</b>'] },
   ];
@@ -57,7 +57,7 @@
       box.innerHTML = `<div class="tut-card">
         <div class="tut-hd"><span class="tut-en lb-sec-en">TUTORIAL</span></div>
         <b class="tut-t">여기까지입니다</b>
-        <ul class="tut-l"><li>판이 끝나면 방장 PC가 그 판 최고 장면(<b>팟지</b>)을 찍어 모두에게 보여 줍니다</li><li><b>Shift+F7</b> = 이 창 보이기/숨기기</li><li>다시 보려면 ⚙ 설정 → <b>「사용법 다시 보기」</b></li></ul>
+        <ul class="tut-l"><li>판이 끝나면 방장 PC가 그 판 최고 장면(<b>팟지</b>)을 찍어 모두에게 보여 줍니다</li><li>창 머리 <b>›</b> = 옆 손잡이로 접기 · 누르면 다시 펼침</li><li>다시 보려면 ⚙ 설정 → <b>「사용법 다시 보기」</b></li></ul>
         <button class="tut-more">자세한 사용법 보기</button>
         <div class="tut-btns"><button class="tut-prev tut-again">처음부터 다시</button><button class="tut-next ui-btn-gold">시작하기</button></div>
       </div>`;

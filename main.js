@@ -254,22 +254,51 @@ function clientRect(pb) {   // 도킹 줄 원시 px → 화면 좌표(배율 반
   const cx = pb.x / sf, cy = pb.y / sf, cw = pb.w / sf, ch = pb.h / sf;
   return { cx, cy, cw, ch, disp: screen.getDisplayMatching({ x: Math.round(cx), y: Math.round(cy), width: Math.round(cw), height: Math.round(ch) }) };
 }
-function dockBoundsL(pb) {   // ◀ 팀/명단 오버레이 = 클라 왼쪽 바깥
+function dockBoundsL(pb, full) {   // ◀ 팀/명단 오버레이 = 클라 왼쪽 바깥 · 📌 접혔으면 클라에 붙은 손잡이(FOLD_W)만
   const { cx, cy, ch, disp } = clientRect(pb), dispLeft = disp.workArea.x;
   let W = Math.min(400, Math.round(cx - dispLeft)); if (W < 300) W = 300;
   let x = Math.round(cx - W); if (x < dispLeft) x = dispLeft;
-  return { x, y: Math.round(cy), width: W + 2, height: Math.round(ch) };
+  const b = { x, y: Math.round(cy), width: W + 2, height: Math.round(ch) };
+  return !full && config.foldL ? { x: b.x + b.width - FOLD_W, y: b.y, width: FOLD_W, height: b.height } : b;
 }
-function dockBoundsR(pb) {   // ▶ 내 정보 패널 = 클라 오른쪽 바깥
+function dockBoundsR(pb, full) {   // ▶ 내 정보 패널 = 클라 오른쪽 바깥 · 📌 접혔으면 손잡이만
   const { cx, cy, cw, ch, disp } = clientRect(pb), dispRight = disp.workArea.x + disp.workArea.width;
   let x = Math.round(cx + cw) - 2;
   let W = Math.min(400, Math.round(dispRight - x)); if (W < 300) W = 300;
   if (x + W > dispRight) x = Math.max(disp.workArea.x, dispRight - W);
-  return { x, y: Math.round(cy), width: W, height: Math.round(ch) };
+  const b = { x, y: Math.round(cy), width: W, height: Math.round(ch) };
+  return !full && config.foldR ? { x: Math.round(cx + cw) - 2, y: b.y, width: FOLD_W, height: b.height } : b;
 }
+// 📌 v0.1.276 접기 손잡이(사장님: 왼쪽 창을 ✕로 끄면 다시 여는 게 불편 → 「접기 손잡이」 선택)
+//   롤 클라에 붙어 있을 때 머리의 —·✕ 대신 「접기」 하나 → 창이 클라 옆 얇은 손잡이(FOLD_W)로 접히고 누르면 다시 펼쳐짐 · 종료는 ⚙ 설정·트레이
+//   클라가 없을 때(홈·합친 창·도킹 끔)는 예전 —·✕ 그대로 · 접힘은 저장(config.foldL/foldR) · 팀이 정해지는 등 꼭 봐야 할 때는 저절로 펼침(unfoldL)
+const FOLD_W = 48;   // 윈도우가 불투명 창(오른쪽)을 48px보다 좁게 못 만듦(크기 조절·최소화를 꺼도 같음 · 실측) → 두 손잡이 다 48
+const canFold = () => !_floating && !_homeOn;
+let _foldSig = '';
+function sendFold(force) {
+  const c = canFold(), sig = `${c}|${!!config.foldL}|${!!config.foldR}`;
+  if (!force && sig === _foldSig) return; _foldSig = sig;
+  for (const [w, f] of [[overlayWin, config.foldL], [leftWin, config.foldR]]) if (w && !w.isDestroyed()) try { w.webContents.send('fold', { can: c, fold: c && !!f }); } catch (_) {}
+}
+function setFold(side, v) {
+  const k = side === 'L' ? 'foldL' : 'foldR'; v = !!v;
+  if (!!config[k] === v) { sendFold(true); return; }
+  config[k] = v; saveConfig();
+  if (side === 'R' && !v) { leftUserHid = false; leftMinimized = false; if (config.sidePanel === false) { config.sidePanel = true; refreshTrayMenu(); } }
+  if (side === 'L' && !v) { userHid = false; overlayMinimized = false; }
+  sendFold(true);
+  if (canFold() && _lastRect) {
+    const pb = rectPb(_lastRect);   // moveWin = 붙는 움직임 도중이면 도착점만 바꿈(그냥 setBounds면 움직임이 펼친 크기로 덮어씀)
+    if (side === 'L') { dockedBounds = null; moveWin(overlayWin, dockBoundsL(pb)); }
+    else { leftDockedBounds = null; moveWin(leftWin, dockBoundsR(pb)); }
+    applyRaise();
+  }
+}
+const unfoldL = () => { if (config.foldL) setFold('L', false); };
+let _foldPh = null;
 function doorBounds(pb, which) {   // 🚪 문 닫힌 자리 = 두 창이 클라 가운데에서 맞닿음(높이 = 클라 · 폭 = 붙어 있던 폭)
   const { cx, cy, cw, ch } = clientRect(pb), mid = Math.round(cx + cw / 2);
-  const wL = dockBoundsL(pb).width, wR = dockBoundsR(pb).width;
+  const wL = dockBoundsL(pb, true).width, wR = dockBoundsR(pb, true).width;
   return which === 'left' ? { x: mid - wL, y: Math.round(cy), width: wL, height: Math.round(ch) } : { x: mid, y: Math.round(cy), width: wR, height: Math.round(ch) };
 }
 function applyDock(pb, ms) {                   // 팀/명단 오버레이 = 클라 '왼쪽' 바깥에 붙임
@@ -752,6 +781,7 @@ function handleDockLine(line) {
   if (fg !== clientFg) { clientFg = fg; }
   const w = p[2] - p[0], h = p[3] - p[1], sig = `${p[0]},${p[1]},${w},${h}`;
   // ◀ 팀·명단 오버레이 = 클라 왼쪽 (숨김 상태여도 위치는 갱신)
+  sendFold();   // 📌 접기 가능(클라에 붙음) 알림
   if (ms) { doorFx('open'); doorFx('unseam'); }   // v0.1.176 갈라지는 동안 안쪽 금빛 선이 옅어짐(합체 지퍼의 짝 · 기다림 없음)
   if (sig !== dockedBounds) { dockedBounds = sig; applyDock({ x: p[0], y: p[1], w, h }, ms); }
   setDockedFlag(true); setMerged(false);
@@ -1022,7 +1052,7 @@ async function fbUpdate(pathStr, value) {   // 노드 일부 필드만 갱신(PA
 // ── 창 생성 ──────────────────────────────────────────────────────────────
 function createOverlay() {
   overlayWin = new BrowserWindow({
-    width: 456, height: 452, x: 24, y: 84, minWidth: 260, minHeight: 220,
+    width: 456, height: 452, x: 24, y: 84, minWidth: 24, minHeight: 220,   // minWidth 작게 = 📌 접기 손잡이(FOLD_W)
     transparent: true, frame: false, resizable: true, movable: true,   // 크기 조절 가능(반응형)
     alwaysOnTop: false, skipTaskbar: true, show: false, focusable: true,   // 로비=클라와 같은 층위, 게임 중만 위로(pollGame)
     roundedCorners: false,   // 🪟 Win11 창 모서리 둥글림 끄기 → 클라에 각지게 딱 맞음
@@ -1030,7 +1060,7 @@ function createOverlay() {
   });
   overlayWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   overlayWin.loadFile('overlay/overlay.html');
-  overlayWin.webContents.on('did-finish-load', () => { try { overlayWin.webContents.send('merged', _merged); } catch (_) {} });
+  overlayWin.webContents.on('did-finish-load', () => { try { overlayWin.webContents.send('merged', _merged); } catch (_) {} sendFold(true); });
   overlayWin.on('focus', () => { _ovFocus = true; setPanelFg(); });   // 패널 클릭=활성 유지
   overlayWin.on('blur', () => { _ovFocus = false; setPanelFg(); });
   overlayWin.on('closed', () => { overlayWin = null; _ovFocus = false; setPanelFg(); });
@@ -1039,7 +1069,7 @@ function createOverlay() {
 // ▶ 오른쪽 패널(입장·팀짜기·오늘 기록) — 메인 창
 function createLeftPanel() {
   leftWin = new BrowserWindow({
-    width: 360, height: 600, x: 24, y: 84, minWidth: 260, minHeight: 300,
+    width: 360, height: 600, x: 24, y: 84, minWidth: 24, minHeight: 300,
     frame: false, backgroundColor: '#010A13', show: false,
     icon: path.join(__dirname, 'assets', 'icon.png'),
     alwaysOnTop: false, skipTaskbar: true, resizable: true, focusable: true,   // 클라와 같은 층위(로비 정보 패널)
@@ -1048,7 +1078,7 @@ function createLeftPanel() {
   });
   leftWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   leftWin.loadFile('sidepanel/sidepanel.html');
-  leftWin.webContents.on('did-finish-load', () => { try { leftWin.webContents.send('merged', _merged); } catch (_) {} });
+  leftWin.webContents.on('did-finish-load', () => { try { leftWin.webContents.send('merged', _merged); } catch (_) {} sendFold(true); });
   leftWin.on('focus', () => { _lfFocus = true; setPanelFg(); });   // 패널 클릭=활성 유지
   leftWin.on('blur', () => { _lfFocus = false; setPanelFg(); });
   leftWin.on('closed', () => { leftWin = null; _lfFocus = false; setPanelFg(); });
@@ -1198,6 +1228,7 @@ function guestBeat() {
   else if (_guestOn) { _guestOn = false; if (process.env.TN_DOCK_SIM) console.log('[guest] 지움', !!account, !!_away, _live); fbSet(key, null).catch(() => {}); }
 }
 function floatPanels() {   // 클라 없음/도킹 끔 → 독립 창으로 표시(첫 전환 때만 위치 세팅)
+  setTimeout(() => sendFold(), 0);   // 📌 떨어진 창 = 접기 없음(예전 —·✕)
   if (inGame) { hideLeftPanel(); return; }
   if (_quiet) {   // 🖥️ 자동 실행으로 조용히 켜짐 → 아무 창도 안 띄움(트레이만) · 좌우 창은 합친 자리에 숨겨 둠
     _bootWait = false; _floating = true; dockedBounds = null; leftDockedBounds = null;
@@ -1255,6 +1286,7 @@ function showMainPanel() {   // 트레이/재실행 → 내 정보 패널(메인
   if (!leftWin || leftWin.isDestroyed()) createLeftPanel();
   if (config.sidePanel === false) { config.sidePanel = true; saveConfig(); refreshTrayMenu(); }
   leftUserHid = false; leftMinimized = false; try { leftWin.setSkipTaskbar(true); } catch (_) {}
+  if (config.foldR) setFold('R', false);   // 📌 트레이 「오른쪽 패널 열기」 = 접혀 있으면 펼침
   if (!leftWin.isVisible() && _floating) leftWin.setBounds(standaloneBounds('right'));   // 플로팅일 때만 위치 리셋
   leftWin.show(); leftWin.moveTop(); leftWin.focus();
 }
@@ -1264,6 +1296,7 @@ function showOverlay() { overlayMinimized = false; if (overlayWin) { try { overl
 function hideOverlay() { if (overlayWin && overlayWin.isVisible()) overlayWin.hide(); }
 function toggleOverlay() {
   if (!overlayWin) return;
+  if (config.foldL && canFold() && overlayWin.isVisible()) { setFold('L', false); return; }   // 📌 접혀 있으면 Shift+F7 = 펼치기
   if (overlayWin.isVisible()) { hideOverlay(); userHid = true; }
   else { showOverlay(); userHid = false; }
 }
@@ -1812,13 +1845,13 @@ function recGameEnded() {
   if (recState && Date.now() - recState.since < 5 * 60 * 1000) return;   // 이미 진행 중(브릿지가 먼저 알림) → 처음으로 되돌리지 않음
   recState = null;
   recSet({ stage: 'get', since: Date.now(), problem: null });
-  setTimeout(() => { if (recState && !inGame) { userHid = false; showOverlay(); } }, 1500);   // 클라 화면이 돌아올 즈음 왼쪽 창 띄움
+  setTimeout(() => { if (recState && !inGame) { userHid = false; unfoldL(); showOverlay(); } }, 1500);   // 클라 화면이 돌아올 즈음 왼쪽 창 띄움
 }
 function onBridgeEog(e) {
   if (!e) return;
   if (e.stage === 'skip') return recSet(null);   // 일반 게임
   if (e.stage === 'ended') return recGameEnded();
-  if (!recState) { if (!sessionData || sessionData.phase !== 'teams') return; recSet({ stage: 'get', since: Date.now() }); if (!inGame) { userHid = false; showOverlay(); } }   // 롤이 꺼졌거나 다음 실행 때 전적 복구 등
+  if (!recState) { if (!sessionData || sessionData.phase !== 'teams') return; recSet({ stage: 'get', since: Date.now() }); if (!inGame) { userHid = false; unfoldL(); showOverlay(); } }   // 롤이 꺼졌거나 다음 실행 때 전적 복구 등
   if (e.stage === 'history') recSet({ stage: 'get', src: '전적', tries: e.tries || 0, max: e.max || 36, problem: null, gameId: e.gameId });
   else if (e.stage === 'captured') recAdvance('save', { src: e.src, gameId: e.gameId, problem: null });
   else if (e.stage === 'saved') recAdvance('rec', { src: e.src, gameId: e.gameId, problem: null });
@@ -2338,8 +2371,9 @@ async function pollSession() {
     const first = lastFormed === 0;
     lastFormed = formed;
     _todayGames = null; getToday().then(t => { if (lastFormed === formed && t && Array.isArray(t.matches)) _todayGames = t.matches.length; }).catch(() => {});   // 🎬 v0.1.177 게임 시작 화면 「GAME n」 = 팀이 짜일 때 새로 셈(못 세면 숫자 없이)
-    if (!first || (s.phase === 'teams' && Date.now() - formed < 30 * 60 * 1000)) { userHid = false; showOverlay(); }
+    if (!first || (s.phase === 'teams' && Date.now() - formed < 30 * 60 * 1000)) { userHid = false; unfoldL(); showOverlay(); }
   }
+  { const ph = s ? s.phase : null; if (ph !== _foldPh) { _foldPh = ph; if ((ph === 'vote' && teamOf(s, config.myName)) || (ph === 'draft' && (s.players || []).some(n => normName(n) === normName(config.myName)))) unfoldL(); } }   // 📌 v0.1.276 투표·드래프트가 시작되는 순간 = 접힌 대기실을 펼침(그 뒤 다시 접으면 그대로)
   if (s && s.phase === 'vote' && !inGame && !userHid && teamOf(s, config.myName)) showOverlay();   // 🗳️ 투표 = 참가자에게 자동 표시
   if (s && s.phase === 'draft' && !inGame && !userHid && (s.players || []).some(n => normName(n) === normName(config.myName))) showOverlay();   // 🎯 드래프트 = 참가자에게 자동 표시
   broadcast('lobby', lobbyView());
@@ -3835,7 +3869,7 @@ function refreshTrayMenu(updateReady) {
   const items = [
     { label: '롤 클라이언트에 붙이기(도킹)', type: 'checkbox', checked: config.dock !== false, click: toggleDock },
     { type: 'separator' },
-    { label: `팀·투표 창 토글 (${TOGGLE_HOTKEY})`, click: toggleOverlay },
+    { label: `대기실 창 열기/닫기 (${TOGGLE_HOTKEY})`, click: () => { if (config.foldL && canFold()) setFold('L', false); else toggleOverlay(); } },
     { label: '오른쪽 패널', type: 'checkbox', checked: config.sidePanel !== false, click: toggleSidePanel },
     { label: '오른쪽 패널 열기', click: showMainPanel },
     { type: 'separator' },
@@ -4214,7 +4248,7 @@ ipcMain.on('tutorial-open', () => {   // 📘 ⚙ 설정 「사용법 다시 보
     _tutHome = true; setDockedFlag(false);
     try { overlayWin.setOpacity(1); } catch (_) {}
     overlayWin.show(); try { overlayWin.setAlwaysOnTop(true, 'floating'); overlayWin.moveTop(); } catch (_) {}   // 홈 창을 눌러도 뒤로 숨지 않게(닫으면 되돌림)
-  } else { userHid = false; showOverlay(); }
+  } else { userHid = false; unfoldL(); showOverlay(); }
   try { overlayWin.webContents.send('tutorial', { step: 0 }); } catch (_) {}
 });
 ipcMain.handle('settings-set', (_e, { key, value }) => {
@@ -4325,7 +4359,8 @@ ipcMain.handle('rooms-data', () => roomsView());   // 🚪 방 목록
 ipcMain.handle('room-create', (_e, { name, priv, pw }) => roomCreate(name, priv, pw));
 ipcMain.handle('room-join', (_e, { id, pw }) => roomJoin(id, pw));
 ipcMain.handle('room-leave', () => roomLeave());
-ipcMain.on('overlay-show', () => { userHid = false; showOverlay(); });
+ipcMain.on('overlay-show', () => { userHid = false; unfoldL(); showOverlay(); });
+ipcMain.on('win-fold', (_e, side, v) => { if (side === 'L' || side === 'R') setFold(side, v); });   // 📌 v0.1.276 접기 손잡이
 ipcMain.handle('get-players', async () => ({ account, myName: config.myName || '', isHost: !!config.isHost, appVer: app.getVersion(), session: sessionData }));
 ipcMain.handle('roster-data', () => getRoster());
 ipcMain.handle('tb-start', (_e, { names, mode }) => startTeamBuild(names, mode));
