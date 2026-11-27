@@ -66,6 +66,14 @@ for (const w of [300, 400]) {
   S.push(sc('hm-mem-draft', w, { me: 2, session: sess('draft', { order: ['teamA', 'teamB', 'teamB', 'teamA'], pickIdx: 1, captains: { teamA: NM[0], teamB: NM[1] } }), stub: { getToday: today, getProfile: profile(2, true, rating(71, 24, null, 3)) } }));
   // 기록
   S.push(sc('rc-full', w, { me: 0, cat: 'today', stub: full }));
+  { // 🏆 v0.1.288 시리즈 — 홈 「이번 판」(진행 중 = 다음 판 n/3 · 끝 = 대기실로) · 기록 경기 카드 시리즈 줄
+    const SN = { teamA: '불꽃', teamB: '열두글자팀이름열두글자팀' }, ser = (n, wa, wb, done) => ({ id: 's1', bo: 3, need: 2, names: SN, wins: { teamA: wa, teamB: wb }, n, games: [], done });
+    S.push(sc('hm-host-result-ser', w, { me: 0, host: true, session: sess('result', { series: ser(1, 0, 1, null), game: { winner: 'teamB' }, result: { mvp: NM[1] } }), stub: full }));
+    S.push(sc('hm-host-result-serdone', w, { me: 0, host: true, session: sess('result', { series: ser(3, 2, 1, 'teamA'), game: { winner: 'teamA' }, result: { mvp: NM[2] } }), stub: full }));
+    S.push(sc('hm-teams-ser', w, { me: 1, session: sess('teams', { series: ser(1, 1, 0, null) }), stub: full }));
+    const tser = JSON.parse(JSON.stringify(today)); tser.matches[0].series = { id: 's1', bo: 3, n: 2, names: SN, wins: { teamA: 2, teamB: 0 }, done: 'teamA' }; tser.matches[1].series = { id: 's1', bo: 3, n: 1, names: SN, wins: { teamA: 1, teamB: 0 }, done: null };
+    S.push(sc('rc-ser', w, { me: 0, cat: 'today', stub: { getToday: tser, getProfile: full.getProfile } }));
+  }
   S.push(sc('rc-empty', w, { me: 0, cat: 'today', stub: { getToday: todayEmpty, getProfile: profileNew(0, true) } }));
   // 프로필
   S.push(sc('pf-me', w, { me: 0, cat: 'profile', stub: full }));

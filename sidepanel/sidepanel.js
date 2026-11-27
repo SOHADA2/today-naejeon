@@ -105,9 +105,17 @@ const AW_KO = { mvp: 'MVP', svp: 'SVP', manner: '매너' };
 // 🔤 내전 등급 방패(홈 「나」 카드·프로필 등급 칸 공용) — v0.1.255부터 직접 그린 SVG(overlay/tierreveal.js tnEmblem · 롤 문장 그림 안 씀) · tier = 내부 값(소문자) · 없으면(배치 중·기록 없음) 흐린 자리 표시
 const spEmb = tier => `<i class="pf-emb">${tier && window.tnEmblem ? `<span class="rk-c">${window.tnEmblem(tier, 50, 54)}</span>` : '<i class="rk-fb"></i>'}</i>`;   // 🔤 v0.1.255 직접 그린 등급 방패
 // 한 판의 두 팀 줄(1팀 파랑 · 2팀 빨강 · 이긴 팀 = 청록 「승」) — 홈 「이번 판」·기록의 경기 카드가 같이 씀
+// 🏆 v0.1.288 팀 이름(시리즈) — 판 상태(session.series)·경기 기록(match.series) 둘 다 names
+const TNm = (m, t) => (m && m.series && m.series.names && m.series.names[t]) || (t === 'teamA' ? '1팀' : '2팀');
+const BOk = bo => bo === 5 ? '5판 3선승' : bo === 3 ? '3판 2선승' : '';
+function serRow(m, after) {   // 「3판 2선승 · 2번째 판 · 불꽃 1 : 0 번개」 · 끝났으면 「🏆 불꽃 시리즈 승리 2 : 1」
+  const S = m && m.series; if (!S || !(S.bo > 1)) return '';
+  const w = S.wins || {}, sc = `<b class="t1">${escH(TNm(m, 'teamA'))}</b> <span class="num">${w.teamA || 0} : ${w.teamB || 0}</span> <b class="t2">${escH(TNm(m, 'teamB'))}</b>`;
+  return `<div class="hm-ser${S.done ? ' done' : ''}"><em>${S.done ? '🏆 ' + escH(TNm(m, S.done)) + ' 시리즈 승리' : `${BOk(S.bo)} · ${after ? S.n || 0 : (S.n || 0) + 1}번째 판`}</em><span>${sc}</span></div>`;
+}
 function teamRows(m, win) {
   const row = (k, label) => `<div class="hm-team ${k === 'teamA' ? 't1' : 't2'}${win === k ? ' win' : ''}"><i>${label}</i><span>${(m[k] || []).map(escH).join(' · ')}</span>${win === k ? '<em>승</em>' : ''}</div>`;
-  return `<div class="hm-teams">${row('teamA', '1팀')}${row('teamB', '2팀')}</div>`;
+  return `<div class="hm-teams">${row('teamA', escH(TNm(m, 'teamA')))}${row('teamB', escH(TNm(m, 'teamB')))}</div>`;
 }
 const awardRow = o => { const a = ['mvp', 'svp', 'manner'].filter(k => o && o[k]).map(k => `<span><em>${AW_KO[k]}</em><b>${escH(o[k])}</b></span>`).join(''); return a ? `<div class="hm-aw">${a}</div>` : ''; };
 
@@ -154,25 +162,27 @@ function hmNow() {
   if (s.phase === 'draft') {
     const tm = (s.order || [])[s.pickIdx || 0], caps = s.captains || {};
     title = '드래프트 중';
-    note = `<b class="num">${s.pickIdx || 0}/${(s.order || []).length}</b>명 뽑음${tm ? ` · 지금 <b>${tm === 'teamA' ? '1팀' : '2팀'} ${escH(caps[tm] || '')}</b> 차례` : ''}`;
+    note = `<b class="num">${s.pickIdx || 0}/${(s.order || []).length}</b>명 뽑음${tm ? ` · 지금 <b>${escH(TNm(s, tm))} ${escH(caps[tm] || '')}</b> 차례` : ''}`;
   } else if (s.phase === 'teams') {
     if (s.pendingEog) {
       alert = true; title = '이긴 팀을 골라 주세요';
       note = _isHost ? `게임 속 이름이 달라 자동으로 판정하지 못했습니다${s.pendingEog.winSide ? ` · 게임상 승리 <b>${s.pendingEog.winSide === 'blue' ? '블루' : '레드'}</b> 진영` : ''}` : '방장이 이긴 팀을 고르면 기록됩니다';
     } else { title = '이번 판 진행 중'; note = '게임이 끝나면 자동으로 기록됩니다'; }
-    if (_isHost) acts = `<div class="hm-acts"><button class="ui-btn-ghost" data-act="win" data-w="teamA"${dis}>1팀 승리 기록</button><button class="ui-btn-ghost" data-act="win" data-w="teamB"${dis}>2팀 승리 기록</button></div>`;
+    if (_isHost) acts = `<div class="hm-acts"><button class="ui-btn-ghost" data-act="win" data-w="teamA" data-wn="${escH(TNm(s, 'teamA'))}"${dis}>${escH(TNm(s, 'teamA'))} 승리 기록</button><button class="ui-btn-ghost" data-act="win" data-w="teamB" data-wn="${escH(TNm(s, 'teamB'))}"${dis}>${escH(TNm(s, 'teamB'))} 승리 기록</button></div>`;
   } else if (s.phase === 'vote') {
     const voters = [...s.teamA, ...s.teamB], votes = s.votes || {};
     const done = voters.filter(n => votes[nn(n).replace(/\s+/g, '_').replace(/[.#$\[\]\/]/g, '_')]).length;
     title = '투표 중'; note = `<b class="num">${done}/${voters.length}</b>명 투표`;
     if (_isHost) acts = `<div class="hm-acts"><button class="ui-btn-ghost" data-act="close"${dis}>투표 마감</button></div>`;
   } else {
-    title = `${win === 'teamA' ? '1팀' : '2팀'} 승리`; extra = awardRow(s.result);
-    if (_isHost) acts = `<div class="hm-acts"><button class="ui-btn-ghost" data-act="lobby"${dis}>대기실로</button><button class="ui-btn-gold" data-act="again"${dis}>같은 팀으로 한 판 더</button></div>`;
+    title = `${escH(TNm(s, win))} 승리`; extra = awardRow(s.result);
+    const S = s.series, ser = S && S.bo > 1;   // 🏆 v0.1.288 시리즈 = 「다음 판 n/bo」 · 끝나면 대기실로만
+    if (_isHost) acts = ser && S.done ? `<div class="hm-acts"><button class="ui-btn-gold" data-act="lobby"${dis}>시리즈 끝 · 대기실로</button></div>`
+      : `<div class="hm-acts"><button class="ui-btn-ghost" data-act="lobby"${dis}>대기실로</button><button class="ui-btn-gold" data-act="again"${dis}>${ser ? `다음 판 · ${(S.n || 0) + 1}/${S.bo}` : '같은 팀으로 한 판 더'}</button></div>`;
   }
   const h = _hostInfo.host;
   return `<div class="sp-card hm-now${alert ? ' alert' : ''}"><div class="sp-hd"><div class="sp-hd-tx"><span class="sp-en">NOW</span><b class="sp-t">${title}</b></div>${h && h.name ? `<span class="hm-host">방장 <b>${escH(h.name)}</b></span>` : ''}</div>`
-    + teamRows(s, win) + extra + (note ? `<span class="sp-note">${note}</span>` : '') + acts + (_hm.err ? `<span class="hm-err">${escH(_hm.err)}</span>` : '') + `</div>`;
+    + serRow(s, s.phase === 'vote' || s.phase === 'result') + teamRows(s, win) + extra + (note ? `<span class="sp-note">${note}</span>` : '') + acts + (_hm.err ? `<span class="hm-err">${escH(_hm.err)}</span>` : '') + `</div>`;
 }
 function hmToday() {
   const T = _hm.T, hd = (t, more) => `<div class="sp-hd"><div class="sp-hd-tx"><span class="sp-en">TODAY</span><b class="sp-t">${t}</b></div>${more ? '<button class="sp-more" data-go="today">전체 보기</button>' : ''}</div>`;
@@ -206,7 +216,7 @@ function drawHome() {
   });
   body.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
     const k = b.dataset.act, w = b.dataset.w;
-    if (k === 'win') liveAct(() => window.api.hostResult(w), `${w === 'teamA' ? '1팀' : '2팀'} 승리로 기록할까요?`, '기록');
+    if (k === 'win') liveAct(() => window.api.hostResult(w), `${b.dataset.wn || (w === 'teamA' ? '1팀' : '2팀')} 승리로 기록할까요?`, '기록');
     else if (k === 'close') liveAct(() => window.api.voteClose());
     else if (k === 'again') liveAct(() => window.api.tbAgain());
     else if (k === 'lobby') liveAct(() => window.api.lobbyReopen());
@@ -247,7 +257,7 @@ async function renderToday() {
     return `<tr class="${nn(p.name) === nn(_myName) ? 'me' : ''}"><td class="r">${p.rank}</td><td class="n"><a class="pf-link" data-name="${escH(p.name)}">${escH(p.name)}</a></td><td>${p.wins}-${p.losses}</td><td>${pct(p.wins, p.games)}%</td>${zero(p.mvp)}${zero(p.manner)}<td>${kda}</td></tr>`;
   }).join('');
   const games = t.matches.map((m, i) => `<div class="rc-g"><div class="rc-gh"><b>${t.matches.length - i}판</b><span class="num">${hhmm(m.ts)}</span>${m.source === 'manual' ? '<span class="rc-tag">직접 기록</span>' : ''}`
-    + `${m.potg && !m.potg.none ? `<button class="rc-pg" data-pg="m${i}" title="팟지 다시 보기">팟지</button>${dlBtn('m' + i, t.day, m.potg)}` : m.potg && m.potg.skipped ? pgSkipTag(m.potg.by) : ''}</div>${m.potg && !m.potg.none ? dlRow(t.day, m.potg) : ''}${teamRows(m, m.winner)}${awardRow(m)}</div>`).join('');
+    + `${m.potg && !m.potg.none ? `<button class="rc-pg" data-pg="m${i}" title="팟지 다시 보기">팟지</button>${dlBtn('m' + i, t.day, m.potg)}` : m.potg && m.potg.skipped ? pgSkipTag(m.potg.by) : ''}</div>${m.potg && !m.potg.none ? dlRow(t.day, m.potg) : ''}${serRow(m, true)}${teamRows(m, m.winner)}${awardRow(m)}</div>`).join('');
   // 🎮 같이 한 일반 판(v0.1.48) — 내전 순위와 따로 · 우리 팀(앱 켠 사람)만 · 재미 지표 · 팟지 다시 보기
   const nwin = normals.filter(m => m.win).length;
   const ngames = normals.map((m, i) => {

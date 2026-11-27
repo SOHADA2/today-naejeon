@@ -2256,7 +2256,7 @@ function lobbyView() {
   const inNames = members.filter(m => m.st === 'in').map(m => m.name);
   const sd = L.sides || {}, sides = {};
   for (const n of inNames) { const t = sd[fbKeyOf(n)]; if (t === 'teamA' || t === 'teamB') sides[n] = t; }
-  return { myMute: muteOn() ? { until: _mute.until, txt: untilTxt(_mute.until) } : null, members, sides, mode: ['draft', 'manual', 'normal', 'balance'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
+  return { series: serCfg(L.series), myMute: muteOn() ? { until: _mute.until, txt: untilTxt(_mute.until) } : null, members, sides, mode: ['draft', 'manual', 'normal', 'balance'].includes(L.mode) ? L.mode : 'random', captains: { teamA: inNames.includes(caps.teamA) ? caps.teamA : null, teamB: inNames.includes(caps.teamB) ? caps.teamB : null },
     dcGuild: dcRoomGuild(members), dcInv: !!((dcRoomInfo(members) || {}).inv), dcJoin: dcJoinView(members), hostName: hostRec && hostAlive(hostRec) ? hostRec.name : null, hostStale: hostRec && !hostAlive(hostRec) ? hostRec.name : null, isHost: !!config.isHost, latest: latestVer(members), room: room ? { id: room.id, name: room.name, priv: room.priv } : null, lol: room ? { inCustom: lobbyPhase === 'Lobby' && lobbyCustom === true, phase: lobbyPhase || null, invite: _lolInv, party: lobbyCustom === false ? lobbyParty : null, ids: lobbyCustom === true && lobbyCust ? lobbyCust.ids : null, invs: lobbyCustom === true && lobbyCust ? lobbyCust.inv : null, cmap: lobbyCustom === true && lobbyCust ? lobbyCust.map : null, cq: lobbyCustom === true && lobbyCust ? lobbyCust.q : null, nq: LOL_NQ.includes(config.lolNormalQ) ? config.lolNormalQ : 2400 } : null, game: lobbyGame().game, srPick: lobbyGame().pick };   // 🎮 v0.1.185 롤 로비
 }
 // 🔄 버전 비교(v0.1.56) — 대기실 내 자리 「업데이트 필요」·내 안내 줄
@@ -2355,6 +2355,28 @@ async function lobbySidesPrev() {   // 지난 판 팀 그대로(지금 판 → �
   const sides = {}; for (const n of A) sides[fbKeyOf(n)] = 'teamA'; for (const n of B) sides[fbKeyOf(n)] = 'teamB';
   lobbyLocal(L => { L.sides = sides; L.mode = 'manual'; });
   return lobbyWrite(fbUpdate(`${RP()}/lobby`, { sides, mode: 'manual' }));
+}
+// 🏆 v0.1.288 시리즈(사장님: 4·5·7 묶어서 = 시리즈 · 팀 이름 · 대진표 → 1단계 = 방 안 시리즈 + 팀 이름)
+//   lobby/series = {bo: 1|3|5, a: 1팀 이름, b: 2팀 이름}(방장이 대기실 방식 창에서 정함 · 대기실 칸이라 서버 규칙 변경 없음)
+//   session.series = {id, bo, need, names:{teamA,teamB}, wins:{teamA,teamB}, n(지난 판 수), games:[게임 번호], done: null|'teamA'|'teamB'}
+//   = 팀이 정해질 때(writeTeams·드래프트) 새로 · 「다음 판」(tb-again · 같은 팀) = 이어서 · 판이 기록되면(recordGame) 점수 올림 + 경기 기록에 series 칸
+//   bo 1 + 이름만 = 팀 이름만 보여 줌(점수 없음)
+const serName = (v, d) => { const t = String(v || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 12); return t || d; };
+function serCfg(x) {
+  if (!x || typeof x !== 'object') return { bo: 1, a: '', b: '' };
+  const bo = [3, 5].includes(Number(x.bo)) ? Number(x.bo) : 1;
+  return { bo, a: serName(x.a, ''), b: serName(x.b, '') };
+}
+async function lobbySeries(v) {
+  if (!config.isHost) return { ok: false, err: '방장만 정할 수 있습니다' };
+  const c = serCfg(v);
+  lobbyLocal(L => { L.series = c; });
+  return lobbyWrite(fbSet(`${RP()}/lobby/series`, c));
+}
+function newSeries(now) {
+  const c = serCfg(lobbyRaw && lobbyRaw.series);
+  if (c.bo <= 1 && !c.a && !c.b) return null;
+  return { id: 's' + now, bo: c.bo, need: c.bo > 1 ? Math.ceil(c.bo / 2) : 0, names: { teamA: c.a || '1팀', teamB: c.b || '2팀' }, wins: { teamA: 0, teamB: 0 }, n: 0, games: [], done: null, at: now };
 }
 async function lobbySidesClear() {
   if (!config.isHost) return { ok: false, err: '방장만 할 수 있습니다' };
@@ -3177,10 +3199,18 @@ async function recordGame(winner, eog) {
     ids: s.ids || null,   // 👤 이름→puuid(프로필이 닉변해도 같은 사람으로 묶음)
     roomName: room ? room.name : null, roomId: room ? room.id : null,   // 🚪 「오늘」 순위 = 방 이름별
   };
+  let ser = null;   // 🏆 v0.1.288 시리즈 = 점수 올림 · 경기 기록에 몇 번째 판인지
+  if (s.series && !s.series.done) {
+    const S = s.series, wins = { teamA: (S.wins && S.wins.teamA) || 0, teamB: (S.wins && S.wins.teamB) || 0 };
+    if (!(S.games || []).includes(gid)) wins[winner]++;
+    const done = S.need && wins[winner] >= S.need ? winner : null;
+    ser = Object.assign({}, S, { wins, n: (S.games || []).includes(gid) ? S.n : (S.n || 0) + 1, games: [...new Set([...(S.games || []), gid])], done });
+    rec.series = { id: S.id, bo: S.bo, n: ser.n, names: S.names, wins, done, tid: S.tid || null, mid: S.mid || null };
+  }
   const w = await fbPutIfAbsent(`${CT}/days/${day}/matches/${gid}`, withSv(rec));
   _profIdx = null;
   if (!w.ok && !w.conflict) return { ok: false, err: w.err };
-  const u = await fbUpdate(`${RP()}/session`, { phase: 'vote', game: { id: gid, day, winner, at: Date.now() }, votes: null, result: null, lastGameId: gid, pendingEog: null, potg: null });
+  const u = await fbUpdate(`${RP()}/session`, Object.assign({ phase: 'vote', game: { id: gid, day, winner, at: Date.now() }, votes: null, result: null, lastGameId: gid, pendingEog: null, potg: null }, ser ? { series: ser } : {}));
   return { ok: u.ok, err: u.err };
 }
 
@@ -3314,6 +3344,7 @@ async function startDraft(names, captains, extra) {   // extra = 자리 밖 = �
     teamSize, firstPick: first, draftStartedAt: now, turnEndsAt: now + FP_MS + DRAFT_TURN_MS,   // 첫 차례 = 선픽 연출이 끝난 뒤부터 30초
     mapBy: first === 'teamA' ? 'teamB' : 'teamA', lolMap: null,   // 🎮 v0.1.188 다리 = 선픽이 아닌 팀장이 고름(사장님) · 안 고르면 무작위
     ...gameFields(), ...(lobbyGame().game === 'sr' ? { mapBy: null } : {}),   // 🗺️ v0.1.232 협곡 = 다리 고르기 없음
+    series: newSeries(now),   // 🏆 v0.1.288
   });
   if (w.ok) fbSet(`${RP()}/lobby/captains`, null).catch(() => {});
   return w;
@@ -3378,8 +3409,9 @@ async function balanceScores(names, game) {
   }));
   return { scores, has, known };
 }
-async function writeTeams(teamA, teamB, spectators, mode, bal) {
+async function writeTeams(teamA, teamB, spectators, mode, bal, keepSeries) {
   const now = Date.now();
+  const ps = sessionData && sessionData.series, series = keepSeries && ps && !ps.done ? ps : newSeries(now);   // 🏆 다음 판 = 이어서 · 그 밖 = 대기실 설정으로 새로
   const ids = await teamIds([...teamA, ...teamB]);
   const w = await fbSet(`${RP()}/session`, {
     phase: 'teams', active: true, teamA, teamB, ids,
@@ -3388,6 +3420,7 @@ async function writeTeams(teamA, teamB, spectators, mode, bal) {
     teamsFormedAt: now, day: dayKey(now), by: config.myName || null, bal: bal || null,
     lolMap: lolRandMap(),   // 🎮 v0.1.188 이번 판 롤 다리(랜덤·밸런스·직접 = 무작위)
     ...gameFields(),   // 🗺️ v0.1.232 협곡이면 lolGame 'sr' · 픽 방식 · 다리 없음
+    series: series || null,
   });
   if (w.ok) fbSet(`${RP()}/lobby/captains`, null).catch(() => {});
   return w;
@@ -4412,6 +4445,7 @@ ipcMain.handle('lobby-start', () => lobbyStart());
 ipcMain.handle('lobby-side', (_e, { name, team }) => lobbySide(name, team));
 ipcMain.handle('lobby-sides-prev', () => lobbySidesPrev());
 ipcMain.handle('lobby-sides-clear', () => lobbySidesClear());
+ipcMain.handle('lobby-series', (_e, v) => lobbySeries(v));   // 🏆 v0.1.288 시리즈·팀 이름
 ipcMain.handle('lobby-reopen', () => lobbyReopen());
 ipcMain.handle('rooms-data', () => roomsView());   // 🚪 방 목록
 ipcMain.handle('room-create', (_e, { name, priv, pw }) => roomCreate(name, priv, pw));
@@ -4428,7 +4462,8 @@ ipcMain.handle('tb-again', async () => {   // 🔁 같은 팀으로 한 판 더
   if (!config.isHost) return { ok: false, err: '방장만 할 수 있습니다' };
   const s = sessionData;
   if (!s || !s.teamA || !s.teamB) return { ok: false, err: '직전 팀이 없습니다' };
-  return writeTeams(s.teamA, s.teamB, s.spectators || [], s.mode);
+  if (s.series && s.series.done) return { ok: false, err: '시리즈가 끝났습니다 · 새 시리즈는 대기실에서 시작합니다' };
+  return writeTeams(s.teamA, s.teamB, s.spectators || [], s.mode, s.bal || null, true);   // 🏆 시리즈 이어서
 });
 ipcMain.handle('host-result', async (_e, { winner }) => {   // 🏁 방장 수동 결과(EOG 못 잡았거나 이름 매칭 실패)
   if (!config.isHost) return { ok: false, err: '방장만 결과를 기록할 수 있습니다' };

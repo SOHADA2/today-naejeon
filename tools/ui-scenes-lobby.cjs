@@ -29,6 +29,17 @@ for (const w of [302, 402]) {
   S.push(sc('h-draft-pick-' + w, w, 6, 0, 'draft'));                                                                    // 팀장 전 = 모든 자리에 「팀장」 버튼
   S.push(sc('h-draft-ready-' + w, w, 10, 0, 'draft', '', { captains: { teamA: NM[0], teamB: NM[2] } }));                // 팀장 2/2 + 뽑는 순서 막대
   S.push(sc('h-pop-' + w, w, 4, 0, 'balance', "document.getElementById('lb-mchip').click();"));                         // 방식 고르는 창(내전)
+  { // 🏆 v0.1.288 시리즈·팀 이름 — 방식 창(3판 2선승 + 12자 팀 이름) · 팀원 안내 줄 · 팀 화면 점수 띠 · 투표 · 결과(시리즈 끝)
+    const SER = { bo: 3, a: '불꽃', b: '열두글자팀이름열두글자팀' };
+    S.push(sc('h-pop-ser-' + w, w, 4, 0, 'random', "document.getElementById('lb-mchip').click();", { series: SER }));
+    S.push(sc('m-ser-' + w, w, 4, 1, 'random', '', { series: Object.assign({}, SER, { bo: 5 }) }));
+    const ss = (phase, n, wa, wb, done, extra) => Object.assign({ phase, teamA: [NM[0], NM[2], NM[5]], teamB: [NM[1], NM[3], NM[4]], mode: 'random', teamsFormedAt: Date.now(), ids: {},
+      series: { id: 's1', bo: 3, need: 2, names: { teamA: SER.a, teamB: SER.b }, wins: { teamA: wa, teamB: wb }, n, games: [], done } }, extra || {});
+    const sx = (name, sess) => ({ name: name + '-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('session', { session: " + JSON.stringify(sess) + ", myName: " + JSON.stringify(NM[0]) + ", isHost: true });" + wait });
+    S.push(sx('x-ser-team', ss('teams', 1, 1, 0, null)));
+    S.push(sx('x-ser-vote', ss('vote', 2, 1, 1, null, { game: { id: 'g2', winner: 'teamB' }, votes: {} })));
+    S.push(sx('x-ser-res', ss('result', 3, 2, 1, 'teamA', { game: { id: 'g3', winner: 'teamA' }, result: { mvp: NM[2], svp: NM[1], manner: NM[5] } })));
+  }
   S.push(sc('h-manual-' + w, w, 6, 0, 'manual', '', { sides: { [NM[0]]: 'teamA', [NM[1]]: 'teamB', [NM[2]]: 'teamA' } })); // 직접 = 1팀·2팀 열 + 팀 미정 칩
   S.push(sc('h-normal-' + w, w, 4, 0, 'normal'));                                                                       // 일반 = 「파티 만들고 초대」
   S.push(sc('h-normal-party-' + w, w, 4, 0, 'normal', '', { lol: partyLead }));                                         // 롤 파티 3/5 · 다시 초대 · 「큐 시작」

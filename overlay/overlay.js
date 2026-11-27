@@ -186,6 +186,19 @@ function renderRooms() {
   const pg = list.querySelector('[data-pwgo]');
   if (pg) { const go = () => rmJoin(pg.dataset.pwgo, el('rm-pw-in').value); pg.onclick = go; el('rm-pw-in').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
 }
+// 🏆 v0.1.288 시리즈·팀 이름 — session.series {bo, need, names, wins, n, done} (main newSeries)
+const TN = (s, t) => (s && s.series && s.series.names && s.series.names[t]) || (t === 'teamA' ? '1팀' : '2팀');
+const BO_KO = bo => bo === 5 ? '5판 3선승' : bo === 3 ? '3판 2선승' : '';
+function serBar(box, s, after) {   // 팀·결과 화면 위 점수 띠 · after = 판이 기록된 뒤(결과 화면 = 이번 판 포함 · 팀 화면 = 다음 판 번호)
+  const S = s && s.series; box = el(box); if (!box) return;
+  if (!S || !(S.bo > 1)) { box.style.display = 'none'; return; }
+  const w = S.wins || {}, a = w.teamA || 0, b = w.teamB || 0;
+  const head = S.done ? 'SERIES' : `${BO_KO(S.bo)} · ${after ? (S.n || 0) : (S.n || 0) + 1}번째 판`;
+  box.className = 'tv-ser' + (S.done ? ' done' : '');
+  box.style.display = '';
+  box.innerHTML = `<span class="ts-bo">${head}</span><span class="ts-sc"><b class="ts-n t1">${esc(TN(s, 'teamA'))}</b><span class="ts-w">${a} : ${b}</span><b class="ts-n t2">${esc(TN(s, 'teamB'))}</b></span>`
+    + (S.done ? `<span class="ts-win">🏆 ${esc(TN(s, S.done))} 시리즈 승리</span>` : '');
+}
 function myTeam() {
   const s = sessionData; if (!s) return 0;
   const me = nn(myName); if (!me) return 0;
@@ -209,11 +222,12 @@ function renderTeam() {
   const s = sessionData, A = s.teamA || [], B = s.teamB || [], mt = myTeam();
   const band = el('tv-band');
   band.className = 'tv-band' + (mt === 1 ? ' t1' : mt === 2 ? ' t2' : '');
-  band.innerHTML = mt === 1 ? '<span class="tv-lead">내가 들어갈 팀</span><b class="tv-team">1팀 <span class="lb-sec-en">BLUE</span></b>'
-    : mt === 2 ? '<span class="tv-lead">내가 들어갈 팀</span><b class="tv-team">2팀 <span class="lb-sec-en">RED</span></b>'
+  band.innerHTML = mt === 1 ? `<span class="tv-lead">내가 들어갈 팀</span><b class="tv-team">${esc(TN(s, 'teamA'))} <span class="lb-sec-en">BLUE</span></b>`
+    : mt === 2 ? `<span class="tv-lead">내가 들어갈 팀</span><b class="tv-team">${esc(TN(s, 'teamB'))} <span class="lb-sec-en">RED</span></b>`
     : (s.spectators || []).some(x => nn(x) === nn(myName)) ? '이번 판은 <b>관전</b>입니다' : '이번 판 팀 배정';
   el('team1').className = 'ta-team blue' + (mt === 1 ? ' mine' : mt === 2 ? ' dim' : '');
   el('team2').className = 'ta-team red' + (mt === 2 ? ' mine' : mt === 1 ? ' dim' : '');
+  serBar('tv-ser', s, false); el('t1-label').textContent = TN(s, 'teamA'); el('t2-label').textContent = TN(s, 'teamB');   // 🏆 v0.1.288
   el('t1-count').textContent = A.length + '명';
   el('t2-count').textContent = B.length + '명';
   el('t1-players').innerHTML = A.map(playerRow).join('');
@@ -290,8 +304,8 @@ function renderDraft() {
       box.querySelectorAll('.dr-mp').forEach(b => b.onclick = async () => { if (b.disabled || !can) return; const r = await window.api.draftMap(b.dataset.map); if (!r || !r.ok) tnAlert((r && r.err) || '다리를 못 골랐습니다'); });
     }
   }
-  el('dr-a').innerHTML = col('teamA', '1팀');
-  el('dr-b').innerHTML = col('teamB', '2팀');
+  el('dr-a').innerHTML = col('teamA', esc(TN(s, 'teamA')));
+  el('dr-b').innerHTML = col('teamB', esc(TN(s, 'teamB')));
   el('dr-a').classList.toggle('turn', team === 'teamA');
   el('dr-b').classList.toggle('turn', team === 'teamB');
   showCancel('dr-cancel', '드래프트를 취소하고 모두 대기실로 돌아갈까요?');
@@ -581,7 +595,7 @@ function renderRec() {
   const hb = el('rc-host');
   if (myIsHost && (bad || recElapsed() > 60) && !done) {
     hb.style.display = '';
-    hb.innerHTML = '<div class="rc-host-h">방장: 이긴 팀 직접 기록</div><div class="rc-acts"><button class="ui-btn-ghost" data-w="teamA">1팀 승리</button><button class="ui-btn-ghost" data-w="teamB">2팀 승리</button></div>';
+    hb.innerHTML = '<div class="rc-host-h">방장: 이긴 팀 직접 기록</div><div class="rc-acts"><button class="ui-btn-ghost" data-w="teamA">' + esc(TN(sessionData, 'teamA')) + ' 승리</button><button class="ui-btn-ghost" data-w="teamB">' + esc(TN(sessionData, 'teamB')) + ' 승리</button></div>';
     hb.querySelectorAll('button').forEach(b => b.onclick = async () => {
       if (b.disabled) return; hb.querySelectorAll('button').forEach(x => { x.disabled = true; });
       const res = await window.api.hostResult(b.dataset.w).catch(() => null);
@@ -621,7 +635,7 @@ function renderVote() {
   const s = sessionData, A = s.teamA || [], B = s.teamB || [], mt = myTeam();
   const wt = s.game && s.game.winner === 'teamA' ? 1 : 2;
   el('vt-banner').className = 'vt-banner ' + (wt === 1 ? 't1' : 't2');
-  el('vt-banner').innerHTML = `<span class="lb-sec-en">TEAM ${wt} WIN</span><b>${wt}팀 승리</b><span>MVP와 매너왕을 뽑아주세요</span>`;
+  el('vt-banner').innerHTML = `<span class="lb-sec-en">TEAM ${wt} WIN</span><b><span class="tn-cut">${esc(TN(s, wt === 1 ? 'teamA' : 'teamB'))}</span> 승리</b><span>MVP와 매너왕을 뽑아주세요</span>`;
   const body = el('vt-body');
   if (mt === 0) { body.innerHTML = '<div class="vt-note">관전자는 투표하지 않습니다.<br>결과가 나오면 여기에 떠요.</div>'; renderVoteProgress(); return; }
   const mine = (s.votes || {})[fbKeyOf(myName)];
@@ -663,8 +677,8 @@ function renderVoteProgress() {
   const chip = n => { const ok = !!votes[fbKeyOf(n)]; return `<span class="vt-chip ${ok ? 'ok' : ''}">${ok ? '✓' : '…'} ${esc(n)}</span>`; };
   const pending = [...A, ...B].filter(n => !votes[fbKeyOf(n)]).length;
   el('vt-progress').innerHTML =
-    `<div class="vt-prow"><span class="t-blue">1팀</span>${A.map(chip).join('')}</div>`
-    + `<div class="vt-prow"><span class="t-red">2팀</span>${B.map(chip).join('')}</div>`
+    `<div class="vt-prow"><span class="t-blue">${esc(TN(s, 'teamA'))}</span>${A.map(chip).join('')}</div>`
+    + `<div class="vt-prow"><span class="t-red">${esc(TN(s, 'teamB'))}</span>${B.map(chip).join('')}</div>`
     + (myIsHost ? `<button id="vt-force" class="ui-btn-ghost vt-force">투표 마감${pending ? ` · 미투표 ${pending}명 제외` : ''}</button><div class="vt-force-hint">방장 전용 · 다 모이면 자동으로 마감됩니다</div>` : '');
   const fb = el('vt-force');
   if (fb) fb.onclick = async () => {
@@ -682,7 +696,8 @@ function renderResult() {
   const s = sessionData, r = s.result || {}, g = s.game || {};
   const winA = g.winner === 'teamA';
   el('st-banner').className = 'st-banner ' + (winA ? 't1' : 't2');
-  el('st-banner').innerHTML = `<span class="lb-sec-en">RESULT</span><b>${winA ? '1팀' : '2팀'} 승리</b>${_today ? `<span>오늘 <span class="num">${_today.matches.length}</span>번째 판</span>` : ''}`;
+  el('st-banner').innerHTML = `<span class="lb-sec-en">RESULT</span><b><span class="tn-cut">${esc(TN(s, winA ? 'teamA' : 'teamB'))}</span> 승리</b>${_today ? `<span>오늘 <span class="num">${_today.matches.length}</span>번째 판</span>` : ''}`;
+  serBar('st-ser', s, true);   // 🏆 v0.1.288
   const aw = [];
   if (r.mvp) aw.push(`<span class="st-aw"><b>MVP</b><span class="st-awn">${esc(r.mvp)}</span></span>`);
   if (r.svp) aw.push(`<span class="st-aw"><b>SVP</b><span class="st-awn">${esc(r.svp)}</span></span>`);
@@ -958,7 +973,7 @@ function renderLobby() {
     const chipB = el('lb-mchip'), pop = el('lb-mpop');
     if (!myIsHost) _mpop = false;
     // v0.1.216(사장님: 「⚔ 내전 · 드래프트」가 버튼처럼 보여 직관적이지 않음) — 설정 칸처럼: 작은 제목(내전 · 팀 짜기 / 일반 · 큐) + 고른 값 ▾
-    chipB.innerHTML = `<span class="mc"><small>${normal ? '일반 · 큐' : sr ? '협곡 내전 · 팀 짜기' : '내전 · 팀 짜기'}</small><b>${normal ? (NQ_SHORT[nq] || '아수라장') : (MODE_KO[L.mode] || '랜덤')}</b></span><em>▾</em>`;
+    chipB.innerHTML = `<span class="mc"><small>${normal ? '일반 · 큐' : (sr ? '협곡 내전' : '내전') + ((L.series && L.series.bo > 1) ? ' · ' + BO_KO(L.series.bo) : ' · 팀 짜기')}</small><b>${normal ? (NQ_SHORT[nq] || '아수라장') : (MODE_KO[L.mode] || '랜덤')}</b></span><em>▾</em>`;
     chipB.className = 'lb-mchip host' + (_mpop ? ' open' : '');
     chipB.title = '이번 판 방식 바꾸기 — 내전(아수라장·소환사의 협곡 · 랜덤·밸런스·드래프트·직접) / 일반(아수라장·칼바람·협곡 큐)';
     chipB.onclick = e => { e.stopPropagation(); if (!myIsHost) return; _mpop = !_mpop; popAnim(pop, _mpop); chipB.classList.toggle('open', _mpop); };
@@ -972,6 +987,17 @@ function renderLobby() {
     pop.querySelectorAll('.lb-gm').forEach(b => { const on = (b.dataset.game === 'sr') === sr; b.classList.toggle('on', on); b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyGame(b.dataset.game === 'sr' ? 'sr' : null, srPick)); }; });
     pop.querySelectorAll('.lb-sp').forEach(b => { const q = Number(b.dataset.pick), on = q === srPick; b.classList.toggle('on', on); b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbyGame('sr', q)); }; });
     el('lb-nq').style.display = normal ? '' : 'none';
+    { // 🏆 v0.1.288 시리즈·팀 이름(내전만) — 입력 중인 칸은 안 덮어씀 · 칸을 벗어나거나 Enter = 저장
+      const SC = L.series || { bo: 1, a: '', b: '' };
+      el('lb-ser').style.display = el('lb-tn').style.display = normal ? 'none' : '';
+      pop.querySelectorAll('.lb-bo').forEach(b => { const bo = Number(b.dataset.bo), on = bo === (SC.bo || 1); b.classList.toggle('on', on); b.onclick = () => { if (myIsHost && !on) lbAct(() => window.api.lobbySeries({ bo, a: el('lb-tna').value, b: el('lb-tnb').value })); }; });
+      for (const [id, k] of [['lb-tna', 'a'], ['lb-tnb', 'b']]) {
+        const inp = el(id); inp.disabled = !myIsHost;
+        if (document.activeElement !== inp && inp.value !== (SC[k] || '')) inp.value = SC[k] || '';
+        const save = () => { const a = el('lb-tna').value.trim(), b2 = el('lb-tnb').value.trim(); if (myIsHost && (a !== (SC.a || '') || b2 !== (SC.b || ''))) lbAct(() => window.api.lobbySeries({ bo: SC.bo || 1, a, b: b2 })); };
+        inp.onchange = save; inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); };
+      }
+    }
     pop.querySelectorAll('.lb-seg').forEach(b => {
       b.classList.toggle('on', b.dataset.mode === L.mode);
       b.onclick = () => { if (!myIsHost) return; _mpop = false; popAnim(pop, false); chipB.classList.remove('open'); if (b.dataset.mode !== L.mode) lbAct(() => window.api.lobbyMode(b.dataset.mode)); };
@@ -1060,7 +1086,7 @@ function renderLobby() {
         : normal ? (qState === 'game' ? '게임 진행 중입니다' : G.phase === 'Matchmaking' ? '큐를 잡는 중입니다' : P ? `롤 파티 ${P.n}/${P.max || 5}명 · 방장이 큐를 시작합니다` : '방장이 초대하면 자동으로 롤 파티에 들어갑니다')
         : manual ? '방장이 1팀·2팀을 직접 정하고 있습니다'
         : `방장이 시작하면 ${MODE_WAIT[L.mode] || MODE_WAIT.random}`;
-      h = `<div class="lb-stat-tx"><span class="lb-stat-top"><b class="lb-stat-m">${normal ? `<i>🎮</i>일반 · ${QN}` : `<i>⚔</i>${sr ? '협곡 내전' : '내전'} · ${MODE_KO[L.mode] || '랜덤'}`}</b><span class="lb-stat-h" title="방장">👑 ${esc(hostNm)}</span></span><small>${sub}</small></div>`;
+      h = `<div class="lb-stat-tx"><span class="lb-stat-top"><b class="lb-stat-m">${normal ? `<i>🎮</i>일반 · ${QN}` : `<i>⚔</i>${sr ? '협곡 내전' : '내전'} · ${MODE_KO[L.mode] || '랜덤'}${L.series && L.series.bo > 1 ? ' · ' + BO_KO(L.series.bo) : ''}`}</b><span class="lb-stat-h" title="방장">👑 ${esc(hostNm)}</span></span><small>${sub}</small></div>`;
     }
     st.style.display = h ? '' : 'none';
     st.className = 'lb-stat' + (noHost ? ' cta' : '');
