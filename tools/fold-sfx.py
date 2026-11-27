@@ -11,7 +11,8 @@
 #   fold-in.ogg   = 펼치기(0.38초) — 바람이 열리며 하프 D3→A3→D4→F#4 굴림 + 비올라 화음이 살짝 차오름
 #   fold-hint.ogg = 손잡이 힌트(desktop/foldtab.html ftHint와 같은 박자 · 애니메이션 시작 = 0초)
 #                   빛이 번지는 동안 현 합주(첼로 D2·비올라 D3·A3)가 은은하게 깔림 · 꺾쇠가 스며 나올 때 하프 D3·A3·D4 여리게 · 톡톡 = 하프 두 음 화음(A3+D4 → F#3+D4)
-#   ⚠️ ftHint 시각(0.35초 뒤 · 3.6초 · 12%/22%/42%)을 바꾸면 HINT_* 도 같이 · 앱 볼륨 = desktop/fold.js SND_VOL · foldtab.html HINT_VOL
+#   ⚠️ v0.1.283 = 더 낮게(A1~E3) · 짧게(움직이는 순간만 · 힌트는 톡톡 두 번만) — 아래 「v0.1.283」 줄
+#   ⚠️ ftHint 시각(0.35초 뒤 · 3.6초 · 22%/42%)을 바꾸면 HINT_* 도 같이 · 앱 볼륨 = desktop/fold.js SND_VOL · foldtab.html HINT_VOL
 import os, sys, glob, subprocess, re, tempfile
 import numpy as np
 SR = 48000
@@ -57,17 +58,17 @@ def fade(x, a=0.004, b=0.05):
 def env(n, pts):                                                  # 꺾은선 볼륨 [(초, 크기)…]
     t = np.arange(n) / SR; xs, ys = zip(*pts); return np.interp(t, xs, ys)
 
-HARP = {'D2': ('D2', 0), 'A2': ('A2', 0), 'D3': ('C3', 2), 'F#3': ('G3', -1), 'A3': ('B3', -2), 'D4': ('D4', 0), 'F#4': ('F4', 1), 'A4': ('A4', 0)}
+HARP = {'D2': ('D2', 0), 'E2': ('D2', 2), 'A2': ('A2', 0), 'C#3': ('C3', 1), 'E3': ('E3', 0), 'D3': ('C3', 2), 'F#3': ('G3', -1), 'A3': ('B3', -2), 'D4': ('D4', 0), 'F#4': ('F4', 1), 'A4': ('A4', 0)}
 _h = {}
-def harp(note, dur, soft=1500):                                   # 하프 한 음 · 고음을 깎아 둥글고 따뜻하게
+def harp(note, dur, soft=1500, tail=0.55):                                   # 하프 한 음 · 고음을 깎아 둥글고 따뜻하게
     if note not in _h:
         f, s = HARP[note]; _h[note] = shift(load('KSHarp_' + f + '_mf'), s)
     x = _h[note][:int(dur * SR)].copy()
     x = lp(x, np.linspace(soft, soft * 0.6, len(x)), 2)
-    x *= env(len(x), [(0, 1), (dur * 0.55, 0.7), (dur, 0)])
+    x *= env(len(x), [(0, 1), (dur * tail, 0.7), (dur, 0)])
     return fade(x, 0.006, 0.02)
 
-STR = {'D2c': ('susvib_D2_v1_1', 0), 'D3': ('ViolaEns_susvib_D3_v1_1', 0), 'F#3': ('ViolaEns_susvib_F3_v1_1', 1), 'A3': ('ViolaEns_susvib_A3_v1_1', 0)}
+STR = {'A1c': ('susvib_D2_v1_1', -5), 'D2c': ('susvib_D2_v1_1', 0), 'D3': ('ViolaEns_susvib_D3_v1_1', 0), 'F#3': ('ViolaEns_susvib_F3_v1_1', 1), 'A3': ('ViolaEns_susvib_A3_v1_1', 0)}
 _s = {}
 def strings(note, dur, pts, fc=1600):                             # 현 합주 한 음(활 긋는 첫머리는 빼고 가운데 고른 부분) · 볼륨은 pts로 천천히
     if note not in _s:
@@ -99,35 +100,26 @@ def write(name, x, target):                                       # 크기 = 목
     g = 10 ** ((target - lufs(p)) / 20); x = x * min(g, 10 ** (-3 / 20) / np.abs(x).max())
     enc(x, p); print(name, f'{len(x)/SR:.2f}s', f'{lufs(p):.1f} LUFS', f'peak {20*np.log10(np.abs(x).max()):.1f}dB', os.path.getsize(p), 'B')
 
-# ── 접기: 0~0.26초 화면이 클라 쪽으로 빨려 들어감 → 먹먹해지며 멀어짐(클라 뒤로)
-fo = np.zeros(int(1.5 * SR))
-place(fo, suck(0.28, 1500), 0.0, 0.35)
-place(fo, air(1.2, [(0, 0), (0.24, 1), (0.34, 0.75), (1.2, 0)], [(0, 900), (0.26, 1700), (0.5, 700), (1.2, 300)]), 0.0, 0.55)
-for n, g in (('D3', 0.5), ('A3', 0.38)):
-    place(fo, strings(n, 1.4, [(0, 0), (0.12, 1), (0.28, 0.9), (1.4, 0)], np.interp(np.arange(int(1.4 * SR)) / SR, [0, 0.28, 1.4], [1800, 1500, 350])), 0.0, g)
-place(fo, harp('D3', 1.2, 1100), 0.26, 0.55)
-place(fo, harp('A2', 1.2, 900), 0.27, 0.4)
+# v0.1.283(사장님: 더 낮은 음 · 살짝 너무 김 · 행동이 있을 때 맞춰서 느껴지기만) = A장조로 한 번 더 내림(A1~E3) · 움직이는 순간만(접기 0.55초 · 펼치기 0.6초 · 힌트 = 톡톡 두 번만 · 길게 깔리던 현 바탕 없앰)
+# ── 접기: 0~0.26초 화면이 클라 쪽으로 빨려 들어감 → 닿는 순간 낮은 「둥」 하고 바로 잦아듦
+fo = np.zeros(int(0.55 * SR))
+place(fo, air(0.42, [(0, 0), (0.22, 1), (0.30, 0.4), (0.42, 0)], [(0, 500), (0.24, 1000), (0.42, 300)]), 0.0, 0.5)
+place(fo, strings('A1c', 0.45, [(0, 0), (0.18, 1), (0.28, 0.6), (0.45, 0)], 700), 0.0, 0.45)
+place(fo, harp('A2', 0.3, 800, 0.3), 0.24, 0.6)
+place(fo, harp('E2', 0.3, 700, 0.3), 0.245, 0.45)
 write('fold-out.ogg', fo, -24)
 
-# ── 펼치기: 0.05초에 창이 뜨고 0.38초 동안 미끄러져 나옴 → 바람이 열리며 하프가 아래에서 위로
-fi = np.zeros(int(1.6 * SR))
-place(fi, air(1.1, [(0, 0), (0.12, 1), (0.3, 0.6), (1.1, 0)], [(0, 500), (0.15, 1600), (1.1, 900)]), 0.0, 0.45)
-for j, (n, g) in enumerate((('D3', 0.5), ('A3', 0.42), ('D4', 0.36), ('F#4', 0.28))):
-    place(fi, harp(n, 1.3, 1600), 0.07 + j * 0.055, g)
-for n, g in (('D3', 0.38), ('F#3', 0.28), ('A3', 0.3)):
-    place(fi, strings(n, 1.4, [(0, 0), (0.3, 1), (0.6, 0.8), (1.4, 0)]), 0.05, g)
+# ── 펼치기: 0.05초에 창이 뜨고 0.38초 동안 미끄러져 나옴 → 나오는 동안만 하프가 낮게 굴러 오름
+fi = np.zeros(int(0.6 * SR))
+place(fi, air(0.45, [(0, 0), (0.12, 1), (0.3, 0.4), (0.45, 0)], [(0, 400), (0.15, 1000), (0.45, 500)]), 0.0, 0.4)
+place(fi, strings('A1c', 0.5, [(0, 0), (0.15, 1), (0.32, 0.5), (0.5, 0)], 700), 0.03, 0.35)
+for j, (n, g) in enumerate((('A2', 0.55), ('C#3', 0.45), ('E3', 0.4))):
+    place(fi, harp(n, 0.4 - j * 0.03, 1000, 0.35), 0.06 + j * 0.05, g)
 write('fold-in.ogg', fi, -24)
 
-# ── 힌트(foldtab.html ftHint · 시작 0.35초 + 3.6초 × 비율)
-HINT_APPEAR = 0.35 + 3.6 * 0.12 - 0.22                            # 꺾쇠가 스며 나오는 동안
+# ── 힌트(foldtab.html ftHint · 시작 0.35초 + 3.6초 × 비율) = 바깥으로 톡톡 두 번에만 낮은 하프 두 음(짧게)
 HINT_TAP = [0.35 + 3.6 * 0.22 + 0.06, 0.35 + 3.6 * 0.42 + 0.06]   # 바깥으로 나가기 시작하는 순간
-fh = np.zeros(int(3.5 * SR))
-bed = [(0, 0), (0.55, 1), (1.6, 0.85), (2.4, 0.6), (3.0, 0)]
-for n, g in (('D2c', 0.35), ('D3', 0.42), ('A3', 0.32)):
-    place(fh, strings(n, 3.0, bed, 1400), 0.3, g)
-place(fh, air(2.6, [(0, 0), (0.6, 1), (1.6, 0.5), (2.6, 0)], [(0, 700), (0.7, 1500), (2.6, 600)]), 0.3, 0.18)
-for j, (n, g) in enumerate((('D3', 0.3), ('A3', 0.26), ('D4', 0.22))):
-    place(fh, harp(n, 1.5, 1300), HINT_APPEAR + j * 0.09, g)
-for t, notes, g in ((HINT_TAP[0], ('A3', 'D4'), 0.5), (HINT_TAP[1], ('F#3', 'D4'), 0.42)):
-    for k, n in enumerate(notes): place(fh, harp(n, 1.4, 1500), t + k * 0.018, g * (1 if k else 0.8))
+fh = np.zeros(int((HINT_TAP[1] + 0.45) * SR))
+for t, notes, g in ((HINT_TAP[0], ('E2', 'A2'), 0.55), (HINT_TAP[1], ('E2', 'C#3'), 0.45)):
+    for k, n in enumerate(notes): place(fh, harp(n, 0.38, 900, 0.3), t + k * 0.015, g * (1 if k else 0.85))
 write('fold-hint.ogg', fh, -26)
