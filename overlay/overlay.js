@@ -759,24 +759,18 @@ async function lbAct(fn) {
 }
 // 🪜 v0.1.216 내전 롤 로비 만들기·초대(큰 버튼 · 방 줄 공용) — 일반 큐 대기방이면 나가도 되는지 묻고 · 실패는 아래 줄에
 let _roomStepSkip = null;   // [나중에] 누른 방 번호(이 방에선 「롤 로비 만들기」 단계 건너뜀)
-// 🏷️ v0.1.273 롤 로비 그림(이모지 🎮 대신) — 롤 사용자 설정 게임 화면처럼 1팀·2팀 자리 다섯 칸씩 두 줄 · 색은 CSS(.lol-ic .a/.b · 금색 버튼 위에선 어둡게)
-function lobbyIc() {
-  let r = '';
-  for (let i = 0; i < 5; i++) r += `<rect class="a" x="1" y="${1 + i * 3.4}" width="8" height="2.2" rx=".4"/><rect class="b" x="13" y="${1 + i * 3.4}" width="8" height="2.2" rx=".4"/>`;
-  return `<svg class="lol-ic" viewBox="0 0 22 18" aria-hidden="true">${r}<rect class="m" x="10.6" y="2" width=".8" height="14"/></svg>`;
-}
 // 🎮 v0.1.217(사장님: 만들기를 누르면 한 번에 다 초대하니 「방 사람 초대」를 늘 띄울 필요 없음 → 롤 로비에 없는 사람만)
 //   롤 로비에 있을 때 = 앱 켠 방 사람 중 롤 로비에 없는 사람만 이름(+거절·초대 중) + [초대](그 사람들만) · 다 있으면 「모두 들어와 있습니다」(버튼 없음)
 function lolMissRow(M, G) {
   const tip = ' title="팀이 정해지면 그 판 다리로 이 방 설정만 바꿔요(아무도 안 나가짐)"';
-  if (!Array.isArray(G.ids)) return `<span class="lb-lol-t"${tip}><span class="lb-lol-ic">${lobbyIc()}</span>롤 로비에 있습니다</span><button class="lb-mini" data-lol="make">방 사람 초대</button>`;
+  if (!Array.isArray(G.ids)) return `<span class="lb-lol-t"${tip}><span class="lb-lol-ic">🎮</span>롤 로비에 있습니다</span><button class="lb-mini" data-lol="make">방 사람 초대</button>`;
   const miss = M.filter(m => m.online && !m.me && !m.guest && !G.ids.includes(m.key));
-  if (!miss.length) return `<span class="lb-lol-t"${tip}><span class="lb-lol-ic">${lobbyIc()}</span>롤 로비에 <b>모두</b> 들어와 있습니다</span>`;
+  if (!miss.length) return `<span class="lb-lol-t"${tip}><span class="lb-lol-ic">🎮</span>롤 로비에 <b>모두</b> 들어와 있습니다</span>`;
   const inv = G.invs || {}, stK = { Declined: '거절', Pending: '초대 중' };
   const names = miss.map(m => esc(m.name) + (stK[inv[m.key]] ? `<small class="lb-lol-st${inv[m.key] === 'Declined' ? ' no' : ''}">${stK[inv[m.key]]}</small>` : '')).join(', ');
   const all = miss.every(m => inv[m.key]);
   const full = miss.map(m => m.name + (stK[inv[m.key]] ? ` (${stK[inv[m.key]]})` : '')).join(', ');
-  return `<span class="lb-lol-t" title="롤 로비에 없는 사람: ${esc(full)} · 거절했으면 다시 초대할 수 있습니다"><span class="lb-lol-ic">${lobbyIc()}</span>롤 로비에 없음 <b>${miss.length}</b> · ${names}</span><button class="lb-mini" data-lol="make">${all ? '다시 초대' : '초대'}</button>`;
+  return `<span class="lb-lol-t" title="롤 로비에 없는 사람: ${esc(full)} · 거절했으면 다시 초대할 수 있습니다"><span class="lb-lol-ic">🎮</span>롤 로비에 없음 <b>${miss.length}</b> · ${names}</span><button class="lb-mini" data-lol="make">${all ? '다시 초대' : '초대'}</button>`;
 }
 async function lolRoomGo() {
   let r = await window.api.lolLobby({});
@@ -996,12 +990,12 @@ function renderLobby() {
     //   [나중에] = 이 방에선 ① 건너뜀(팀이 정해질 때 앱이 방을 만듦 · 이 줄은 「롤 로비는 팀이 정해질 때 만듭니다 [지금 만들기]」)
     const box = el('lb-lol');
     const h = G.invite && !myIsHost ? `<span class="lb-lol-t"><b>👑 ${esc(G.invite.from)}</b>님이 롤 ${normal ? '파티' : '방'}에 초대했습니다</span><button class="lb-mini" data-lol="accept">수락</button>`
-      : roomStep ? '<span class="lb-lol-t" title="롤에 ' + GN + ' 로비(사용자 설정 게임)를 이 방 이름으로 만들고(공개 목록엔 안 뜸) 앱 켠 방 사람들을 초대합니다"><span class="lb-lol-ic">' + lobbyIc() + '</span><b>먼저 롤 로비</b>를 만들어 모입니다</span><button class="lb-mini plain" data-lol="skip" title="롤 로비 없이 팀부터 짜기 · 팀이 정해질 때 앱이 롤 로비를 만듭니다">나중에</button>'
+      : roomStep ? '<span class="lb-lol-t" title="롤에 ' + GN + ' 로비(사용자 설정 게임)를 이 방 이름으로 만들고(공개 목록엔 안 뜸) 앱 켠 방 사람들을 초대합니다"><span class="lb-lol-ic">🎮</span><b>먼저 롤 로비</b>를 만들어 모입니다</span><button class="lb-mini plain" data-lol="skip" title="롤 로비 없이 팀부터 짜기 · 팀이 정해질 때 앱이 롤 로비를 만듭니다">나중에</button>'
       : myIsHost && !normal && L.room && lolIdle && G.phase
         ? (G.inCustom ? (G.cmap === 11 || G.cmap === 12) && (G.cmap === 11) !== sr || (sr && G.cmap === 11 && G.cq && SR_PICK_KO[G.cq] && G.cq !== srPick)
-            ? `<span class="lb-lol-t" title="롤 로비는 그대로(나가지 않음) · 게임 설정만 바꿔요"><span class="lb-lol-ic">${lobbyIc()}</span>롤 로비가 <b>${G.cmap === 11 ? '협곡' + (SR_PICK_KO[G.cq] ? ' · ' + SR_PICK_KO[G.cq] : '') : '아수라장'}</b>입니다</span><button class="lb-mini" data-lol="make">${sr ? (G.cmap === 11 ? '픽 방식 바꾸기' : '협곡으로 바꾸기') : '아수라장으로 바꾸기'}</button>`
+            ? `<span class="lb-lol-t" title="롤 로비는 그대로(나가지 않음) · 게임 설정만 바꿔요"><span class="lb-lol-ic">🎮</span>롤 로비가 <b>${G.cmap === 11 ? '협곡' + (SR_PICK_KO[G.cq] ? ' · ' + SR_PICK_KO[G.cq] : '') : '아수라장'}</b>입니다</span><button class="lb-mini" data-lol="make">${sr ? (G.cmap === 11 ? '픽 방식 바꾸기' : '협곡으로 바꾸기') : '아수라장으로 바꾸기'}</button>`
             : lolMissRow(M, G)
-          : '<span class="lb-lol-t"><span class="lb-lol-ic">' + lobbyIc() + '</span>롤 로비는 팀이 정해질 때 만듭니다</span><button class="lb-mini" data-lol="make">지금 만들기</button>')
+          : '<span class="lb-lol-t"><span class="lb-lol-ic">🎮</span>롤 로비는 팀이 정해질 때 만듭니다</span><button class="lb-mini" data-lol="make">지금 만들기</button>')
         : '';
     box.style.display = h ? '' : 'none';
     if (box.dataset.h !== h) { box.innerHTML = h; box.dataset.h = h; }
@@ -1051,9 +1045,7 @@ function renderLobby() {
     go.disabled = roomStep ? false : normal ? !go.dataset.q || qState === 'game' : n < 2 || !capsOk || !sideOk;
     go.classList.toggle('normal', normal && (!go.dataset.q || qState === 'game'));
     go.classList.toggle('qcancel', qState === 'search' && !!go.dataset.q);
-    go.classList.toggle('lolstep', roomStep);
-    if (roomStep) { if (!go.querySelector('.go-lol')) go.innerHTML = `<span class="go-lol">${lobbyIc()}<span class="go-lol-tx"><small>LEAGUE CLIENT</small><b>롤 로비 만들기</b></span></span>`; }   // 🏷️ v0.1.273 이모지 대신 롤 로비 모양(1팀·2팀 자리 두 줄) + 「LEAGUE CLIENT」 = 롤 클라이언트에서 일어나는 일
-    else go.textContent = normal ? (!go.dataset.q ? '일반판 진행 중' : qState === 'game' ? '게임 진행 중' : qState === 'search' ? '큐 잡는 중 · 취소' : qState === 'party' ? `큐 시작 · ${P.n}/${P.max || 5}` : '파티 만들고 초대')
+    go.textContent = roomStep ? '롤 로비 만들기' : normal ? (!go.dataset.q ? '일반판 진행 중' : qState === 'game' ? '게임 진행 중' : qState === 'search' ? '큐 잡는 중 · 취소' : qState === 'party' ? `큐 시작 · ${P.n}/${P.max || 5}` : '파티 만들고 초대')
       : n < 2 ? '2명부터 시작' : !capsOk ? '팀장 2명 필요'
       : manual ? (sNone.length ? `팀 미정 ${sNone.length}명` : !sideOk ? '두 팀에 1명 이상' : `시작 · ${sA.length} : ${sB.length}`)
       : draft ? '드래프트 시작' : `팀 짜기 · ${ts} : ${ts}`;
