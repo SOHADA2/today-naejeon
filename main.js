@@ -308,15 +308,11 @@ function syncFoldTabs() {   // 손잡이 창 = 접힘 + 클라에 붙어 있음 
     if (!w || w.isDestroyed()) w = _foldTab[side] = makeFoldTab(side);
     const b = foldTabBounds(side, rectPb(_lastRect)), sig = `${b.x},${b.y},${b.width},${b.height}`;
     if (sig !== _foldTabSig[side]) { _foldTabSig[side] = sig; w.setBounds(b); }
-    if (!w.isVisible()) {   // 🔊 v0.1.281 사람이 방금 접은 손잡이만 힌트 소리(게임 끝나고 다시 붙을 때 등은 조용히)
-      const vol = Date.now() - _foldSnd[side] < 2500 ? sfxVolNow() : 0; _foldSnd[side] = 0;
-      w.showInactive(); try { w.webContents.send('foldtab-in', { vol }); } catch (_) {}
-    }
+    if (!w.isVisible()) { w.showInactive(); try { w.webContents.send('foldtab-in'); } catch (_) {} }
   }
 }
 // 🔊 v0.1.281 효과음(사장님: 아주 자연스럽게) = 사람이 누른 접기·펼치기만(user) · 저절로 펼침(팀 정해짐 등)은 조용히
-//   소리 파일 = assets/sfx/fold-out·fold-in·fold-hint.ogg(tools/fold-sfx.py) · 재생 = 렌더러(desktop/fold.js · foldtab.html) · 크기 = ⚙ 효과음
-const _foldSnd = { L: 0, R: 0 };
+//   소리 파일 = assets/sfx/fold-out·fold-in.ogg(tools/fold-sfx.py · v0.1.285 돌 끄는 「그르륵」 · 힌트 소리 없앰) · 재생 = 렌더러(desktop/fold.js · foldtab.html) · 크기 = ⚙ 효과음
 function setFold(side, v, user) {
   const k = side === 'L' ? 'foldL' : 'foldR'; v = !!v;
   if (!!config[k] === v) { sendFold(true); return; }
@@ -335,7 +331,6 @@ function setFold(side, v, user) {
   _winAnim.delete(win); if (!win.isDestroyed()) win.setBounds(to);
   if (v) {   // 접기 → 그 자리에 빛 손잡이
     const MS = 260;
-    if (user) _foldSnd[side] = Date.now();
     fa({ act: 'out', ms: MS, vol }); fadeWin(1, 0, MS);
     setTimeout(() => {
       if (!win.isDestroyed()) { if (foldOn(side)) win.hide(); try { win.setOpacity(1); } catch (_) {} }

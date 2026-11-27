@@ -28,13 +28,7 @@ assets/ping/sfx/*.ogg (v0.1.257 대기실 핑 소리 9개 · 실제 악기 녹�
   (v0.1.256의 Kenney Interface Sounds는 사장님: 기계음 느낌 → v0.1.257에서 바꿈)
 assets/ping/*.png (핑·이모티콘 그림 · 바퀴 판) = 직접 그린 스케치(tools/ping-sketch.cjs · 롤 그림 안 씀)
 
-fold-out.ogg · fold-in.ogg · fold-hint.ogg (접기 손잡이 · 실제 녹음만) — VSCO-2 Community Edition (CC0) https://github.com/sgossner/VSCO-2-CE
-  v0.1.282(사장님: 너무 단순 · 너무 높음 · 은은해야 · 너무 큼) = 낮은 음역(D2~F#4 · D장조) · 크기 -24~-26 LUFS · 앱 볼륨 0.16
-  재료 = 하프(Strings/Harp/KSHarp_D2·A2·C3·G3·B3·D4·F4·A4_mf) · 비올라 합주(Strings/Viola Section/susvib D3·F3·A3 v1) · 첼로 합주(Strings/Cello Section/susvib D2 v1)
-       · 부드러운 말렛 심벌 굴림(VSCO 1 Percussion/varMetal/Cymbals/susp/susp_hit_softmall_roll5_long_p) · 여린 크래시(Percussion/cymbal-crash1_pp_rr1)
-  fold-out = 말렛 심벌 바람이 차오르다 먹먹해지며 사라짐 + 비올라 D·A가 클라 뒤로 멀어지듯 어두워짐 + 낮은 하프 「둥」(D3·A2)
-  fold-in = 바람이 열리며 하프 D3→A3→D4→F#4 굴림 + 비올라 화음이 살짝 차오름
-  fold-hint = 빛이 번지는 동안 첼로 D2·비올라 D3·A3이 은은하게 깔림 · 꺾쇠가 스며 나올 때 하프 D3·A3·D4 여리게 · 톡톡 = 하프 두 음 화음(A3+D4 → F#3+D4)
-  v0.1.284(사장님: 훨씬 은은하게) = 하프 퉁기는 순간을 없앰(0.07~0.09초에 천천히 부풂 · 400Hz 위 깎음) · 몸통 = 말렛 심벌 숨결(450Hz 아래) + 첼로 A1 · -28/-30 LUFS · 앱 볼륨 0.12
-  v0.1.283(사장님: 더 낮게 · 살짝 김 · 행동에 맞춰 느껴지기만) = A장조로 더 내림(첼로 A1 · 하프 E2·A2·C#3·E3) · 움직이는 순간만(접기 0.55초 · 펼치기 0.6초 · 힌트 = 톡톡 두 번 하프 E2+A2 → E2+C#3 · 현 바탕 없앰)
-  만드는 법 = tools/fold-sfx.py(머리 주석에 재료 경로 · 박자 = desktop/foldtab.html ftHint) · (v0.1.281 = 높은 하프 한 음 + 밝은 바람 → 바꿈)
+fold-out.ogg · fold-in.ogg (v0.1.285 접기 손잡이 · 돌 끄는 「그르륵」 · 실제 녹음만) — VSCO-2 Community Edition (CC0) https://github.com/sgossner/VSCO-2-CE
+  재료 = 벽돌 긁는 녹음(Miscellania Raw/Misc 1/brick_scrape · brick_scrape2) + 귀로(Percussion/Guiro-Slow_v1_Sum · 「드르륵」 결 조금)
+  속도를 바꿔 가며 재생(0.4~0.7배 = 낮고 굵게) · 접기 = 빨라지며 끌려 들어가다 마찰로 느려지며 멈춤(0.42초) · 펼치기 = 빠르게 밀려 나오다 느려짐(0.5초) · 고음 깎음
+  만드는 법 = tools/fold-sfx.py(머리 주석에 재료 경로) · 앱 볼륨 0.12 × ⚙ 효과음 · (v0.1.281~284 하프·현 합주·말렛 심벌 버전과 힌트 소리 fold-hint.ogg는 사장님 의견으로 바꾸고 지움)
