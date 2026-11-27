@@ -742,6 +742,45 @@
           ".validate": false
         }
       },
+      "tourneys": {
+        ".read": "auth != null",
+        "$tid": {
+          ".write": "(auth != null && root.child('today/admins/' + auth.uid).exists())",
+          ".validate": "$tid.length <= 40 && newData.hasChildren(['name', 'fmt', 'st'])",
+          "name": {
+            ".validate": "newData.isString() && newData.val().length <= 30"
+          },
+          "fmt": {
+            ".validate": "newData.isString() && newData.val().length <= 4"
+          },
+          "st": {
+            ".validate": "newData.isString() && newData.val().length <= 8"
+          },
+          "res": {
+            "$mid": {
+              "$gid": {
+                ".write": "auth != null && auth.token.riot === true && (!root.child('today/bans/' + auth.uid).exists() || root.child('today/bans/' + auth.uid + '/until').val() < now) && !data.exists() && newData.exists() && root.child('today/days/' + newData.child('day').val() + '/matches/' + $gid + '/series').child('tid').val() === $tid && root.child('today/days/' + newData.child('day').val() + '/matches/' + $gid + '/series').child('mid').val() === $mid && root.child('today/days/' + newData.child('day').val() + '/matches/' + $gid + '/series').child('w').val() === newData.child('w').val()",
+                ".validate": "$mid.length <= 20 && $gid.length <= 40 && newData.hasChildren(['w', 'day', 'at'])",
+                "w": {
+                  ".validate": "newData.isString() && newData.val().length <= 40"
+                },
+                "day": {
+                  ".validate": "newData.isString() && newData.val().length <= 10"
+                },
+                "at": {
+                  ".validate": "newData.isNumber()"
+                },
+                "n": {
+                  ".validate": "newData.isNumber()"
+                },
+                "$other": {
+                  ".validate": false
+                }
+              }
+            }
+          }
+        }
+      },
       "c": {
         "$cid": {
           ".read": "(auth != null && (root.child('today/admins/' + auth.uid).exists() || root.child('today/c/' + $cid + '/admins/' + auth.uid).exists()))",
@@ -1163,6 +1202,45 @@
               },
               "$other": {
                 ".validate": false
+              }
+            }
+          },
+          "tourneys": {
+            ".read": "auth != null",
+            "$tid": {
+              ".write": "(auth != null && (root.child('today/admins/' + auth.uid).exists() || root.child('today/c/' + $cid + '/admins/' + auth.uid).exists()))",
+              ".validate": "$tid.length <= 40 && newData.hasChildren(['name', 'fmt', 'st'])",
+              "name": {
+                ".validate": "newData.isString() && newData.val().length <= 30"
+              },
+              "fmt": {
+                ".validate": "newData.isString() && newData.val().length <= 4"
+              },
+              "st": {
+                ".validate": "newData.isString() && newData.val().length <= 8"
+              },
+              "res": {
+                "$mid": {
+                  "$gid": {
+                    ".write": "auth != null && auth.token.riot === true && ((!root.child('today/bans/' + auth.uid).exists() || root.child('today/bans/' + auth.uid + '/until').val() < now) && (!root.child('today/c/' + $cid + '/bans/' + auth.uid).exists() || root.child('today/c/' + $cid + '/bans/' + auth.uid + '/until').val() < now)) && !data.exists() && newData.exists() && root.child('today/c/' + $cid + '/days/' + newData.child('day').val() + '/matches/' + $gid + '/series').child('tid').val() === $tid && root.child('today/c/' + $cid + '/days/' + newData.child('day').val() + '/matches/' + $gid + '/series').child('mid').val() === $mid && root.child('today/c/' + $cid + '/days/' + newData.child('day').val() + '/matches/' + $gid + '/series').child('w').val() === newData.child('w').val()",
+                    ".validate": "$mid.length <= 20 && $gid.length <= 40 && newData.hasChildren(['w', 'day', 'at'])",
+                    "w": {
+                      ".validate": "newData.isString() && newData.val().length <= 40"
+                    },
+                    "day": {
+                      ".validate": "newData.isString() && newData.val().length <= 10"
+                    },
+                    "at": {
+                      ".validate": "newData.isNumber()"
+                    },
+                    "n": {
+                      ".validate": "newData.isNumber()"
+                    },
+                    "$other": {
+                      ".validate": false
+                    }
+                  }
+                }
               }
             }
           },
