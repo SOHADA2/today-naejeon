@@ -38,9 +38,26 @@
     #hit:active .chev { transform:translateX(-13px); transition-duration:.08s; }
     /* 나타날 때 한 번 = 빛줄기가 가운데에서 위아래로 퍼지고 번짐이 차오름 */
     body.in .seam { animation:ftSeam .5s cubic-bezier(.2,.9,.3,1) both; }
-    body.in .leak, body.in .rays { animation:ftLeak .7s ease-out both; }
+    body.in .leak { animation:ftLeak .7s ease-out both, ftGlow 3.6s .35s ease-in-out both; }
+    body.in .rays { animation:ftLeak .7s ease-out both; }
     @keyframes ftSeam { from { transform:scaleY(0); opacity:0; } to { transform:none; opacity:1; } }
     @keyframes ftLeak { from { opacity:0; } }
+    /* v0.1.280(사장님: 접을 때 화살표가 잠깐 나왔다 사라지는 게 너무 짧음 → 다시 열 수 있다는 느낌이 나게)
+       손잡이가 나타날 때 한 번 = 빛 꺾쇠가 스며 나와 바깥으로 두 번 톡톡(당겨 보라는 느낌) → 잠깐 머문 뒤 천천히 사라짐(약 3.5초 · 반복 없음)
+       그동안 마우스를 올리면 끝난 뒤에도 그대로 보임(마우스 올림 모양으로 이어짐) */
+    body.in .chev { animation:ftHint 3.6s .35s both; }
+    @keyframes ftHint {
+      0%   { opacity:0; transform:translateX(9px); animation-timing-function:cubic-bezier(.2,.9,.3,1); }
+      12%  { opacity:1; transform:translateX(-10px); animation-timing-function:ease-in-out; }
+      22%  { transform:translateX(-4px); animation-timing-function:cubic-bezier(.3,0,.2,1.4); }
+      32%  { transform:translateX(-13px); animation-timing-function:ease-in-out; }
+      42%  { transform:translateX(-5px); animation-timing-function:cubic-bezier(.3,0,.2,1.4); }
+      52%  { transform:translateX(-13px); animation-timing-function:ease-in-out; }
+      62%  { opacity:1; transform:translateX(-10px); animation-timing-function:ease-in; }
+      100% { opacity:0; transform:translateX(-6px); }
+    }
+    body.in #hit:hover .chev, body.in #hit:hover .leak { animation:none; }   /* 마우스가 올라가 있으면 = 그냥 마우스 올림 모양 */
+    @keyframes ftGlow { 0%, 100% { opacity:.85; transform:none; } 32%, 52% { opacity:1; transform:scaleX(1.15); } 42% { opacity:.92; transform:scaleX(1.04); } }
   </style>
 </head>
 <body>
