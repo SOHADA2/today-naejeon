@@ -9,6 +9,7 @@
 //   ⑥ 🛡️ 운영(v0.1.244) = today/admins/{uid}(운영 보드 구글 로그인 uid · 관리자 도구로만 넣음)가 있으면 운영자: 전부 읽기 · 정지 today/bans/{puuid} · 운영 기록 today/modlog · 아무 방·방 목록·접속 표시 지우기
 //   ⑦ (v0.1.245) 채팅 금지 today/mutes/{puuid}(한마디·이모티콘·핑만 막음) · 경고 today/warns/{puuid}/{키} · 신고 today/reports/{키}(그 방에 들어온 롤 계정만 · 운영자만 읽음) · 공지 today/notice(운영자가 씀 · 누구나 읽음)
 //   ⑧ (v0.1.246) 운영자 = 경기 기록 고치기·지우기 · 개인정보 지우기(남의 계정·점수·디스코드·기기 등록 칸 「지우기」만) · 자리 한도 config/connCap(10~100) · 운영자 추가·빼기 = admins의 owner:true인 운영자만
+//   ⑨ (v0.1.291) 대회 today/tourneys/{대회} = 운영자 쓰기 · 누구나 읽기 · res/{경기}/{게임} = 그 경기 기록과 맞을 때만 롤 로그인 쓰기
 //      정지된 롤 계정(bans/{puuid}.until > 서버 시각) = 롤 로그인으로 하는 쓰기·방 읽기가 전부 막힘(기간이 지나면 저절로 풀림) · 자기 칸 지우기만 됨 · 자기 정지 칸은 읽을 수 있음(앱이 사유·풀리는 시각을 보여 줌)
 const fs = require('fs');
 const src = JSON.parse(fs.readFileSync(0, 'utf8'));
@@ -92,4 +93,11 @@ t.reports = { $k: { '.write': `(${RIOT} && !data.exists() && newData.child('by')
   lines: { $i: { '.validate': "newData.hasChildren(['text', 'at'])", text: STR(60), at: NUM, $other: { '.validate': false } } }, $other: { '.validate': false } } };
 // 📢 공지 = 운영자만 · 누구나 읽음(게스트 포함)
 t.notice = { '.read': AUTH, '.write': ADMIN, '.validate': "newData.hasChildren(['id', 'text', 'at', 'until'])", id: STR(40), text: STR(200), at: NUM, until: NUM, by: STR(40), lv: STR(10), $other: { '.validate': false } };
+// 🏆 대회(v0.1.291) = 운영자가 만들고 고침(이름·팀·대진) · 누구나 읽음 · 결과 칸 res/{경기}/{게임} = 롤 로그인한 사람이 새로 쓰기만 —
+//   그 게임의 경기 기록(days/{day}/matches/{게임})이 실제로 있고 · 그 기록의 대회·경기 번호가 같고 · 이긴 팀이 같을 때만(= 없는 판·다른 승자는 못 씀)
+const GREC = "root.child('today/days/' + newData.child('day').val() + '/matches/' + $gid + '/series')";
+t.tourneys = { '.read': AUTH, $tid: { '.write': ADMIN, '.validate': "$tid.length <= 40 && newData.hasChildren(['name', 'fmt', 'st'])", name: STR(30), fmt: STR(4), st: STR(8),
+  res: { $mid: { $gid: { '.write': `${RIOT} && !data.exists() && newData.exists() && ${GREC}.child('tid').val() === $tid && ${GREC}.child('mid').val() === $mid && ${GREC}.child('w').val() === newData.child('w').val()`,
+    '.validate': "$mid.length <= 20 && $gid.length <= 40 && newData.hasChildren(['w', 'day', 'at'])", w: STR(40), day: STR(10), at: NUM, n: NUM, $other: { '.validate': false } } } } } };
+
 process.stdout.write(JSON.stringify(src, null, 2) + '\n');

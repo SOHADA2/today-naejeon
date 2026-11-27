@@ -25,6 +25,7 @@
       <button class="sp-tab" data-cat="today">기록</button>
       <button class="sp-tab" data-cat="profile">프로필</button>
       <button class="sp-tab" data-cat="aug">증강</button>
+      <button class="sp-tab" data-cat="tour" id="sp-tab-tour" style="display:none;">대회</button>   <!-- 🏆 v0.1.291 보여 줄 대회가 있을 때만 -->
     </nav>
 
     <main class="sp-main">
@@ -50,6 +51,10 @@
       <section class="cat-view" id="cat-profile" style="display:none;">
         <div id="pf-body" class="cat-scroll ui-scroll"></div>
       </section>
+      <!-- 🏆 대회(대진표·순위·팀) -->
+      <section class="cat-view" id="cat-tour" style="display:none;">
+        <div id="tr-body" class="cat-scroll ui-scroll"></div>
+      </section>
       <!-- 증강: 가이드 -->
       <section class="cat-view" id="cat-aug" style="display:none;">
         <div id="ag-ed" class="cat-scroll ui-scroll"></div>
@@ -67,6 +72,7 @@
   <script src="sidepanel.js"></script>
   <script src="augguide.js"></script>
   <script src="auglab.js"></script>
+  <script src="tourney.js"></script>
   <script src="../overlay/tierreveal.js"></script>
 </body>
 </html>

@@ -84,6 +84,7 @@ function switchCat(cat) {
   else if (cat === 'profile') renderProfile();
   else if (cat === 'aug') renderAugEdit();
   else if (cat === 'lab') renderAugLab();    // 🧪 증강 연구 (auglab.js)
+  else if (cat === 'tour') { if (window.renderTourney) window.renderTourney(); }   // 🏆 v0.1.291 대회(tourney.js)
   else renderToday();
 }
 document.querySelectorAll('.sp-tab').forEach(b => b.addEventListener('click', () => {
@@ -109,12 +110,12 @@ const spEmb = tier => `<i class="pf-emb">${tier && window.tnEmblem ? `<span clas
 const TNm = (m, t) => (m && m.series && m.series.names && m.series.names[t]) || (t === 'teamA' ? '1팀' : '2팀');
 const BOk = bo => bo === 5 ? '5판 3선승' : bo === 3 ? '3판 2선승' : '';
 function serRow(m, after) {   // 🏆 v0.1.289 = 상자 없이 한 줄 「3판 2선승 · 2번째 판 · 1 : 0」 · 끝 = 「🏆 불꽃 시리즈 승리 · 2 : 1」
-  const S = m && m.series; if (!S || !(S.bo > 1)) return '';
-  const w = S.wins || {}, sc = `<b class="num">${w.teamA || 0} : ${w.teamB || 0}</b>`;
-  return `<span class="hm-serl${S.done ? ' done' : ''}">${S.done ? `🏆 ${escH(TNm(m, S.done))} 시리즈 승리` : `${BOk(S.bo)} · ${after ? S.n || 0 : (S.n || 0) + 1}번째 판`} · ${sc}</span>`;
+  const S = m && m.series; if (!S || !(S.bo > 1 || S.tid)) return '';   // 시리즈(3·5판) 또는 🏆 대회 경기
+  const w = S.wins || {}, sc = `<b class="num">${w.teamA || 0} : ${w.teamB || 0}</b>`, pre = [S.tn, S.rn].filter(Boolean).map(escH).join(' · ');
+  return `<span class="hm-serl${S.done ? ' done' : ''}">${pre ? pre + ' · ' : ''}${S.done ? `🏆 ${escH(TNm(m, S.done))} 승리` : `${BOk(S.bo) || '단판'}${S.bo > 1 ? ` · ${after ? S.n || 0 : (S.n || 0) + 1}번째 판` : ''}`} · ${sc}</span>`;
 }
-const serTag = m => { const S = m && m.series; if (!S || !(S.bo > 1)) return ''; const w = S.wins || {};   // 기록 경기 카드 머리 = 작은 표
-  return `<span class="rc-tag ser${S.done ? ' done' : ''}">${S.done ? `🏆 ${escH(TNm(m, S.done))} ${w.teamA || 0}:${w.teamB || 0}` : `${BOk(S.bo)} ${S.n || 0}판째 · ${w.teamA || 0}:${w.teamB || 0}`}</span>`; };
+const serTag = m => { const S = m && m.series; if (!S || !(S.bo > 1 || S.tid)) return ''; const w = S.wins || {};   // 기록 경기 카드 머리 = 작은 표(대회 경기면 라운드 이름)
+  return `<span class="rc-tag ser${S.done ? ' done' : ''}" title="${escH([S.tn, S.rn].filter(Boolean).join(' · '))}">${S.rn ? escH(S.rn) + ' · ' : ''}${S.done ? `🏆 ${escH(TNm(m, S.done))} ${w.teamA || 0}:${w.teamB || 0}` : `${BOk(S.bo) || '단판'} ${S.n || 0}판째 · ${w.teamA || 0}:${w.teamB || 0}`}</span>`; };
 function teamRows(m, win) {
   const row = (k, label) => `<div class="hm-team ${k === 'teamA' ? 't1' : 't2'}${win === k ? ' win' : ''}"><i>${label}</i><span>${(m[k] || []).map(escH).join(' · ')}</span>${win === k ? '<em>승</em>' : ''}</div>`;
   return `<div class="hm-teams">${row('teamA', escH(TNm(m, 'teamA')))}${row('teamB', escH(TNm(m, 'teamB')))}</div>`;
@@ -178,7 +179,7 @@ function hmNow() {
     if (_isHost) acts = `<div class="hm-acts"><button class="ui-btn-ghost" data-act="close"${dis}>투표 마감</button></div>`;
   } else {
     title = `${escH(TNm(s, win))} 승리`; extra = awardRow(s.result);
-    const S = s.series, ser = S && S.bo > 1;   // 🏆 v0.1.288 시리즈 = 「다음 판 n/bo」 · 끝나면 대기실로만
+    const S = s.series, ser = S && (S.bo > 1 || S.tid);   // 🏆 v0.1.288 시리즈 · v0.1.291 대회 경기 = 「다음 판 n/bo」 · 끝나면 대기실로만
     if (_isHost) acts = ser && S.done ? `<div class="hm-acts"><button class="ui-btn-gold" data-act="lobby"${dis}>시리즈 끝 · 대기실로</button></div>`
       : `<div class="hm-acts"><button class="ui-btn-ghost" data-act="lobby"${dis}>대기실로</button><button class="ui-btn-gold" data-act="again"${dis}>${ser ? `다음 판 · ${(S.n || 0) + 1}/${S.bo}` : '같은 팀으로 한 판 더'}</button></div>`;
   }
@@ -408,6 +409,7 @@ window.api.onSession(({ session }) => {
   const sig = session ? `${session.phase}:${session.lastGameId || ''}:${session.result ? 1 : 0}` : '';
   const changed = sig !== _lastPhaseSig; _lastPhaseSig = sig;
   if (changed) _todayData = null;
+  if (changed && _curCat === 'tour' && window.tourneyReload) setTimeout(() => window.tourneyReload(true), 1500);   // 🏆 판이 기록되면 대진표 새로
   if (_curCat === 'home') { if (changed) renderHome(); else drawHome(); }   // 판 단계가 바뀌면 오늘 기록·전적도 다시 받음
   else if (changed && _curCat === 'today' && _day === _todayKey) renderToday();
 });

@@ -958,3 +958,6 @@ body.pw-drag, body.pw-drag * { cursor:crosshair !important; user-select:none; }
 .vt-banner b.num, .st-banner span b.num { font-size:inherit; font-weight:800; color:var(--ink); letter-spacing:0.02em; margin:0 3px; }
 .vt-prow > span:first-child { width:auto; min-width:28px; max-width:7em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }   /* 🏆 v0.1.288 팀 이름이 길면 …(예전 1팀·2팀 = 28px) */
 .vt-banner b .tn-cut, .st-banner b .tn-cut { display:inline-block; max-width:9.5em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom; }   /* 🏆 v0.1.288 긴 팀 이름 = …(「승리」는 한 줄에) */
+.lb-vs .vs-note { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:1px; font-size:11px; color:var(--dim); word-break:keep-all; text-align:center; }   /* 🏆 v0.1.291 대회 경기 안내 + 취소 */
+.lb-vs .vs-note .lb-mini { flex:none; padding:2px 7px; font-size:11px; }
+.lb-vs .vs-bo, .tv-band.sb .sb-bo { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

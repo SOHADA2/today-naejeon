@@ -11,7 +11,7 @@
 const fs = require('fs');
 const src = JSON.parse(fs.readFileSync(0, 'utf8'));
 const t = src.rules.today;
-const SCOPED = ['presence', 'roomList', 'rooms', 'days', 'notice', 'reports', 'warns', 'mutes', 'bans', 'modlog'];
+const SCOPED = ['presence', 'roomList', 'rooms', 'days', 'notice', 'reports', 'warns', 'mutes', 'bans', 'modlog', 'tourneys'];   // 🏆 v0.1.291 tourneys
 const AUTH = 'auth != null';
 const ADMIN = "(auth != null && root.child('today/admins/' + auth.uid).exists())";
 const CADMIN = "(auth != null && (root.child('today/admins/' + auth.uid).exists() || root.child('today/c/' + $cid + '/admins/' + auth.uid).exists()))";
@@ -24,7 +24,7 @@ function tr(x) {
   if (typeof x !== 'string') return x;
   let y = x.split(ADMIN).join('\u0001').split(NOTBAN).join('\u0002');
   for (const k of SCOPED) y = y.split(`'today/${k}/`).join(`'today/c/' + $cid + '/${k}/`).split(`'today/${k}'`).join(`'today/c/' + $cid + '/${k}'`);
-  if (/'today\/(presence|roomList|rooms|days|notice|reports|warns|mutes|bans|modlog)\b/.test(y)) throw new Error('못 바꾼 경로: ' + y.slice(0, 120));
+  if (/'today\/(presence|roomList|rooms|days|notice|reports|warns|mutes|bans|modlog|tourneys)\b/.test(y)) throw new Error('못 바꾼 경로: ' + y.slice(0, 120));
   return y.split('\u0001').join(CADMIN).split('\u0002').join(NOTBAN_C);
 }
 const copy = o => { if (o === null || typeof o !== 'object') return o; const r = {}; for (const [k, v] of Object.entries(o)) r[k] = k.startsWith('.') ? tr(v) : copy(v); return r; };

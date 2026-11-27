@@ -189,13 +189,14 @@ function renderRooms() {
 // 🏆 v0.1.288 시리즈·팀 이름 — session.series {bo, need, names, wins, n, done} (main newSeries)
 const TN = (s, t) => (s && s.series && s.series.names && s.series.names[t]) || (t === 'teamA' ? '1팀' : '2팀');
 const BO_KO = bo => bo === 5 ? '5판 3선승' : bo === 3 ? '3판 2선승' : '';
-const serOn = s => !!(s && s.series && s.series.bo > 1);
+const serOn = s => !!(s && s.series && (s.series.bo > 1 || s.series.tid));   // 시리즈(3·5판) 또는 🏆 대회 경기(단판도)
+const serHead = (S, n) => [S.tn, S.rn, BO_KO(S.bo) || (S.tid ? '단판' : ''), S.bo > 1 && n ? n + '번째 판' : ''].filter(Boolean).map(esc).join(' · ');   // 「가을 멸망전 · 4강 1경기 · 3판 2선승 · 2번째 판」
 const serScore = s => { const w = (s.series && s.series.wins) || {}; return `${w.teamA || 0} : ${w.teamB || 0}`; };
 // 🏆 v0.1.289(사장님: 1단계가 지저분 · 직관적이지 않음) = 점수 띠 따로 두지 않고 팀 화면 맨 위 한 장(점수판) · 배너 안 한 줄로
 function serBoard(s, mt) {   // 팀 화면 점수판 = 「3판 2선승 · 2번째 판」 / 불꽃 1 : 0 번개(내 팀 밝게) / 내 팀 줄
   const S = s.series, me = mt === 1 ? 'teamA' : mt === 2 ? 'teamB' : null;
   const nm = t => `<b class="sb-n ${t === 'teamA' ? 't1' : 't2'}${me === t ? ' me' : ''}">${esc(TN(s, t))}</b>`;
-  return `<span class="sb-bo">${BO_KO(S.bo)} · ${(S.n || 0) + 1}번째 판</span><span class="sb-row">${nm('teamA')}<span class="sb-sc num">${serScore(s)}</span>${nm('teamB')}</span>`
+  return `<span class="sb-bo">${serHead(S, (S.n || 0) + 1)}</span><span class="sb-row">${nm('teamA')}<span class="sb-sc num">${serScore(s)}</span>${nm('teamB')}</span>`
     + `<span class="sb-me">${me ? `내 팀 · <b>${esc(TN(s, me))}</b> ${me === 'teamA' ? 'BLUE' : 'RED'}` : (s.spectators || []).some(x => nn(x) === nn(myName)) ? '이번 판은 관전' : '이번 판 팀 배정'}</span>`;
 }
 function myTeam() {
@@ -698,8 +699,8 @@ function renderResult() {
   el('st-banner').className = 'st-banner ' + (winA ? 't1' : 't2');
   const SD = serOn(s) && s.series.done;   // 🏆 시리즈 = 배너 아래 한 줄(끝나면 금색 「시리즈 승리」)
   el('st-banner').className += SD ? ' serdone' : '';
-  el('st-banner').innerHTML = `<span class="lb-sec-en">${SD ? 'SERIES WIN' : 'RESULT'}</span><b><span class="tn-cut">${esc(TN(s, winA ? 'teamA' : 'teamB'))}</span> 승리</b>`
-    + (serOn(s) ? `<span>${SD ? '🏆 시리즈 승리' : BO_KO(s.series.bo)} · <b class="num">${serScore(s)}</b></span>` : _today ? `<span>오늘 <span class="num">${_today.matches.length}</span>번째 판</span>` : '');
+  el('st-banner').innerHTML = `<span class="lb-sec-en">${SD ? (s.series.tid ? 'MATCH WIN' : 'SERIES WIN') : 'RESULT'}</span><b><span class="tn-cut">${esc(TN(s, winA ? 'teamA' : 'teamB'))}</span> 승리</b>`
+    + (serOn(s) ? `<span>${SD ? (s.series.tid ? '🏆 ' + esc(s.series.rn || '대회 경기') + ' 승리' : '🏆 시리즈 승리') : esc([s.series.rn, BO_KO(s.series.bo) || '단판'].filter(Boolean).join(' · '))} · <b class="num">${serScore(s)}</b></span>` : _today ? `<span>오늘 <span class="num">${_today.matches.length}</span>번째 판</span>` : '');
   const aw = [];
   if (r.mvp) aw.push(`<span class="st-aw"><b>MVP</b><span class="st-awn">${esc(r.mvp)}</span></span>`);
   if (r.svp) aw.push(`<span class="st-aw"><b>SVP</b><span class="st-awn">${esc(r.svp)}</span></span>`);
@@ -897,7 +898,7 @@ function renderLobby() {
   const seat = (m, i, side, over) => {   // side = 직접 방식의 팀 열(왼쪽 1팀 · 오른쪽 2팀) · over = 일반판 6번째부터(롤 파티는 5명까지 → 초대 안 됨)
     const no = String(i + 1).padStart(2, '0'), sn = side === 'teamA' ? 1 : side === 'teamB' ? 2 : 0;
     if (!m) return `<div class="seat empty${sn ? ' side' + sn : ''}${canAdd ? ' add' : ''}"${canAdd ? ' data-addguest="1" title="앱 없는 사람 추가 · 롤 앱이 없는 친구도 이름으로 자리에 앉혀 팀에 넣습니다"' : ''}><span class="seat-no">${no}</span><span class="seat-av">${canAdd ? '<i>＋</i>' : ''}</span>`
-      + `<span class="seat-main"><b class="e1">${sn ? sn + '팀 빈 자리' : '빈 자리'}</b>${canAdd ? '<b class="e2">앱 없는 사람 추가</b>' : ''}</span></div>`;
+      + `<span class="seat-main"><b class="e1">${sn ? esc((L.series && L.series.tid && L.series[sn === 1 ? 'a' : 'b']) || sn + '팀') + ' 빈 자리' : '빈 자리'}</b>${canAdd ? '<b class="e2">앱 없는 사람 추가</b>' : ''}</span></div>`;
     const st = _standing(m.name), cap = capOf(m.name);
     const tags = cap ? `<span class="seat-tag c${cap}" title="${cap}팀 팀장">팀장</span>` : '';
     const spec1 = m.me ? '<button class="seat-spec" data-mespec="1" title="이번 판은 쉬고 관전할게요(자리에서 빠짐 · 아래 「다시 참가하기」로 돌아옵니다)">관전</button>' : '';
@@ -997,15 +998,17 @@ function renderLobby() {
     popAnim(pop, _mpop);   // 🎞️ 상태가 바뀌었을 때만 움직임
     el('lb-mdesc').textContent = normal ? MODE_DESC.normal + (nq === 440 ? ' · 자유 랭크는 1·2·3·5명 파티만 · 각자 롤에서 포지션을 골라야 시작됩니다' : '') : sr && L.mode === 'balance' ? MODE_DESC.balanceSr : MODE_DESC[MODE_KO[L.mode] ? L.mode : 'random'];
   }
-  { // 🏆 v0.1.289 시리즈 대진 카드 = 「3판 2선승」 / [불꽃] VS [번개] — 방장은 이름 칸을 바로 고침(Enter·칸 벗어나면 저장) · 진행 중인 시리즈면 VS 대신 점수
-    const SC = L.series || { bo: 1 }, box = el('lb-vs'), on = !normal && SC.bo > 1, S = sessionData && serOn(sessionData) && !sessionData.series.done ? sessionData : null;
+  { // 🏆 대진 카드(v0.1.289 · v0.1.291 대회 경기) = 「가을 멸망전 · 4강 1경기 · 3판 2선승」 / 불꽃 VS 번개 — 방장이 「대회」 탭에서 경기를 고르면 뜸 · 진행 중이면 VS 대신 점수 · 방장 = 취소
+    const SC = L.series || { bo: 1 }, box = el('lb-vs'), on = !normal && (SC.bo > 1 || !!SC.tid), S = sessionData && serOn(sessionData) && !sessionData.series.done && (!SC.tid || sessionData.series.mid === SC.mid) ? sessionData : null;
     box.style.display = on ? '' : 'none';
     if (on) {
-      const sig = [SC.bo, SC.a, SC.b, myIsHost, S ? serScore(S) : ''].join('|');
-      if (box.dataset.sig !== sig || !box.contains(document.activeElement)) {
+      const sig = [SC.bo, SC.a, SC.b, SC.tid, SC.mid, myIsHost, S ? serScore(S) + (S.series.n || 0) : ''].join('|');
+      if (box.dataset.sig !== sig) {
         box.dataset.sig = sig;
-        const nmH = (k, cls, ph) => `<b class="vs-n ${cls}">${esc(SC[k] || ph)}</b>`;   // v0.1.290 읽기 전용(팀 이름 = 대회에서 옴)
-        box.innerHTML = `<span class="vs-bo">${BO_KO(SC.bo)}${S ? ` · ${(S.series.n || 0) + 1}번째 판` : ''}</span><span class="vs-row">${nmH('a', 't1', '1팀')}<span class="vs-x${S ? ' sc num' : ''}">${S ? serScore(S) : 'VS'}</span>${nmH('b', 't2', '2팀')}</span>`;
+        const nmH = (k, cls, ph) => `<b class="vs-n ${cls}">${esc(SC[k] || ph)}</b>`;
+        box.innerHTML = `<span class="vs-bo">${serHead(SC, S ? (S.series.n || 0) + 1 : 0)}</span><span class="vs-row">${nmH('a', 't1', '1팀')}<span class="vs-x${S ? ' sc num' : ''}">${S ? serScore(S) : 'VS'}</span>${nmH('b', 't2', '2팀')}</span>`
+          + (SC.tid ? `<span class="vs-note">${myIsHost ? '등록 선수만 두 팀에 넣을 수 있습니다 · 나머지는 관전' : '대회 경기 · 방장이 두 팀을 확인하고 시작합니다'}${myIsHost ? '<button class="lb-mini plain" id="lb-vs-x" title="대회 경기 고른 것을 취소하고 보통 내전으로">취소</button>' : ''}</span>` : '');
+        const x = el('lb-vs-x'); if (x) x.onclick = () => lbAct(() => window.api.tourneyCancel());
       }
     }
   }

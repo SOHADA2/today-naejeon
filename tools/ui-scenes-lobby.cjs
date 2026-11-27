@@ -32,7 +32,16 @@ for (const w of [302, 402]) {
   { // 🏆 v0.1.288~289 시리즈 — 방식 창 「판 수」 · 대기실 대진 카드(12자 팀 이름) · 팀원 안내 줄 · 팀 화면 점수 띠 · 투표 · 결과(시리즈 끝)
     const SER = { bo: 3, a: '불꽃', b: '열두글자팀이름열두글자팀' };
     S.push(sc('m-ser-' + w, w, 4, 1, 'random', '', { series: Object.assign({}, SER, { bo: 5 }) }));
-    S.push(sc('h-vs-' + w, w, 4, 0, 'random', '', { series: SER }));   // v0.1.289 대진 카드(방장 = 이름 칸)
+    S.push(sc('h-vs-' + w, w, 4, 0, 'random', '', { series: SER }));
+    { // 🏆 v0.1.291 대회 경기 = 대진 카드에 대회 이름·라운드 + 방장 「취소」 · 팀원 안내 · 팀 화면 점수판 · 단판 대회 경기
+      const TSR = Object.assign({}, SER, { tid: 'a', mid: 'r2m1', ta: 't2', tb: 't3', tn: '가을 멸망전 열두 글자 이름', rn: '4강 2경기' });
+      S.push(sc('h-vs-tour-' + w, w, 6, 0, 'manual', '', { series: TSR, sides: { [NM[0]]: 'teamA', [NM[1]]: 'teamB', [NM[2]]: 'teamA' } }));
+      S.push(sc('m-vs-tour-' + w, w, 6, 1, 'manual', '', { series: Object.assign({}, TSR, { bo: 1 }), sides: { [NM[0]]: 'teamA', [NM[1]]: 'teamB' } }));
+      const st = { phase: 'teams', teamA: [NM[0], NM[2], NM[5]], teamB: [NM[1], NM[3], NM[4]], mode: 'manual', teamsFormedAt: Date.now(), ids: {}, series: { id: 's_a_r2m1', bo: 3, need: 2, names: { teamA: SER.a, teamB: SER.b }, wins: { teamA: 1, teamB: 0 }, n: 1, games: [], done: null, tid: 'a', mid: 'r2m1', tn: TSR.tn, rn: TSR.rn } };
+      S.push({ name: 'x-tour-team-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('session', { session: " + JSON.stringify(st) + ", myName: " + JSON.stringify(NM[0]) + ", isHost: true });" + wait });
+      const sr = Object.assign({}, st, { phase: 'result', game: { id: 'g9', winner: 'teamA' }, result: { mvp: NM[2] }, series: Object.assign({}, st.series, { bo: 1, need: 1, wins: { teamA: 1, teamB: 0 }, done: 'teamA' }) });
+      S.push({ name: 'x-tour-res-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('session', { session: " + JSON.stringify(sr) + ", myName: " + JSON.stringify(NM[0]) + ", isHost: true });" + wait });
+    }   // v0.1.289 대진 카드(방장 = 이름 칸)
     const ss = (phase, n, wa, wb, done, extra) => Object.assign({ phase, teamA: [NM[0], NM[2], NM[5]], teamB: [NM[1], NM[3], NM[4]], mode: 'random', teamsFormedAt: Date.now(), ids: {},
       series: { id: 's1', bo: 3, need: 2, names: { teamA: SER.a, teamB: SER.b }, wins: { teamA: wa, teamB: wb }, n, games: [], done } }, extra || {});
     const sx = (name, sess) => ({ name: name + '-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('session', { session: " + JSON.stringify(sess) + ", myName: " + JSON.stringify(NM[0]) + ", isHost: true });" + wait });

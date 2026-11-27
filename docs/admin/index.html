@@ -143,6 +143,29 @@ textarea{width:100%;min-height:62px;resize:vertical}
 .toast.on{display:block}
 .toast.err{border-color:var(--t2)}
 .x{position:absolute;right:14px;top:12px;background:none;border:0;color:var(--ink-2);font-size:22px;cursor:pointer}
+.tn-list{display:flex;gap:8px;flex-wrap:wrap}
+.tnb{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--rule-2);background:var(--bg-3);cursor:pointer;clip-path:var(--cut-sm);max-width:100%}
+.tnb.on{border-color:var(--gold);color:var(--gold)}
+.tnb b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
+.tnb small{color:var(--ink-3);font-size:11.5px}
+.tn-team{border:1px solid var(--rule-2);padding:10px 12px;margin-top:10px;clip-path:var(--cut-sm)}
+.tn-team .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tn-team .top b{font-size:15px}
+.tn-team .top .sp{margin-left:auto;display:flex;gap:6px}
+.tn-mem{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.tn-mem span{display:inline-flex;align-items:center;gap:6px;padding:3px 4px 3px 9px;border:1px solid var(--rule-2);font-size:13px}
+.tn-mem span.cap{border-color:rgba(214,179,106,.6)} .tn-mem span.sub{color:var(--ink-2);border-style:dashed}
+.tn-mem small{color:var(--gold);font-size:11px} .tn-mem span.sub small{color:var(--ink-3)}
+.tn-mem button{background:none;border:0;color:var(--ink-3);cursor:pointer;padding:0 4px;font-size:13px} .tn-mem button:hover{color:var(--ink)}
+.tn-seed{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--rule)}
+.tn-seed i{font-style:normal;color:var(--ink-3);width:22px;text-align:right} .tn-seed b{flex:1}
+.tn-rd{margin:14px 0 6px;font-size:12.5px;font-weight:700;color:var(--gold)}
+.tn-m{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--rule)}
+.tn-m .no{color:var(--ink-3);font-size:12px;width:52px}
+.tn-m .vs{flex:1;min-width:200px;display:flex;align-items:center;gap:8px}
+.tn-m .vs b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:38%} .tn-m .vs b.win{color:var(--gold)} .tn-m .vs b.lose{color:var(--ink-3)}
+.tn-m .vs em{font-style:normal;font-weight:700;font-variant-numeric:tabular-nums}
+.tn-m .gms{flex-basis:100%;color:var(--ink-3);font-size:12px;padding-left:62px}
 .hide{display:none!important}
   .comm { margin-left:auto; margin-right:10px; padding:5px 8px; background:#0f1824; color:inherit; border:1px solid #2a3a4d; font:inherit; }
   .comm.hide { display:none; }
@@ -160,6 +183,7 @@ textarea{width:100%;min-height:62px;resize:vertical}
     <button data-t="people">사람</button>
     <button data-t="bans">정지</button>
     <button data-t="games">경기 기록</button>
+    <button data-t="tour">대회</button>
     <button data-t="notice">공지</button>
     <button data-t="log">운영 기록</button>
     <button data-t="admin">설정</button>
@@ -207,6 +231,20 @@ textarea{width:100%;min-height:62px;resize:vertical}
       <div class="days-pick" id="gm-days"></div>
       <div class="sec card"><div class="sec-h"><span class="en">RECORDS</span><h2 id="gm-h">경기 기록</h2><span class="sp">이긴 팀 바꾸기·지우기 = 운영 기록에 남음 · 순위·티어는 앱이 다시 계산</span></div><div id="gm-list"><div class="empty">날짜를 고르세요</div></div></div>
     </section>
+    <!-- 🏆 대회(v0.1.291) -->
+    <section data-p="tour" class="hide">
+      <div class="sec card"><div class="sec-h"><span class="en">TOURNAMENTS</span><h2>대회</h2><span class="sp">진행 중·끝난 대회만 앱 「대회」 탭에 보임 · 준비 중은 여기서만</span></div>
+        <div class="tn-list" id="tn-list"></div>
+        <div class="row" style="margin-top:12px"><input id="tn-name" class="in" maxlength="30" placeholder="새 대회 이름 (예: 가을 멸망전)" style="flex:1;min-width:180px">
+          <select id="tn-fmt"><option value="se">싱글 토너먼트(지면 탈락)</option><option value="rr">풀리그(모두 한 번씩)</option></select>
+          <select id="tn-bo"><option value="1">단판</option><option value="3" selected>3판 2선승</option><option value="5">5판 3선승</option></select>
+          <select id="tn-bof" title="싱글 토너먼트 결승 판수"><option value="0">결승도 같게</option><option value="3">결승 3판 2선승</option><option value="5">결승 5판 3선승</option></select>
+          <button class="btn gold" id="tn-go">대회 만들기</button></div>
+        <p class="mute" style="margin:10px 0 0;font-size:12.5px">순서 = ① 대회 만들기 → ② 팀 등록(선수 5명 + 후보 2명까지 · 기록 공개에 동의한 계정만) → ③ 대진 짜기 → ④ 대회 시작 · 그다음엔 방장이 앱 「대회」 탭에서 경기를 골라 시작하고 결과는 자동으로 들어옵니다 ·
+          시드는 무작위나 손으로만 정합니다(라이엇 규정: 점수·랭크로 시드 금지) · 이름에 라이엇 공식 대회 이름(LCK·월즈·MSI 등)이나 「공식」은 쓸 수 없습니다</p>
+      </div>
+      <div id="tn-detail"></div>
+    </section>
     <!-- 공지 -->
     <section data-p="notice" class="hide">
       <div class="sec card"><div class="sec-h"><span class="en">NOTICE</span><h2>공지</h2><span class="sp">모든 앱 위쪽에 띠로 뜸 · 각자 닫으면 그 공지는 다시 안 뜸</span></div>
@@ -231,6 +269,7 @@ textarea{width:100%;min-height:62px;resize:vertical}
 <div class="drawer" id="dr"><div class="bk" data-close></div><div class="pn" id="pn"></div></div>
 <div class="toast" id="toast"></div>
 
+<script src="tourney.js"></script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
@@ -377,7 +416,7 @@ const banOn = b => b && b.until > Date.now();
 function roomOf(key) { for (const [id, r] of Object.entries(S.rooms)) if (r && r.uids && r.uids[key]) return id; return null; }
 const latest = () => { let v = '0.0.0'; for (const p of Object.values(S.presence)) if (p && p.app && vcmp(p.app, v) > 0) v = p.app; return v; };
 
-function renderAll() { renderKpis(); renderRooms(); renderVers(); renderPeople(); renderBans(); renderLog(); renderReports(); renderNotice(); renderAdmin(); renderGameDays(); }
+function renderAll() { loadTour().catch(() => {}); renderKpis(); renderRooms(); renderVers(); renderPeople(); renderBans(); renderLog(); renderReports(); renderNotice(); renderAdmin(); renderGameDays(); }
 function renderKpis() {
   const P = people(), on = P.filter(x => x.on).length, guests = Object.entries(S.presence).filter(([k, p]) => k.startsWith('g_') && p && Date.now() - (p.at || 0) < ONLINE_MS).length;
   const open = Object.values(S.roomList).filter(r => r && r.name && Date.now() - Math.max(r.seen || 0, r.at || 0) < 90000).length;
@@ -430,9 +469,123 @@ document.querySelector('section[data-p="bans"]').onclick = e => {
   const u = e.target.closest('[data-unban]'), c = e.target.closest('[data-clear]'), p = e.target.closest('[data-k]');
   if (u) unban(u.dataset.unban); else if (c) unban(c.dataset.clear, true); else if (p) openPerson(p.dataset.k);
 };
-const ACT = { gamefix: '경기 기록 고침', gamedel: '경기 기록 지움', wipe: '개인정보 지움', cap: '자리 한도 바꿈', opadd: '운영자 추가', opdel: '운영자 뺌', ban: '정지', unban: '정지 해제', kick: '방에서 내보냄', roomdel: '방 지움', warn: '경고', mute: '채팅 금지', unmute: '채팅 금지 해제', report: '신고 처리', notice: '공지', unnotice: '공지 내림' };
+const ACT = { gamefix: '경기 기록 고침', gamedel: '경기 기록 지움', wipe: '개인정보 지움', cap: '자리 한도 바꿈', tnew: '대회 만듦', tdel: '대회 지움', tst: '대회 상태 바꿈', tgen: '대진 짬', twin: '대회 승자 정함', tres: '대회 결과 지움', opadd: '운영자 추가', opdel: '운영자 뺌', ban: '정지', unban: '정지 해제', kick: '방에서 내보냄', roomdel: '방 지움', warn: '경고', mute: '채팅 금지', unmute: '채팅 금지 해제', report: '신고 처리', notice: '공지', unnotice: '공지 내림' };
 const warnN = k => Object.keys(S.warns[k] || {}).length;
 const openReports = () => Object.entries(S.reports || {}).map(([id, r]) => ({ id, ...r })).filter(r => r && r.st !== 'done');
+// ── 🏆 대회(v0.1.291) — `${CT}/tourneys/{대회}` = {name, fmt se|rr, bo, boF, st draft|live|done, at, by, teams{팀: {name, tag, seed, mem{puuid: {n, r cap|sub|''}}}}, matches{…}, res{경기: {게임: {w, day, at}}}}
+//   계산(대진 만들기·점수·진출·순위) = tourney.js(앱과 같은 파일 · window.tnTourney) · res는 방장 앱이 판을 기록할 때 씀(규칙이 경기 기록과 대조) · 운영자는 승자 정하기(기권·부전승)·결과 지우기
+const TNC = window.tnTourney;
+let TSEL = null;
+const TN_BAN = /(msi|worlds|월즈|롤드컵|first\s*stand|퍼스트\s*스탠드|\blcs\b|cblol|\blec\b|\blck\b|\blpl\b|\blcp\b|riot|라이엇|league\s*of\s*legends|리그\s*오브\s*레전드|lol\s*esports|공식|official)/i;
+const TN_ST = { draft: '준비 중', live: '진행 중', done: '끝남' }, TN_FMT = { se: '싱글 토너먼트', rr: '풀리그' }, TN_ROLE = { cap: '팀장', '': '선수', sub: '후보' };
+const tnP = (id, rest) => `${CT}/tourneys${id ? '/' + id : ''}${rest ? '/' + rest : ''}`;
+const rid = pre => pre + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+const tnErr = e => /permission/i.test(e.message || '') ? '서버가 거절했습니다 · 대회 규칙이 아직 서버에 적용되지 않았을 수 있습니다' : (e.message || '실패');
+async function loadTour() { try { S.tn = (await get(tnP())) || {}; } catch (e) { S.tn = {}; } renderTour(); }
+async function tnDo(fn, okMsg) { try { await fn(); if (okMsg) toast(okMsg); } catch (e) { toast(tnErr(e), true); } await loadTour(); }
+function renderTour() {
+  const L = Object.entries(S.tn || {}).filter(([, t]) => t && t.name).sort((a, b) => (b[1].at || 0) - (a[1].at || 0));
+  if (TSEL && !(S.tn || {})[TSEL]) TSEL = null; if (!TSEL && L.length) TSEL = L[0][0];
+  $('tn-list').innerHTML = L.length ? L.map(([id, t]) => `<button class="tnb${id === TSEL ? ' on' : ''}" data-tsel="${esc(id)}"><b>${esc(t.name)}</b><span class="tag${t.st === 'live' ? ' gold' : ''}">${TN_ST[t.st] || t.st}</span><small>${TN_FMT[t.fmt] || ''} · ${Object.keys(t.teams || {}).length}팀</small></button>`).join('') : '<div class="empty">아직 대회가 없습니다 · 아래에서 만드세요</div>';
+  $('tn-list').querySelectorAll('[data-tsel]').forEach(b => b.onclick = () => { TSEL = b.dataset.tsel; renderTour(); });
+  renderTourDetail();
+}
+$('tn-fmt').onchange = () => { $('tn-bof').disabled = $('tn-fmt').value !== 'se'; };
+$('tn-go').onclick = () => {
+  const name = $('tn-name').value.trim().slice(0, 30); if (!name) return toast('대회 이름을 적어 주세요', true);
+  if (TN_BAN.test(name)) return toast('라이엇 공식 대회 이름이나 「공식」·「라이엇」은 대회 이름에 쓸 수 없습니다', true);
+  const fmt = $('tn-fmt').value === 'rr' ? 'rr' : 'se', bo = Number($('tn-bo').value) || 1, boF = fmt === 'se' ? Number($('tn-bof').value) || 0 : 0, id = rid('t');
+  tnDo(async () => { await api('PUT', tnP(id), Object.assign({ name, fmt, bo, st: 'draft', at: Date.now(), by: ME.name }, boF ? { boF } : {})); await logIt({ act: 'tnew', target: id, name }); TSEL = id; $('tn-name').value = ''; }, '대회를 만들었습니다 · 이제 팀을 등록하세요');
+};
+const tnTeams = t => Object.entries(t.teams || {}).map(([id, x]) => Object.assign({ id }, x)).sort((a, b) => (a.seed || 0) - (b.seed || 0) || String(a.name).localeCompare(String(b.name), 'ko'));
+const tnResN = t => Object.values(t.res || {}).reduce((n, g) => n + Object.keys(g || {}).length, 0);
+function renderTourDetail() {
+  const box = $('tn-detail'), t = TSEL && S.tn[TSEL]; if (!t) { box.innerHTML = ''; return; }
+  const teams = tnTeams(t), hasM = !!t.matches && Object.keys(t.matches).length > 0, resN = tnResN(t), R = hasM ? TNC.resolve(t) : null;
+  const boTx = TNC.BO_KO(t.bo || 1) + (t.fmt === 'se' && t.boF && t.boF !== t.bo ? ` · 결승 ${TNC.BO_KO(t.boF)}` : '');
+  // ① 머리
+  let h = `<div class="sec card"><div class="sec-h"><span class="en">${t.fmt === 'rr' ? 'ROUND ROBIN' : 'BRACKET'}</span><h2>${esc(t.name)}</h2><span class="tag${t.st === 'live' ? ' gold' : ''}">${TN_ST[t.st] || t.st}</span><span class="sp">${TN_FMT[t.fmt]} · ${boTx} · ${teams.length}팀${R && R.champ ? ` · 🏆 우승 ${esc(R.champ.name)}` : ''}</span></div><div class="row">`
+    + (t.st === 'draft' ? `<button class="btn gold" data-ta="st" data-v="live"${hasM ? '' : ' disabled title="먼저 대진을 짜 주세요"'}>대회 시작(앱에 보이기)</button>` : '')
+    + (t.st === 'live' ? `<button class="btn" data-ta="st" data-v="draft">준비 중으로 되돌리기(앱에서 숨김)</button><button class="btn gold" data-ta="st" data-v="done">대회 끝내기</button>` : '')
+    + (t.st === 'done' ? `<button class="btn" data-ta="st" data-v="live">다시 진행 중으로</button>` : '')
+    + `<button class="btn" data-ta="rename">이름 바꾸기</button><button class="btn red" data-ta="del">대회 지우기</button></div></div>`;
+  // ② 팀
+  h += `<div class="sec card"><div class="sec-h"><span class="en">TEAMS</span><h2>팀</h2><span class="sp">선수 ${TNC.MAIN_MAX}명(팀장 포함) + 후보 ${TNC.SUB_MAX}명까지 · 대회 경기에는 등록 선수만 나갈 수 있음 · 선수 바꾸기는 언제든</span></div>`
+    + (teams.length ? teams.map(tm => { const c = TNC.rosterCount(tm), mem = Object.entries(tm.mem || {}).map(([k, m]) => Object.assign({ k }, m)).sort((a, b) => ['cap', '', 'sub'].indexOf(a.r || '') - ['cap', '', 'sub'].indexOf(b.r || ''));
+        return `<div class="tn-team"><div class="top"><b>${esc(tm.name)}</b>${tm.tag ? `<span class="tag gold">${esc(tm.tag)}</span>` : ''}<span class="mute">선수 ${c.main}/${TNC.MAIN_MAX} · 후보 ${c.sub}/${TNC.SUB_MAX}${c.cap ? '' : ' · 팀장 없음'}</span>
+          <span class="sp"><button class="btn sm" data-ta="trename" data-k="${esc(tm.id)}">이름·태그</button><button class="btn sm red" data-ta="tdel" data-k="${esc(tm.id)}"${hasM ? ' disabled title="대진이 있으면 팀을 지울 수 없습니다 · 먼저 대진을 지우세요"' : ''}>팀 지우기</button></span></div>
+          <div class="tn-mem">${mem.map(m => `<span class="${m.r || ''}">${esc(m.n || '?')}<small>${TN_ROLE[m.r || '']}</small><button title="역할 바꾸기(선수 → 팀장 → 후보)" data-ta="mrole" data-k="${esc(tm.id)}" data-p="${esc(m.k)}">⇄</button><button title="빼기" data-ta="mdel" data-k="${esc(tm.id)}" data-p="${esc(m.k)}">✕</button></span>`).join('') || '<span class="mute" style="border:0;padding:0">아직 선수가 없습니다</span>'}</div>
+          <div class="row"><input class="in tn-add" list="tn-accts" data-k="${esc(tm.id)}" placeholder="이름#태그 로 찾기" style="flex:1;min-width:160px"><button class="btn sm" data-ta="madd" data-k="${esc(tm.id)}" data-r="">선수로 추가</button><button class="btn sm" data-ta="madd" data-k="${esc(tm.id)}" data-r="sub">후보로 추가</button></div></div>`; }).join('') : '<div class="empty">아직 팀이 없습니다</div>')
+    + `<div class="row" style="margin-top:14px"><input id="tn-tname" class="in" maxlength="12" placeholder="팀 이름(12자)" style="flex:1;min-width:140px"><input id="tn-ttag" class="in" maxlength="4" placeholder="태그(4자)" style="width:90px"><button class="btn gold" data-ta="tadd"${hasM ? ' disabled title="대진이 있으면 팀을 더할 수 없습니다 · 먼저 대진을 지우세요"' : ''}>팀 추가</button></div>
+      <datalist id="tn-accts">${people().filter(x => !x.key.startsWith('g_')).sort((a, b) => b.last - a.last).slice(0, 400).map(x => `<option value="${esc(x.name + (x.tag ? '#' + x.tag : ''))}">`).join('')}</datalist></div>`;
+  // ③ 대진
+  h += `<div class="sec card"><div class="sec-h"><span class="en">MATCHES</span><h2>${t.fmt === 'rr' ? '경기' : '대진'}</h2><span class="sp">${hasM ? `기록된 판 ${resN}개 · 결과는 방장 앱이 자동으로 넣음` : '시드 순서를 정하고 대진을 만듭니다'}</span></div>`;
+  if (!hasM) {
+    h += (teams.length >= 2 ? teams.map((tm, i) => `<div class="tn-seed"><i>${i + 1}</i><b>${esc(tm.name)}</b><button class="btn sm" data-ta="sup" data-k="${esc(tm.id)}"${i ? '' : ' disabled'}>▲</button><button class="btn sm" data-ta="sdn" data-k="${esc(tm.id)}"${i < teams.length - 1 ? '' : ' disabled'}>▼</button></div>`).join('')
+      + `<div class="row" style="margin-top:12px"><button class="btn" data-ta="shuf">무작위로 섞기</button><button class="btn gold" data-ta="gen">대진 만들기</button><span class="mute" style="font-size:12.5px">${t.fmt === 'se' ? '싱글 토너먼트 = 1번 시드가 꼴찌 시드와 · 팀 수가 안 맞으면 위 시드가 부전승' : '풀리그 = 모든 팀이 한 번씩'}</span></div>` : '<div class="empty">팀을 2개 이상 등록하면 대진을 짤 수 있습니다</div>');
+  } else {
+    if (R.standings) h += `<div class="tw"><table><thead><tr><th>#</th><th>팀</th><th>승</th><th>패</th><th>판 득실</th></tr></thead><tbody>${R.standings.map(p2 => `<tr><td>${p2.rank}</td><td>${esc(p2.name)}</td><td>${p2.w}</td><td>${p2.l}</td><td>${p2.gw}-${p2.gl}</td></tr>`).join('')}</tbody></table></div>`;
+    for (const rd of R.byRound) { const ms = rd.matches.filter(m => m.state !== 'void'); if (!ms.length) continue;
+      h += `<div class="tn-rd">${esc(rd.name)}</div>` + ms.map(m => { const A = m.ta, B = m.tb, cls = id2 => m.win ? (m.win === id2 ? 'win' : 'lose') : '';
+        const stt = m.how === 'bye' ? '부전승' : m.how === 'admin' ? '운영자 판정' : { wait: '앞 경기 대기', ready: '대기', live: '진행 중', done: '끝' }[m.state];
+        return `<div class="tn-m"><span class="no">${ms.length > 1 ? m.no + '경기' : esc(rd.name)}</span><span class="vs"><b class="${A ? cls(A.id) : ''}">${A ? esc(A.name) : '미정'}</b><em>${m.how === 'bye' || !A || !B ? '–' : m.sa + ' : ' + m.sb}</em><b class="${B ? cls(B.id) : ''}">${B ? esc(B.name) : '미정'}</b><span class="tag${m.state === 'live' ? ' gold' : ''}">${stt}</span><span class="mute" style="font-size:12px">${TNC.BO_KO(m.bo)}</span></span>`
+          + (A && B && m.how !== 'bye' ? `<select data-tw="${esc(m.id)}" title="기권·몰수 같은 때 운영자가 승자를 정함 · 「자동」 = 기록된 판으로"><option value="">승자 = 자동</option><option value="${esc(A.id)}"${t.matches[m.id].win === A.id ? ' selected' : ''}>${esc(A.name)} 승</option><option value="${esc(B.id)}"${t.matches[m.id].win === B.id ? ' selected' : ''}>${esc(B.name)} 승</option></select>` : '')
+          + (m.games.length ? `<button class="btn sm red" data-ta="rclr" data-k="${esc(m.id)}">결과 지우기</button>` : '')
+          + (m.games.length ? `<span class="gms">${m.games.map((g, i) => `${i + 1}판 ${esc((t.teams[g.w] || {}).name || '?')} 승${g.day ? ' (' + esc(g.day.slice(5)) + ')' : ''}`).join(' · ')}</span>` : '') + '</div>'; }).join(''); }
+    h += `<div class="row" style="margin-top:14px"><button class="btn red" data-ta="mclr">대진 지우기(다시 짜기)</button><span class="mute" style="font-size:12.5px">${resN ? '⚠️ 기록된 결과 ' + resN + '판도 대회에서 빠집니다(경기 기록 자체는 남음)' : '아직 기록된 판이 없습니다'}</span></div>`;
+  }
+  h += '</div>';
+  box.innerHTML = h;
+  box.querySelectorAll('[data-ta]').forEach(b => b.onclick = () => tnAct(b));
+  box.querySelectorAll('select[data-tw]').forEach(sel => sel.onchange = () => { const mid = sel.dataset.tw, v = sel.value || null, nm = v ? (t.teams[v] || {}).name : '자동';
+    if (!confirm(`이 경기 승자를 「${nm}」(으)로 정할까요?`)) { renderTourDetail(); return; }
+    tnDo(async () => { await api('PUT', tnP(TSEL, `matches/${mid}/win`), v); await logIt({ act: 'twin', target: TSEL, name: t.name, reason: `${mid} → ${nm}`.slice(0, 200) }); }, '승자를 정했습니다'); });
+  box.querySelectorAll('.tn-add').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') { const b = box.querySelector(`[data-ta="madd"][data-k="${CSS.escape(i.dataset.k)}"][data-r=""]`); if (b) b.click(); } });
+}
+function tnAct(b) {
+  const t = S.tn[TSEL], a = b.dataset.ta, k = b.dataset.k, teams = tnTeams(t); if (!t) return;
+  if (a === 'st') { const v = b.dataset.v; if (v === 'done' && !confirm('대회를 끝낼까요? 앱에는 「끝남」으로 남습니다.')) return;
+    return tnDo(async () => { await api('PUT', tnP(TSEL, 'st'), v); await logIt({ act: 'tst', target: TSEL, name: t.name, reason: TN_ST[v] }); }, `「${TN_ST[v]}」(으)로 바꿨습니다`); }
+  if (a === 'rename') { const n = (prompt('대회 이름', t.name) || '').trim().slice(0, 30); if (!n || n === t.name) return; if (TN_BAN.test(n)) return toast('라이엇 공식 대회 이름이나 「공식」·「라이엇」은 쓸 수 없습니다', true);
+    return tnDo(() => api('PUT', tnP(TSEL, 'name'), n), '이름을 바꿨습니다'); }
+  if (a === 'del') { if (prompt(`「${t.name}」 대회를 지웁니다. 되돌릴 수 없습니다(경기 기록 자체는 남음).\n지우려면 대회 이름을 그대로 적어 주세요.`) !== t.name) return;
+    return tnDo(async () => { await api('DELETE', tnP(TSEL)); await logIt({ act: 'tdel', target: TSEL, name: t.name }); TSEL = null; }, '대회를 지웠습니다'); }
+  if (a === 'tadd') { const name = $('tn-tname').value.trim().slice(0, 12), tag = $('tn-ttag').value.trim().toUpperCase().slice(0, 4); if (!name) return toast('팀 이름을 적어 주세요', true);
+    if (teams.some(x => x.name === name)) return toast('같은 이름의 팀이 있습니다', true);
+    return tnDo(() => api('PUT', tnP(TSEL, 'teams/' + rid('m')), Object.assign({ name, seed: teams.length + 1 }, tag ? { tag } : {})), `「${name}」 팀을 추가했습니다`); }
+  const tm = t.teams && t.teams[k];
+  if (a === 'trename' && tm) { const n = (prompt('팀 이름(12자)', tm.name) || '').trim().slice(0, 12); if (!n) return; const g = (prompt('태그(4자 · 비우면 없음)', tm.tag || '') || '').trim().toUpperCase().slice(0, 4);
+    return tnDo(() => api('PATCH', tnP(TSEL, 'teams/' + k), { name: n, tag: g || null }), '바꿨습니다'); }
+  if (a === 'tdel' && tm) { if (!confirm(`「${tm.name}」 팀을 지울까요?`)) return; return tnDo(() => api('DELETE', tnP(TSEL, 'teams/' + k)), '팀을 지웠습니다'); }
+  if (a === 'madd' && tm) { const inp = $('tn-detail').querySelector(`.tn-add[data-k="${CSS.escape(k)}"]`), q = (inp.value || '').trim(); if (!q) return toast('이름#태그를 적어 주세요', true);
+    const low = q.toLowerCase(), P = people().filter(x => !x.key.startsWith('g_')), hit = P.filter(x => (x.name + (x.tag ? '#' + x.tag : '')).toLowerCase() === low), byName = hit.length ? hit : P.filter(x => x.name.toLowerCase() === low);
+    if (!byName.length) return toast('그 이름의 계정이 없습니다 · 앱을 한 번이라도 켠 계정만 등록됩니다', true);
+    if (byName.length > 1) return toast('같은 이름이 여러 명입니다 · 이름#태그로 적어 주세요', true);
+    const u = byName[0], acc = S.accounts[u.key] || {}, role = b.dataset.r || '', c = TNC.rosterCount(tm);
+    if (!(acc.pub > 0)) return toast(`${u.name}님은 아직 「내전 기록 공개」에 동의하지 않았습니다 · 앱에서 동의한 뒤 등록할 수 있습니다`, true);
+    const other = teams.find(x => x.mem && x.mem[u.key]); if (other) return toast(`${u.name}님은 이미 「${other.name}」 팀에 있습니다`, true);
+    if (role === 'sub' ? c.sub >= TNC.SUB_MAX : c.main >= TNC.MAIN_MAX) return toast(role === 'sub' ? `후보는 ${TNC.SUB_MAX}명까지입니다` : `선수는 ${TNC.MAIN_MAX}명까지입니다 · 후보로 추가하세요`, true);
+    return tnDo(() => api('PUT', tnP(TSEL, `teams/${k}/mem/${u.key}`), { n: u.name, r: role === 'sub' ? 'sub' : (c.cap || c.main ? '' : 'cap') }), `${u.name}님을 추가했습니다`); }
+  if (a === 'mdel' && tm) { const m = tm.mem[b.dataset.p]; if (!m || !confirm(`${m.n}님을 「${tm.name}」 팀에서 뺄까요?`)) return; return tnDo(() => api('DELETE', tnP(TSEL, `teams/${k}/mem/${b.dataset.p}`)), '뺐습니다'); }
+  if (a === 'mrole' && tm) { const m = tm.mem[b.dataset.p], c = TNC.rosterCount(tm); if (!m) return; const cur = m.r || '', next = cur === '' ? 'cap' : cur === 'cap' ? 'sub' : '';
+    if (next === 'sub' && c.sub >= TNC.SUB_MAX) return toast(`후보는 ${TNC.SUB_MAX}명까지입니다`, true);
+    if (next === '' && cur === 'sub' && c.main >= TNC.MAIN_MAX) return toast(`선수는 ${TNC.MAIN_MAX}명까지입니다`, true);
+    const up = { [`${b.dataset.p}/r`]: next }; if (next === 'cap') for (const [pk, x] of Object.entries(tm.mem)) if (x.r === 'cap' && pk !== b.dataset.p) up[`${pk}/r`] = '';   // 팀장은 한 명
+    return tnDo(() => api('PATCH', tnP(TSEL, `teams/${k}/mem`), up)); }
+  if (a === 'sup' || a === 'sdn' || a === 'shuf') { let ord = teams.map(x => x.id); const i = ord.indexOf(k);
+    if (a === 'shuf') for (let j = ord.length - 1; j > 0; j--) { const r2 = Math.floor(Math.random() * (j + 1)); [ord[j], ord[r2]] = [ord[r2], ord[j]]; }
+    else { const j = a === 'sup' ? i - 1 : i + 1; if (i < 0 || j < 0 || j >= ord.length) return; [ord[i], ord[j]] = [ord[j], ord[i]]; }
+    const up = {}; ord.forEach((id2, n) => { up[`${id2}/seed`] = n + 1; });
+    return tnDo(() => api('PATCH', tnP(TSEL, 'teams'), up)); }
+  if (a === 'gen') { if (teams.length < 2) return; const empty = teams.filter(x => !Object.keys(x.mem || {}).length);
+    if (empty.length && !confirm(`선수가 없는 팀이 있습니다(${empty.map(x => x.name).join(', ')}). 그래도 대진을 만들까요?`)) return;
+    const ids = teams.map(x => x.id), M = t.fmt === 'rr' ? TNC.makeRR(ids, t.bo || 1) : TNC.makeSE(ids, t.bo || 1, t.boF || 0);
+    return tnDo(async () => { await api('PUT', tnP(TSEL, 'matches'), M); await logIt({ act: 'tgen', target: TSEL, name: t.name, reason: `${teams.length}팀 · ${Object.keys(M).length}경기` }); }, '대진을 만들었습니다 · 확인한 뒤 「대회 시작」을 누르세요'); }
+  if (a === 'mclr') { if (!confirm('대진을 지우고 다시 짤까요?' + (tnResN(t) ? '\n⚠️ 이 대회에 기록된 결과도 함께 빠집니다.' : ''))) return;
+    return tnDo(async () => { await api('PATCH', tnP(TSEL), { matches: null, res: null }); await logIt({ act: 'tgen', target: TSEL, name: t.name, reason: '대진 지움' }); }, '대진을 지웠습니다'); }
+  if (a === 'rclr') { if (!confirm('이 경기에 기록된 판을 대회에서 뺄까요? (경기 기록 자체는 남습니다 · 다시 하면 새로 쌓임)')) return;
+    return tnDo(async () => { await api('DELETE', tnP(TSEL, 'res/' + k)); await logIt({ act: 'tres', target: TSEL, name: t.name, reason: k }); }, '결과를 지웠습니다'); }
+}
 // 🚨 신고함
 function renderReports() {
   const all = Object.entries(S.reports || {}).map(([id, r]) => ({ id, ...r })).filter(r => r && r.at).sort((a, b) => (a.st === 'done') - (b.st === 'done') || b.at - a.at);

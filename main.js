@@ -2340,6 +2340,10 @@ async function lobbySide(name, team) {
   if (!v.members.some(m => m.st === 'in' && m.name === n)) return { ok: false, err: '참가자 중에서 골라주세요' };
   const t = team === 'teamA' || team === 'teamB' ? team : null;
   if (t && v.sides[n] !== t && Object.values(v.sides).filter(x => x === t).length >= 5) return { ok: false, err: `${t === 'teamA' ? '1' : '2'}팀은 5명까지입니다` };
+  if (t && v.series && v.series.tid) {   // 🏆 대회 경기 = 그 팀 등록 선수만(바로 알려 줌 · 시작할 때 서버 자료로 한 번 더 확인)
+    const tn = _tn.raw && _tn.raw[v.series.tid], tm = tn && tn.teams && tn.teams[t === 'teamA' ? v.series.ta : v.series.tb], key = (v.members.find(m => m.name === n) || {}).key;
+    if (tm && !(tm.mem || {})[key]) return { ok: false, err: `${n}님은 ${t === 'teamA' ? v.series.a : v.series.b} 팀 등록 선수가 아닙니다` };
+  }
   const k = fbKeyOf(n);
   lobbyLocal(L => { L.sides = L.sides || {}; if (t) L.sides[k] = t; else delete L.sides[k]; });
   return lobbyWrite(fbSet(`${RP()}/lobby/sides/${k}`, t));
@@ -2362,11 +2366,13 @@ async function lobbySidesPrev() {   // 지난 판 팀 그대로(지금 판 → �
 //   session.series = {id, bo, need, names:{teamA,teamB}, wins:{teamA,teamB}, n(지난 판 수), games:[게임 번호], done: null|'teamA'|'teamB'}
 //   = 팀이 정해질 때(writeTeams·드래프트) 새로 · 「다음 판」(tb-again · 같은 팀) = 이어서 · 판이 기록되면(recordGame) 점수 올림 + 경기 기록에 series 칸
 //   v0.1.289 = 이름은 시리즈(3·5판)일 때만 · 방식 창 「판 수」 + 대기실 아래 대진 카드에서 이름
-const serName = (v, d) => { const t = String(v || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 12); return t || d; };
+const serName = (v, d, n) => { const t = String(v || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, n || 12); return t || d; };
 function serCfg(x) {
   if (!x || typeof x !== 'object') return { bo: 1, a: '', b: '' };
   const bo = [3, 5].includes(Number(x.bo)) ? Number(x.bo) : 1;
-  return { bo, a: serName(x.a, ''), b: serName(x.b, '') };
+  const c = { bo, a: serName(x.a, ''), b: serName(x.b, '') };
+  if (x.tid && x.mid) Object.assign(c, { tid: serName(x.tid, '', 40), mid: serName(x.mid, '', 20), ta: serName(x.ta, '', 40), tb: serName(x.tb, '', 40), tn: serName(x.tn, '', 30), rn: serName(x.rn, '', 20) });   // 🏆 v0.1.291 대회 경기
+  return c;
 }
 async function lobbySeries(v) {
   if (!config.isHost) return { ok: false, err: '방장만 정할 수 있습니다' };
@@ -2376,8 +2382,66 @@ async function lobbySeries(v) {
 }
 function newSeries(now) {
   const c = serCfg(lobbyRaw && lobbyRaw.series);
-  if (c.bo <= 1) return null;   // v0.1.289 팀 이름은 시리즈일 때만(단판 = 1팀·2팀)
-  return { id: 's' + now, bo: c.bo, need: c.bo > 1 ? Math.ceil(c.bo / 2) : 0, names: { teamA: c.a || '1팀', teamB: c.b || '2팀' }, wins: { teamA: 0, teamB: 0 }, n: 0, games: [], done: null, at: now };
+  if (c.bo <= 1 && !c.tid) return null;   // 시리즈 = 3·5판 또는 대회 경기(단판도)
+  const S = { id: 's' + now, bo: c.bo, need: Math.ceil(c.bo / 2), names: { teamA: c.a || '1팀', teamB: c.b || '2팀' }, wins: { teamA: 0, teamB: 0 }, n: 0, games: [], done: null, at: now };
+  if (c.tid) {   // 🏆 대회 경기 = 서버에 쌓인 결과(res)에서 이어받음(방·방장이 바뀌어도 점수 유지)
+    Object.assign(S, { id: 's_' + c.tid + '_' + c.mid, tid: c.tid, mid: c.mid, ta: c.ta, tb: c.tb, tn: c.tn, rn: c.rn });
+    const t = _tn.raw && _tn.raw[c.tid], m = t ? tourney.resolve(t).matches[c.mid] : null;
+    if (m && m.a === c.ta && m.b === c.tb) { S.wins = { teamA: m.sa, teamB: m.sb }; S.n = m.games.length; S.games = m.games.map(g => g.gid); if (m.state === 'done') S.done = m.win === c.ta ? 'teamA' : 'teamB'; }
+  }
+  return S;
+}
+// ── 🏆 대회(v0.1.291 · 사장님: 시리즈·팀 이름·대진표를 묶어 = 2단계) ─────────────────────────────
+//   `${CT}/tourneys/{대회}` = 운영자가 운영 보드에서 만듦(이름·형식 se|rr·판수·팀·대진) · 앱은 읽기 + 결과 칸(res)만 씀
+//   앱: 오른쪽 창 「대회」 탭(대진표·순위·팀) · 방장이 방 안에서 「이 경기 시작」 → 대기실에 그 두 팀(등록 선수만)·이름·판수 = lobby/series {…tid, mid, ta, tb}
+//   → 판이 기록되면 recordGame이 `tourneys/{대회}/res/{경기}/{게임}` = {w: 이긴 팀, day, at, n}(규칙 = 그 경기 기록이 실제로 있고 승자가 같을 때만) → 대진표가 그걸로 계산(tourney.js resolve)
+const tourney = require('./tourney.js');
+const _tn = { at: 0, raw: null, busy: null };
+function tnFetch(force) {
+  if (_tn.fixed) return Promise.resolve(_tn.raw = _tn.fixed);   // 🧪 개발용(배포본엔 없음 · global.__tnDev.fix) = 서버 대신 정해 둔 대회 자료
+  if (!force && _tn.at && Date.now() - _tn.at < 20000) return Promise.resolve(_tn.raw);
+  if (_tn.busy) return _tn.busy;
+  _tn.busy = (async () => { try { const r = await getJson(`${FIREBASE_DB}/${CT}/tourneys.json`); _tn.raw = r && typeof r === 'object' && !r.error ? r : null; _tn.at = Date.now(); } catch (_) {} finally { _tn.busy = null; } return _tn.raw; })();
+  return _tn.busy;
+}
+if (!app.isPackaged) global.__tnDev = { fix: raw => { _tn.fixed = raw || null; _tn.at = 0; } };
+const TN_ROLE = { cap: 0, '': 1, sub: 2 };
+async function tourneyView(force) {
+  const raw = (await tnFetch(force)) || {}, me = account ? account.puuid : null, cur = serCfg(lobbyRaw && lobbyRaw.series);
+  const list = Object.entries(raw).filter(([, t]) => t && t.name && (t.st === 'live' || t.st === 'done') && t.matches).sort((a, b) => (a[1].st === 'live' ? 0 : 1) - (b[1].st === 'live' ? 0 : 1) || (b[1].at || 0) - (a[1].at || 0)).slice(0, 12).map(([id, t]) => {
+    const R = tourney.resolve(t);
+    const teams = Object.entries(t.teams || {}).map(([k, tm]) => ({ id: k, name: tm.name || '?', tag: tm.tag || '', mine: !!(me && tm.mem && tm.mem[me]),
+      mem: Object.entries(tm.mem || {}).map(([p2, m]) => ({ key: p2, n: (m && m.n) || '?', r: (m && m.r) || '' })).sort((x, y) => (TN_ROLE[x.r] ?? 1) - (TN_ROLE[y.r] ?? 1) || x.n.localeCompare(y.n, 'ko')) }));
+    const myTeam = (teams.find(x => x.mine) || {}).id || null;
+    return { id, name: t.name, fmt: R.fmt, bo: t.bo || 1, boF: t.boF || null, st: t.st, at: t.at || 0, champ: R.champ, standings: R.standings, myTeam, teams,
+      rounds: R.byRound.map(r => ({ name: r.name, matches: r.matches.filter(m => m.state !== 'void').map(m => ({ id: m.id, no: m.no, a: m.ta, b: m.tb, sa: m.sa, sb: m.sb, win: m.win, state: m.state, how: m.how, bo: m.bo, n: m.games.length,
+        mine: !!(myTeam && (m.a === myTeam || m.b === myTeam)), cur: cur.tid === id && cur.mid === m.id })) })) };
+  });
+  return { ok: true, list, canStart: !!(config.isHost && room), inRoom: !!room, cur: cur.tid ? { tid: cur.tid, mid: cur.mid } : null };
+}
+async function tourneyStart(tid, mid) {   // 👑 방장: 이 방에서 이 대회 경기를 함 = 대기실에 두 팀(등록 선수만 · 팀장 → 선수 → 후보 순으로 5명)·이름·판수
+  if (!config.isHost || !room) return { ok: false, err: '방장이 방 안에서 시작할 수 있습니다 · 먼저 방을 만들어 주세요' };
+  if (sessionData && ['draft', 'teams', 'vote'].includes(sessionData.phase)) return { ok: false, err: '진행 중인 판이 끝난 뒤에 고를 수 있습니다' };
+  const raw = await tnFetch(true), t = raw && raw[tid];
+  if (!t || t.st !== 'live') return { ok: false, err: '진행 중인 대회가 아닙니다' };
+  const m = tourney.resolve(t).matches[mid];
+  if (!m || !m.ta || !m.tb) return { ok: false, err: '아직 두 팀이 정해지지 않은 경기입니다' };
+  if (m.state === 'done') return { ok: false, err: '이미 끝난 경기입니다' };
+  const multi = Object.values(t.matches).filter(x => x.r === m.r).length > 1;
+  const c = serCfg({ bo: m.bo, a: m.ta.name, b: m.tb.name, tid, mid, ta: m.a, tb: m.b, tn: t.name, rn: m.rn + (multi ? ` ${m.no}경기` : '') });
+  const [L, P] = await Promise.all([fetchLobby(), fetchPresence()]); lobbyRaw = L || null; presenceRaw = P || null;
+  const v = lobbyView(), sides = {};
+  for (const [team, tmId] of [['teamA', m.a], ['teamB', m.b]]) {
+    const mem = (t.teams[tmId] && t.teams[tmId].mem) || {};
+    v.members.filter(x => x.st === 'in' && mem[x.key]).sort((x, y) => (TN_ROLE[mem[x.key].r || ''] ?? 1) - (TN_ROLE[mem[y.key].r || ''] ?? 1)).slice(0, tourney.MAIN_MAX).forEach(x => { sides[fbKeyOf(x.name)] = team; });
+  }
+  lobbyLocal(L2 => { L2.series = c; L2.sides = sides; L2.mode = 'manual'; L2.captains = null; });
+  return lobbyWrite(fbUpdate(`${RP()}/lobby`, { series: c, sides: Object.keys(sides).length ? sides : null, mode: 'manual', captains: null }));
+}
+async function tourneyCancel() {   // 👑 방장: 대회 경기 고른 것 취소(대기실을 보통 내전으로)
+  if (!config.isHost) return { ok: false, err: '방장만 할 수 있습니다' };
+  lobbyLocal(L => { L.series = null; });
+  return lobbyWrite(fbSet(`${RP()}/lobby/series`, null));
 }
 async function lobbySidesClear() {
   if (!config.isHost) return { ok: false, err: '방장만 할 수 있습니다' };
@@ -2391,6 +2455,21 @@ async function lobbyStart() {   // ▶ 방장: 참가자로 팀 짜기 시작(�
   const v = lobbyView(), names = v.members.filter(m => m.st === 'in').map(m => m.name);
   if (names.length < 2) return { ok: false, err: `참가자가 2명 이상이어야 합니다 (지금 ${names.length}명)` };
   if (v.mode === 'normal') return { ok: false, err: '일반판은 시작 버튼 없이 같은 팀으로 큐를 잡으면 됩니다' };
+  if (v.series && v.series.tid) {   // 🏆 v0.1.291 대회 경기 = 두 팀 다 그 팀 등록 선수만(5명까지) · 팀에 안 넣은 사람은 관전
+    const sc = v.series, raw = await tnFetch(true), t = raw && raw[sc.tid], m = t && t.st === 'live' ? tourney.resolve(t).matches[sc.mid] : null;
+    if (!m || m.a !== sc.ta || m.b !== sc.tb) return { ok: false, err: '대회 경기를 찾지 못했습니다 · 「대회」 탭에서 다시 골라 주세요' };
+    if (m.state === 'done') return { ok: false, err: '이미 끝난 경기입니다' };
+    const keyOf = n => (v.members.find(x => x.name === n) || {}).key;
+    for (const [team, tmId, nm] of [['teamA', sc.ta, sc.a], ['teamB', sc.tb, sc.b]]) {
+      const list = names.filter(n => v.sides[n] === team), mem = (t.teams[tmId] && t.teams[tmId].mem) || {};
+      if (!list.length) return { ok: false, err: `${nm} 팀에 선수가 없습니다` };
+      if (list.length > tourney.MAIN_MAX) return { ok: false, err: `${nm} 팀은 ${tourney.MAIN_MAX}명까지 출전합니다` };
+      const bad = list.find(n => !mem[keyOf(n)]);
+      if (bad) return { ok: false, err: `${bad}님은 ${nm} 팀 등록 선수가 아닙니다` };
+    }
+    const A = names.filter(n => v.sides[n] === 'teamA'), B = names.filter(n => v.sides[n] === 'teamB');
+    return writeTeams(A, B, names.filter(n => !v.sides[n]), 'manual');
+  }
   // 🪑 v0.1.264 자리 10칸(방식마다 자리만 제한 · 사장님) = 앉은 순서대로 10명 · 11번째부터는 이번 판 관전(대기실 「대기」 줄과 같은 사람)
   const seatOf = (list, keep) => { if (list.length <= SEATS) return [list, []]; const s = list.slice(0, SEATS), x = list.slice(SEATS); for (const k of keep || []) { const i = x.indexOf(k); if (i < 0) continue; const j = s.map(n => (keep || []).includes(n)).lastIndexOf(false); if (j < 0) break; x.splice(i, 1, s[j]); s[j] = k; } return [s, x]; };
   if (v.mode === 'draft') {
@@ -3207,10 +3286,15 @@ async function recordGame(winner, eog) {
     const done = S.need && wins[winner] >= S.need ? winner : null;
     ser = Object.assign({}, S, { wins, n: (S.games || []).includes(gid) ? S.n : (S.n || 0) + 1, games: [...new Set([...(S.games || []), gid])], done });
     rec.series = { id: S.id, bo: S.bo, n: ser.n, names: S.names, wins, done, tid: S.tid || null, mid: S.mid || null };
+    if (S.tid) Object.assign(rec.series, { a: S.ta, b: S.tb, w: winner === 'teamA' ? S.ta : S.tb, tn: S.tn || null, rn: S.rn || null });   // 🏆 대회 경기(규칙이 res 칸을 이 값과 대조)
   }
   const w = await fbPutIfAbsent(`${CT}/days/${day}/matches/${gid}`, withSv(rec));
   _profIdx = null;
   if (!w.ok && !w.conflict) return { ok: false, err: w.err };
+  if (ser && ser.tid) {   // 🏆 대회 결과 칸(대진표가 이걸로 점수·진출을 계산) · 시리즈가 끝나면 대기실의 대회 경기 표시를 내림
+    fbPutIfAbsent(`${CT}/tourneys/${ser.tid}/res/${ser.mid}/${gid}`, { w: rec.series.w, day, at: Date.now(), n: ser.n }).then(r => { if (!r.ok && !r.conflict) console.log('[tourney] 결과 칸 쓰기 실패', r.err); _tn.at = 0; }).catch(() => {});
+    if (ser.done) { lobbyLocal(L => { L.series = null; }); fbSet(`${RP()}/lobby/series`, null).catch(() => {}); }
+  }
   const u = await fbUpdate(`${RP()}/session`, Object.assign({ phase: 'vote', game: { id: gid, day, winner, at: Date.now() }, votes: null, result: null, lastGameId: gid, pendingEog: null, potg: null }, ser ? { series: ser } : {}));
   return { ok: u.ok, err: u.err };
 }
@@ -3412,7 +3496,9 @@ async function balanceScores(names, game) {
 }
 async function writeTeams(teamA, teamB, spectators, mode, bal, keepSeries) {
   const now = Date.now();
-  const ps = sessionData && sessionData.series, series = keepSeries && ps && !ps.done ? ps : newSeries(now);   // 🏆 다음 판 = 이어서 · 그 밖 = 대기실 설정으로 새로
+  const ps = sessionData && sessionData.series;
+  let series = keepSeries && ps && !ps.done ? ps : newSeries(now);   // 🏆 다음 판 = 이어서 · 그 밖 = 대기실 설정으로 새로
+  if (series && series.tid && ps && !ps.done && ps.tid === series.tid && ps.mid === series.mid && (ps.n || 0) > (series.n || 0)) series = ps;   // 대회 경기 = 서버 결과와 이 방 기록 중 더 많이 쌓인 쪽
   const ids = await teamIds([...teamA, ...teamB]);
   const w = await fbSet(`${RP()}/session`, {
     phase: 'teams', active: true, teamA, teamB, ids,
@@ -4447,6 +4533,9 @@ ipcMain.handle('lobby-side', (_e, { name, team }) => lobbySide(name, team));
 ipcMain.handle('lobby-sides-prev', () => lobbySidesPrev());
 ipcMain.handle('lobby-sides-clear', () => lobbySidesClear());
 ipcMain.handle('lobby-series', (_e, v) => lobbySeries(v));   // 🏆 v0.1.288 시리즈·팀 이름
+ipcMain.handle('tourney-data', (_e, force) => tourneyView(!!force).catch(e => ({ ok: false, err: String(e && e.message || e), list: [] })));   // 🏆 v0.1.291 대회
+ipcMain.handle('tourney-start', (_e, { tid, mid }) => tourneyStart(String(tid), String(mid)));
+ipcMain.handle('tourney-cancel', () => tourneyCancel());
 ipcMain.handle('lobby-reopen', () => lobbyReopen());
 ipcMain.handle('rooms-data', () => roomsView());   // 🚪 방 목록
 ipcMain.handle('room-create', (_e, { name, priv, pw, ser }) => roomCreate(name, priv, pw, ser));

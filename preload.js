@@ -108,6 +108,9 @@ contextBridge.exposeInMainWorld('api', {
   lobbySidesPrev: () => ipcRenderer.invoke('lobby-sides-prev'),               // 🧩 지난 판 팀 그대로
   lobbySidesClear: () => ipcRenderer.invoke('lobby-sides-clear'),
   lobbySeries: (v) => ipcRenderer.invoke('lobby-series', v),   // 🏆 v0.1.288 시리즈 {bo, a, b}
+  tourneyData: (force) => ipcRenderer.invoke('tourney-data', !!force),   // 🏆 v0.1.291 대회(대진표·순위·팀)
+  tourneyStart: (tid, mid) => ipcRenderer.invoke('tourney-start', { tid, mid }),
+  tourneyCancel: () => ipcRenderer.invoke('tourney-cancel'),
   lobbyReopen: () => ipcRenderer.invoke('lobby-reopen'),
   // 🚪 방(v0.1.94) — onRooms로 {rooms:[{id,name,priv,host,n,members,mine}], room, me, ready}
   onRooms: (cb) => ipcRenderer.on('rooms', (_e, d) => cb(d)),

@@ -66,6 +66,30 @@ for (const w of [300, 400]) {
   S.push(sc('hm-mem-draft', w, { me: 2, session: sess('draft', { order: ['teamA', 'teamB', 'teamB', 'teamA'], pickIdx: 1, captains: { teamA: NM[0], teamB: NM[1] } }), stub: { getToday: today, getProfile: profile(2, true, rating(71, 24, null, 3)) } }));
   // 기록
   S.push(sc('rc-full', w, { me: 0, cat: 'today', stub: full }));
+  { // 🏆 v0.1.291 「대회」 탭 — 싱글 토너먼트(5팀 · 부전승 · 진행 중 · 방장 = 「이 방에서 시작」) · 풀리그(순위) · 끝난 대회(우승) · 여러 대회 고르기
+    const TC = require('../tourney.js'), TN = ['불꽃', '번개', '열두글자팀이름열두글자팀', '바람', '파도'];
+    const mk = (fmt, n, name, st, play) => { const ids = Array.from({ length: n }, (_, i) => 't' + (i + 1));
+      const teams = Object.fromEntries(ids.map((id, i) => [id, { name: TN[i], tag: 'T' + (i + 1), mem: Object.fromEntries(NM.slice(0, i === 0 ? 7 : 5).map((nm, j) => ['p' + (i * 10 + j), { n: nm, r: j === 0 ? 'cap' : j > 4 ? 'sub' : '' }])) }]));
+      if (teams.t1) teams.t1.mem.p0 = { n: NM[0], r: 'cap' };
+      const t = { name, fmt, bo: 3, boF: 5, st, at: TS, teams, matches: fmt === 'rr' ? TC.makeRR(ids, 3) : TC.makeSE(ids, 3, 5), res: {} };
+      for (const [mid, w, k] of play || []) { const m = TC.resolve(t).matches[mid]; t.res[mid] = t.res[mid] || {}; for (let i = 0; i < k; i++) t.res[mid]['g' + Object.keys(t.res[mid]).length] = { w: m[w], at: Object.keys(t.res[mid]).length + 1 }; }
+      return t; };
+    const view = (id, t, me, cur) => { const Rv = TC.resolve(t), RO = { cap: 0, '': 1, sub: 2 };
+      const teams = Object.entries(t.teams).map(([k, tm]) => ({ id: k, name: tm.name, tag: tm.tag || '', mine: !!tm.mem[me], mem: Object.entries(tm.mem).map(([p2, m]) => ({ key: p2, n: m.n, r: m.r || '' })).sort((x, y) => RO[x.r] - RO[y.r]) }));
+      const myTeam = (teams.find(x => x.mine) || {}).id || null;
+      return { id, name: t.name, fmt: Rv.fmt, bo: t.bo, boF: t.boF, st: t.st, at: t.at, champ: Rv.champ, standings: Rv.standings, myTeam, teams,
+        rounds: Rv.byRound.map(r => ({ name: r.name, matches: r.matches.filter(m => m.state !== 'void').map(m => ({ id: m.id, no: m.no, a: m.ta, b: m.tb, sa: m.sa, sb: m.sb, win: m.win, state: m.state, how: m.how, bo: m.bo, n: m.games.length, mine: !!(myTeam && (m.a === myTeam || m.b === myTeam)), cur: cur === m.id })) })) }; };
+    const se = mk('se', 5, '가을 멸망전', 'live', [['r1m1', 'a', 2], ['r2m1', 'a', 1]]);
+    const rr = mk('rr', 4, '큐 리그 시즌 1', 'live', [['r1m0', 'a', 2], ['r1m1', 'b', 2], ['r2m0', 'a', 1]]);
+    const done = mk('se', 4, '여름 멸망전', 'done', [['r1m0', 'a', 2], ['r1m1', 'b', 2], ['r2m0', 'b', 3]]);
+    const go = " await window.tourneyReload(true); switchCat('tour');" + wait;
+    S.push(sc('tr-se', w, { me: 0, stub: Object.assign({}, full, { tourneyData: { ok: true, canStart: false, list: [view('a', se, 'p0')] } }), more: go }));
+    S.push(sc('tr-se-host', w, { me: 0, host: true, stub: Object.assign({}, full, { tourneyData: { ok: true, canStart: true, inRoom: true, list: [view('a', se, 'p0', 'r2m1')] } }), more: go }));
+    S.push(sc('tr-rr', w, { me: 0, stub: Object.assign({}, full, { tourneyData: { ok: true, canStart: false, list: [view('b', rr, 'p0'), view('a', se, 'p0'), view('c', done, 'p0')] } }), more: go }));
+    S.push(sc('tr-done', w, { me: 0, stub: Object.assign({}, full, { tourneyData: { ok: true, canStart: false, list: [view('c', done, 'none')] } }), more: go + "document.querySelector('[data-team]').click();" + wait }));
+    const TS2 = { id: 's_a_r2m1', bo: 3, need: 2, names: { teamA: '번개', teamB: '열두글자팀이름열두글자팀' }, wins: { teamA: 1, teamB: 0 }, n: 1, games: [], done: null, tid: 'a', mid: 'r2m1', tn: '가을 멸망전', rn: '4강 2경기' };
+    S.push(sc('hm-tour-result', w, { me: 0, host: true, session: sess('result', { series: TS2, game: { winner: 'teamA' }, result: { mvp: NM[2] } }), stub: full }));
+  }
   { // 🏆 v0.1.288 시리즈 — 홈 「이번 판」(진행 중 = 다음 판 n/3 · 끝 = 대기실로) · 기록 경기 카드 시리즈 줄
     const SN = { teamA: '불꽃', teamB: '열두글자팀이름열두글자팀' }, ser = (n, wa, wb, done) => ({ id: 's1', bo: 3, need: 2, names: SN, wins: { teamA: wa, teamB: wb }, n, games: [], done });
     S.push(sc('hm-host-result-ser', w, { me: 0, host: true, session: sess('result', { series: ser(1, 0, 1, null), game: { winner: 'teamB' }, result: { mvp: NM[1] } }), stub: full }));
