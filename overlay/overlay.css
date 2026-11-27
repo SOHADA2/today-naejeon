@@ -936,3 +936,15 @@ body.pw-drag, body.pw-drag * { cursor:crosshair !important; user-select:none; }
 .lb-hm-item:hover { background:rgba(200,170,110,0.07); }
 .lb-rrow i { display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; font-size:11px; line-height:1; border:1px solid var(--gold-line); background:rgba(200,170,110,0.08); }   /* 🧱 v0.1.265 ▾가 점처럼 작아 메뉴인 줄 몰랐음 → 작은 단추 모양 */
 .lb-rbtn:hover .lb-rrow i { background:var(--gold); color:#1a1206; border-color:var(--gold); }
+
+/* 🏷️ v0.1.273 롤 로비 그림(이모지 대신) + 「롤 로비 만들기」 버튼 = 롤 클라이언트에서 일어나는 일 */
+.lol-ic { display:inline-block; width:15px; height:12px; vertical-align:-1px; flex:none; }
+.lol-ic .a { fill:var(--t1); } .lol-ic .b { fill:var(--t2); } .lol-ic .m { fill:var(--gold); opacity:.55; }
+.lb-lol-ic { display:inline-flex; align-items:center; }
+.lb-gobar .lb-start.lolstep { padding:7px 10px; }
+.go-lol { display:inline-flex; align-items:center; justify-content:center; gap:10px; max-width:100%; min-width:0; }
+.go-lol .lol-ic { width:26px; height:21px; }
+.lb-start .go-lol .lol-ic .a, .lb-start .go-lol .lol-ic .b { fill:#0b1622; } .lb-start .go-lol .lol-ic .b { opacity:.55; } .lb-start .go-lol .lol-ic .m { fill:#0b1622; opacity:.35; }
+.go-lol-tx { display:flex; flex-direction:column; align-items:flex-start; min-width:0; line-height:1.15; text-align:left; }
+.go-lol-tx small { font-family:'Barlow Condensed', sans-serif; font-weight:700; font-size:10px; letter-spacing:.18em; opacity:.62; }
+.go-lol-tx b { font-size:15px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
