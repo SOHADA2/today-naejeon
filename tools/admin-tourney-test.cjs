@@ -12,13 +12,15 @@ let ok = 0, bad = 0;
 const check = (name, cond, extra) => { if (cond) ok++; else { bad++; console.log('✗', name, extra === undefined ? '' : JSON.stringify(extra)); } };
 app.whenReady().then(async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tn-admin-')), src = path.join(__dirname, '..', 'docs', 'admin');
-  let html = fs.readFileSync(path.join(src, 'index.html'), 'utf8');
+  // 2026-11-28: 보드 스크립트 = admin.js(모듈 파일) · 페이지에 CSP가 있어 시험용 인라인 스크립트가 막힘 → 시험 사본에선 CSP 줄을 빼고 씀(CSP 자체는 tools/admin-csp-test.cjs)
+  let html = fs.readFileSync(path.join(src, 'index.html'), 'utf8').replace(/<meta http-equiv="Content-Security-Policy"[^>]*>\r?\n?/, '');
+  let ajs = fs.readFileSync(path.join(src, 'admin.js'), 'utf8');
   const imp = /import \{[^}]*\} from 'https:\/\/www\.gstatic\.com\/firebasejs\/[^']+';\r?\n/g;
-  if ((html.match(imp) || []).length !== 2) { console.log('✗ Firebase 가져오기 줄을 못 찾음'); app.exit(1); return; }
-  html = html.replace(imp, '').replace('<script type="module">', `<script type="module">
-const FAKE = { currentUser: { uid: 'adm1', displayName: '시험 운영자', getIdToken: async () => 'tok' }, authStateReady: async () => {} };
+  if ((ajs.match(imp) || []).length !== 2) { console.log('✗ Firebase 가져오기 줄을 못 찾음'); app.exit(1); return; }
+  ajs = ajs.replace(imp, '');
+  ajs = `const FAKE = { currentUser: { uid: 'adm1', displayName: '시험 운영자', getIdToken: async () => 'tok' }, authStateReady: async () => {} };
 const initializeApp = () => ({}), getAuth = () => FAKE, GoogleAuthProvider = function () {}, signInWithPopup = async () => {}, signOut = async () => {}, onAuthStateChanged = (a, cb) => setTimeout(() => cb(a.currentUser), 0);
-`);
+` + ajs;
   const acc = {}; const NM = ['가람', '나래', '다온', '라온', '마루', '바다', '사랑', '아라', '자람', '차오름', '카이', '타래', '파랑', '하늘', '동의안함'];
   NM.forEach((n, i) => { acc['p' + i] = Object.assign({ name: n, tag: 'KR1', lastSeen: 1000 + i }, n === '동의안함' ? {} : { pub: 1 }); });
   const boot = `window.__db = ${JSON.stringify({ today: { admins: { adm1: { name: '시험', owner: true } }, accounts: acc } })}; window.__prompts = []; window.__toasts = [];
@@ -35,7 +37,7 @@ const initializeApp = () => ({}), getAuth = () => FAKE, GoogleAuthProvider = fun
         else if (m === 'POST') { const k = 'k' + Date.now() + Math.random().toString(36).slice(2, 6); set(p.concat(k), body); res = { name: k }; }
         return { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(res === undefined ? null : res)) }; }; })();`;
   html = html.replace('<script src="tourney.js"></script>', `<script>${boot}</script>\n<script src="tourney.js"></script>`);
-  fs.writeFileSync(path.join(dir, 'index.html'), html); fs.copyFileSync(path.join(src, 'tourney.js'), path.join(dir, 'tourney.js'));
+  fs.writeFileSync(path.join(dir, 'index.html'), html); fs.writeFileSync(path.join(dir, 'admin.js'), ajs); fs.copyFileSync(path.join(src, 'tourney.js'), path.join(dir, 'tourney.js'));
   const win = new BrowserWindow({ width: 1180, height: 1500, show: false, webPreferences: { offscreen: true } });
   const errs = []; win.webContents.on('console-message', (...a) => { const { lv, msg } = cmOf(...a); if (lv >= 3) errs.push(msg); });
   await win.loadFile(path.join(dir, 'index.html')); await sleep(1500);
