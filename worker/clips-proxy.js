@@ -7,15 +7,20 @@
 //       POST /upload-token?day= → {token, upload, exp}(2026-11-05 · 앱이 GitHub에 직접 올림 · 아래 appToken)
 //       POST /discord/move {moves:[{id, to:'t1'|'t2'|'lobby', back?}]} → {moved:[…]}(2026-11-07 · 디스코드 음성 채널 이동 · 아래 discordMove · 봇 토큰 = 비밀값 DISCORD_BOT_TOKEN)
 // x-tn-app 머리말은 지나가는 요청 거르기용일 뿐(앱 코드에 공개) — 보안 장치 아님
+// 🛡️ 2026-11-28 보안 점검(앱 v0.1.293~): ① 올리기·직접 올리기 토큰·디스코드 = **롤 계정 로그인 표식(riot)만**(익명 표식은 공개 키로 누구나 만들 수 있어 사실상 무인증이었음 —
+//   익명으로도 /upload-token에서 저장소 쓰기 토큰을 받을 수 있었음) ② /discord/move = 부르는 사람이 **그 방 방장**이고 옮길 사람이 **그 방에 디스코드를 올린 사람**일 때만
+//   (본문 room · 커뮤니티면 c · 전용 서버 커뮤니티면 머리말 x-tn-ctok = 그 서버 표식) · room 없는 옛 앱 요청은 vars DC_LEGACY="1"인 동안만 ③ /discord/member = 내 디스코드 번호만
+//   ④ /shot(증강 화면 · 앱 v0.1.248부터 안 씀) 닫음 ⑤ 오류 응답에 내부 메시지 안 실음
 // 🔐 2026-11-02(앱 v0.1.99~): Authorization: Bearer <Firebase 익명 로그인 표식> 확인(구글 공개키로 서명·프로젝트·만료) — 표식이 있는데 가짜면 401
 //   표식 없는 요청 = 옛 앱(전환 중) → vars REQUIRE_AUTH="1"이면 거절(친구들 업데이트 뒤 · DB 2단계 규칙과 같이)
 const DAY = /^\d{4}-\d\d-\d\d$/, CLIP = /^[\w-]{1,80}\.(webm|mp4)$/, SHOT = /^[\w.-]{1,120}\.(jpg|json)$/;
 const MAX_CLIP = 45 * 1048576, MAX_SHOT = 8 * 1048576, KEEP_DAYS = 3;
 const PROJECT = 'today-naejeon-sohada';
+const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app';
 
 export default {
   async fetch(req, env) {
-    try { return await route(req, env); } catch (e) { return json({ err: String((e && e.message) || e) }, 500); }
+    try { return await route(req, env); } catch (e) { console.log('오류', String((e && e.stack) || e)); return json({ err: 'server error' }, 500); }
   },
   async scheduled(_ev, env) { await cleanup(env); },
 };
@@ -65,14 +70,14 @@ async function jwks() {   // 구글 표식 서명 공개키(1시간 보관)
   _jwk = { at: Date.now(), keys: j.keys || [] }; return _jwk.keys;
 }
 const b64u = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4)), c => c.charCodeAt(0));
-async function verifyIdToken(tok) {   // 맞으면 uid · 아니면 null
+async function verifyIdToken(tok) {   // 맞으면 {uid, riot(롤 계정 로그인 표식인지)} · 아니면 null
   const [h, p, sig] = String(tok || '').split('.'); if (!sig) return null;
   let H, P; try { H = JSON.parse(new TextDecoder().decode(b64u(h))); P = JSON.parse(new TextDecoder().decode(b64u(p))); } catch (_) { return null; }
   const now = Date.now() / 1000;
   if (H.alg !== 'RS256' || P.aud !== PROJECT || P.iss !== `https://securetoken.google.com/${PROJECT}` || !(P.exp > now) || !(P.iat <= now + 300) || !P.sub) return null;
   const jwk = (await jwks()).find(k => k.kid === H.kid); if (!jwk) return null;
   const key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
-  return (await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64u(sig), new TextEncoder().encode(`${h}.${p}`))) ? P.sub : null;
+  return (await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64u(sig), new TextEncoder().encode(`${h}.${p}`))) ? { uid: P.sub, riot: P.riot === true } : null;
 }
 
 // 🔐 2026-11-23(앱 v0.1.242~): 롤 계정 로그인 — 사장님: PC 등록 방식은 같은 PC 여러 계정·남의 PC에서 어긋남 → 「롤에 연결된 정보로 판단」
@@ -124,7 +129,8 @@ async function route(req, env) {
     return json({ token: await customToken(env, puuid, p), uid: puuid });
   }
   const auth = req.headers.get('authorization') || '';
-  const uid = auth.startsWith('Bearer ') ? await verifyIdToken(auth.slice(7)) : null;
+  const tok = auth.startsWith('Bearer ') ? auth.slice(7) : '', who = tok ? await verifyIdToken(tok) : null;
+  const uid = who ? who.uid : null, riot = !!(who && who.riot);   // riot = 롤 계정으로 확인된 사람(uid = puuid) · 익명(게스트) 표식은 false
   if (auth && !uid) return json({ err: 'bad token' }, 401);
   if (!uid && env.REQUIRE_AUTH === '1') return json({ err: 'login required' }, 401);
   // 🛡️ 1분에 올리기 10번·받기 40번까지(Cloudflare 무료 rate limit · 근사치) — 표식 있으면 사람(uid)별(같은 집·PC방 친구끼리 안 나눠 씀), 없으면 IP별
@@ -132,6 +138,7 @@ async function route(req, env) {
   if (lim && !(await lim.limit({ key: uid ? `u:${uid}` : `ip:${req.headers.get('cf-connecting-ip') || ''}` })).success) return json({ err: 'too many' }, 429);
   const len = Number(req.headers.get('content-length')) || 0, type = (req.headers.get('content-type') || '').split(';')[0];
   if (req.method === 'POST' && u.pathname === '/upload') {
+    if (!riot) return json({ err: 'riot login required' }, 401);
     const day = u.searchParams.get('day'), name = u.searchParams.get('name');
     if (!dayOk(day) || !CLIP.test(name || '') || !/^video\/(webm|mp4)$/.test(type) || !(len > 0 && len <= MAX_CLIP)) return json({ err: 'bad request' }, 400);
     const buf = await req.arrayBuffer(); if (buf.byteLength !== len) return json({ err: 'length' }, 400);
@@ -139,31 +146,31 @@ async function route(req, env) {
     return upload(env, rel, name, type, buf);
   }
   if (req.method === 'POST' && u.pathname === '/upload-token') {   // ⚡ 직접 올리기용 임시 토큰 + 그날 릴리스 올리기 주소(로그인 표식 필수)
-    if (!uid) return json({ err: 'login required' }, 401);
+    if (!riot) return json({ err: 'riot login required' }, 401);
     const day = u.searchParams.get('day'); if (!dayOk(day)) return json({ err: 'bad request' }, 400);
     if (!env.GH_APP_KEY || !env.GH_APP_ID || !env.GH_INSTALL_ID) return json({ err: 'no app' }, 501);
     const t = await appToken(env); if (!t) return json({ err: 'token' }, 502);
     const rel = await release(env, `clips-${day}`, `팟지 영상 ${day}`); if (!rel) return json({ err: 'release' }, 502);
     return json({ token: t.token, upload: rel.upload_url.replace(/\{.*$/, ''), exp: t.exp });
   }
-  if (req.method === 'POST' && u.pathname === '/shot') {
-    const name = u.searchParams.get('name');
-    if (!SHOT.test(name || '') || !/^(image\/jpeg|application\/json)$/.test(type) || !(len > 0 && len <= MAX_SHOT)) return json({ err: 'bad request' }, 400);
-    const buf = await req.arrayBuffer(); if (buf.byteLength !== len) return json({ err: 'length' }, 400);
-    const rel = await release(env, 'aug-shots', '증강 화면(Shift+F8)'); if (!rel) return json({ err: 'release' }, 502);
-    return upload(env, rel, name, type, buf);
-  }
+  if (req.method === 'POST' && u.pathname === '/shot') return json({ err: 'gone' }, 410);   // 증강 화면 올리기 = 앱 v0.1.248부터 안 씀 → 닫음(2026-11-28)
   if (req.method === 'POST' && u.pathname === '/discord/move') {   // 🎧 v0.1.130 음성 채널 1팀/2팀 나누기·모으기(로그인 표식 필수 · 아래 discordMove)
-    if (!uid) return json({ err: 'login required' }, 401);
+    if (!riot) return json({ err: 'riot login required' }, 401);
     if (!env.DISCORD_BOT_TOKEN) return json({ err: 'no bot' }, 501);
     const b = await req.json().catch(() => null), ID = /^\d{15,21}$/;
-    const moves = Array.isArray(b && b.moves) ? b.moves.filter(x => x && ID.test(x.id) && ['t1', 't2', 'lobby'].includes(x.to) && (!x.back || ID.test(x.back))).slice(0, 12) : [];
+    let moves = Array.isArray(b && b.moves) ? b.moves.filter(x => x && ID.test(x.id) && ['t1', 't2', 'lobby'].includes(x.to) && (!x.back || ID.test(x.back))).slice(0, 12) : [];
     if (!moves.length) return json({ err: 'bad request' }, 400);
+    if (b && b.room) {   // 🛡️ 방장 + 그 방에 디스코드를 올린 사람만
+      const ok = await roomDc(tok, req.headers.get('x-tn-ctok') || '', uid, String(b.room), b.c ? String(b.c) : '');
+      if (ok.err) return json({ err: ok.err }, 403);
+      moves = moves.filter(x => ok.ids.has(x.id));
+      if (!moves.length) return json({ moved: [], err: 'no room member' });
+    } else if (env.DC_LEGACY !== '1') return json({ err: 'room required' }, 400);
     const gid = ID.test(String((b && b.guild) || '')) ? String(b.guild) : null;   // v0.1.131: 방장이 「서버 연결」한 서버만 봄(없으면 봇이 들어간 서버를 뒤짐)
     return json(await discordMove(env, moves, gid));
   }
   if (req.method === 'POST' && u.pathname === '/discord/guild') {   // 🎧 v0.1.131 「서버 연결」 확인 — 봇이 그 서버에 있는지 · 이름 · 1팀/2팀/대기 채널 있는지
-    if (!uid) return json({ err: 'login required' }, 401);
+    if (!riot) return json({ err: 'riot login required' }, 401);
     if (!env.DISCORD_BOT_TOKEN) return json({ err: 'no bot' }, 501);
     const b = await req.json().catch(() => null), gid = String((b && b.guild) || '');
     if (!/^\d{15,21}$/.test(gid)) return json({ err: 'bad request' }, 400);
@@ -171,10 +178,12 @@ async function route(req, env) {
     return json({ id: g.id, name: g.name, t1: g.chans.some(c => T1.test(c.name)), t2: g.chans.some(c => T2.test(c.name)), lobby: g.chans.some(c => LOBBY.test(c.name) && !isTeam(c)) });
   }
   if (req.method === 'POST' && u.pathname === '/discord/member') {   // 🎧 v0.1.138 이 사람이 그 서버에 들어와 있는지(대기실 「디스코드 서버 들어가기」를 띄울지)
-    if (!uid) return json({ err: 'login required' }, 401);
+    if (!riot) return json({ err: 'riot login required' }, 401);
     if (!env.DISCORD_BOT_TOKEN) return json({ err: 'no bot' }, 501);
     const b = await req.json().catch(() => null), gid = String((b && b.guild) || ''), id = String((b && b.id) || '');
     if (!/^\d{15,21}$/.test(gid) || !/^\d{15,21}$/.test(id)) return json({ err: 'bad request' }, 400);
+    { const mine = await dbGet(DB, `today/discord/${uid}/id`, tok);   // 🛡️ 내가 앱에 올려 둔 내 디스코드 번호만 물어볼 수 있음(남의 음성 접속 여부 엿보기 막음)
+      if (String(mine || '') !== id) return json({ err: 'not yours' }, 403); }
     const r = await dc(env, 'GET', `/guilds/${gid}/members/${id}`);
     if (r.ok) {   // v0.1.157: 들어와 있으면 지금 음성 채널(vc · 없으면 null)과 대기 채널(lobby)도 → 앱이 「음성 채널 들어가기」를 띄울지
       const [vr, g] = await Promise.all([dc(env, 'GET', `/guilds/${gid}/voice-states/${id}`), dcGuild(env, gid)]);
@@ -243,6 +252,18 @@ async function dcPatch(env, gid, uid, cid) {   // 429면 디스코드가 말한 
   }
   return { ok: false, status: 429 };
 }
+// 🛡️ 2026-11-28 방 확인 — 부르는 사람의 표식으로 DB를 읽어(규칙이 읽기 권한을 확인) 그 방 방장인지 · 그 방에 올라온 디스코드 번호 모음
+//   기본 서버 = today[/c/{커뮤니티}]/rooms/{방} · 전용 서버 커뮤니티 = today/communities/{커뮤니티}/db/url(주인 운영자만 씀)의 서버를 그 서버 표식(ctok)으로
+const dbGet = async (base, path, tok) => { try { const r = await fetch(`${base}/${path}.json?auth=${encodeURIComponent(tok)}`); return r.ok ? await r.json() : null; } catch (_) { return null; } };
+async function roomDc(tok, ctok, uid, rid, cid) {
+  if (!/^[\w-]{1,40}$/.test(rid) || (cid && !/^[a-z0-9_-]{2,24}$/.test(cid))) return { err: 'bad room' };
+  let base = DB, t = tok;
+  if (cid) { const url = await dbGet(DB, `today/communities/${cid}/db/url`, tok);
+    if (url) { if (!/^https:\/\/[a-z0-9-]+\.(firebaseio\.com|[a-z0-9-]+\.firebasedatabase\.app)$/.test(String(url)) || !ctok) return { err: 'community token required' }; base = String(url); t = ctok; } }
+  const root = `today${cid ? '/c/' + cid : ''}/rooms/${rid}`, [host, dcs] = await Promise.all([dbGet(base, `${root}/host`, t), dbGet(base, `${root}/dc`, t)]);
+  if (!host || host.puuid !== uid) return { err: 'not host' };
+  return { ids: new Set(Object.values(dcs || {}).map(v => v && v.id ? String(v.id) : '').filter(Boolean)) };
+}
 async function discordMove(env, moves, gid) {
   const G = gid ? [await dcGuild(env, gid)].filter(Boolean) : await dcGuilds(env);
   if (!G.length) return { err: _dgErr || 'no guild', moved: [] };
@@ -256,7 +277,7 @@ async function discordMove(env, moves, gid) {
       let to = null;
       if (m.to === 'lobby') {
         if (!isTeam(cur)) return { id: m.id, ok: false, why: 'not in team channel' };
-        to = (m.back && g.chans.find(c => c.id === m.back && !isTeam(c))) || g.chans.find(c => c.parent === cur.parent && LOBBY.test(c.name) && !isTeam(c)) || g.chans.find(c => LOBBY.test(c.name) && !isTeam(c));
+        to = (m.back && g.chans.find(c => c.id === m.back && !isTeam(c) && (c.parent === cur.parent || LOBBY.test(c.name)))) || g.chans.find(c => c.parent === cur.parent && LOBBY.test(c.name) && !isTeam(c)) || g.chans.find(c => LOBBY.test(c.name) && !isTeam(c));
         if (!to) return { id: m.id, ok: false, why: 'no lobby channel' };
       } else {
         to = near(m.to === 't1' ? T1 : T2);

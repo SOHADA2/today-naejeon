@@ -31,7 +31,8 @@ const copy = o => { if (o === null || typeof o !== 'object') return o; const r =
 delete t.c; delete t.communities; delete t.communityCodes;
 const C = { '.read': CADMIN, '.validate': `$cid.matches(${ID_RE})` };
 for (const k of SCOPED) if (t[k]) C[k] = copy(t[k]);
-C.admins = { $uid: { '.read': `auth != null && auth.uid === $uid`, '.write': OWNER, '.validate': "newData.hasChildren(['name']) && newData.child('name').isString() && newData.child('name').val().length <= 40" } };
+// 🛡️ v0.1.293 아는 칸만(name·at·owner) — 예전 = name만 있으면 아무 모양이나 통과(운영 보드가 조작된 경로로 정지 칸 모양을 여기에 쓰게 만들 수 있었음)
+C.admins = { $uid: { '.read': `auth != null && auth.uid === $uid`, '.write': OWNER, '.validate': "newData.hasChildren(['name'])", name: { '.validate': 'newData.isString() && newData.val().length <= 40' }, at: { '.validate': 'newData.isNumber()' }, owner: { '.validate': 'newData.isBoolean()' }, $other: { '.validate': false } } };
 t.c = { $cid: C };
 t.communities = { $cid: { '.read': AUTH, '.write': OWNER, '.validate': `$cid.matches(${ID_RE}) && newData.hasChildren(['name']) && newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 20` } };
 t.communityCodes = { $code: { '.read': AUTH, '.write': OWNER, '.validate': `$code.matches(${CODE_RE}) && newData.isString() && newData.val().matches(${ID_RE})` } };

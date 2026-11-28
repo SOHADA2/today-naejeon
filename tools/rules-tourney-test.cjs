@@ -1,6 +1,7 @@
 // 🏆 대회 규칙 시험(v0.1.291 · tools/rules-riot.cjs ⑨) — 롤 클라이언트가 켜진 PC에서 · 규칙을 서버에 적용한 뒤 돌림
 //   사용(리포 루트): node tools/rules-tourney-test.cjs
 //   표식: R = 이 PC 롤 계정 로그인(uid = 내 puuid · riot:true) · N = 익명(게스트) · 관리자(gapi) = 준비·정리 · 시험 칸 = rt_ 접두 · 2000-01-01
+//   🛡️ v0.1.293: 결과 칸 = + 대회가 진행 중 · 그 판 기록의 pa·pb(두 팀 등록 선수 한 명씩)가 그 방에 들어와 있을 때만
 //   확인 = 대회는 누구나 읽고 운영자만 씀 · 결과 칸(res/{경기}/{게임}) = 그 게임의 경기 기록과 대회·경기·이긴 팀이 같을 때만 롤 로그인으로 새로 쓰기(고치기·지우기 X)
 const fs = require('fs'), https = require('https'), path = require('path'), { execFileSync } = require('child_process');
 const MAIN = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
@@ -13,7 +14,7 @@ const [, , port, pw] = fs.readFileSync(LF, 'utf8').split(':');
 const lcu = p => new Promise((ok, no) => https.get({ host: '127.0.0.1', port, path: p, rejectUnauthorized: false, headers: { Authorization: 'Basic ' + Buffer.from('riot:' + pw).toString('base64') } }, r => { let d = ''; r.on('data', c => d += c); r.on('end', () => { try { ok(JSON.parse(d)); } catch (_) { ok(null); } }); }).on('error', no));
 const post = (u, b, h) => fetch(u, { method: 'POST', headers: Object.assign({ 'content-type': 'application/json' }, h || {}), body: JSON.stringify(b) }).then(r => r.json().catch(() => null));
 let pass = 0, fail = 0;
-const D = 'today/days/2000-01-01/matches', TP = 'today/tourneys/rt_t1';
+const D = 'today/days/2000-01-01/matches', TP = 'today/tourneys/rt_t1', OTHER = '00000000-0000-4000-8000-0000000000aa', OUT = '00000000-0000-4000-8000-0000000000bb';
 (async () => {
   const me = await lcu('/lol-summoner/v1/current-summoner'), ent = await lcu('/entitlements/v1/token');
   if (!me || !me.puuid || !ent || !ent.accessToken) { console.log('롤 로그인 안 됨'); process.exit(1); }
@@ -26,10 +27,15 @@ const D = 'today/days/2000-01-01/matches', TP = 'today/tourneys/rt_t1';
   const req = async (tok, method, p, body) => (await fetch(`${DB}/${p}.json${tok ? '?auth=' + tok : ''}`, { method, body: body === undefined ? undefined : JSON.stringify(body) })).status;
   const t = async (who, name, want, method, p, body) => { const s = await req(who === 'R' ? RT : who === 'N' ? NT : null, method, p, body), ok = want === 'ok' ? s === 200 : s === 401 || s === 403;
     ok ? pass++ : fail++; console.log(ok ? '✅' : '❌', want === 'ok' ? '허용' : '차단', who, name, s); };
-  const now = Date.now(), g = (w, mid, tid) => ({ roomId: 'rt_x', sv: 1, winner: 'teamA', teamA: ['a'], teamB: ['b'], series: { tid: tid || 'rt_t1', mid: mid || 'r1m0', a: 'ta', b: 'tb', w } });
+  const now = Date.now(), g = (w, mid, tid, x) => ({ roomId: 'rt_x', sv: 1, winner: 'teamA', teamA: ['a'], teamB: ['b'], series: Object.assign({ tid: tid || 'rt_t1', mid: mid || 'r1m0', a: 'ta', b: 'tb', w, pa: A, pb: OTHER }, x || {}) });
   try {
     // 준비(관리자): 대회 하나 + 그 대회 경기 기록 3개(ta 승 · ta 승 · 다른 대회 것)
-    admin('PUT', TP, { name: '규칙 시험', fmt: 'se', st: 'live', at: now, teams: { ta: { name: '가' }, tb: { name: '나' } } });
+    admin('PUT', TP, { name: '규칙 시험', fmt: 'se', st: 'live', at: now, teams: { ta: { name: '가', mem: { [A]: { n: '나', r: 'cap' } } }, tb: { name: '나', mem: { [OTHER]: { n: '남', r: 'cap' }, [OUT]: { n: '방에 없는 선수', r: '' } } } } });
+    admin('PUT', 'today/tourneys/rt_t4', { name: '준비 중 대회', fmt: 'se', st: 'draft', at: now, teams: { ta: { name: '가', mem: { [A]: { n: '나', r: 'cap' } } }, tb: { name: '나', mem: { [OTHER]: { n: '남', r: 'cap' } } } } });
+    admin('PUT', 'today/roomList/rt_x', { name: '대회방', priv: false, host: '남', at: now, seen: now, by: '남' });   // 두 팀 선수(나 · 남)가 들어와 있는 방
+    admin('PUT', 'today/rooms/rt_x/uids', { [A]: A, [OTHER]: OTHER });
+    admin('PUT', `${D}/rt_tg4`, g('ta', 'r1m0', 'rt_t4')); admin('PUT', `${D}/rt_tg5`, g('ta', 'r1m0', null, { pb: OUT })); admin('PUT', `${D}/rt_tg6`, g('ta', 'r1m0', null, { pa: OTHER }));
+    admin('PUT', `${D}/rt_tg7`, g('ta', 'r1m0', null, { pa: null, pb: null })); admin('PUT', `${D}/rt_tg8`, g('tz'));
     admin('PUT', `${D}/rt_tg1`, g('ta')); admin('PUT', `${D}/rt_tg2`, g('ta')); admin('PUT', `${D}/rt_tg3`, g('ta', 'r1m0', 'rt_other'));
     await t('N', '게스트 — 대회 읽기', 'ok', 'GET', 'today/tourneys');
     await t('-', '로그인 없이 — 대회 읽기', 'deny', 'GET', 'today/tourneys');
@@ -47,6 +53,11 @@ const D = 'today/days/2000-01-01/matches', TP = 'today/tourneys/rt_t1';
     await t('R', '결과 칸 — 날짜를 틀리게', 'deny', 'PUT', `${TP}/res/r1m0/rt_tg2`, { w: 'ta', day: '2000-01-02', at: now });
     await t('R', '결과 칸 — 모르는 칸 끼워 넣기', 'deny', 'PUT', `${TP}/res/r1m0/rt_tg2`, { w: 'ta', day: '2000-01-01', at: now, x: 1 });
     await t('N', '게스트 — 결과 칸(기록과 맞아도)', 'deny', 'PUT', `${TP}/res/r1m0/rt_tg2`, { w: 'ta', day: '2000-01-01', at: now });
+    await t('R', '🛡️ 결과 칸 — 준비 중(진행 중 아님) 대회', 'deny', 'PUT', 'today/tourneys/rt_t4/res/r1m0/rt_tg4', { w: 'ta', day: '2000-01-01', at: now });
+    await t('R', '🛡️ 결과 칸 — 상대 팀 선수가 그 방에 없었던 판', 'deny', 'PUT', `${TP}/res/r1m0/rt_tg5`, { w: 'ta', day: '2000-01-01', at: now });
+    await t('R', '🛡️ 결과 칸 — 그 팀 등록 선수가 아닌 사람을 적은 판', 'deny', 'PUT', `${TP}/res/r1m0/rt_tg6`, { w: 'ta', day: '2000-01-01', at: now });
+    await t('R', '🛡️ 결과 칸 — 두 팀 선수 칸이 없는 판(옛 앱·가짜 기록)', 'deny', 'PUT', `${TP}/res/r1m0/rt_tg7`, { w: 'ta', day: '2000-01-01', at: now });
+    await t('R', '🛡️ 결과 칸 — 이긴 팀이 두 팀 중 하나가 아님', 'deny', 'PUT', `${TP}/res/r1m0/rt_tg8`, { w: 'tz', day: '2000-01-01', at: now });
     await t('R', '결과 칸 — 둘째 게임(기록과 맞음)', 'ok', 'PUT', `${TP}/res/r1m0/rt_tg2`, { w: 'ta', day: '2000-01-01', at: now, n: 2 });
     await t('R', '결과 칸 — 경기 통째로 쓰기', 'deny', 'PUT', `${TP}/res/r1m0`, { rt_x: { w: 'tb', day: '2000-01-01', at: now } });
     // 운영자
@@ -62,7 +73,7 @@ const D = 'today/days/2000-01-01/matches', TP = 'today/tourneys/rt_t1';
     await t('R', '운영자에서 빠진 뒤 — 대회 쓰기', 'deny', 'PUT', `${TP}/st`, 'done');
   } finally {
     try { admin('DELETE', `today/admins/${A}`); } catch (_) {}
-    for (const p of [TP, 'today/tourneys/rt_t2', 'today/tourneys/rt_t3', `${D}/rt_tg1`, `${D}/rt_tg2`, `${D}/rt_tg3`]) { try { admin('DELETE', p); } catch (_) {} }
+    for (const p of [TP, 'today/tourneys/rt_t2', 'today/tourneys/rt_t3', 'today/tourneys/rt_t4', 'today/roomList/rt_x', 'today/rooms/rt_x', `${D}/rt_tg1`, `${D}/rt_tg2`, `${D}/rt_tg3`, `${D}/rt_tg4`, `${D}/rt_tg5`, `${D}/rt_tg6`, `${D}/rt_tg7`, `${D}/rt_tg8`]) { try { admin('DELETE', p); } catch (_) {} }
     console.log(`\n통과 ${pass} · 실패 ${fail}\n정리 끝`);
   }
   process.exit(fail ? 1 : 0);
