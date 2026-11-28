@@ -25,6 +25,9 @@
     SSS: ['#fbe8ff', '#c79bff', '#3a2078', '#e5ccff'] };
   let EID = 0;
   const CX = 50, CY = 60, f2 = v => (+v).toFixed(2);
+  // 🎯 v0.1.296 글자 가운데 맞춤(사장님: 원 안 글자가 삐뚤어져 있음) — 글자 상자 기준 「central」은 대문자가 아래로 3칸 처지고 이탤릭·「+」로 옆으로도 밀림
+  //   → 실제 찍힌 글자(잉크)의 가운데를 등급마다 재서 그만큼 옮김(잴 때 = 이 보정 없이 그린 글자 · 다시 재면 0 근처)
+  const TOFF = { D: [-0.1, -3], C: [-0.05, -3], B: [-0.4, -3], A: [0, -3], 'A+': [-0.35, -2.65], S: [-0.05, -3], 'S+': [-0.55, -2.65], SS: [-0.35, -2.65], SSS: [-0.8, -2.35] };
   const lg = (id, stops, x1 = 0, y1 = 0, x2 = 0, y2 = 1) => `<linearGradient id="${id}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">${stops.map(([o, c]) => `<stop offset="${o}" stop-color="${c}"/>`).join('')}</linearGradient>`;
   const PT = (r, deg) => [CX + r * Math.cos(deg * Math.PI / 180), CY + r * Math.sin(deg * Math.PI / 180)];
   const pts = a => a.map(p => p.map(f2).join(',')).join(' ');
@@ -43,25 +46,28 @@
     if (s >= 7) for (const d of [-1, 1]) back += `<polygon points="${pts([[CX + d * 30, CY - 10], [CX + d * 50, CY - 22], [CX + d * 44, CY + 2], [CX + d * 50, CY + 18], [CX + d * 30, CY + 10]])}" fill="url(#${metal})" stroke="${c[2]}" stroke-width="0.8"/>`;   // SS~ 옆 칼날
     let ticks = '';
     for (let k = 0; k < 36; k++) { const [x0, y0] = PT(39.2, k * 10), [x1, y1] = PT(41.6, k * 10); ticks += `<line x1="${f2(x0)}" y1="${f2(y0)}" x2="${f2(x1)}" y2="${f2(y1)}" stroke="${c[2]}" stroke-opacity="0.75" stroke-width="0.7"/>`; }
-    let ring = '';
-    for (let k = 0; k < 9; k++) {   // 9칸 = D C B A A+ S S+ SS SSS · 지금 등급까지 채움
-      const a0 = -90 + k * 40 + 2.2, a1 = -90 + (k + 1) * 40 - 2.2, on = k <= s;
-      ring += `<path d="${arc(30.6, 37.2, a0, a1)}" fill="${on ? `url(#${metal})` : '#0f161d'}" stroke="${on ? c[2] : '#222b34'}" stroke-width="0.6"/>`;
-      if (on) ring += `<path d="${arc(35.4, 37.2, a0 + 1, a1 - 1)}" fill="#fff" fill-opacity="${k === s ? 0.55 : 0.22}"/>`;
+    let track = '', fill = '';
+    for (let k = 0; k < 9; k++) {   // 9칸 = D C B A A+ S S+ SS SSS · 지금 등급까지 채움 · 빈 칸(어두운 홈)은 늘 깔고 채운 칸을 위에(모션 = 하나씩 차오름)
+      const a0 = -90 + k * 40 + 2.2, a1 = -90 + (k + 1) * 40 - 2.2;
+      track += `<path d="${arc(30.6, 37.2, a0, a1)}" fill="#0f161d" stroke="#222b34" stroke-width="0.6"/>`;
+      if (k <= s) fill += `<g class="tn-seg" data-k="${k}"><path d="${arc(30.6, 37.2, a0, a1)}" fill="url(#${metal})" stroke="${c[2]}" stroke-width="0.6"/><path d="${arc(35.4, 37.2, a0 + 1, a1 - 1)}" fill="#fff" fill-opacity="${k === s ? 0.55 : 0.22}"/></g>`;
     }
     const [g0x, g0y] = PT(42.6, 200), [g1x, g1y] = PT(42.6, 262);
     let eng = ''; for (let k = 0; k < 12; k++) { const [x0, y0] = PT(10, k * 30), [x1, y1] = PT(27.5, k * 30); eng += `<line x1="${f2(x0)}" y1="${f2(y0)}" x2="${f2(x1)}" y2="${f2(y1)}" stroke="${c[1]}" stroke-opacity="${s >= 5 ? 0.16 : 0.08}" stroke-width="0.8"/>`; }
     const studs = s >= 3 ? [0, 90, 180, 270].map(a => { const [x, y] = PT(40.3, a - 90); return `<circle cx="${f2(x)}" cy="${f2(y)}" r="2.1" fill="url(#${id}g)" stroke="${c[2]}" stroke-width="0.6"/>`; }).join('') : '';
-    const fs = g.length >= 3 ? 27 : g.length === 2 ? 33 : 40, txt = g.replace('+', '<tspan dy="-0.34em" font-size="0.6em">+</tspan>');
-    const tb = `x="${CX}" y="${CY + 1}" text-anchor="middle" dominant-baseline="central" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-style="italic" font-size="${fs}" letter-spacing="${g.length >= 3 ? -1.6 : g.length === 2 ? -0.6 : 0}"`;
+    const fs = g.length >= 3 ? 27 : g.length === 2 ? 33 : 40, txt = g.replace('+', '<tspan dy="-0.34em" font-size="0.6em">+</tspan>'), [tx, ty] = TOFF[g] || [0, -3];
+    const tb = `x="${f2(CX + tx)}" y="${f2(CY + 1 + ty)}" text-anchor="middle" dominant-baseline="central" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-style="italic" font-size="${fs}" letter-spacing="${g.length >= 3 ? -1.6 : g.length === 2 ? -0.6 : 0}"`;
     if (s >= 5) front += gem(CX, 13, s >= 8 ? 8 : 7, id, c);   // S~ 위 보석
     if (s >= 8) front += gem(CX - 15, 19, 5, id, c) + gem(CX + 15, 19, 5, id, c) + spark(10, 14, 4.5, '#fff') + spark(91, 24, 3.5, c[0]) + spark(88, 100, 3, '#fff');   // SSS 왕관
-    return `<svg class="tn-emb tn-grade" viewBox="0 0 100 112" width="${f2(sz)}" height="${f2(sz * 1.12)}" aria-label="등급 ${g}">${defs}${back}`
-      + `<circle cx="${CX}" cy="${CY}" r="43.4" fill="url(#${metal})"/><circle cx="${CX}" cy="${CY}" r="43.4" fill="none" stroke="${c[2]}" stroke-width="1.2"/>${ticks}`
-      + `<path d="M${f2(g0x)} ${f2(g0y)}A42.6 42.6 0 0 1 ${f2(g1x)} ${f2(g1y)}" fill="none" stroke="#fff" stroke-opacity="0.5" stroke-width="1.3" stroke-linecap="round"/>`
-      + `<circle cx="${CX}" cy="${CY}" r="38.4" fill="#05080c"/>${ring}<circle cx="${CX}" cy="${CY}" r="29.6" fill="url(#${id}d)" stroke="${c[1]}" stroke-opacity="0.7" stroke-width="0.9"/>${eng}`
-      + `<circle cx="${CX}" cy="${CY}" r="24.6" fill="none" stroke="${c[1]}" stroke-opacity="0.18" stroke-width="0.7"/>${studs}`
-      + `<text ${tb} fill="#000" fill-opacity="0.55" transform="translate(0 1.6)">${txt}</text><text ${tb} fill="url(#${id}t)" stroke="#06090d" stroke-width="${f2(fs * 0.06)}" paint-order="stroke" stroke-linejoin="round">${txt}</text>${front}</svg>`;
+    // 🎬 v0.1.296 부품 묶음(등급 공개 모션이 하나씩 움직임 · 멈춘 모습은 예전과 같음): tn-back 톱니·칼날 / tn-bezel 테두리 / tn-ring 9칸(tn-seg) / tn-core 안판 / tn-txt 글자 / tn-front 보석·왕관 / tn-wave 충격파(평소 안 보임)
+    return `<svg class="tn-emb tn-grade" viewBox="0 0 100 112" width="${f2(sz)}" height="${f2(sz * 1.12)}" aria-label="등급 ${g}" data-step="${s}">${defs}<g class="tn-back">${back}</g>`
+      + `<g class="tn-bezel"><circle cx="${CX}" cy="${CY}" r="43.4" fill="url(#${metal})"/><circle cx="${CX}" cy="${CY}" r="43.4" fill="none" stroke="${c[2]}" stroke-width="1.2"/>${ticks}`
+      + `<path d="M${f2(g0x)} ${f2(g0y)}A42.6 42.6 0 0 1 ${f2(g1x)} ${f2(g1y)}" fill="none" stroke="#fff" stroke-opacity="0.5" stroke-width="1.3" stroke-linecap="round"/></g>`
+      + `<g class="tn-ring"><circle cx="${CX}" cy="${CY}" r="38.4" fill="#05080c"/>${track}${fill}</g>`
+      + `<g class="tn-core"><circle cx="${CX}" cy="${CY}" r="29.6" fill="url(#${id}d)" stroke="${c[1]}" stroke-opacity="0.7" stroke-width="0.9"/>${eng}`
+      + `<circle cx="${CX}" cy="${CY}" r="24.6" fill="none" stroke="${c[1]}" stroke-opacity="0.18" stroke-width="0.7"/>${studs}</g>`
+      + `<g class="tn-txt"><text ${tb} fill="#000" fill-opacity="0.55" transform="translate(0 1.6)">${txt}</text><text ${tb} fill="url(#${id}t)" stroke="#06090d" stroke-width="${f2(fs * 0.06)}" paint-order="stroke" stroke-linejoin="round">${txt}</text></g>`
+      + `<g class="tn-front">${front}</g><circle class="tn-wave" cx="${CX}" cy="${CY}" r="43.4" fill="none" stroke="${c[0]}" stroke-width="2.4" opacity="0"/></svg>`;
   };
   let box = null, timer = null, open = false;
   const queue = [];
@@ -96,14 +102,41 @@
     const q = c => box.querySelector(c);
     q('.trv-ok').onclick = close;
     q('.trv-q').onclick = () => { const w = q('.trv-why'); w.hidden = !w.hidden; q('.trv-q').classList.toggle('on', !w.hidden); clearTimeout(timer); timer = null; };   // 근거를 열면 저절로 안 닫힘
-    // 🎬 한 번만: 배경 → 카드 → 문장 떨어져 박힘(살짝 튐) → 빛 훑음 → 글자
-    const late = 0;   // v0.1.255 롤 승급 영상 안 씀(직접 그린 방패가 떨어져 박힘)
+    // 🎬 v0.1.296 등급 공개 모션(사장님: 멋들어지게) — 전부 한 번만(WAAPI · 무한 반복 없음 = 투명 창 성능 규칙)
+    //   ① 메달이 돌며 커져 나타남(테두리는 더 많이 돎) ② 바깥 칸이 D부터 지금 등급까지 하나씩 차오름(칸마다 반짝) ③ 글자 「쾅」 + 충격파·카드 흔들림·빛 조각
+    //   ④ 톱니·칼날 펼쳐짐 · 보석·왕관이 위에서 내려와 박힘 ⑤ 빛줄기가 훑고 글자 줄이 차례로 · 내려간 등급(down) = 조용히(충격파·조각·흔들림 없음)
+    const late = 0;   // v0.1.255 롤 승급 영상 안 씀
+    const em = q('.trv-emb'), sv = em && em.querySelector('svg'), st = sv ? Number(sv.dataset.step) || 0 : 0, calm = d.dir === 'down';
+    const O = '50px 60px', A = (el, kf, o) => el && el.animate(kf, Object.assign({ fill: 'backwards' }, o));
+    const SEG0 = 520, SEGD = st >= 6 ? 75 : 90, hit = SEG0 + (st + 1) * SEGD + 60;
     box.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
     q('.trv-card').animate([{ opacity: 0, transform: 'translateY(10px) scale(0.96)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.2,.8,.3,1)' });
-    if (q('.trv-emb')) q('.trv-emb').animate([{ opacity: 0, transform: 'translateY(-46px) scale(1.5)', filter: 'brightness(2.4) blur(3px)' }, { opacity: 1, transform: 'translateY(0) scale(0.94)', filter: 'brightness(1.6) blur(0)', offset: 0.62 }, { transform: 'scale(1.05)', filter: 'brightness(1.15)', offset: 0.82 }, { opacity: 1, transform: 'none', filter: 'none' }], { duration: 760, delay: 180, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'backwards' });
-    if (q('.trv-emb i')) q('.trv-emb i').animate([{ transform: 'translateX(-120%) skewX(-18deg)', opacity: 0 }, { opacity: 0.9, offset: 0.3 }, { transform: 'translateX(220%) skewX(-18deg)', opacity: 0 }], { duration: 620, delay: 760, easing: 'ease-out', fill: 'both' });
+    if (sv) {
+      sv.querySelectorAll('g, circle.tn-wave').forEach(n => { n.style.transformOrigin = O; });
+      A(sv, [{ opacity: 0, transform: 'scale(0.3) rotate(-35deg)', filter: 'blur(4px) brightness(2.2)' }, { opacity: 1, transform: 'scale(1.06) rotate(3deg)', filter: 'blur(0) brightness(1.35)', offset: 0.7 }, { opacity: 1, transform: 'none', filter: 'none' }], { duration: 620, delay: 150, easing: 'cubic-bezier(.2,.8,.25,1)' });
+      A(sv.querySelector('.tn-bezel'), [{ transform: 'rotate(-160deg)' }, { transform: 'none' }], { duration: 1000, delay: 150, easing: 'cubic-bezier(.15,.75,.2,1)' });
+      A(sv.querySelector('.tn-core'), [{ opacity: 0, transform: 'scale(0.6)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: 320, easing: 'cubic-bezier(.2,.8,.3,1)' });
+      sv.querySelectorAll('.tn-seg').forEach(n => { const k = Number(n.dataset.k) || 0, last = k === st;
+        A(n, [{ opacity: 0, transform: 'scale(0.9)', filter: 'brightness(3)' }, { opacity: 1, transform: `scale(${last ? 1.07 : 1.03})`, filter: `brightness(${last ? 2.2 : 1.6})`, offset: 0.55 }, { opacity: 1, transform: 'none', filter: 'none' }], { duration: last ? 420 : 260, delay: SEG0 + k * SEGD, easing: 'ease-out' }); });
+      A(sv.querySelector('.tn-txt'), [{ opacity: 0, transform: 'scale(2.4)', filter: 'blur(3px)' }, { opacity: 1, transform: 'scale(0.88)', filter: 'blur(0)', offset: 0.55 }, { transform: 'scale(1.06)', offset: 0.8 }, { opacity: 1, transform: 'none', filter: 'none' }], { duration: 420, delay: hit - 230, easing: 'cubic-bezier(.4,0,.6,1)' });
+      A(sv.querySelector('.tn-back'), [{ opacity: 0, transform: 'scale(0.7) rotate(-25deg)' }, { opacity: 1, transform: 'scale(1.07) rotate(3deg)', offset: 0.65 }, { opacity: 1, transform: 'none' }], { duration: 460, delay: hit + 40, easing: 'cubic-bezier(.2,.8,.3,1)' });
+      A(sv.querySelector('.tn-front'), [{ opacity: 0, transform: 'translateY(-16px)' }, { opacity: 1, transform: 'translateY(1.5px)', offset: 0.7 }, { opacity: 1, transform: 'none' }], { duration: 420, delay: hit + 150, easing: 'cubic-bezier(.3,.7,.3,1)' });
+      if (!calm) {
+        const w = sv.querySelector('.tn-wave');
+        w && w.animate([{ opacity: 0.95, transform: 'scale(1)' }, { opacity: 0, transform: `scale(${1.45 + st * 0.04})` }], { duration: 650, delay: hit, easing: 'cubic-bezier(.1,.7,.3,1)' });
+        q('.trv-card').animate([{ transform: 'none' }, { transform: 'translate(-2px, 1px)' }, { transform: 'translate(2px, -1px)' }, { transform: 'translate(-1px, 0)' }, { transform: 'none' }], { duration: 220, delay: hit, easing: 'linear' });
+        const n = 8 + st * 2, col = getComputedStyle(box).getPropertyValue('--tc') || '#fff';   // 빛 조각
+        for (let k = 0; k < n; k++) {
+          const p = document.createElement('i'); p.className = 'trv-bit'; p.style.background = k % 3 ? col : '#fff'; em.appendChild(p);
+          const a = (k / n) * Math.PI * 2 + Math.random() * 0.5, r = 42 + Math.random() * 34 + st * 3;
+          const r0 = 40, an = p.animate([{ opacity: 1, transform: `translate(calc(-50% + ${(Math.cos(a) * r0).toFixed(1)}px), calc(-50% + ${(Math.sin(a) * r0).toFixed(1)}px)) scale(1)` }, { opacity: 0, transform: `translate(calc(-50% + ${(Math.cos(a) * (r0 + r)).toFixed(1)}px), calc(-50% + ${(Math.sin(a) * (r0 + r)).toFixed(1)}px)) scale(0.3)` }], { duration: 640 + Math.random() * 260, delay: hit + 20, easing: 'cubic-bezier(.15,.7,.3,1)', fill: 'forwards' });   // 메달 테두리에서 바깥으로 · 터지기 전엔 안 보임(CSS opacity 0)
+          an.onfinish = () => p.remove();
+        }
+      }
+    }
+    if (q('.trv-emb i')) q('.trv-emb i').animate([{ transform: 'translateX(-120%) skewX(-18deg)', opacity: 0 }, { opacity: 0.9, offset: 0.3 }, { transform: 'translateX(220%) skewX(-18deg)', opacity: 0 }], { duration: 620, delay: hit + 260, easing: 'ease-out', fill: 'both' });
     let k = 0; for (const c of ['.trv-en', '.trv-name', '.trv-sub', '.trv-stat', '.trv-btns'])
-      q(c).animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: (c === '.trv-en' ? 120 : late + 820 + 90 * k++), easing: 'ease-out', fill: 'backwards' });
+      q(c).animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: (c === '.trv-en' ? 120 : hit + 280 + 90 * k++), easing: 'ease-out', fill: 'backwards' });
     timer = setTimeout(close, 9000 + late);
   }
   window.tnTierReveal = show;
