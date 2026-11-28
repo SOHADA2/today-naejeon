@@ -1,6 +1,6 @@
 {
   "name": "today-naejeon",
-  "version": "0.1.293",
+  "version": "0.1.294",
   "description": "투데이 내전 — 하루 안에 끝나는 인스턴트 내전(팀짜기·경기 자동 기록·투표·오늘 순위)",
   "main": "main.js",
   "author": "SOHADA2",
@@ -15,7 +15,7 @@
     "electron-updater": "^6.8.9"
   },
   "devDependencies": {
-    "electron": "^31.7.0",
+    "electron": "^45.5.0",
     "electron-builder": "^24.13.3",
     "png-to-ico": "^3.0.1"
   },
@@ -38,13 +38,14 @@
       "bridge.js",
       "potg.js",
       "replayrec.js",
-    "rating.js",
+      "rating.js",
       "discord.js",
       "potg/**",
       "auglab/**",
       "shared.css",
       "desktop/**",
-      "overlay/**", "home/**",
+      "overlay/**",
+      "home/**",
       "sidepanel/**",
       "slot/**",
       "assets/**",

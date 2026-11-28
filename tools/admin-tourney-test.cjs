@@ -2,6 +2,7 @@
 //   사용(리포 루트 · ELECTRON_RUN_AS_NODE 끄고): ./node_modules/electron/dist/electron.exe tools/admin-tourney-test.cjs [캡처 폴더]
 //   방법 = 페이지의 Firebase 가져오기 두 줄을 가짜 로그인으로 바꾸고 fetch를 메모리 DB(window.__db)로 돌림 → 대회 만들기 → 팀 4개 → 선수 → 대진 → 시작 → 결과 넣기 → 승자 정하기
 const { app, BrowserWindow } = require('electron');
+const cmOf = (e, lv, msg, line, src) => e && typeof e.message === 'string' ? { lv: ({ info: 1, warning: 2, error: 3 })[e.level] || 0, msg: e.message, line: e.lineNumber, src: e.sourceId } : { lv, msg, line, src };   // Electron 35+ = 이벤트 객체(47에서 옛 인자 없어짐)
 const fs = require('fs'), path = require('path'), os = require('os');
 const outDir = process.argv.slice(2).find(a => !a.endsWith('.cjs') && !a.startsWith('-')) || null;
 app.disableHardwareAcceleration();
@@ -36,7 +37,7 @@ const initializeApp = () => ({}), getAuth = () => FAKE, GoogleAuthProvider = fun
   html = html.replace('<script src="tourney.js"></script>', `<script>${boot}</script>\n<script src="tourney.js"></script>`);
   fs.writeFileSync(path.join(dir, 'index.html'), html); fs.copyFileSync(path.join(src, 'tourney.js'), path.join(dir, 'tourney.js'));
   const win = new BrowserWindow({ width: 1180, height: 1500, show: false, webPreferences: { offscreen: true } });
-  const errs = []; win.webContents.on('console-message', (_e, lv, msg) => { if (lv >= 3) errs.push(msg); });
+  const errs = []; win.webContents.on('console-message', (...a) => { const { lv, msg } = cmOf(...a); if (lv >= 3) errs.push(msg); });
   await win.loadFile(path.join(dir, 'index.html')); await sleep(1500);
   const js = code => win.webContents.executeJavaScript(`(async () => { ${code} })()`);
   const db = p => js(`return JSON.parse(JSON.stringify((function(){let o=window.__db;for(const k of ${JSON.stringify(p)}.split('/')){if(o==null)return null;o=o[k];}return o===undefined?null:o;})()))`);

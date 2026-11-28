@@ -2,6 +2,7 @@
 // 사용(리포 루트 · ELECTRON_RUN_AS_NODE 끄고): electron tools/ui-errcheck.cjs <장면.json> [장면.json …]   (장면 = tools/ui-shot.cjs와 같은 형식 · overlay·sidepanel)
 //   화면을 크게 고친 뒤 ui-shot(겹침·잘림)과 같이 돌릴 것 — ui-shot은 렌더러 예외를 안 보여 줌(v0.1.196)
 const { app, BrowserWindow } = require('electron');
+const cmOf = (e, lv, msg, line, src) => e && typeof e.message === 'string' ? { lv: ({ info: 1, warning: 2, error: 3 })[e.level] || 0, msg: e.message, line: e.lineNumber, src: e.sourceId } : { lv, msg, line, src };   // Electron 35+ = 이벤트 객체(47에서 옛 인자 없어짐)
 const fs = require('fs'), path = require('path');
 const repo = path.join(__dirname, '..'), files = process.argv.slice(2).filter(a => /.json$/i.test(a));
 app.disableHardwareAcceleration();
@@ -16,7 +17,7 @@ app.whenReady().then(async () => {
       webPreferences: { offscreen: true, contextIsolation: false, nodeIntegration: false, preload: path.join(repo, 'tools', 'ui-stub-preload.js') } });
     win.webContents.setAudioMuted(true);
     const errs = [];
-    win.webContents.on('console-message', (_e, level, msg, line, src) => { if (level >= 3 && !/Failed to load resource|net::ERR/.test(msg)) errs.push(`${msg} (${path.basename(String(src))}:${line})`); });
+    win.webContents.on('console-message', (...a) => { const { lv: level, msg, line, src } = cmOf(...a); if (level >= 3 && !/Failed to load resource|net::ERR/.test(msg)) errs.push(`${msg} (${path.basename(String(src))}:${line})`); });
     win.webContents.on('dom-ready', () => win.webContents.executeJavaScript(`window.addEventListener('error', e => console.error('UNCAUGHT ' + e.message)); window.addEventListener('unhandledrejection', e => console.error('REJECT ' + (e.reason && e.reason.message || e.reason))); Object.assign(window.__stub, ${JSON.stringify(s.stub || {})}); 0`).catch(() => {}));
     for (let k = 0; k < 3; k++) { try { await win.loadFile(path.join(repo, s.page, s.page + '.html')); break; } catch (e) { await new Promise(r => setTimeout(r, 400)); } }
     await new Promise(r => setTimeout(r, 700));

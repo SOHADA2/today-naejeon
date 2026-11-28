@@ -69,23 +69,42 @@ let CONFIG_PATH = '';
 //   설정 파일이 복사돼 나가거나 같은 PC의 다른 윈도우 사용자가 읽어도 증표를 못 씀 · 메모리 안 config는 예전 모양 그대로(코드 나머지는 그대로)
 //   암호화를 못 쓰는 환경이면 예전처럼 그대로 저장 · 못 풀면(다른 PC로 복사한 파일 등) 증표만 버림 = 다시 로그인
 const SEC_KEYS = ['fbRefresh', 'fbRiot', 'cAuth'];
-const secOk = () => { try { return safeStorage.isEncryptionAvailable(); } catch (_) { return false; } };
+// 🔧 v0.1.294(Electron 45): safeStorage 동기 함수(encryptString·decryptString)가 46에서 없어짐 → 비동기 함수로 —
+//   읽기 = 켤 때 한 번 기다려서 품(loadConfig = async) · 쓰기 = 증표가 바뀐 때만 뒤에서 다시 암호화하고 끝나면 파일을 한 번 더 씀
+//   (그 사이 saveConfig는 직전 암호문을 그대로 씀 = 증표가 그대로 적히는 순간 없음 · 그 틈에 꺼지면 새 증표만 잃음 = 다시 로그인)
 let _secPlain = false;   // 읽은 파일에 암호화 안 된 증표가 있었음 → 바로 한 번 다시 저장
-function loadConfig() {
-  let c; try { c = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); } catch (_) { return {}; }
-  if (!c || typeof c !== 'object') return {};
+let _secOk = false, _secJson = '', _secBlob = null, _secJob = null;   // _secBlob = _secJson(증표 묶음 글)을 암호화한 것
+const secPick = c => { const o = {}; for (const k of SEC_KEYS) if (c[k] != null) o[k] = c[k]; return o; };
+async function loadConfig(file) {
+  let c; try { c = JSON.parse(fs.readFileSync(file || CONFIG_PATH, 'utf8')); } catch (_) { c = {}; }
+  if (!c || typeof c !== 'object') c = {};
+  try { _secOk = !!(await safeStorage.isAsyncEncryptionAvailable()); } catch (_) { _secOk = false; }
   _secPlain = SEC_KEYS.some(k => c[k] != null);
-  if (c.sec) { try { const s = JSON.parse(safeStorage.decryptString(Buffer.from(String(c.sec), 'base64'))); for (const k of SEC_KEYS) if (s && s[k] != null) c[k] = s[k]; } catch (_) {} delete c.sec; }
+  if (c.sec) {
+    try {
+      const d = await safeStorage.decryptStringAsync(Buffer.from(String(c.sec), 'base64')), o = JSON.parse(d.result);
+      for (const k of SEC_KEYS) if (o && o[k] != null) c[k] = o[k];
+      if (!d.shouldReEncrypt && !_secPlain) { _secBlob = String(c.sec); _secJson = JSON.stringify(secPick(c)); }   // 열쇠가 바뀌었으면 다음 저장 때 다시 암호화
+    } catch (_) {}
+    delete c.sec;
+  }
   return c;
 }
 function saveConfig() {
   try {
-    let out = config;
-    if (secOk()) { out = Object.assign({}, config); const s = {}; let any = false;
-      for (const k of SEC_KEYS) if (out[k] != null) { s[k] = out[k]; delete out[k]; any = true; }
-      delete out.sec; if (any) out.sec = safeStorage.encryptString(JSON.stringify(s)).toString('base64'); }
+    if (!_secOk) { fs.writeFileSync(CONFIG_PATH, JSON.stringify(config)); return; }
+    const out = Object.assign({}, config), o = secPick(out), j = JSON.stringify(o), any = Object.keys(o).length > 0;
+    for (const k of SEC_KEYS) delete out[k]; delete out.sec;
+    if (!any) { _secJson = j; _secBlob = null; }
+    else { if (j !== _secJson) secRefresh(j); if (_secBlob) out.sec = _secBlob; }
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(out));
   } catch (_) {}
+}
+function secRefresh(j) {   // 뒤에서 다시 암호화 → 끝나면 파일에 반영(겹쳐 불려도 차례대로 · 같은 내용은 건너뜀)
+  _secJob = (_secJob || Promise.resolve()).then(async () => {
+    if (j === _secJson) return;
+    try { const b = (await safeStorage.encryptStringAsync(j)).toString('base64'); _secJson = j; _secBlob = b; saveConfig(); } catch (_) {}
+  });
 }
 
 // 🖥️ 롤 클라이언트 창에 도킹 — SetWinEventHook(LOCATIONCHANGE)로 이동 즉시 추종(찰싹·덜렁임 없음)
@@ -4760,7 +4779,7 @@ const _gotLock = app.requestSingleInstanceLock();
 if (!_gotLock) { app.quit(); }
 else {
   app.on('second-instance', () => showMainPanel());
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     try { imgcache.install(); } catch (e) { console.log('[img] 설치 실패', e && e.message); }   // 🖼️ 창보다 먼저
     try { require('electron').session.defaultSession.setDisplayMediaRequestHandler(exportMediaHandler); } catch (_) {}
     try {   // 🛡️ v0.1.293 권한(마이크·카메라·위치·알림…) = 기본 거절 · 영상 저장 창의 자기 화면 녹화만 허락
@@ -4768,8 +4787,8 @@ else {
       session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(mine(wc) && (perm === 'media' || perm === 'display-capture')));
       session.defaultSession.setPermissionCheckHandler((wc, perm) => mine(wc) && (perm === 'media' || perm === 'display-capture'));
     } catch (_) {}   // 🎞️ v0.1.212 효과 넣어 저장 = 내보내기 창만 자기 화면 녹화 허락
-    CONFIG_PATH = path.join(app.getPath('userData'), 'today-naejeon-config.json');
-    config = loadConfig(); if (_secPlain && secOk()) saveConfig();   // 🛡️ 예전 파일의 증표를 암호화해 다시 씀
+    { const cp = path.join(app.getPath('userData'), 'today-naejeon-config.json'); config = await loadConfig(cp); CONFIG_PATH = cp; }   // 🔧 다 읽은 뒤에 경로를 정함(읽는 사이 누가 saveConfig를 불러 빈 설정으로 덮어쓰지 않게)
+    if (_secPlain) saveConfig();   // 🛡️ 예전 파일의 증표를 암호화해 다시 씀
     if (config.commAsked == null) { config.commAsked = !!(config.deviceId || config.tutorialSeen); }   // 🏘️ 이미 쓰던 사람 = 기본 커뮤니티 그대로(묻지 않음) · 새로 설치 = 방 목록에서 한 번 물음
     setCommunity(config.community);
     setTimeout(() => communityRefresh().catch(() => {}), 2500);
