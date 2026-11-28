@@ -73,7 +73,7 @@ for (const w of [302, 402]) {
   S.push(sc('x-invite-' + w, w, 4, 1, 'random', '', { lol: { phase: 'None', party: null, nq: 2400, invite: { id: 'i1', from: NM[0] } } })); // 롤 초대 수락 줄(자동 수락 끈 사람)
   S.push(sc('x-dchint-' + w, w, 4, 1, 'random', "document.getElementById('lb-dci').click(); await new Promise(r=>setTimeout(r,200));"));     // 디스코드 아이콘 누른 뒤 안내
   S.push(sc('x-12-' + w, w, 12, 0, 'random'));                                                                          // 12명 = 10/10 +2
-  S.push(sc('x-err-' + w, w, 4, 0, 'random', "lbErr('롤 파티는 5명까지라 테스터G, 테스터H님은 초대 안 했어요');"));      // 오류 줄(아래 구역)
+  S.push(sc('x-err-' + w, w, 4, 0, 'random', "lbErr('롤 파티는 5명까지라 테스터G, 테스터H님은 초대 안 했습니다');"));      // 오류 줄(아래 구역)
   S.push(Object.assign(sc('x-today-' + w, w, 6, 2, 'balance'), { stub: { getToday: today } }));                         // 오늘 순위
   S.push({ name: 'x-rooms-empty-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms: [], room: null, ready: true }) + ");" + wait });
   S.push({ name: 'x-rooms-list-' + w, page: 'overlay', w, h: 720, audit: 1, js: pre + "__emit('myName'," + JSON.stringify(NM[0]) + "); __emit('rooms', " + JSON.stringify({ rooms, room: null, ready: true }) + ");" + wait });
