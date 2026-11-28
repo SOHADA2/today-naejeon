@@ -97,7 +97,7 @@ document.querySelectorAll('#sp-seg button').forEach(b => b.addEventListener('cli
 // ── 공용 ────────────────────────────────────────────────────────────────
 // 🚫 v0.1.211 건너뛴 판 표시(사장님: 건너뛴 것도 알게 — 그때 뜨는 안내를 놓쳐도 기록에서 보이게)
 const pgSkipTag = by => `<span class="rc-pgx" title="${escH(by || '방장')}님이 이 판 팟지를 건너뛰었습니다">팟지 건너뜀</span>`;
-const champIcon = id => id ? `<img class="pf-ci" src="https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${Number(id)}.png" onerror="this.style.visibility='hidden'" alt="">` : '<span class="pf-ci"></span>';
+const champIcon = id => id ? `<img class="pf-ci" src="https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${Number(id)}.png" data-err="hide" alt="">` : '<span class="pf-ci"></span>';
 const md = day => { if (!day) return ''; const [, m, d] = day.split('-'); return `${Number(m)}/${Number(d)}`; };
 const pct = (w, g) => g ? Math.round(w / g * 100) : 0;
 const kdaOf = (k, d, a) => ((k + a) / Math.max(1, d)).toFixed(2);
@@ -111,15 +111,22 @@ const TNm = (m, t) => (m && m.series && m.series.names && m.series.names[t]) || 
 const BOk = bo => bo === 5 ? '5판 3선승' : bo === 3 ? '3판 2선승' : '';
 function serRow(m, after) {   // 🏆 v0.1.289 = 상자 없이 한 줄 「3판 2선승 · 2번째 판 · 1 : 0」 · 끝 = 「🏆 불꽃 시리즈 승리 · 2 : 1」
   const S = m && m.series; if (!S || !(S.bo > 1 || S.tid)) return '';   // 시리즈(3·5판) 또는 🏆 대회 경기
-  const w = S.wins || {}, sc = `<b class="num">${w.teamA || 0} : ${w.teamB || 0}</b>`, pre = [S.tn, S.rn].filter(Boolean).map(escH).join(' · ');
-  return `<span class="hm-serl${S.done ? ' done' : ''}">${pre ? pre + ' · ' : ''}${S.done ? `🏆 ${escH(TNm(m, S.done))} 승리` : `${BOk(S.bo) || '단판'}${S.bo > 1 ? ` · ${after ? S.n || 0 : (S.n || 0) + 1}번째 판` : ''}`} · ${sc}</span>`;
+  const w = S.wins || {}, sc = `<b class="num">${Number(w.teamA) || 0} : ${Number(w.teamB) || 0}</b>`, pre = [S.tn, S.rn].filter(Boolean).map(escH).join(' · ');
+  return `<span class="hm-serl${S.done ? ' done' : ''}">${pre ? pre + ' · ' : ''}${S.done ? `🏆 ${escH(TNm(m, S.done))} 승리` : `${BOk(S.bo) || '단판'}${S.bo > 1 ? ` · ${after ? Number(S.n) || 0 : (Number(S.n) || 0) + 1}번째 판` : ''}`} · ${sc}</span>`;
 }
 const serTag = m => { const S = m && m.series; if (!S || !(S.bo > 1 || S.tid)) return ''; const w = S.wins || {};   // 기록 경기 카드 머리 = 작은 표(대회 경기면 라운드 이름)
-  return `<span class="rc-tag ser${S.done ? ' done' : ''}" title="${escH([S.tn, S.rn].filter(Boolean).join(' · '))}">${S.rn ? escH(S.rn) + ' · ' : ''}${S.done ? `🏆 ${escH(TNm(m, S.done))} ${w.teamA || 0}:${w.teamB || 0}` : `${BOk(S.bo) || '단판'} ${S.n || 0}판째 · ${w.teamA || 0}:${w.teamB || 0}`}</span>`; };
+  return `<span class="rc-tag ser${S.done ? ' done' : ''}" title="${escH([S.tn, S.rn].filter(Boolean).join(' · '))}">${S.rn ? escH(S.rn) + ' · ' : ''}${S.done ? `🏆 ${escH(TNm(m, S.done))} ${Number(w.teamA) || 0}:${Number(w.teamB) || 0}` : `${BOk(S.bo) || '단판'} ${Number(S.n) || 0}판째 · ${Number(w.teamA) || 0}:${Number(w.teamB) || 0}`}</span>`; };
 function teamRows(m, win) {
   const row = (k, label) => `<div class="hm-team ${k === 'teamA' ? 't1' : 't2'}${win === k ? ' win' : ''}"><i>${label}</i><span>${(m[k] || []).map(escH).join(' · ')}</span>${win === k ? '<em>승</em>' : ''}</div>`;
   return `<div class="hm-teams">${row('teamA', escH(TNm(m, 'teamA')))}${row('teamB', escH(TNm(m, 'teamB')))}</div>`;
 }
+// 🛡️ v0.1.293 인라인 onclick 대신(화면 안 인라인 코드는 CSP로 막음) — 프로필 등급 카드: 「?」 = 설명 펼치기 · 카드 = 등급 공개 다시 보기
+document.addEventListener('click', e => {
+  const q = e.target.closest && e.target.closest('.pf-mh-q');
+  if (q) { e.stopPropagation(); q.classList.toggle('on'); const w = q.parentNode && q.parentNode.nextElementSibling; if (w) w.hidden = !q.classList.contains('on'); return; }
+  const c = e.target.closest && e.target.closest('.pf-mh.tap[data-tap]');
+  if (c && typeof pfTierReplay === 'function') pfTierReplay(Number(c.dataset.tap) || 0);
+});
 const awardRow = o => { const a = ['mvp', 'svp', 'manner'].filter(k => o && o[k]).map(k => `<span><em>${AW_KO[k]}</em><b>${escH(o[k])}</b></span>`).join(''); return a ? `<div class="hm-aw">${a}</div>` : ''; };
 
 // ── 🏠 홈(첫 화면) — 나(티어) · 이번 판(진행 중일 때 · 방장 조작) · 오늘 · 바로 가기 ─────────────────
@@ -264,7 +271,7 @@ async function renderToday() {
   // 🎮 같이 한 일반 판(v0.1.48) — 내전 순위와 따로 · 우리 팀(앱 켠 사람)만 · 재미 지표 · 팟지 다시 보기
   const nwin = normals.filter(m => m.win).length;
   const ngames = normals.map((m, i) => {
-    const ps = (m.players || []).map(p => `<span class="nm-p">${champIcon(p.champId)}<span class="nm-pn"><a class="pf-link" data-name="${escH(p.name)}">${escH(p.name)}</a><small>${p.k}/${p.d}/${p.a}</small></span></span>`).join('');
+    const ps = (m.players || []).map(p => `<span class="nm-p">${champIcon(p.champId)}<span class="nm-pn"><a class="pf-link" data-name="${escH(p.name)}">${escH(p.name)}</a><small>${escH(p.k)}/${escH(p.d)}/${escH(p.a)}</small></span></span>`).join('');
     const fun = (m.fun || []).map(x => `<span class="nm-f ${x.k}"><em>${escH(x.label)}</em><span class="nm-fn">${escH(x.name)}</span>${x.v ? `<small>${escH(x.v)}</small>` : ''}</span>`).join('');
     return `<div class="rc-g nm"><div class="rc-gh"><span class="nm-res ${m.win ? 'w' : 'l'}">${m.win ? '승' : '패'}</span><b>${escH(m.queue || '일반 게임')}</b><span class="num">${hhmm(m.ts)}</span>${m.gameTime ? `<span class="nm-len num">${Math.round(m.gameTime / 60)}분</span>` : ''}${m.potg && !m.potg.none ? `<button class="rc-pg" data-pg="n${i}" title="팟지·숨은 영웅 다시 보기">팟지</button>${dlBtn('n' + i, t.day, m.potg)}` : m.potgSkip ? pgSkipTag(m.potgSkip) : ''}</div>`
       + `${m.potg && !m.potg.none ? dlRow(t.day, m.potg) : ''}<div class="nm-ps">${ps}</div>${fun ? `<div class="nm-fun">${fun}</div>` : ''}</div>`;
@@ -341,9 +348,9 @@ function ratingRow(R, me, who) {
     const why = x && x.n ? `${src} <b>${x.n}판</b>(${from}) 기준 · 점수 = 승률 + 경기력(팀 안 딜 순위·킬 관여·KDA) · 최근 판일수록 크게 · 8점마다 한 등급 · <b>우리끼리 점수</b>(롤 공식 랭크와 관계없음)` : `${none} · 우리끼리 점수(롤 공식 랭크와 관계없음)`;
     const tap = st ? _pfTiers.push({ kind, season, tier: st.tier, div: st.div, s: x.s, n: x.n, w: x.w, wr: x.wr, kda: x.kda, dir: 'replay', who: me ? null : who }) - 1 : -1;
     // 카드 한 장 = [문장] [영문 라벨 + 작은 한글 / 티어 이름 / 점수·판·승률] [?]
-    const card = (cls, tier, main, sub) => `<div class="pf-mh ${cls}${tap >= 0 ? ' tap' : ''}"${tap >= 0 ? ` onclick="pfTierReplay(${tap})" title="눌러서 등급 공개 다시 보기"` : ''}>${spEmb(tier)}`
+    const card = (cls, tier, main, sub) => `<div class="pf-mh ${cls}${tap >= 0 ? ' tap' : ''}"${tap >= 0 ? ` data-tap="${Number(tap) || 0}" title="눌러서 등급 공개 다시 보기"` : ''}>${spEmb(tier)}`
       + `<div class="pf-mh-tx"><span class="pf-mh-lb"><span class="sp-en">${en}</span><i>${label}</i></span><b>${main}</b><em>${sub}</em></div>`
-      + `<button class="pf-mh-q" title="어떻게 매긴 등급인지" onclick="event.stopPropagation();this.classList.toggle('on');this.parentNode.nextElementSibling.hidden=!this.classList.contains('on')">?</button></div><div class="pf-mh-why" hidden>${why}</div>`;
+      + `<button class="pf-mh-q" title="어떻게 매긴 등급인지" >?</button></div><div class="pf-mh-why" hidden>${why}</div>`;
     return !x ? card('none', '', '아직 없음', '5판부터 등급이 나옵니다')
       : st ? card('t-' + st.tier.toLowerCase(), st.tier.toLowerCase(), tierLabel(st.tier), `<b>${x.s}점</b> · ${x.n}판 ${x.w}승 · 승률 ${Math.round(x.wr * 100)}%`)
       : card('none', '', `배치 ${x.pl || x.n}/5`, `${x.n}판 ${x.w}승 · 5판부터 등급`);
@@ -377,7 +384,7 @@ async function renderProfile() {
   let play = '';
   if (P.statGames) {
     const n = P.statGames, min = P.time / 60;
-    const multi = [P.penta ? `펜타 ${P.penta}` : '', P.quadra ? `쿼드라 ${P.quadra}` : '', P.triple ? `트리플 ${P.triple}` : '', P.double ? `더블 ${P.double}` : ''].filter(Boolean).join(' · ') || '없음';
+    const multi = [P.penta ? `펜타 ${Number(P.penta) || 0}` : '', P.quadra ? `쿼드라 ${Number(P.quadra) || 0}` : '', P.triple ? `트리플 ${Number(P.triple) || 0}` : '', P.double ? `더블 ${Number(P.double) || 0}` : ''].filter(Boolean).join(' · ') || '없음';
     play = sec('플레이', `${n}판 평균`) + `<div class="pf-grid">`
       + `<div><span>KDA</span><b>${(P.k / n).toFixed(1)} / ${(P.d / n).toFixed(1)} / ${(P.a / n).toFixed(1)}</b><em>${kdaOf(P.k, P.d, P.a)}</em></div>`
       + `<div><span>피해량</span><b>${Math.round(P.damage / n).toLocaleString()}</b><em>${min ? `분당 ${Math.round(P.damage / min).toLocaleString()}` : ''}</em></div>`
@@ -387,14 +394,14 @@ async function renderProfile() {
   const champs = P.champs.length ? sec('많이 한 챔피언') + list(P.champs.map(c =>
     `<div class="pf-row">${champIcon(c.id)}<span class="pf-rn">${escH(c.name || '?')}</span><span class="pf-rv">${c.games}판 ${pct(c.wins, c.games)}%</span><span class="pf-rk">${kdaOf(c.k, c.d, c.a)}</span></div>`).join('')) : '';
   const augs = (P.augs || []).length ? sec('많이 고른 증강') + list(P.augs.map(x => { const a = AUG[x.id] || {};
-    return `<div class="pf-row"><i class="pf-aug ${a.rarity || ''}">${a.icon ? `<img src="${a.icon}" alt="" onerror="this.remove()">` : ''}<b>?</b></i><span class="pf-rn">${escH(a.name || '증강 #' + x.id)}</span><span class="pf-rv">${x.games}번</span></div>`; }).join('')) : '';
+    return `<div class="pf-row"><i class="pf-aug ${a.rarity || ''}">${a.icon ? `<img src="${a.icon}" alt="" data-err="rm">` : ''}<b>?</b></i><span class="pf-rn">${escH(a.name || '증강 #' + x.id)}</span><span class="pf-rv">${x.games}번</span></div>`; }).join('')) : '';
   const B = P.best, bestRow = (label, b, fmt) => b ? `<div class="pf-row">${champIcon(b.champId)}<span class="pf-rn">${label}</span><span class="pf-rv">${fmt(b.v)}</span><span class="pf-rk">${escH(b.champ || '')} · ${md(b.day)}</span></div>` : '';
   const best = (B.kills || B.damage || B.kda) ? sec('최고 기록') + list(bestRow('최다 킬', B.kills, v => v + '킬') + bestRow('최고 피해량', B.damage, v => v.toLocaleString()) + bestRow('최고 KDA', B.kda, v => v) + bestRow('최다 어시', B.assists, v => v + '어시')) : '';
   const pals = (label, rows, hint) => rows.length ? sec(label, hint) + list(rows.map(x =>
     `<div class="pf-row"><a class="pf-rn pf-link">${escH(x.name)}</a><span class="pf-rv">${x.games}판 ${x.wins}승</span><span class="pf-rk">${pct(x.wins, x.games)}%</span></div>`).join('')) : '';
   const recent = sec(`최근 ${P.recent.length}판`) + list(P.recent.map(g =>
     `<div class="pf-row pf-g ${g.win ? 'w' : 'l'}"><span class="pf-wl">${g.win ? '승' : '패'}</span>${champIcon(g.champId)}<span class="pf-rn">${escH(g.champ || '결과만 기록')}</span>`
-    + `<span class="pf-rv">${g.k != null ? `${g.k}/${g.d}/${g.a}` : ''}</span><span class="pf-rk">${(g.aw || []).map(a => `<i class="pf-awc">${AW_KO[a] || ''}</i>`).join('')}${md(g.day)}</span></div>`).join(''));
+    + `<span class="pf-rv">${g.k != null ? `${escH(g.k)}/${escH(g.d)}/${escH(g.a)}` : ''}</span><span class="pf-rk">${(g.aw || []).map(a => `<i class="pf-awc">${AW_KO[a] || ''}</i>`).join('')}${md(g.day)}</span></div>`).join(''));
   body.innerHTML = head + big + play + champs + augs + best
     + pals('찰떡 팀원', P.mates, '같은 팀 승률 · 2판 이상') + pals('천적', P.rivals, '상대로 만난 승률 · 2판 이상') + recent;
   bindHead();

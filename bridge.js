@@ -13,7 +13,10 @@ const { execFile }     = require('child_process');
 
 const FIREBASE_URL      = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebasedatabase.app';   // 🗄️ v0.1.64 투데이 내전 전용 프로젝트
 const FIXED_ROOT        = 'today/bridge';   // 🚪 v0.1.95: 방과 상관없는 것(접속·5초 하트비트·점검 기록 — 타임라인 원본은 1.5MB까지)은 늘 여기 · 방 스트림 하나로 합치면서 방 안에 두면 모두가 받게 돼서
-let BRIDGE_ROOT         = 'today/bridge';   // ⚠️ 사이트 bridge/ 와 분리(시즌2 데이터 오염 방지) · 🚪 v0.1.94: 방에 들어가면 today/rooms/{방}/bridge(setRoot) — 방마다 경기 결과(eogStats)가 따로
+// 🛡️ v0.1.293 보안 점검: 방 밖일 때는 서버에 쓰지 않음(예전 = 모두가 같이 쓰는 today/bridge 칸에 게임 단계·게임 중 참가자 이름·챔피언 선택을 써서
+//   로그인만 하면(게스트 포함) 누구나 읽고 덮어쓸 수 있었음 · 읽는 곳도 없음) → 'local/…' 경로 = 이 앱 메모리에만 · 방에 들어가면 예전처럼 today/rooms/{방}/bridge(setRoot)
+const LOCAL_ROOT = 'local/bridge', _mem = new Map(), isLocal = p => String(p).startsWith('local/');
+let BRIDGE_ROOT         = LOCAL_ROOT;
 
 // 주입 옵션(startBridge에서 세팅)
 let _log        = () => {};
@@ -59,6 +62,7 @@ let fbOk = null, fbErrorLogged = false;
 let _getToken = async () => null, _route = null;   // 🏘️ v0.1.259 _route(경로) = 커뮤니티 전용 서버면 {base, tok}
 const fbUrl = async p => { const r = _route ? _route(p) : null; const t = await (r ? r.tok() : _getToken()).catch(() => null); return `${r ? r.base : FIREBASE_URL}/${p}.json${t && t !== 'noauth' ? `?auth=${t}` : ''}`; };
 async function fbSet(p, data) {
+  if (isLocal(p)) { if (data == null) _mem.delete(p); else _mem.set(p, JSON.parse(JSON.stringify(data))); return true; }
   const u = await fbUrl(p);
   const r = await httpReq('PUT', u + (u.includes('?') ? '&' : '?') + 'print=silent', typeof data === 'string' ? JSON.stringify(data) : data);   // 문자열도 JSON으로(안 하면 HTTP 400 — gamePhase가 계속 실패했음) · 💤 v0.1.246 print=silent = 쓴 내용을 되돌려 받지 않음(204 · 내려받기 전송량 절약)
   if (r.status >= 200 && r.status < 300) { fbOk = true; fbErrorLogged = false; return true; }
@@ -67,15 +71,18 @@ async function fbSet(p, data) {
   return false;
 }
 async function fbGet(p) {
+  if (isLocal(p)) return _mem.has(p) ? _mem.get(p) : null;
   const r = await httpReq('GET', await fbUrl(p));
   return r.data;
 }
 // ETag 기반 조건부 GET/PUT — 다른 브릿지/오버레이 동시 실행 시 atomic CAS(중복 EOG 저장 차단)
 async function fbGetWithEtag(p) {
+  if (isLocal(p)) return { data: _mem.has(p) ? _mem.get(p) : null, etag: 'local' };
   const r = await httpReq('GET', await fbUrl(p), undefined, { 'X-Firebase-ETag': 'true' });
   return { data: r.data, etag: r.etag };
 }
 async function fbSetIfMatch(p, data, etag) {
+  if (isLocal(p)) { await fbSet(p, data); return { ok: true }; }
   const r = await httpReq('PUT', await fbUrl(p), data === null ? null : data, { 'if-match': etag || 'null_etag' });
   if (r.status === 412) return { ok: false, conflict: true };
   if (r.status >= 200 && r.status < 300) { fbOk = true; return { ok: true }; }
@@ -186,7 +193,7 @@ function startHeartbeat() {
   if (heartbeatTimer) return;
   const beat = () => {
     if (!basePort || !_acctKey) return;   // 💤 v0.1.246 롤 클라가 실제로 응답해 계정이 잡혔을 때만(예전 = 앱을 켜 둔 내내 5초마다 · 읽는 곳 없음 · 트레이 PC가 하루 1만 7천 번 쓰던 것 · lockfile만 남은 PC도 안 씀)
-    fbSet(`${FIXED_ROOT}/operators/${OPERATOR_ID}`, _operatorPayload());  // 다중 진행자 표시
+    // 🛡️ v0.1.293 today/bridge/operators 쓰기 없앰(읽는 곳 없음 · 서버 규칙에서도 닫음)
   };
   beat();
   heartbeatTimer = setInterval(beat, 5000);
@@ -676,7 +683,6 @@ connector.on('connect', async data => {
   try { const me = await lcu('/lol-summoner/v1/current-summoner'); log(`접속 계정: ${me.displayName || me.gameName || ''}`); } catch (_) {}
   pollAccount();
   if (!_acctTimer) _acctTimer = setInterval(pollAccount, 5000);   // 로그인 직후엔 계정이 늦게 잡힐 수 있어 5초마다 재확인
-  await fbSet(`${FIXED_ROOT}/connected`, true);
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(poll, 3000); poll();
   if (!_seatTimer) _seatTimer = setInterval(pollSeat, 1000);
@@ -691,7 +697,6 @@ connector.on('disconnect', async () => {
   gameInProgress = false; activeGameId = null; activeIsCustom = null;
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   if (_seatTimer) { clearInterval(_seatTimer); _seatTimer = null; } pollSeat();   // 클라 종료 → 자리 없음
-  await fbSet(`${FIXED_ROOT}/connected`, false);
   await fbSet(`${BRIDGE_ROOT}/inGame`, null);
 });
 
@@ -725,10 +730,8 @@ function stop() {
   if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
   if (_acctTimer) { clearInterval(_acctTimer); _acctTimer = null; }
   if (_seatTimer) { clearInterval(_seatTimer); _seatTimer = null; }
-  fbSet(`${FIXED_ROOT}/connected`, false);
   fbSet(`${BRIDGE_ROOT}/inGame`, null);
-  fbSet(`${FIXED_ROOT}/operators/${OPERATOR_ID}`, null);
 }
 
-module.exports = { _summarizeTimeline: summarizeTimeline, start, stop, getQueue: () => activeQueue, setRoot: (r) => { BRIDGE_ROOT = r || 'today/bridge'; }, getGameId: () => activeGameId || lastSavedGameId || null,   // 🎬 팟지 수집이 어느 게임인지
+module.exports = { _summarizeTimeline: summarizeTimeline, start, stop, getQueue: () => activeQueue, setRoot: (r) => { BRIDGE_ROOT = r || LOCAL_ROOT; }, getGameId: () => activeGameId || lastSavedGameId || null,   // 🎬 팟지 수집이 어느 게임인지
   lcuRaw: (m, p, b) => basePort ? lcuRaw(m, p, b) : Promise.resolve({ status: 0, data: null }), lolDir: () => _lolDir, lcuUp: () => !!basePort };   // 🎬 팟지 리플레이 녹화(replayrec.js)   // 🎬 팟지 수집이 어느 게임인지

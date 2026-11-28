@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: tnimg: https:; media-src 'self' data: blob: tnimg: https:; font-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'">
 <title>증강 뽑아 보기</title>
 <link rel="stylesheet" href="../shared.css">
 <link rel="stylesheet" href="auglab.css">
@@ -18,6 +19,7 @@
     <div id="lab-state" class="lab-state">불러오는 중…</div>
     <div id="lab-src" class="lab-src"></div>
   </div>
+  <script src="../desktop/imgerr.js"></script>
   <script src="../desktop/tip.js"></script>
   <script src="auglab.js"></script>
 </body>

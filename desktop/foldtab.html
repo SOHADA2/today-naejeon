@@ -2,6 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: tnimg: https:; media-src 'self' data: blob: tnimg: https:; font-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'">
   <title>투데이 내전</title>
   <link rel="stylesheet" href="../shared.css">
   <style>
@@ -72,15 +73,6 @@
       <path d="M22 18 L13 52 L22 86" fill="none" stroke="url(#g2)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" opacity="0.65"/>
     </svg></div>
   </div>
-  <script>
-    const side = new URLSearchParams(location.search).get('side') === 'R' ? 'R' : 'L';
-    document.body.classList.add(side);
-    const hit = document.getElementById('hit');
-    // v0.1.281~284 힌트 소리 → v0.1.285 없앰(사장님: 화살표 소리는 안 줘도 됨)
-    hit.addEventListener('click', () => { if (window.api && window.api.winFold) window.api.winFold(side, false); });
-    const replay = () => { document.body.classList.remove('in'); void document.body.offsetWidth; document.body.classList.add('in'); };
-    if (window.api && window.api.onFoldTabIn) window.api.onFoldTabIn(replay);
-    replay();
-  </script>
+  <script src="foldtab.js"></script>
 </body>
 </html>

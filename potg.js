@@ -363,17 +363,17 @@ module.exports = function makePotg(d) {
   //     토큰을 들고 올리기·받기만 해 줌(지우기 못 함 · 3일 정리는 중계의 매일 cron) · 중계 주소 = Firebase `today/config/clipProxy`(쓰기는 관리자만 · 10분 캐시) · 개발 = env TN_CLIP_PROXY
   let _px = null;
   async function proxy() {
-    if (process.env.TN_CLIP_PROXY) return process.env.TN_CLIP_PROXY;
+    if (process.env.TN_CLIP_PROXY && !require('electron').app.isPackaged) return process.env.TN_CLIP_PROXY;   // 🛡️ v0.1.293 개발 실행에서만
     if (_px && Date.now() - _px.at < 600000) return _px.url;
     const u = await d.getJson(`${d.FIREBASE_DB}/${d.T}/config/clipProxy.json`).catch(() => null);
-    _px = { url: typeof u === 'string' && /^https:\/\//.test(u) ? u.replace(/\/$/, '') : null, at: Date.now() };
+    _px = { url: typeof u === 'string' && /^https:\/\/[a-z0-9-]+\.shm2644\.workers\.dev\/?$/.test(u) ? u.replace(/\/$/, '') : null   /* 🛡️ v0.1.293 우리 계정의 중계 주소만(서버 설정이 바뀌어도 로그인 표식이 엉뚱한 곳으로 안 감) */, at: Date.now() };
     return _px.url;
   }
   const PX_HEAD = { 'x-tn-app': 'today-naejeon' };
   const pxHead = async () => { const t = d.getToken ? await d.getToken().catch(() => null) : null; return Object.assign({}, PX_HEAD, t && t !== 'noauth' ? { authorization: `Bearer ${t}` } : {}); };   // 🔐 v0.1.99: 로그인 표식(중계가 Firebase 표식 확인)
-  async function pxJson(route, body, timeout) {   // 🎧 v0.1.130 중계에 JSON 부탁(디스코드 음성 이동 등) → {status, j}
+  async function pxJson(route, body, timeout, extra) {   // 🎧 v0.1.130 중계에 JSON 부탁(디스코드 음성 이동 등) → {status, j} · extra = 덧붙일 머리말(v0.1.293 전용 서버 표식)
     const base = await proxy(); if (!base) return { status: 0, j: null };
-    const r = await fetch(`${base}${route}`, { method: 'POST', body: JSON.stringify(body), headers: Object.assign({ 'Content-Type': 'application/json' }, await pxHead()), signal: AbortSignal.timeout(timeout || 20000) });
+    const r = await fetch(`${base}${route}`, { method: 'POST', body: JSON.stringify(body), headers: Object.assign({ 'Content-Type': 'application/json' }, await pxHead(), extra || {}), signal: AbortSignal.timeout(timeout || 20000) });
     return { status: r.status, j: await r.json().catch(() => null) };
   }
   async function pxUpload(route, name, buf, type, timeout) {   // → 파일 id 또는 null

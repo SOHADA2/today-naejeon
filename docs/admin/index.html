@@ -329,7 +329,9 @@ const DB = 'https://today-naejeon-sohada-default-rtdb.asia-southeast1.firebaseda
 const fb = initializeApp({ apiKey: 'AIzaSyDhVbSzNQ306LUTcPo44Ru9G4_RqV9Dl_E', authDomain: 'today-naejeon-sohada.firebaseapp.com', projectId: 'today-naejeon-sohada' });
 const auth = getAuth(fb);
 const $ = id => document.getElementById(id);
-const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// 🛡️ 2026-11-28 보안 점검 — 사람 키(계정 번호)는 이 모양만 · 신고의 「대상」은 신고한 사람이 적어 보내는 값이라 그대로 경로에 넣으면 안 됨(「../」로 다른 칸을 가리키게 할 수 있었음)
+const PKEY = /^[A-Za-z0-9_-]{1,100}$/;
 const PERM = 9e15, ONLINE_MS = 60000, DAY_START_HOUR = 6;
 let ME = null, S = {};   // S = 받은 자료
 // 🏘️ v0.1.258 커뮤니티 공간 — CT = 고른 커뮤니티 칸(기본 = today · 다른 커뮤니티 = today/c/{id}) · 같이 쓰는 칸(계정·점수·디스코드·자리·설정·전체 운영자)은 today 그대로
@@ -351,6 +353,9 @@ function setComm(id) { COMM = id || null; CT = COMM ? `today/c/${COMM}` : 'today
 
 // ── 서버 읽기·쓰기(운영자 표식) ──
 async function api(method, path, body, q) {
+  // 🛡️ 경로 검사: 빈 칸·「.」·「..」·물음표 등이 든 경로는 안 보냄 + 칸마다 주소용으로 바꿔서 보냄(서버 값이 경로에 섞여도 다른 칸으로 못 새게)
+  if (typeof path !== 'string' || /[?#\\\u0000-\u001f]/.test(path) || path.split('/').some(x => !x || /^(\.|%2e){1,2}$/i.test(x))) throw new Error('잘못된 경로');
+  path = path.split('/').map(encodeURIComponent).join('/');
   const c = onC(path), a = c ? CAUTH : auth;   // 🏘️ 전용 서버 칸이면 그 서버 · 그 서버 표식
   if (!a || !a.currentUser) throw new Error(c ? '커뮤니티 서버에 로그인해 주세요' : '로그인해 주세요');
   const tok = await a.currentUser.getIdToken();
@@ -459,7 +464,7 @@ function people() {
     const o = out.get(k) || { key: k, name: p.name || '?', tag: p.tag || '', last: 0 };
     o.p = p; o.last = Math.max(o.last, p.at || 0); o.on = now - (p.at || 0) < ONLINE_MS; out.set(k, o);
   }
-  for (const r of Object.values(S.reports || {})) if (r && r.target && !out.has(r.target)) out.set(r.target, { key: r.target, name: r.name || '?', tag: '', last: 0 });
+  for (const r of Object.values(S.reports || {})) if (r && r.target && PKEY.test(r.target) && !out.has(r.target)) out.set(r.target, { key: r.target, name: r.name || '?', tag: '', last: 0 });
   for (const [k, b] of Object.entries(S.bans)) { const o = out.get(k) || { key: k, name: b.name || '?', tag: '', last: 0 }; o.ban = b; out.set(k, o); }
   return [...out.values()];
 }
@@ -538,7 +543,7 @@ let TVIEW = null, TMSEL = null, TNEW = false;   // v0.1.292 화면 = 'teams' | '
 function renderTour() {
   const L = Object.entries(S.tn || {}).filter(([, t]) => t && t.name).sort((a, b) => (b[1].at || 0) - (a[1].at || 0));
   if (TSEL && !(S.tn || {})[TSEL]) TSEL = null; if (!TSEL && L.length) TSEL = L[0][0];
-  $('tn-list').innerHTML = L.length ? L.map(([id, t]) => `<button class="tnb${id === TSEL ? ' on' : ''}" data-tsel="${esc(id)}"><b>${esc(t.name)}</b><span class="tag${t.st === 'live' ? ' gold' : ''}">${TN_ST[t.st] || t.st}</span></button>`).join('') : '<span class="mute">아직 대회가 없습니다</span>';
+  $('tn-list').innerHTML = L.length ? L.map(([id, t]) => `<button class="tnb${id === TSEL ? ' on' : ''}" data-tsel="${esc(id)}"><b>${esc(t.name)}</b><span class="tag${t.st === 'live' ? ' gold' : ''}">${TN_ST[t.st] || esc(t.st)}</span></button>`).join('') : '<span class="mute">아직 대회가 없습니다</span>';
   $('tn-list').querySelectorAll('[data-tsel]').forEach(b => b.onclick = () => { TSEL = b.dataset.tsel; TVIEW = null; TMSEL = null; renderTour(); });
   $('tn-form').classList.toggle('hide', !(TNEW || !L.length));
   $('tn-new-btn').textContent = TNEW && L.length ? '닫기' : '＋ 새 대회'; $('tn-new-btn').classList.toggle('hide', !L.length);
@@ -579,7 +584,7 @@ function renderTourDetail() {
   const boTx = TNC.BO_KO(t.bo || 1) + (t.fmt === 'se' && t.boF && t.boF !== t.bo ? ` · 결승 ${TNC.BO_KO(t.boF)}` : '');
   if (R && (!TMSEL || !R.matches[TMSEL])) { const L = Object.values(R.matches).filter(m => m.how !== 'bye' && m.state !== 'void'); TMSEL = (L.find(m => m.state === 'live') || L.find(m => m.state === 'ready') || L[L.length - 1] || {}).id || null; }
   // ① 머리 = 이름·상태·할 일 버튼 + 단계(누르면 그 화면)
-  let h = `<div class="sec card tn-hd"><div><h2><b>${esc(t.name)}</b><span class="tag${t.st === 'live' ? ' gold' : ''}">${TN_ST[t.st] || t.st}</span></h2><div class="meta">${TN_FMT[t.fmt]} · ${boTx}${R && R.champ ? ` · <b>🏆 우승 ${esc(R.champ.name)}</b>` : ''}</div></div><div class="acts">`
+  let h = `<div class="sec card tn-hd"><div><h2><b>${esc(t.name)}</b><span class="tag${t.st === 'live' ? ' gold' : ''}">${TN_ST[t.st] || esc(t.st)}</span></h2><div class="meta">${TN_FMT[t.fmt]} · ${boTx}${R && R.champ ? ` · <b>🏆 우승 ${esc(R.champ.name)}</b>` : ''}</div></div><div class="acts">`
     + (t.st === 'draft' ? `<button class="btn gold" data-ta="st" data-v="live"${hasM ? '' : ' disabled title="먼저 대진을 짜 주세요"'}>대회 시작</button>` : '')
     + (t.st === 'live' ? `<button class="btn gold" data-ta="st" data-v="done">대회 끝내기</button><button class="btn" data-ta="st" data-v="draft" title="앱에서 숨기고 다시 준비">준비 중으로</button>` : '')
     + (t.st === 'done' ? `<button class="btn" data-ta="st" data-v="live">다시 진행 중으로</button>` : '')
@@ -590,7 +595,7 @@ function renderTourDetail() {
   if (view === 'teams') {   // ② 팀 = 카드 격자 · 카드 안에서 선수 추가
     h += `<div class="sec"><div class="tn-grid">` + teams.map((tm, i) => { const c = TNC.rosterCount(tm), mem = Object.entries(tm.mem || {}).map(([k, m]) => Object.assign({ k }, m)).sort((a, b) => ['cap', '', 'sub'].indexOf(a.r || '') - ['cap', '', 'sub'].indexOf(b.r || ''));
         return `<div class="tn-team"><div class="top"><span class="sd">${i + 1}</span><b>${esc(tm.name)}</b>${tm.tag ? `<span class="tag gold">${esc(tm.tag)}</span>` : ''}<span class="cnt${c.main >= TNC.MAIN_MAX ? ' full' : ''}">선수 ${c.main}/${TNC.MAIN_MAX} · 후보 ${c.sub}/${TNC.SUB_MAX}</span><button class="tn-ib" title="이름·태그 바꾸기" data-ta="trename" data-k="${esc(tm.id)}">✎</button><button class="tn-ib" title="${hasM ? '대진이 있으면 팀을 지울 수 없습니다 · 먼저 대진을 지우세요' : '팀 지우기'}" data-ta="tdel" data-k="${esc(tm.id)}"${hasM ? ' disabled' : ''}>🗑</button></div>
-          <div class="tn-mem">${mem.map(m => `<span class="${m.r || ''}">${esc(m.n || '?')}<small>${TN_ROLE[m.r || '']}</small><button class="tn-ib" title="역할 바꾸기(선수 → 팀장 → 후보)" data-ta="mrole" data-k="${esc(tm.id)}" data-p="${esc(m.k)}">⇄</button><button class="tn-ib" title="빼기" data-ta="mdel" data-k="${esc(tm.id)}" data-p="${esc(m.k)}">✕</button></span>`).join('') || '<span class="none">아직 선수가 없습니다 · 첫 선수가 팀장이 됩니다</span>'}</div>
+          <div class="tn-mem">${mem.map(m => `<span class="${m.r === 'cap' || m.r === 'sub' ? m.r : ''}">${esc(m.n || '?')}<small>${TN_ROLE[m.r || ''] || ''}</small><button class="tn-ib" title="역할 바꾸기(선수 → 팀장 → 후보)" data-ta="mrole" data-k="${esc(tm.id)}" data-p="${esc(m.k)}">⇄</button><button class="tn-ib" title="빼기" data-ta="mdel" data-k="${esc(tm.id)}" data-p="${esc(m.k)}">✕</button></span>`).join('') || '<span class="none">아직 선수가 없습니다 · 첫 선수가 팀장이 됩니다</span>'}</div>
           <div class="tn-addrow"><input class="in tn-add" list="tn-accts" data-k="${esc(tm.id)}" placeholder="이름#태그"><select class="tn-role" data-k="${esc(tm.id)}"><option value="">선수</option><option value="sub">후보</option></select><button class="btn sm" data-ta="madd" data-k="${esc(tm.id)}">추가</button></div></div>`; }).join('')
       + `<div class="tn-team new"><div class="row"><input id="tn-tname" class="in" maxlength="12" placeholder="새 팀 이름(12자)" style="flex:1"><input id="tn-ttag" class="in" maxlength="4" placeholder="태그" style="width:70px"><button class="btn gold" data-ta="tadd"${hasM ? ' disabled' : ''}>팀 추가</button></div><span class="mute" style="font-size:12.5px">${hasM ? '대진이 있으면 팀을 더하거나 지울 수 없습니다(선수 바꾸기는 언제든) · 대진을 지우면 다시 됩니다' : '선수 5명(팀장 포함) + 후보 2명까지 · 기록 공개에 동의한 계정만 · 대회 경기에는 등록 선수만 나갑니다'}</span></div>`
       + `</div><datalist id="tn-accts">${people().filter(x => !x.key.startsWith('g_')).sort((a, b) => b.last - a.last).slice(0, 400).map(x => `<option value="${esc(x.name + (x.tag ? '#' + x.tag : ''))}">`).join('')}</datalist></div>`;
@@ -669,9 +674,9 @@ function renderReports() {
   $('reps').innerHTML = all.length ? all.map(r => {
     const L = Object.values(r.lines || {}).sort((a, b) => a.at - b.at);
     return `<div class="rep ${r.st === 'done' ? 'done' : ''}"><div class="top"><span class="tag ${r.st === 'done' ? '' : 'ban'}">${r.st === 'done' ? '처리함' : '대기'}</span><span class="tag">${esc(r.why || '기타')}</span>
-      <span class="who" data-k="${esc(r.target)}">${esc(r.name || '?')}</span><span class="mute">← 신고: ${esc(r.byName || '?')} · ${esc(r.roomName || '')} 방 · ${fmt(r.at)}</span></div>
+      <span class="who" data-k="${esc(r.target)}">${esc(r.name || '?')}</span>${PKEY.test(String(r.target || '')) ? '' : '<span class="tag ban" title="대상 계정 번호가 정상 모양이 아닙니다 · 조작된 신고일 수 있음">대상 번호 이상</span>'}<span class="mute">← 신고: ${esc(r.byName || '?')} · ${esc(r.roomName || '')} 방 · ${fmt(r.at)}</span></div>
       ${r.memo ? `<div class="memo">${esc(r.memo)}</div>` : ''}
-      ${L.length ? `<div class="lines">${L.map(l => `<div><small>${fmt(l.at)}</small><span>${esc(l.text)}</span></div>`).join('')}</div>` : '<div class="mute" style="margin-top:6px">최근 말 없음</div>'}
+      ${L.length ? `<div class="mute" style="margin-top:6px" title="신고한 사람의 앱이 받은 말을 그대로 보낸 것입니다 · 서버가 확인한 기록이 아님">신고자가 보낸 최근 말</div><div class="lines">${L.map(l => `<div><small>${fmt(l.at)}</small><span>${esc(l.text)}</span></div>`).join('')}</div>` : '<div class="mute" style="margin-top:6px">최근 말 없음</div>'}
       ${r.st === 'done' ? `<div class="mute" style="margin-top:6px">처리 · ${esc(r.res || '')} · ${esc(r.doneBy || '')} ${fmt(r.doneAt || 0)}</div>`
         : `<div class="act"><button class="btn sm" data-open="${esc(r.target)}">사람 카드(경고·채팅 금지·정지)</button><button class="btn sm" data-done="${esc(r.id)}">처리함으로</button><button class="btn sm" data-skip="${esc(r.id)}">문제없음</button></div>`}</div>`;
   }).join('') : '<div class="empty">신고가 없습니다</div>';
@@ -711,6 +716,7 @@ function renderLog() {
 
 // ── 사람 카드 ──
 async function openPerson(key) {
+  if (!PKEY.test(String(key || ''))) { toast('계정 번호가 올바르지 않은 신고입니다(조작된 값일 수 있음)'); return; }
   const x = people().find(p => p.key === key) || { key, name: '?', tag: '' };
   const rid = roomOf(key), room = rid && S.roomList[rid], b = x.ban;
   const hist = Object.values(S.modlog).filter(l => l && l.target === key).sort((a, c) => c.at - a.at);

@@ -1,54 +1,6 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>shrink</title></head>
+<html><head><meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: tnimg: https:; media-src 'self' data: blob: tnimg: https:; font-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><title>shrink</title></head>
 <body style="margin:0;background:#000">
-<script>
-// 🎬 팟지 영상 줄이기(v0.1.34 · 방장 PC 숨은 창) — 롤 녹화는 width/height를 무시하고 모니터 크기(예: 3440×1440)로 저장해서
-// 큰 파일(10초에 8MB)이 됨 → 가로 W로 줄여 다시 녹화(소리 포함). 실제 시간만큼 걸림(20초 영상 = 약 20초).
-// v0.1.35: 가운데를 16:9로 잘라 zoom배 확대(카메라가 주인공을 화면 가운데에 두므로 주인공 중심) — 21:9 모니터는 양옆, 16:9는 둘레가 잘림.
-// 메인이 executeJavaScript('shrink(src, W, kbps, zoom)')로 부르고 base64(webm)를 돌려받음.
-// 원본 그대로 올릴 수 있나 보기(2026-11-01) — 길이·크기만 읽음(다시 녹화 안 함)
-async function probe(src) {
-  const v = document.createElement('video'); v.src = src; v.preload = 'metadata';
-  await new Promise((ok, no) => { v.onloadedmetadata = ok; v.onerror = () => no(new Error('영상 열기 실패')); });
-  if (!Number.isFinite(v.duration)) { v.currentTime = 1e9; await new Promise(r => { v.ondurationchange = r; setTimeout(r, 3000); }); }   // 길이 정보 없는 webm
-  return { w: v.videoWidth, h: v.videoHeight, sec: Number.isFinite(v.duration) ? v.duration : null };
-}
-async function shrink(src, W, kbps, zoom) {
-  const v = document.createElement('video');
-  v.src = src; v.preload = 'auto'; v.playsInline = true;
-  await new Promise((ok, no) => { v.onloadedmetadata = ok; v.onerror = () => no(new Error('영상 열기 실패')); });
-  const Z = Math.max(1, zoom || 1);
-  let sh = v.videoHeight / Z, sw = sh * 16 / 9;
-  if (sw > v.videoWidth / Z) { sw = v.videoWidth / Z; sh = sw * 9 / 16; }
-  const sx = (v.videoWidth - sw) / 2, sy = (v.videoHeight - sh) / 2;
-  const w = Math.min(W, Math.round(sw)) & ~1, h = Math.round(w * 9 / 16) & ~1;
-  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-  const g = cv.getContext('2d');
-  const ac = new AudioContext(), dest = ac.createMediaStreamDestination();
-  try { ac.createMediaElementSource(v).connect(dest); } catch (_) {}   // 스피커로는 안 내보냄(소리 안 남)
-  // v0.1.58: 고정 30fps 캡처 + 33ms 타이머(실제 30.3장/초)가 어긋나 3.3초마다 한 장씩 빠졌음(맥놀이 · 실측 66ms 끊김 3.3초 간격)
-  //   → 캡처는 0(자동 안 함), 영상 프레임이 새로 나올 때마다(requestVideoFrameCallback) 그리고 그 자리에서 requestFrame
-  const stream = cv.captureStream(0), vtrack = stream.getVideoTracks()[0];
-  dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
-  const mime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m));
-  const mr = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: (kbps || 3500) * 1000, audioBitsPerSecond: 96000 });
-  const parts = [];
-  mr.ondataavailable = e => { if (e.data && e.data.size) parts.push(e.data); };
-  const done = new Promise(r => { mr.onstop = r; });
-  const draw = () => { if (v.readyState >= 2) { g.drawImage(v, sx, sy, sw, sh, 0, 0, w, h); try { vtrack.requestFrame(); } catch (_) {} } };
-  await ac.resume().catch(() => {});
-  await v.play();
-  draw(); mr.start(1000);   // 재생이 시작된 뒤에 녹화 시작(먼저 켜면 영상 시각이 0.2초쯤 밀려 킬 순간 연출이 늦어짐)
-  let timer = null, frames = 0;
-  if (v.requestVideoFrameCallback) { const loop = () => { frames++; draw(); if (!v.ended) v.requestVideoFrameCallback(loop); }; v.requestVideoFrameCallback(loop); }
-  timer = setInterval(() => { if (!frames) draw(); }, 1000 / 30);   // 숨은 창에서 영상 프레임 알림이 안 오면 예전처럼 타이머로(오기 시작하면 타이머는 안 그림)
-  await new Promise(r => { v.onended = r; setTimeout(r, (v.duration + 10) * 1000); });
-  draw(); if (timer) clearInterval(timer);
-  mr.stop(); await done;
-  const buf = await new Blob(parts, { type: 'video/webm' }).arrayBuffer();
-  let s = ''; const u = new Uint8Array(buf);
-  for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
-  return { b64: btoa(s), w, h, sec: v.duration, rvfc: frames };
-}
-</script>
+<script src="shrink.js"></script>
 </body></html>

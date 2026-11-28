@@ -124,7 +124,7 @@ function cardHtml(a, i, anim, onlyIdx) {
   const fx = anim && (onlyIdx == null || onlyIdx === i);
   const up = !penta && G.hack && !G.rr[i];
   return `<div class="cw i${i}${cls}"><button class="card ${rar}${fx ? ' flip' : ''}"${fx ? ` style="animation-delay:${onlyIdx == null ? i * 0.14 : 0}s"` : ''} data-k="pick" data-i="${i}"${G.picked >= 0 ? ' disabled' : ''}>`
-    + `<span class="card-in"><span class="c-rar">${REN[rar]}</span><span class="c-ic"><img src="${esc(a.icon)}" alt="" onerror="this.remove()"></span><span class="c-nm">${esc(a.name)}</span><span class="c-bar"></span>`
+    + `<span class="card-in"><span class="c-rar">${REN[rar]}</span><span class="c-ic"><img src="${esc(a.icon)}" alt="" data-err="rm"></span><span class="c-nm">${esc(a.name)}</span><span class="c-bar"></span>`
     + `<span class="c-body"><span class="c-desc${descCls(desc)}">${esc(desc).replace(/\n/g, '<br>')}</span></span></span></button>`
     + (G.picked < 0 && !penta ? `<button class="rr${up ? ' up' : ''}" data-k="reroll" data-i="${i}"${G.rr[i] ? ' disabled' : ''} title="${G.rr[i] ? '이 카드는 이미 다시 뽑았습니다' : up ? '한 등급 위 증강으로 바꾸기 · 커맨드 라인 · 화면마다 한 번' : '이 카드만 다시 뽑기 · 카드마다 한 번'}">${up ? UP_SVG + '<b>상위</b>' : RR_SVG}</button>` : '') + '</div>';
 }
@@ -132,7 +132,7 @@ function slotsHtml() {
   return G.steps.map((st, i) => {
     const mine = G.picks.filter(a => a.si === i);   // 그 화면에서 고른 것 + 전환으로 더 얻은 것
     if (!mine.length) return `<div class="f-slot${i === G.si ? ' cur' : ''}" title="${esc(st.label)}"><small>${esc(st.short)}</small></div>`;
-    return mine.map(a => `<div class="f-slot ${a.rarity}" title="${esc(a.name)}${a.bonus ? ' · 전환으로 얻음' : ''}"><img src="${esc(a.icon)}" alt="" onerror="this.remove()"></div>`).join('');
+    return mine.map(a => `<div class="f-slot ${a.rarity}" title="${esc(a.name)}${a.bonus ? ' · 전환으로 얻음' : ''}"><img src="${esc(a.icon)}" alt="" data-err="rm"></div>`).join('');
   }).join('');
 }
 function headHtml() { const h = G.head; return `<span class="lh-k">헤드라이너</span><b>${esc(h.name)}</b><span>${esc(h.line)}${h.info ? ' · 증강 선택은 그대로입니다' : ''}</span>`; }
@@ -158,7 +158,7 @@ function renderDone() {
   $('lab-cards').className = 'lab-cards';
   $('lab-cards').innerHTML = `<div class="done"><span class="lab-en">MY AUGMENTS</span>`
     + `<p>프리즘 ${cnt('prismatic')} · 골드 ${cnt('gold')} · 실버 ${cnt('silver')}${cnt('penta') ? ` · 스킬 강화 ${cnt('penta')}` : ''}</p>`
-    + `<div class="d-list">${G.picks.map(a => `<div class="d-li"><i class="${a.rarity}"><img src="${esc(a.icon)}" alt="" onerror="this.remove()"></i><span class="d-tx"><b>${esc(a.name)}<small>${esc(a.bonus ? '전환으로 얻음' : a.at)}</small></b><span>${esc(a.desc || '').replace(/\n/g, ' ')}</span></span></div>`).join('')}</div>`
+    + `<div class="d-list">${G.picks.map(a => `<div class="d-li"><i class="${a.rarity}"><img src="${esc(a.icon)}" alt="" data-err="rm"></i><span class="d-tx"><b>${esc(a.name)}<small>${esc(a.bonus ? '전환으로 얻음' : a.at)}</small></b><span>${esc(a.desc || '').replace(/\n/g, ' ')}</span></span></div>`).join('')}</div>`
     + `<div class="d-btns"><button class="ui-btn-ghost" data-k="close">닫기</button><button class="ui-btn-gold" data-k="again">다시 하기</button></div></div>`;
   bind();
 }

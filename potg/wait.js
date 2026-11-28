@@ -10,7 +10,7 @@
   const $ = id => document.getElementById(id);
   const E = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const ICON = id => id ? `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${Number(id)}.png` : '';
-  const face = (id, cls, name) => `<span class="wr-av ${cls || ''}" data-n="${E(String(name || '').slice(0, 1))}">${id ? `<img src="${ICON(id)}" alt="" onerror="this.remove()">` : ''}</span>`;
+  const face = (id, cls, name) => `<span class="wr-av ${cls || ''}" data-n="${E(String(name || '').slice(0, 1))}">${id ? `<img src="${ICON(id)}" alt="" data-err="rm">` : ''}</span>`;
   const num = n => Math.round(n || 0).toLocaleString('en-US');
   const mmss = s => `${Math.floor((s || 0) / 60)}:${String(Math.floor((s || 0) % 60)).padStart(2, '0')}`;
   const room = $('pg-room');
@@ -85,12 +85,12 @@
       f && f.hp ? { v: num(f.hp), l: '최대 체력' } : null,
       { v: num(p.gold), l: '골드' },
     ].filter(Boolean).slice(0, 6);
-    const aug = id => { const a = (v.augs || {})[id] || {}; return `<i class="me-aug ${E(a.rarity || '')}" title="${E(a.name || '')}">${a.icon ? `<img src="${E(a.icon)}" alt="" onerror="this.remove()">` : ''}</i>`; };
-    const item = id => `<i class="me-it">${M.itemBase ? `<img src="${E(M.itemBase + id + '.png')}" alt="" onerror="this.remove()">` : ''}</i>`;
+    const aug = id => { const a = (v.augs || {})[id] || {}; return `<i class="me-aug ${E(a.rarity || '')}" title="${E(a.name || '')}">${a.icon ? `<img src="${E(a.icon)}" alt="" data-err="rm">` : ''}</i>`; };
+    const item = id => `<i class="me-it">${M.itemBase ? `<img src="${E(M.itemBase + id + '.png')}" alt="" data-err="rm">` : ''}</i>`;
     const lvl = (f && f.lvl) || p.lvl;
     return `<div class="me-card tm${p.tm === 200 ? 2 : 1} ${p.win ? 'win' : 'lose'}${M.splash ? ' has-sp' : ''}"${M.splash ? ` style="--sp:url('${E(M.splash)}')"` : ''}>
       <div class="me-top"><span class="me-mode">${E(v.mode || '')}</span><b class="me-res">${p.win ? '승리' : '패배'}</b>${v.gameTime ? `<span class="num me-t">${mmss(v.gameTime)}</span>` : ''}${badges.slice(0, 3).map(b => `<em class="me-bd">${E(b)}</em>`).join('')}</div>
-      <div class="me-who">${face(p.c, 'md', p.cn)}<div><b>${E(p.cn)}</b><small>${E(p.n)}${lvl ? ` · 레벨 ${lvl}` : ''}</small></div></div>
+      <div class="me-who">${face(p.c, 'md', p.cn)}<div><b>${E(p.cn)}</b><small>${E(p.n)}${lvl ? ` · 레벨 ${E(lvl)}` : ''}</small></div></div>
       <div class="me-big"><b class="num">${num(p.dmg)}</b><span>챔피언에게 준 피해</span></div>
       <div class="me-stats">${cells.map(c => `<div><b class="num">${E(c.v)}</b><small>${E(c.l)}</small></div>`).join('')}</div>
       ${(p.aug || []).length || (p.it || []).length ? `<div class="me-gear">${(p.aug || []).length ? `<span class="me-augs">${p.aug.map(aug).join('')}</span>` : ''}${(p.it || []).length ? `<span class="me-items">${p.it.map(item).join('')}</span>` : ''}</div>` : ''}

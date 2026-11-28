@@ -191,12 +191,12 @@ const TN = (s, t) => (s && s.series && s.series.names && s.series.names[t]) || (
 const BO_KO = bo => bo === 5 ? '5판 3선승' : bo === 3 ? '3판 2선승' : '';
 const serOn = s => !!(s && s.series && (s.series.bo > 1 || s.series.tid));   // 시리즈(3·5판) 또는 🏆 대회 경기(단판도)
 const serHead = (S, n) => [S.tn, S.rn, BO_KO(S.bo) || (S.tid ? '단판' : ''), S.bo > 1 && n ? n + '번째 판' : ''].filter(Boolean).map(esc).join(' · ');   // 「가을 멸망전 · 4강 1경기 · 3판 2선승 · 2번째 판」
-const serScore = s => { const w = (s.series && s.series.wins) || {}; return `${w.teamA || 0} : ${w.teamB || 0}`; };
+const serScore = s => { const w = (s.series && s.series.wins) || {}; return `${Number(w.teamA) || 0} : ${Number(w.teamB) || 0}`; };   // 🛡️ v0.1.293 서버 값은 숫자로만
 // 🏆 v0.1.289(사장님: 1단계가 지저분 · 직관적이지 않음) = 점수 띠 따로 두지 않고 팀 화면 맨 위 한 장(점수판) · 배너 안 한 줄로
 function serBoard(s, mt) {   // 팀 화면 점수판 = 「3판 2선승 · 2번째 판」 / 불꽃 1 : 0 번개(내 팀 밝게) / 내 팀 줄
   const S = s.series, me = mt === 1 ? 'teamA' : mt === 2 ? 'teamB' : null;
   const nm = t => `<b class="sb-n ${t === 'teamA' ? 't1' : 't2'}${me === t ? ' me' : ''}">${esc(TN(s, t))}</b>`;
-  return (S.tn ? `<span class="sb-tn">🏆 ${esc(S.tn)}</span>` : '') + `<span class="sb-bo">${serHead(Object.assign({}, S, { tn: '' }), (S.n || 0) + 1)}</span><span class="sb-row">${nm('teamA')}<span class="sb-sc num">${serScore(s)}</span>${nm('teamB')}</span>`
+  return (S.tn ? `<span class="sb-tn">🏆 ${esc(S.tn)}</span>` : '') + `<span class="sb-bo">${serHead(Object.assign({}, S, { tn: '' }), (Number(S.n) || 0) + 1)}</span><span class="sb-row">${nm('teamA')}<span class="sb-sc num">${serScore(s)}</span>${nm('teamB')}</span>`
     + `<span class="sb-me">${me ? `내 팀 · <b>${esc(TN(s, me))}</b> ${me === 'teamA' ? 'BLUE' : 'RED'}` : (s.spectators || []).some(x => nn(x) === nn(myName)) ? '이번 판은 관전' : '이번 판 팀 배정'}</span>`;
 }
 function myTeam() {
@@ -242,7 +242,7 @@ function renderTeam() {
   { // 🎧 v0.1.131 디스코드 음성 채널 나누기 결과(방장 앱이 session.dcMove에 남김) — 못 옮긴 사람과 이유
     const D = s.dcMove, b = el('tv-dc'), on = D && D.at >= (s.teamsFormedAt || 0);
     b.style.display = on ? '' : 'none';
-    if (on) b.innerHTML = `<span class="tv-dc-h">${DC_ICO}<em>디스코드</em></span><span class="tv-dc-t">${D.err && !D.n ? (/403|404/.test(D.err) ? '봇이 연결된 서버에 없습니다' : '음성 채널을 못 찾았습니다') : D.n ? `<b class="num">${D.n}</b>명 1팀·2팀 음성 채널로 옮겼습니다` : '아무도 못 옮겼습니다'}</span>`
+    if (on) b.innerHTML = `<span class="tv-dc-h">${DC_ICO}<em>디스코드</em></span><span class="tv-dc-t">${D.err && !D.n ? (/403|404/.test(D.err) ? '봇이 연결된 서버에 없습니다' : '음성 채널을 못 찾았습니다') : D.n ? `<b class="num">${Number(D.n) || 0}</b>명 1팀·2팀 음성 채널로 옮겼습니다` : '아무도 못 옮겼습니다'}</span>`
       + ((D.miss || []).length ? `<small class="tv-dc-miss">${D.miss.map(x => `<span><b>${esc(x.n || '')}</b> ${esc(x.w || '')}</span>`).join('')}</small>` : '');
   }
   { // ⚖️ v0.1.174 밸런스로 짠 팀이면 두 팀 평균 점수(아수라장 티어 점수) · 점수 없는 사람은 50점으로 계산했다고 알림
@@ -622,14 +622,14 @@ function augsHtml(st, cls) {
   const ids = (st && st.augments) || [];
   if (!ids.length) return '';
   return `<span class="${cls}">` + ids.map(id => { const a = (_augMap || {})[id] || {};
-    return `<i class="aug ${a.rarity || ''}" title="${esc(a.name || '증강 #' + id)}">${a.icon ? `<img src="${a.icon}" alt="" onerror="this.remove()">` : ''}<b>?</b></i>`; }).join('') + '</span>';
+    return `<i class="aug ${a.rarity || ''}" title="${esc(a.name || '증강 #' + id)}">${a.icon ? `<img src="${a.icon}" alt="" data-err="rm">` : ''}<b>?</b></i>`; }).join('') + '</span>';
 }
 function champHtml(st, cls) {
-  return `<span class="${cls}">${st && st.championId ? `<img src="${champUrl(st.championId)}" alt="" onerror="this.remove()">` : ''}</span>`;
+  return `<span class="${cls}">${st && st.championId ? `<img src="${champUrl(st.championId)}" alt="" data-err="rm">` : ''}</span>`;
 }
 function voteCardHtml(name, kind, picked) {
   const st = gameStat(name);
-  const line = st ? `${esc(st.championName || '')}<span class="num">${st.kills}/${st.deaths}/${st.assists}</span>${st.damage ? `<span class="num dmg">${Math.round(st.damage / 1000)}k</span>` : ''}` : '<span class="vt-nostat">게임 기록 없음</span>';
+  const line = st ? `${esc(st.championName || '')}<span class="num">${esc(st.kills)}/${esc(st.deaths)}/${esc(st.assists)}</span>${st.damage ? `<span class="num dmg">${Math.round(st.damage / 1000)}k</span>` : ''}` : '<span class="vt-nostat">게임 기록 없음</span>';
   return `<button class="vt-cand ${kind}${picked ? ' on' : ''}" data-kind="${kind}" data-name="${esc(name)}">${champHtml(st, 'vt-ch')}<span class="vt-info"><b class="vt-nm">${esc(name)}</b><small>${line}</small>${augsHtml(st, 'vt-augs')}</span><span class="vt-check">${picked ? '✓' : ''}</span></button>`;
 }
 function renderVote() {
@@ -707,7 +707,7 @@ function renderResult() {
   if (r.manner) aw.push(`<span class="st-aw"><b>MANNER</b><span class="st-awn">${esc(r.manner)}</span></span>`);
   el('st-awards').innerHTML = aw.join('') || '<span class="st-aw">투표 없음</span>';
   const match = _today && _today.matches.find(m => String(m.gameId) === String(g.id));
-  const kda = name => { const st = gameStat(name); return st ? `<span class="st-lp num">${st.kills}/${st.deaths}/${st.assists}</span>` : ''; };
+  const kda = name => { const st = gameStat(name); return st ? `<span class="st-lp num">${esc(st.kills)}/${esc(st.deaths)}/${esc(st.assists)}</span>` : ''; };
   const badge = n => (nn(n) === nn(r.mvp) ? ' 🏆' : '') + (nn(n) === nn(r.svp) ? ' ⭐' : '') + (nn(n) === nn(r.manner) ? ' 💎' : '');
   const team = (names, isWin) => `<div class="st-team ${isWin ? 'win' : 'lose'}"><div class="st-team-h">${isWin ? '승리' : '패배'}</div><ul>${(names || []).map(n =>
     `<li class="${nn(n) === nn(myName) ? 'me' : ''}">${champHtml(gameStat(n), 'st-ch')}<span class="st-nm">${esc(n)}${badge(n)}</span>${augsHtml(gameStat(n), 'st-augs')}${kda(n)}</li>`).join('')}</ul></div>`;
@@ -809,7 +809,7 @@ const iconUrl = id => id ? `https://raw.communitydragon.org/latest/plugins/rcp-b
 const champUrl = id => id ? `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${Number(id)}.png` : '';
 function avatar(m, cls) {
   const ini = esc(String(m.name || '?').trim().charAt(0) || '?');
-  return `<span class="${cls}">${m.icon ? `<img src="${iconUrl(m.icon)}" alt="" onerror="this.remove()">` : ''}<i>${ini}</i></span>`;
+  return `<span class="${cls}">${m.icon ? `<img src="${iconUrl(m.icon)}" alt="" data-err="rm">` : ''}<i>${ini}</i></span>`;
 }
 const verLt = (a, b) => { const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0; } return false; };   // 🔄 a가 b보다 옛 버전(v0.1.56)
 // 🧭 v0.1.196 대기실 = 두 구역(사장님: 효율·직관·시인성 · 자주 쓰는 기능이 손쉽게 · 처음 온 사람도 바로)

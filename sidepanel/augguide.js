@@ -8,7 +8,7 @@ const agWhen = t => { if (!t) return ''; const d = (Date.now() - t) / 60000; if 
 const ageIc = id => `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${Number(id)}.png`;
 function ageAug(id, cls) {
   const a = (AGE.all && AGE.all.augs[id]) || {};
-  return `<i class="aug ${a.rarity || ''} ${cls || ''}" title="${escH(a.name || '증강 #' + id)}">${a.icon ? `<img src="${a.icon}" alt="" onerror="this.remove()">` : ''}<b>?</b></i>`;
+  return `<i class="aug ${a.rarity || ''} ${cls || ''}" title="${escH(a.name || '증강 #' + id)}">${a.icon ? `<img src="${a.icon}" alt="" data-err="rm">` : ''}<b>?</b></i>`;
 }
 const ageName = id => ((AGE.all && AGE.all.augs[id]) || {}).name || ('증강 #' + id);
 async function renderAugEdit(force) {
@@ -37,7 +37,7 @@ function ageList(pre) {
     <div class="age-find">다른 챔피언 보기</div>
     <div id="age-recent">${recentH()}</div>
     <input id="age-q" class="age-q" placeholder="챔피언 이름으로 찾기" value="${escH(AGE.q)}">
-    <div class="age-grid">${ids.map(id => `<button class="age-ch${has(id) ? ' has' : ''}${has(id) && guide[id].draft ? ' draft' : ''}" data-id="${id}" title="${escH(champs[id].name)}"><img src="${ageIc(id)}" alt="" onerror="this.style.visibility='hidden'"><span>${escH(champs[id].name)}</span></button>`).join('') || '<div class="td-state">찾는 챔피언이 없습니다</div>'}</div>`;
+    <div class="age-grid">${ids.map(id => `<button class="age-ch${has(id) ? ' has' : ''}${has(id) && guide[id].draft ? ' draft' : ''}" data-id="${id}" title="${escH(champs[id].name)}"><img src="${ageIc(id)}" alt="" data-err="hide"><span>${escH(champs[id].name)}</span></button>`).join('') || '<div class="td-state">찾는 챔피언이 없습니다</div>'}</div>`;
   const qi = $('age-q'); qi.oninput = () => { AGE.q = qi.value; ageList(pre); const n = $('age-q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
   $('ag-ed').querySelectorAll('.age-ch').forEach(b => b.onclick = () => ageOpen(Number(b.dataset.id)));
   bindRecent();
@@ -47,7 +47,7 @@ function ageList(pre) {
 function recentH() {
   const r = AGE.recent; if (!r || !r.length) return '';
   const champs = AGE.all.champs;
-  return `<div class="age-rc"><div class="age-rc-hd">최근 고친 것</div>${r.slice(0, 6).map(x => `<button class="age-rc-row" data-id="${x.champ}"><img src="${ageIc(x.champ)}" alt="" onerror="this.style.visibility='hidden'"><span class="age-rc-tx"><b>${escH((champs[x.champ] || {}).name || '')}</b><small>${escH(x.by || '')} · ${escH(x.sum || '')}</small></span><span class="age-rc-t">${agWhen(x.at)}</span></button>`).join('')}</div>`;
+  return `<div class="age-rc"><div class="age-rc-hd">최근 고친 것</div>${r.slice(0, 6).map(x => `<button class="age-rc-row" data-id="${escH(x.champ)}"><img src="${escH(ageIc(x.champ))}" alt="" data-err="hide"><span class="age-rc-tx"><b>${escH((champs[x.champ] || {}).name || '')}</b><small>${escH(x.by || '')} · ${escH(x.sum || '')}</small></span><span class="age-rc-t">${agWhen(x.at)}</span></button>`).join('')}</div>`;
 }
 function bindRecent() { $('ag-ed').querySelectorAll('.age-rc-row').forEach(b => b.onclick = () => ageOpen(Number(b.dataset.id))); }
 // ── 편집: 플랜(이름 · 노릴 증강 · 설명) ──
@@ -64,7 +64,7 @@ async function ageOpen(id) {
 }
 function ageChamp() {
   const A = AGE.all, id = AGE.champ, ch = A.champs[id] || { name: '' }, d = AGE.draft, g = A.guide[id] || {};
-  $('ag-ed').innerHTML = `<div class="age-top"><button class="pf-back" id="age-back">‹ 목록</button><img src="${ageIc(id)}" alt="" onerror="this.style.visibility='hidden'"><b>${escH(ch.name)}</b>${g.by ? `<small>${escH(g.by) + ' · ' + agWhen(g.at)}</small>` : ''}<button class="age-histbtn" id="age-histbtn">기록</button></div>
+  $('ag-ed').innerHTML = `<div class="age-top"><button class="pf-back" id="age-back">‹ 목록</button><img src="${ageIc(id)}" alt="" data-err="hide"><b>${escH(ch.name)}</b>${g.by ? `<small>${escH(g.by) + ' · ' + agWhen(g.at)}</small>` : ''}<button class="age-histbtn" id="age-histbtn">기록</button></div>
     <div id="age-hist" style="display:none;"></div>
     <div class="age-hint">「이 챔피언이면 이 증강 노려보자」를 플랜으로 묶어 주세요. 예) 치명타 폭딜 · 버티는 탱커 · 스킬 난사</div>` +
     d.map((p, i) => `<div class="age-plan">
@@ -128,8 +128,8 @@ async function ageHist() {
   const h = AGE.hist = await window.api.getAugGuideHist(AGE.champ).catch(() => []);
   if (!h.length) { box.innerHTML = '<div class="age-hist"><div class="age-rc-hd">고친 기록</div><div class="td-state">아직 고친 사람이 없습니다</div></div>'; return; }
   const first = h[h.length - 1];
-  box.innerHTML = `<div class="age-hist"><div class="age-rc-hd">고친 기록 <small>최근 ${h.length}개</small></div>${h.map((x, i) => `<div class="age-hrow"><span class="age-rc-tx"><b>${escH(x.by || '?')} <small>${agWhen(x.at)}</small></b><small>${escH(x.sum || '')} · 플랜 ${x.n}개</small></span>${i ? `<button class="age-hbtn" data-k="${x.k}" data-w="after">이 버전으로</button>` : '<span class="age-hnow">지금</span>'}</div>`).join('')}
-    <div class="age-hrow"><span class="age-rc-tx"><b>처음 내용</b><small>${escH(first.by || '')}님이 처음 고치기 전 · 플랜 ${first.before.length}개</small></span><button class="age-hbtn" data-k="${first.k}" data-w="before">이 버전으로</button></div></div>`;
+  box.innerHTML = `<div class="age-hist"><div class="age-rc-hd">고친 기록 <small>최근 ${h.length}개</small></div>${h.map((x, i) => `<div class="age-hrow"><span class="age-rc-tx"><b>${escH(x.by || '?')} <small>${agWhen(x.at)}</small></b><small>${escH(x.sum || '')} · 플랜 ${Number(x.n) || 0}개</small></span>${i ? `<button class="age-hbtn" data-k="${escH(x.k)}" data-w="after">이 버전으로</button>` : '<span class="age-hnow">지금</span>'}</div>`).join('')}
+    <div class="age-hrow"><span class="age-rc-tx"><b>처음 내용</b><small>${escH(first.by || '')}님이 처음 고치기 전 · 플랜 ${first.before.length}개</small></span><button class="age-hbtn" data-k="${escH(first.k)}" data-w="before">이 버전으로</button></div></div>`;
   box.querySelectorAll('.age-hbtn').forEach(b => b.onclick = async () => {
     if (AGE.dirty && !await tnConfirm('저장하지 않은 내용은 사라집니다. 되돌릴까요?')) return;
     if (!await tnConfirm('이 버전으로 되돌릴까요? 되돌린 것도 기록에 남아서 다시 바꿀 수 있습니다.')) return;
@@ -146,7 +146,7 @@ function planFoot(p) {
   return parts.length ? `<div class="ag-age">${parts.join(' · ')}</div>` : '';
 }
 // 플랜 옆 작은 표시 = 우리 기록 짝이면 판 수(v0.1.246: 승률·등급 없음)
-function planSrc(p) { return p.src === 'ours' ? `<span class="ag-wr num" title="투데이 내전 기록 · 이 챔피언으로 두 증강을 같이 고른 판">우리 ${p.games}판 같이 고름</span>` : ''; }
+function planSrc(p) { return p.src === 'ours' ? `<span class="ag-wr num" title="투데이 내전 기록 · 이 챔피언으로 두 증강을 같이 고른 판">우리 ${Number(p.games) || 0}판 같이 고름</span>` : ''; }
 function srcNote(plans) {
   if (plans.length && plans.every(p => p.src === 'ours')) return `<div class="ag-src">아직 사람이 쓴 플랜이 없어 <b>우리 기록</b>(이 챔피언으로 두 증강을 같이 고른 판 · 2판 이상)으로 보여 줍니다 · 「✎ 고치기」로 채워 주세요</div>`;
   return plans.some(p => p.link) ? `<div class="ag-src">「설명 ↗」= 원문(브라우저)</div>` : '';
@@ -156,13 +156,13 @@ function ageLive() {
   const v = AGE.live, list = v.list || [];
   if (!list.some(c => c.id === AGE.liveSel)) AGE.liveSel = (list.find(c => c.mine) || list[0] || {}).id || 0;
   const c = list.find(x => x.id === AGE.liveSel);
-  const tabs = list.length > 1 ? `<div class="ag-tabs">${list.map(x => `<button class="ag-tab${x.id === AGE.liveSel ? ' on' : ''}${x.mine ? ' mine' : ''}" data-id="${x.id}" title="${escH(x.name)}${x.mine ? ' · 내 챔피언' : ' · 벤치'}"><img src="${ageIc(x.id)}" alt="" onerror="this.remove()">${(x.guide.plans || []).length ? "" : "<s></s>"}</button>`).join('')}</div>` : '';
+  const tabs = list.length > 1 ? `<div class="ag-tabs">${list.map(x => `<button class="ag-tab${x.id === AGE.liveSel ? ' on' : ''}${x.mine ? ' mine' : ''}" data-id="${x.id}" title="${escH(x.name)}${x.mine ? ' · 내 챔피언' : ' · 벤치'}"><img src="${ageIc(x.id)}" alt="" data-err="rm">${(x.guide.plans || []).length ? "" : "<s></s>"}</button>`).join('')}</div>` : '';
   const hd = `<div class="ag-live-hd"><span class="lb-sec-en">AUGMENT GUIDE</span><span class="ag-sub">이 챔피언이면 노려볼 증강</span>${c ? `<button class="ag-editbtn" id="ag-editbtn">✎ 고치기</button>` : ''}</div>`;
   let body;
   if (!c) return ageList(hd + tabs + '<div class="ag-empty sm">챔피언을 고르면 여기에 그 챔피언 증강 추천이 떠요</div>');   // v0.1.135: 아래에 패치 순위·우리 기록·챔피언 찾기
   else {
     const plans = (c.guide && c.guide.plans) || [], rec = c.rec || {};
-    const head = `<div class="ag-champ"><img src="${ageIc(c.id)}" alt="" onerror="this.remove()"><span class="ag-cn"><b>${escH(c.name || '')}</b><small>${c.mine ? '내 챔피언' : '벤치 · 바꾸면 이런 증강'}</small></span></div>`;
+    const head = `<div class="ag-champ"><img src="${ageIc(c.id)}" alt="" data-err="rm"><span class="ag-cn"><b>${escH(c.name || '')}</b><small>${c.mine ? '내 챔피언' : '벤치 · 바꾸면 이런 증강'}</small></span></div>`;
     body = head + (!plans.length ? '<div class="ag-empty">이 챔피언은 아직 준비 중입니다<small>위 「✎ 고치기」로 채우면 모두에게 바로 보입니다</small></div>'
       : plans.map((p, i) => `<div class="ag-plan"><div class="ag-ph"><span class="ag-pn num">${i + 1}</span><b>${escH(p.title || (p.src === 'ours' ? '우리가 같이 고른 짝' : '추천 플랜'))}</b>${planSrc(p)}${p.link ? `<button class="ag-link" data-u="${escH(p.link)}" title="원문에서 설명 보기(브라우저)">설명 ↗</button>` : ''}</div>` +
         `<div class="ag-pa">${p.augs.map(a => { const r = rec[a]; return `<span class="ag-pchip">${ageAug(a, 'ag-ic')}<span class="ag-pt"><b>${escH(ageName(a))}</b>${r && r.g ? `<small>우리 ${r.g}판</small>` : ''}</span></span>`; }).join('')}</div>` +

@@ -2,6 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: tnimg: https:; media-src 'self' data: blob: tnimg: https:; font-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'">
   <link rel="stylesheet" href="../shared.css">
   <style>
     * { margin:0; box-sizing:border-box; }
@@ -29,13 +30,6 @@
 </head>
 <body>
   <div id="box"><span class="ic"></span><div class="tx"><div id="t">팟지 녹화 중</div><div id="s">리플레이 준비 중…</div><div id="pg"><div id="bar"><i></i></div><span id="pc"></span></div></div></div>
-  <script>
-    const set = d => {
-      if (!d) return; if (d.title) document.getElementById('t').textContent = d.title; if (d.sub != null) document.getElementById('s').textContent = d.sub;
-      const on = d.pct != null; document.getElementById('pg').classList.toggle('on', on);
-      if (on) { document.querySelector('#bar i').style.width = d.pct + '%'; document.getElementById('pc').innerHTML = `${d.pct}%<small>약 ${d.left}초 남음</small>`; }
-    };
-    if (window.api && window.api.onRecToast) window.api.onRecToast(set);
-  </script>
+  <script src="rec.js"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 const el = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const champUrl = id => id ? `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${Number(id)}.png` : '';
-const av = (id, cls) => `<span class="${cls || 'pg-av'}">${id ? `<img src="${champUrl(id)}" alt="" onerror="this.remove()">` : ''}</span>`;
+const av = (id, cls) => `<span class="${cls || 'pg-av'}">${id ? `<img src="${champUrl(id)}" alt="" data-err="rm">` : ''}</span>`;
 const mmss = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const go = (node, kf, opt) => node.animate(kf, Object.assign({ fill: 'forwards', easing: 'cubic-bezier(.2,.8,.2,1)' }, opt));
@@ -173,7 +173,7 @@ const hpAt = (series, g) => {   // 게임 시각 g의 체력(%) — 기록 사�
 };
 const lossUntil = (series, from, g) => { let sum = 0; for (let i = 1; i < (series || []).length; i++) { const [t, p] = series[i], q = series[i - 1][1]; if (t >= from && t <= g && p < q && !(q <= 3)) sum += q - p; } return sum; };
 function heroFreezeHtml(h) {
-  const stats = (h.stats || []).map(x => `<span><em>${esc(x.label)}</em> <b class="num">${x.v.toLocaleString('en-US')}${esc(x.unit)}</b>${x.ratio && x.ratio >= 1.3 ? ` <small>2위의 ${x.ratio}배</small>` : x.rank === 1 ? ' <small>1위</small>' : ' <small>팀 1위</small>'}</span>`).join('');
+  const stats = (h.stats || []).map(x => `<span><em>${esc(x.label)}</em> <b class="num">${(Number(x.v) || 0).toLocaleString('en-US')}${esc(x.unit)}</b>${x.ratio && x.ratio >= 1.3 ? ` <small>2위의 ${Number(x.ratio) || 0}배</small>` : x.rank === 1 ? ' <small>1위</small>' : ' <small>팀 1위</small>'}</span>`).join('');
   return `<div class="pg-kbt final"><i class="en">${esc(h.en)}</i><div class="ko"><b>${esc(h.label)}</b>${(h.tags || []).map(t => `<span>${esc(t)}</span>`).join('')}</div>${stats ? `<div class="pg-hstats">${stats}</div>` : ''}</div>`;
 }
 function playHeroVideo(my) {
@@ -269,7 +269,7 @@ function playHeroVideo(my) {
 async function showHeroCard(my) {   // 숨은 영웅 영상이 없을 때: 지표 카드(스킨 일러스트 어둡게 + 큰 영문 + 판 전체 지표)
   const h = card.hero, box = el('pg-card'); resetFx();
   el('pg-stage').style.display = '';
-  const stats = (h.stats || []).map(x => `<div class="pg-hs"><small>${esc(x.label)}</small><b class="num">${x.v.toLocaleString('en-US')}${esc(x.unit)}</b><span>${x.ratio && x.ratio >= 1.3 ? `2위의 ${x.ratio}배` : x.rank === 1 ? '전체 1위' : '팀 1위'}</span></div>`).join('');
+  const stats = (h.stats || []).map(x => `<div class="pg-hs"><small>${esc(x.label)}</small><b class="num">${(Number(x.v) || 0).toLocaleString('en-US')}${esc(x.unit)}</b><span>${x.ratio && x.ratio >= 1.3 ? `2위의 ${Number(x.ratio) || 0}배` : x.rank === 1 ? '전체 1위' : '팀 1위'}</span></div>`).join('');
   box.innerHTML = `<div class="pg-time num">${mmss(h.peak)}</div>`
     + `<div class="pg-killer">${av(h.championId)}<b>${esc(h.name)}</b></div>`
     + `<div class="pg-hcard-en">${esc(h.en)}</div>`
@@ -290,7 +290,7 @@ const MULTI = ['처치', '더블킬', '트리플킬', '쿼드라킬', '펜타킬
 // 오른쪽 킬 피드 한 줄(2026-11-01 · 사장님: 롤 톤앤매너로) — 롤 인게임 킬 피드처럼 [주인공] 검 [잡힌 상대] · 팀 색 테두리 · 둘째 킬부터 「더블킬…」 금색 작은 글자
 //   as = 어시스트(숨은 영웅 한타 설계 · 검 대신 금색 점선)
 //   아이콘을 못 받으면(새 챔피언 등) 챔피언 이름 첫 글자(빈 칸 대신)
-const fav = (id, cls, name) => `<span class="${cls}" data-n="${esc(String(name || '').slice(0, 1))}">${id ? `<img src="${champUrl(id)}" alt="" onerror="this.remove()">` : ''}</span>`;
+const fav = (id, cls, name) => `<span class="${cls}" data-n="${esc(String(name || '').slice(0, 1))}">${id ? `<img src="${champUrl(id)}" alt="" data-err="rm">` : ''}</span>`;
 const feedRow = (heroId, victimId, label, as, heroName, victimName) => `${label ? `<b class="lb">${esc(label)}</b>` : ''}${fav(heroId, 'pg-av me', heroName)}<i class="sw${as ? ' as' : ''}"></i>${fav(victimId, 'pg-av vic', victimName)}`;
 // 큰 영문 자막(v0.1.43) — e스포츠 하이라이트식 · 한글은 아래 팀 색 띠
 const EN = { 처치: 'KILL', 킬: 'KILL', 솔로킬: 'SOLO KILL', 더블킬: 'DOUBLE KILL', 트리플킬: 'TRIPLE KILL', 쿼드라킬: 'QUADRA KILL', 펜타킬: 'PENTA KILL',
@@ -549,7 +549,7 @@ function end(my) {
   setTeam(c.team);
   el('pg-sum').innerHTML = `<b>${esc(c.name)}</b>${c.champ ? ' · ' + esc(c.champ) : ''} · ${esc(c.label)} · <span class="num">${mmss(c.t0)}</span>`
     + (c.hero ? `<br><span class="hs">숨은 영웅</span> <b>${esc(c.hero.name)}</b> · ${esc(c.hero.label)} · <span class="num">${mmss(c.hero.peak)}</span>` : '')
-    + (c.guess && c.guess.n ? `<br><span class="hs">🔮 예측</span> ${c.guess.right.length ? `맞힌 사람 <b>${c.guess.right.map(esc).join(', ')}</b>` : '아무도 못 맞혔습니다'} · ${c.guess.right.length}/${c.guess.n}명` : '');   // ⏳ 기다림 화면 예측 결과
+    + (c.guess && c.guess.n ? `<br><span class="hs">🔮 예측</span> ${c.guess.right.length ? `맞힌 사람 <b>${c.guess.right.map(esc).join(', ')}</b>` : '아무도 못 맞혔습니다'} · ${c.guess.right.length}/${Number(c.guess.n) || 0}명` : '');   // ⏳ 기다림 화면 예측 결과
   el('pg-save').style.display = EXPORT ? 'none' : '';   // 💾 v0.1.251 영상 저장 = 오른쪽 창 「기록」에서(진행 막대)
   el('pg-end').style.display = '';
   bgm.timers.push(setTimeout(() => bgmEnd(2500), 2500));   // 터진 뒤 조금 더 들려주고 서서히

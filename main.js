@@ -4,7 +4,7 @@
 //   · 흐름: 입장 → 방장 팀짜기 → 게임(내장 브릿지가 EOG 캡처 → today/bridge/eogStats)
 //          → 방장 앱이 오늘 기록에 저장(today/days/{날짜}/matches/{gameId}) → MVP·매너 투표 → 결과
 //   · 기존 aram-overlay(사이트 프로그램 버전)는 그대로 둠. 이 앱은 별도 설치·별도 업데이트.
-const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, shell, nativeImage, screen, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, shell, nativeImage, screen, dialog, safeStorage, session } = require('electron');
 const imgcache = require('./imgcache');   // 🖼️ v0.1.205 CommunityDragon 그림이 느림(한 장 ~21초) → 챔피언·소환사 아이콘은 Data Dragon · 나머지는 PC에 저장해 두고 바로
 imgcache.registerScheme();   // 앱 준비 전에
 const { pathToFileURL } = require('url');
@@ -45,6 +45,8 @@ const baseFor = p => onC(p) ? CDB.url : FIREBASE_DB;
 const tokFor = p => onC(p) ? cAuth.token() : fbToken();
 const uidFor = p => onC(p) ? cAuth.uid() : fbUid();
 const dropFor = p => { if (onC(p)) cAuth.drop(); else _fbTok = null; };
+// 🛡️ v0.1.293 서버 경로 검사 — 경로에 서버에서 온 값(게임 번호·날짜·계정 번호…)이 들어감 → 누가 그 값에 「..」·「?」를 넣어 다른 칸으로 새게 못 하게(주소가 정리되며 위 칸으로 올라감)
+const pathBad = p => typeof p !== 'string' || /[?#\\\u0000-\u001f]/.test(p) || p.split('/').some(s => /^(\.|%2e){1,2}$/i.test(s));
 const urlPath = u => String(u).slice(FIREBASE_DB.length + 1).replace(/\.json([?].*)?$/, '');   // 기본 서버 주소(…/경로.json?…) → 경로
 const { buildTeams, normName } = require('./teams');   // ⚔️ 홈페이지 makeTeams 1:1 이식(랜덤 팀 짜기에 씀)
 const { balanceTeams, playerScore } = require('./balance');   // ⚖️ v0.1.174 티어 점수로 밸런스 팀 짜기
@@ -63,8 +65,28 @@ let config = {};            // { myName, dock, sidePanel, slot, deviceId }
 
 // 설정 파일(userData) — 내 이름 저장
 let CONFIG_PATH = '';
-function loadConfig() { try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); } catch (_) { return {}; } }
-function saveConfig() { try { fs.writeFileSync(CONFIG_PATH, JSON.stringify(config)); } catch (_) {} }
+// 🛡️ v0.1.293 보안 점검: 로그인 갱신 증표(fbRefresh·fbRiot·cAuth)는 설정 파일에 그대로 쓰지 않고 윈도우 사용자 계정으로 암호화(safeStorage = DPAPI)해 `sec` 한 칸에 —
+//   설정 파일이 복사돼 나가거나 같은 PC의 다른 윈도우 사용자가 읽어도 증표를 못 씀 · 메모리 안 config는 예전 모양 그대로(코드 나머지는 그대로)
+//   암호화를 못 쓰는 환경이면 예전처럼 그대로 저장 · 못 풀면(다른 PC로 복사한 파일 등) 증표만 버림 = 다시 로그인
+const SEC_KEYS = ['fbRefresh', 'fbRiot', 'cAuth'];
+const secOk = () => { try { return safeStorage.isEncryptionAvailable(); } catch (_) { return false; } };
+let _secPlain = false;   // 읽은 파일에 암호화 안 된 증표가 있었음 → 바로 한 번 다시 저장
+function loadConfig() {
+  let c; try { c = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); } catch (_) { return {}; }
+  if (!c || typeof c !== 'object') return {};
+  _secPlain = SEC_KEYS.some(k => c[k] != null);
+  if (c.sec) { try { const s = JSON.parse(safeStorage.decryptString(Buffer.from(String(c.sec), 'base64'))); for (const k of SEC_KEYS) if (s && s[k] != null) c[k] = s[k]; } catch (_) {} delete c.sec; }
+  return c;
+}
+function saveConfig() {
+  try {
+    let out = config;
+    if (secOk()) { out = Object.assign({}, config); const s = {}; let any = false;
+      for (const k of SEC_KEYS) if (out[k] != null) { s[k] = out[k]; delete out[k]; any = true; }
+      delete out.sec; if (any) out.sec = safeStorage.encryptString(JSON.stringify(s)).toString('base64'); }
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(out));
+  } catch (_) {}
+}
 
 // 🖥️ 롤 클라이언트 창에 도킹 — SetWinEventHook(LOCATIONCHANGE)로 이동 즉시 추종(찰싹·덜렁임 없음)
 // 이벤트 기반이라 클라를 드래그하면 프레임 단위로 따라옴 + 90ms 폴백(놓친 이벤트·켜짐/꺼짐 감지)
@@ -879,16 +901,19 @@ function stopDockStream() { if (dockProc) { try { dockProc.kill(); } catch (_) {
 
 // ── HTTPS GET (JSON) ────────────────────────────────────────────────────
 // 🔐 우리 Firebase 주소(문자열)면 로그인 표식을 붙여 읽음(v0.1.98)
+// 🛡️ v0.1.293 보안 점검: 숫자여야 하는 칸(킬·데스·피해량…)은 서버에서 읽는 순간 숫자로 — 남이 그 칸에 글자·태그를 넣어도 화면(innerHTML)·합계에 안 섞이게
+const NUMK = new Set(['kills', 'deaths', 'assists', 'damage', 'gold', 'cs', 'doubleKills', 'tripleKills', 'quadraKills', 'pentaKills', 'taken', 'mitig', 'heal', 'healMates', 'shieldMates', 'cc', 'ccTotal', 'gameTime', 'championId', 'profileIconId']);
+const numRev = (k, v) => (NUMK.has(k) && v != null && typeof v !== 'number') ? (Number(v) || 0) : v;
 function getJson(opts) {
-  if (typeof opts === 'string' && opts.startsWith(FIREBASE_DB + '/')) { const p = urlPath(opts); if (onC(p)) opts = CDB.url + opts.slice(FIREBASE_DB.length); return tokFor(p).then(tok => getJsonRaw(withAuth(opts, tok))).then(x => x && typeof x === 'object' && x.error === 'Permission denied' ? null : x); }   // 🔐 v0.1.243 읽기가 막힌 칸 = 없음으로
+  if (typeof opts === 'string' && opts.startsWith(FIREBASE_DB + '/')) { const p = urlPath(opts); if (pathBad(p)) return Promise.resolve(null); if (onC(p)) opts = CDB.url + opts.slice(FIREBASE_DB.length); return tokFor(p).then(tok => getJsonRaw(withAuth(opts, tok), numRev)).then(x => x && typeof x === 'object' && x.error === 'Permission denied' ? null : x); }   // 🔐 v0.1.243 읽기가 막힌 칸 = 없음으로
   return getJsonRaw(opts);
 }
 const withAuth = (url, tok) => !tok || tok === NOAUTH ? url : `${url}${url.includes('?') ? '&' : '?'}auth=${tok}`;
-function getJsonRaw(opts) {
+function getJsonRaw(opts, rev) {
   return new Promise(resolve => {
     const req = https.get(opts, res => {
       let d = ''; res.setEncoding('utf8'); res.on('data', c => d += c);
-      res.on('end', () => { try { resolve(JSON.parse(d)); } catch (_) { resolve(null); } });
+      res.on('end', () => { try { resolve(JSON.parse(d, rev)); } catch (_) { resolve(null); } });
     });
     req.on('error', () => resolve(null));
     req.on('timeout', () => { req.destroy(); resolve(null); });
@@ -916,7 +941,8 @@ function fbStream(pathStr, onChange, onDown) {   // onChange(ev, {path, data}) �
           const ev = (block.match(/^event: *(.*)$/m) || [])[1];
           if (ev === 'put' || ev === 'patch') {
             retry = 1000; let msg = null;
-            try { msg = JSON.parse((block.match(/^data: *(.*)$/m) || [])[1] || 'null'); } catch (_) {}
+            try { msg = JSON.parse((block.match(/^data: *(.*)$/m) || [])[1] || 'null', numRev);
+              if (msg && typeof msg.path === 'string') msg.data = numRev(msg.path.split('/').pop(), msg.data); } catch (_) {}   // 🛡️ 잎 칸 하나만 바뀐 소식(…/kills)도 숫자로
             if (!closed) try { onChange(ev, msg); } catch (_) {}
           }
           else if (ev === 'cancel' || ev === 'auth_revoked') { req.destroy(); again(); return; }
@@ -1085,6 +1111,7 @@ function mkAuth(o) {
 function fbUid() { try { return _fbTok ? JSON.parse(Buffer.from(_fbTok.split('.')[1], 'base64url').toString()).user_id || null : null; } catch (_) { return null; } }
 // session 등 노드 전체 교체(set) — 홈페이지 set(ref(db,'session'), ...)과 동일 시맨틱
 async function fbSet(pathStr, value) {
+  if (pathBad(pathStr)) return { ok: false, err: '잘못된 경로' };
   const tok = await tokFor(pathStr);
   if (!tok) return { ok: false, err: '인증 실패(네트워크 확인)' };
   const r = await reqJson('PUT', `${baseFor(pathStr)}/${pathStr}.json${authQ(tok)}`, value);
@@ -1093,6 +1120,7 @@ async function fbSet(pathStr, value) {
   return { ok: false, err: `쓰기 실패(HTTP ${r.status})` };
 }
 async function fbDelete(pathStr) {   // 특정 키 삭제 — 홈페이지 remove()와 동일(투표 취소용)
+  if (pathBad(pathStr)) return { ok: false, err: '잘못된 경로' };
   const tok = await tokFor(pathStr);
   if (!tok) return { ok: false };
   const r = await reqJson('DELETE', `${baseFor(pathStr)}/${pathStr}.json${authQ(tok)}`);
@@ -1100,6 +1128,7 @@ async function fbDelete(pathStr) {   // 특정 키 삭제 — 홈페이지 remov
   return { ok: r.status === 200 };
 }
 async function fbUpdate(pathStr, value) {   // 노드 일부 필드만 갱신(PATCH) — 홈페이지 update()와 동일. items_s2만 덮어씀(다른 필드 유실 방지).
+  if (pathBad(pathStr)) return { ok: false, err: '잘못된 경로' };
   const tok = await tokFor(pathStr);
   if (!tok) return { ok: false, err: '인증 실패' };
   const r = await reqJson('PATCH', `${baseFor(pathStr)}/${pathStr}.json${authQ(tok)}`, value);
@@ -1543,7 +1572,7 @@ function roomStreams() {   // 방 바뀜 → 방 스트림 다시(예전 방 데
   if (room) mirClose('roomList');   // 📦 v0.1.110: 방 안에선 방 목록을 실시간으로 안 받음(방 고르는 화면에서만)
   else if (_live && !MIR.roomList) fbMirror('roomList', d => { roomListRaw = d || null; broadcastRooms(); roomRejoin(); });   // 🚪 방 목록
   onHostRec(null);
-  try { bridge.setRoot(room ? `${RP()}/bridge` : `${T}/bridge`); } catch (_) {}   // 🏘️ RP() = 커뮤니티 칸 방
+  try { bridge.setRoot(room ? `${RP()}/bridge` : null)   /* 🛡️ v0.1.293 방 밖 = 서버에 안 씀 */; } catch (_) {}   // 🏘️ RP() = 커뮤니티 칸 방
   broadcast('lobby', lobbyView()); broadcast('session', { session: null, myName: config.myName || '' });
   if (!room || !runSession) return;
   fbMirror('room', d => {
@@ -2500,6 +2529,7 @@ async function lobbyReopen() {   // 👑 지금 판을 접고 대기실로(팀�
 // 🛡️ v0.1.97: 새 경기 기록엔 서버 시각 sv — 규칙이 sv 6시간 안에만 투표·팟지 칸 쓰기 허용(지난 경기 결과 못 바꿈 · PC 시계가 틀려도 정확)
 const withSv = rec => Object.assign({}, rec, { sv: { '.sv': 'timestamp' } });
 async function fbPutIfAbsent(pathStr, value) {
+  if (pathBad(pathStr)) return { ok: false, err: '잘못된 경로' };
   const tok = await tokFor(pathStr);
   if (!tok) return { ok: false, err: '인증 실패(네트워크 확인)' };
   const u = new URL(`${baseFor(pathStr)}/${pathStr}.json${authQ(tok)}`);
@@ -3280,6 +3310,7 @@ async function recordGame(winner, eog) {
     stats: (eog && eog.players) || null, teamsFormedAt: s.teamsFormedAt || null,
     ids: s.ids || null,   // 👤 이름→puuid(프로필이 닉변해도 같은 사람으로 묶음)
     roomName: room ? room.name : null, roomId: room ? room.id : null,   // 🚪 「오늘」 순위 = 방 이름별
+    uid: account ? account.puuid : null,   // 🛡️ v0.1.293 기록한 사람(방장) — 방에서 나간 뒤에도 이 사람은 팟지·투표 칸을 붙일 수 있게(규칙)
   };
   let ser = null;   // 🏆 v0.1.288 시리즈 = 점수 올림 · 경기 기록에 몇 번째 판인지
   if (s.series && !s.series.done) {
@@ -3288,7 +3319,13 @@ async function recordGame(winner, eog) {
     const done = S.need && wins[winner] >= S.need ? winner : null;
     ser = Object.assign({}, S, { wins, n: (S.games || []).includes(gid) ? S.n : (S.n || 0) + 1, games: [...new Set([...(S.games || []), gid])], done });
     rec.series = { id: S.id, bo: S.bo, n: ser.n, names: S.names, wins, done, tid: S.tid || null, mid: S.mid || null };
-    if (S.tid) Object.assign(rec.series, { a: S.ta, b: S.tb, w: winner === 'teamA' ? S.ta : S.tb, tn: S.tn || null, rn: S.rn || null });   // 🏆 대회 경기(규칙이 res 칸을 이 값과 대조)
+    if (S.tid) {   // 🏆 대회 경기(규칙이 res 칸을 이 값과 대조)
+      // 🛡️ v0.1.293 pa·pb = 두 팀에서 지금 이 방에 있는 등록 선수 한 명씩(계정 번호) — 서버 규칙이 「두 팀 등록 선수가 실제로 이 방에 같이 있었던 판」만 대회 결과로 받음(혼자 만든 가짜 기록 차단)
+      const TT = (((_tn.raw || {})[S.tid] || {}).teams) || {}, P = presenceRaw || {};
+      const pick = (team, id) => { const M = (TT[id] && TT[id].mem) || {}, c = (s[team] || []).map(n => (s.ids || {})[fbKeyOf(n)]).filter(p => p && M[p]);
+        return c.find(p => account && p === account.puuid) || c.find(p => P[p]) || c[0] || null; };
+      Object.assign(rec.series, { a: S.ta, b: S.tb, w: winner === 'teamA' ? S.ta : S.tb, tn: S.tn || null, rn: S.rn || null, pa: pick('teamA', S.ta), pb: pick('teamB', S.tb) });
+    }
   }
   const w = await fbPutIfAbsent(`${CT}/days/${day}/matches/${gid}`, withSv(rec));
   _profIdx = null;
@@ -3378,6 +3415,7 @@ const DRAFT_TURN_MS = 30000;
 const SEATS = 10;   // 🪑 v0.1.264 내전 한 판 자리(5:5) · overlay SEATS와 같은 값
 // ETag 조건부 갱신(읽고→바꾸고→그 사이 아무도 안 바꿨을 때만 저장) — 팀장 픽과 방장 자동 픽이 동시에 들어와도 한 번만 반영
 async function fbCas(pathStr, mutate, tries = 5) {
+  if (pathBad(pathStr)) return { ok: false, err: '잘못된 경로' };
   for (let i = 0; i < tries; i++) {
     const tok = await tokFor(pathStr);
     if (!tok) return { ok: false, err: '인증 실패(네트워크 확인)' };
@@ -3385,7 +3423,7 @@ async function fbCas(pathStr, mutate, tries = 5) {
     const cur = await new Promise(resolve => {
       const req = https.get({ hostname: url.hostname, path: url.pathname + url.search, headers: { 'X-Firebase-ETag': 'true' } }, res => {
         let d = ''; res.setEncoding('utf8'); res.on('data', c => d += c);
-        res.on('end', () => { let j = null; try { j = JSON.parse(d); } catch (_) {} resolve({ status: res.statusCode, etag: res.headers.etag, data: j }); });
+        res.on('end', () => { let j = null; try { j = JSON.parse(d, numRev); } catch (_) {} resolve({ status: res.statusCode, etag: res.headers.etag, data: j }); });
       });
       req.on('error', () => resolve({ status: 0 }));
       req.setTimeout(15000, () => { req.destroy(); resolve({ status: 0 }); });
@@ -4331,7 +4369,9 @@ function dcGuildFor(ids) {   // 옮길 서버 = 내가 연결한 서버 → 팀�
 }
 async function dcMove(moves, label, guild) {
   if (!potg || !moves.length) return null;
-  const { status, j } = await potg.pxJson('/discord/move', Object.assign({ moves }, guild ? { guild } : {})).catch(e => ({ status: 0, j: { err: String(e && e.message || e) } }));
+  // 🛡️ v0.1.293 중계가 「부른 사람 = 이 방 방장 · 옮길 사람 = 이 방에 디스코드를 올린 사람」을 확인하게 방 번호(+ 커뮤니티 · 전용 서버면 그 서버 표식)를 같이 보냄
+  const extra = {}; if (community && community.db) { const ct = await tokFor(`${CT}/rooms`).catch(() => null); if (ct && ct !== NOAUTH) extra['x-tn-ctok'] = ct; }
+  const { status, j } = await potg.pxJson('/discord/move', Object.assign({ moves }, guild ? { guild } : {}, room ? { room: room.id } : {}, community ? { c: community.id } : {}), 0, extra).catch(e => ({ status: 0, j: { err: String(e && e.message || e) } }));
   if (status === 501) { if (!_dcNoBot) console.log('🎧 음성 채널 이동: 중계에 디스코드 봇이 아직 없음'); _dcNoBot = true; return null; }
   _dcNoBot = false;
   const M = (j && j.moved) || [], why = {};
@@ -4722,9 +4762,14 @@ else {
   app.on('second-instance', () => showMainPanel());
   app.whenReady().then(() => {
     try { imgcache.install(); } catch (e) { console.log('[img] 설치 실패', e && e.message); }   // 🖼️ 창보다 먼저
-    try { require('electron').session.defaultSession.setDisplayMediaRequestHandler(exportMediaHandler); } catch (_) {}   // 🎞️ v0.1.212 효과 넣어 저장 = 내보내기 창만 자기 화면 녹화 허락
+    try { require('electron').session.defaultSession.setDisplayMediaRequestHandler(exportMediaHandler); } catch (_) {}
+    try {   // 🛡️ v0.1.293 권한(마이크·카메라·위치·알림…) = 기본 거절 · 영상 저장 창의 자기 화면 녹화만 허락
+      const mine = wc => !!(wc && _exportWin && !_exportWin.isDestroyed() && wc === _exportWin.webContents);
+      session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(mine(wc) && (perm === 'media' || perm === 'display-capture')));
+      session.defaultSession.setPermissionCheckHandler((wc, perm) => mine(wc) && (perm === 'media' || perm === 'display-capture'));
+    } catch (_) {}   // 🎞️ v0.1.212 효과 넣어 저장 = 내보내기 창만 자기 화면 녹화 허락
     CONFIG_PATH = path.join(app.getPath('userData'), 'today-naejeon-config.json');
-    config = loadConfig();
+    config = loadConfig(); if (_secPlain && secOk()) saveConfig();   // 🛡️ 예전 파일의 증표를 암호화해 다시 씀
     if (config.commAsked == null) { config.commAsked = !!(config.deviceId || config.tutorialSeen); }   // 🏘️ 이미 쓰던 사람 = 기본 커뮤니티 그대로(묻지 않음) · 새로 설치 = 방 목록에서 한 번 물음
     setCommunity(config.community);
     setTimeout(() => communityRefresh().catch(() => {}), 2500);
@@ -4879,4 +4924,12 @@ app.on('before-quit', (e) => {
   Promise.race([Promise.allSettled(jobs), new Promise(r => setTimeout(r, 3000))]).then(() => app.quit());
 });
 app.on('window-all-closed', () => { /* 트레이 상주 */ });
+// 🛡️ v0.1.293 보안 점검: 우리 창은 처음 띄운 화면 파일에서 다른 주소로 못 감 · 새 창 못 엶 · webview 못 붙임
+//   (화면에 남이 넣은 링크·meta refresh가 끼어도 창이 바깥 사이트로 넘어가 window.api를 쥐는 일이 없게 · 바깥 링크는 메인 프로세스가 정해 둔 주소만 기본 브라우저로)
+app.on('web-contents-created', (_e, wc) => {
+  wc.on('will-navigate', e => e.preventDefault());
+  wc.on('will-redirect', e => e.preventDefault());
+  wc.setWindowOpenHandler(() => ({ action: 'deny' }));
+  wc.on('will-attach-webview', e => e.preventDefault());
+});
 app.on('will-quit', () => { globalShortcut.unregisterAll(); try { cpingHookStop(); } catch (_) {} });

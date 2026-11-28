@@ -10,7 +10,7 @@ function renderAugLab() {
     + `<button class="ui-btn-gold al-go" id="al-open">${r ? '다시 하기' : '시작'}</button></div>`;
   if (r && Array.isArray(r.picks)) {
     h += `<div class="al-done"><span class="sp-en">LAST DRAW</span><b>방금 고른 증강</b>${r.head ? `<p>헤드라이너 ${escH(r.head)}</p>` : ''}`
-      + `<div class="al-list">${r.picks.map(a => `<div class="al-li"><i class="aug ${escH(a.rarity)}"><img src="${escH(a.icon)}" alt="" onerror="this.remove()"></i><b>${escH(a.name)}</b><em class="al-at">${escH(a.bonus ? '전환' : a.at || '')}</em></div>`).join('')}</div></div>`;
+      + `<div class="al-list">${r.picks.map(a => `<div class="al-li"><i class="aug ${escH(a.rarity)}"><img src="${escH(a.icon)}" alt="" data-err="rm"></i><b>${escH(a.name)}</b><em class="al-at">${escH(a.bonus ? '전환' : a.at || '')}</em></div>`).join('')}</div></div>`;
   }
   body.innerHTML = h;
   $('al-open').onclick = () => window.api.auglabOpen();
