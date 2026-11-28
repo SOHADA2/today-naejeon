@@ -13,16 +13,55 @@
   const STEP = { D: 0, C: 1, B: 2, A: 3, 'A+': 4, S: 5, 'S+': 6, SS: 7, SSS: 8 };
   window.tnGrade = tier => GR[String(tier || '').toUpperCase()] || '';
   window.tnGradeColor = tier => GC[String(tier || '').toUpperCase()] || '#8d939c';
-  // 방패 = 위아래 뾰족한 육각형(비스듬히 자른 모서리 = 앱 디자인) · 등급 색 테두리 + 옅은 바탕 · S부터 안쪽 테두리 한 줄 더 · SS부터 위 눈금 · 글자 = Barlow Condensed
+  // 🏅 v0.1.295 등급 문장 = 「인장」 메달(사장님: 예전 방패가 밋밋 → 시안 A·B·C 중 C 인장 → 발전형 C1 왕관)
+  //   금속 베젤(새김 눈금·빛 반사) · 바깥 9칸 = 등급만큼 채워짐(지금 등급 칸이 가장 밝음) · 어두운 안판(빛살 새김) · 금속 글자
+  //   장식 = A부터 베젤 징 4개 → S 톱니+위 보석 → S+ 톱니 촘촘 → SS 옆 칼날 → SSS 무지갯빛 베젤+보석 왕관+반짝임 · 전부 멈춘 그림(애니메이션 없음)
+  //   viewBox 0 0 100 112(가로:세로 = 예전 방패 자리와 같은 비율) · 그라데이션 id는 그릴 때마다 새로(한 화면에 여러 개)
+  const MT = {   // [밝음, 가운데, 어두움, 빛]
+    D: ['#d2b39a', '#8c6a52', '#3b2a1f', '#b8937a'], C: ['#f4f8fc', '#b3c1cf', '#4e5a66', '#dfe8f1'],
+    B: ['#cdeeff', '#5fb0e8', '#174872', '#8fd0ff'], A: ['#c9fff5', '#3fc8b4', '#0d5249', '#7ef0dd'],
+    'A+': ['#d6ffe0', '#5bd67e', '#135a2b', '#93f0ae'], S: ['#fff3cc', '#e6bf62', '#6f4c12', '#ffe08a'],
+    'S+': ['#ffe6c9', '#f1974a', '#74340b', '#ffbf80'], SS: ['#ffdada', '#ff6464', '#6e141c', '#ff9a9a'],
+    SSS: ['#fbe8ff', '#c79bff', '#3a2078', '#e5ccff'] };
+  let EID = 0;
+  const CX = 50, CY = 60, f2 = v => (+v).toFixed(2);
+  const lg = (id, stops, x1 = 0, y1 = 0, x2 = 0, y2 = 1) => `<linearGradient id="${id}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">${stops.map(([o, c]) => `<stop offset="${o}" stop-color="${c}"/>`).join('')}</linearGradient>`;
+  const PT = (r, deg) => [CX + r * Math.cos(deg * Math.PI / 180), CY + r * Math.sin(deg * Math.PI / 180)];
+  const pts = a => a.map(p => p.map(f2).join(',')).join(' ');
+  const arc = (r0, r1, a0, a1) => { const [x0, y0] = PT(r1, a0), [x1, y1] = PT(r1, a1), [x2, y2] = PT(r0, a1), [x3, y3] = PT(r0, a0); return `M${f2(x0)} ${f2(y0)}A${r1} ${r1} 0 0 1 ${f2(x1)} ${f2(y1)}L${f2(x2)} ${f2(y2)}A${r0} ${r0} 0 0 0 ${f2(x3)} ${f2(y3)}Z`; };
+  const gem = (x, y, s, id, c) => `<polygon points="${pts([[x, y - s], [x + s * 0.72, y], [x, y + s * 1.05], [x - s * 0.72, y]])}" fill="url(#${id}g)" stroke="${c[2]}" stroke-width="0.8"/><polygon points="${pts([[x, y - s], [x + s * 0.72, y], [x, y - s * 0.1], [x - s * 0.72, y]])}" fill="#fff" fill-opacity="0.35"/>`;
+  const spark = (x, y, r, col) => `<path d="M${x} ${y - r}L${f2(x + r * 0.22)} ${f2(y - r * 0.22)}L${x + r} ${y}L${f2(x + r * 0.22)} ${f2(y + r * 0.22)}L${x} ${y + r}L${f2(x - r * 0.22)} ${f2(y + r * 0.22)}L${x - r} ${y}L${f2(x - r * 0.22)} ${f2(y - r * 0.22)}Z" fill="${col}"/>`;
   window.tnEmblem = (tier, W, H) => {
     const T = String(tier || '').toUpperCase(), g = GR[T]; if (!g) return '';
-    const c = GC[T], st = STEP[g] || 0, sz = Math.max(16, Math.min(W / 100, H / 112) * 100);
-    const fs = g.length >= 3 ? 34 : g.length === 2 ? 42 : 54;
-    const inner = st >= 5 ? `<polygon points="50,13 84,29 84,70 50,97 16,70 16,29" fill="none" stroke="${c}" stroke-opacity="0.55" stroke-width="1.6"/>` : '';
-    const ticks = st >= 7 ? Array.from({ length: st - 6 }, (_, i) => `<rect x="${44 - (st - 7) * 7 + i * 14}" y="0" width="12" height="4" fill="${c}"/>`).join('') : '';
-    return `<svg class="tn-emb tn-grade" viewBox="0 -4 100 116" width="${sz.toFixed(1)}" height="${(sz * 1.16).toFixed(1)}" aria-label="등급 ${g}">`
-      + `<polygon points="50,4 93,23 93,76 50,108 7,76 7,23" fill="${c}" fill-opacity="0.13" stroke="${c}" stroke-width="3.2"/>${inner}${ticks}`
-      + `<text x="50" y="${g.length >= 3 ? 68 : g.length === 2 ? 71 : 75}" text-anchor="middle" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-style="italic" font-size="${fs}" fill="${c}" letter-spacing="${g.length >= 3 ? -1 : 0}">${g}</text></svg>`;
+    const s = STEP[g] || 0, c = MT[g], id = 'tne' + (++EID), metal = s >= 8 ? id + 'p' : id + 'f';
+    const sz = Math.max(16, Math.min(W / 100, H / 112) * 100);
+    const defs = `<defs>${lg(id + 'f', [[0, c[0]], [0.42, c[1]], [1, c[2]]], 0.1, 0, 0.75, 1)}${lg(id + 'p', [[0, '#ffc6ef'], [0.25, '#c79bff'], [0.5, '#8fcbff'], [0.75, '#9dffd6'], [1, '#ffe39a']], 0, 0, 1, 1)}`
+      + `${lg(id + 'g', [[0, '#ffffff'], [0.45, c[3]], [1, c[1]]])}<radialGradient id="${id}d" cx="0.5" cy="0.35" r="0.75"><stop offset="0" stop-color="#25313d"/><stop offset="0.65" stop-color="#0b1117"/><stop offset="1" stop-color="#05080c"/></radialGradient>`
+      + `${lg(id + 't', [[0, '#ffffff'], [0.5, c[0]], [1, c[1]]])}</defs>`;
+    let back = '', front = '';
+    if (s >= 5) { const n = s >= 6 ? 16 : 12, len = s >= 6 ? 5.5 : 4.5; for (let k = 0; k < n; k++) { const a = k * 360 / n - 90 + 180 / n, w = 180 / n * 0.42; back += `<polygon points="${pts([PT(42.6, a - w), PT(43.4 + len, a), PT(42.6, a + w)])}" fill="url(#${id}f)" stroke="#000" stroke-opacity="0.25" stroke-width="0.4"/>`; } }   // S~ 톱니
+    if (s >= 7) for (const d of [-1, 1]) back += `<polygon points="${pts([[CX + d * 30, CY - 10], [CX + d * 50, CY - 22], [CX + d * 44, CY + 2], [CX + d * 50, CY + 18], [CX + d * 30, CY + 10]])}" fill="url(#${metal})" stroke="${c[2]}" stroke-width="0.8"/>`;   // SS~ 옆 칼날
+    let ticks = '';
+    for (let k = 0; k < 36; k++) { const [x0, y0] = PT(39.2, k * 10), [x1, y1] = PT(41.6, k * 10); ticks += `<line x1="${f2(x0)}" y1="${f2(y0)}" x2="${f2(x1)}" y2="${f2(y1)}" stroke="${c[2]}" stroke-opacity="0.75" stroke-width="0.7"/>`; }
+    let ring = '';
+    for (let k = 0; k < 9; k++) {   // 9칸 = D C B A A+ S S+ SS SSS · 지금 등급까지 채움
+      const a0 = -90 + k * 40 + 2.2, a1 = -90 + (k + 1) * 40 - 2.2, on = k <= s;
+      ring += `<path d="${arc(30.6, 37.2, a0, a1)}" fill="${on ? `url(#${metal})` : '#0f161d'}" stroke="${on ? c[2] : '#222b34'}" stroke-width="0.6"/>`;
+      if (on) ring += `<path d="${arc(35.4, 37.2, a0 + 1, a1 - 1)}" fill="#fff" fill-opacity="${k === s ? 0.55 : 0.22}"/>`;
+    }
+    const [g0x, g0y] = PT(42.6, 200), [g1x, g1y] = PT(42.6, 262);
+    let eng = ''; for (let k = 0; k < 12; k++) { const [x0, y0] = PT(10, k * 30), [x1, y1] = PT(27.5, k * 30); eng += `<line x1="${f2(x0)}" y1="${f2(y0)}" x2="${f2(x1)}" y2="${f2(y1)}" stroke="${c[1]}" stroke-opacity="${s >= 5 ? 0.16 : 0.08}" stroke-width="0.8"/>`; }
+    const studs = s >= 3 ? [0, 90, 180, 270].map(a => { const [x, y] = PT(40.3, a - 90); return `<circle cx="${f2(x)}" cy="${f2(y)}" r="2.1" fill="url(#${id}g)" stroke="${c[2]}" stroke-width="0.6"/>`; }).join('') : '';
+    const fs = g.length >= 3 ? 27 : g.length === 2 ? 33 : 40, txt = g.replace('+', '<tspan dy="-0.34em" font-size="0.6em">+</tspan>');
+    const tb = `x="${CX}" y="${CY + 1}" text-anchor="middle" dominant-baseline="central" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-style="italic" font-size="${fs}" letter-spacing="${g.length >= 3 ? -1.6 : g.length === 2 ? -0.6 : 0}"`;
+    if (s >= 5) front += gem(CX, 13, s >= 8 ? 8 : 7, id, c);   // S~ 위 보석
+    if (s >= 8) front += gem(CX - 15, 19, 5, id, c) + gem(CX + 15, 19, 5, id, c) + spark(10, 14, 4.5, '#fff') + spark(91, 24, 3.5, c[0]) + spark(88, 100, 3, '#fff');   // SSS 왕관
+    return `<svg class="tn-emb tn-grade" viewBox="0 0 100 112" width="${f2(sz)}" height="${f2(sz * 1.12)}" aria-label="등급 ${g}">${defs}${back}`
+      + `<circle cx="${CX}" cy="${CY}" r="43.4" fill="url(#${metal})"/><circle cx="${CX}" cy="${CY}" r="43.4" fill="none" stroke="${c[2]}" stroke-width="1.2"/>${ticks}`
+      + `<path d="M${f2(g0x)} ${f2(g0y)}A42.6 42.6 0 0 1 ${f2(g1x)} ${f2(g1y)}" fill="none" stroke="#fff" stroke-opacity="0.5" stroke-width="1.3" stroke-linecap="round"/>`
+      + `<circle cx="${CX}" cy="${CY}" r="38.4" fill="#05080c"/>${ring}<circle cx="${CX}" cy="${CY}" r="29.6" fill="url(#${id}d)" stroke="${c[1]}" stroke-opacity="0.7" stroke-width="0.9"/>${eng}`
+      + `<circle cx="${CX}" cy="${CY}" r="24.6" fill="none" stroke="${c[1]}" stroke-opacity="0.18" stroke-width="0.7"/>${studs}`
+      + `<text ${tb} fill="#000" fill-opacity="0.55" transform="translate(0 1.6)">${txt}</text><text ${tb} fill="url(#${id}t)" stroke="#06090d" stroke-width="${f2(fs * 0.06)}" paint-order="stroke" stroke-linejoin="round">${txt}</text>${front}</svg>`;
   };
   let box = null, timer = null, open = false;
   const queue = [];
@@ -46,7 +85,7 @@
     box.innerHTML = `<div class="trv-card">
       <button class="trv-q" title="근거">?</button>
       <span class="trv-en lb-sec-en">${head}</span>
-      <div class="trv-emb rk">${window.tnEmblem(d.tier, 92, 104)}<i></i></div>
+      <div class="trv-emb rk">${window.tnEmblem(d.tier, 104, 116)}<span class="trv-shine"><i></i></span></div>
       <b class="trv-name">${name}</b>
       <span class="trv-sub">${sub}</span>
       <span class="trv-stat num">${d.s}점 · ${d.n}판 ${d.w}승 · 승률 ${Math.round((d.wr || 0) * 100)}%</span>

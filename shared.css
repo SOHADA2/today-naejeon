@@ -209,7 +209,9 @@ body.can-fold #ov-min, body.can-fold #close, body.can-fold #s-min, body.can-fold
 .trv-emb i { position:absolute; top:0; bottom:0; left:0; width:40%; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.75), transparent); opacity:0; }
 .trv-emb b { position:relative; font-size:34px; font-weight:700; color:rgba(8,12,20,0.82); }
 /* 🔤 v0.1.255 등급 공개 = 직접 그린 등급 방패(tnEmblem SVG)가 떨어져 박힘 · 빛줄기는 방패 모양 안에서만(롤 승급 영상·문장 그림 안 씀) */
-.trv-emb.rk { width:92px; height:107px; background:none; clip-path:polygon(50% 0, 100% 19%, 100% 70%, 50% 100%, 0 70%, 0 19%); overflow:hidden; } .trv-emb.rk::before { display:none; }
+.trv-emb.rk { width:104px; height:117px; background:none; clip-path:none; overflow:visible; } .trv-emb.rk::before { display:none; }
+/* 🏅 v0.1.295 메달 = 빛줄기는 메달 원 안에서만(장식·왕관은 안 잘림) · 메달 중심 = viewBox (50, 60)/(100, 112) */
+.trv-emb.rk .trv-shine { position:absolute; inset:0; overflow:hidden; clip-path:circle(39% at 50% 53.6%); pointer-events:none; }
 .trv-name { font-size:26px; font-weight:800; color:var(--tc); line-height:1.2; }
 .trv-name .num { font-size:28px; }
 .trv-sub { font-size:12.5px; color:var(--ink-soft); }
